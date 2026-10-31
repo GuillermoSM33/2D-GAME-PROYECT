@@ -108,6 +108,14 @@ y reabre el juego con el cambio. Si algo falla, muestra el error y deja abierta 
 versión anterior. `Ctrl+C` lo detiene y cierra el juego. No toca `dist/`: cuando
 quieras publicar, usa `./build.sh`.
 
+### Windows (VS Code)
+
+1. Editas código en `src/`.
+2. `Ctrl+Shift+B` (**Compilar**) para comprobar que compila.
+3. **Jugar** o `F5` para probarlo.
+4. Cuando quieras generar la versión final en `dist/`, corres la tarea
+   **Build completo (build.sh)**, que es el equivalente a `./build.sh` de Linux.
+
 ## Estructura
 
 ```text
