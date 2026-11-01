@@ -12,6 +12,10 @@ typedef enum {
     ACTION_SHOOT,
     ACTION_RESET,
     ACTION_QUIT,
+    ACTION_UP,      /* Menus */
+    ACTION_DOWN,
+    ACTION_CONFIRM,
+    ACTION_SWAP,    /* Switch guns (the SWAT) */
     ACTION_COUNT
 } Action;
 

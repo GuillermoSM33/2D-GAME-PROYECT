@@ -3,8 +3,9 @@
 #include <string.h>
 
 #include "config.h"
+#include "game/damage.h"
 
-#define BULLET_SHEET "sprites/player/bullet"
+#define BULLET_SHEET "sprites/weapons/bullet"
 
 /* The ball spans x 1..6 and every row, so its center is (4, 3). For bullets
  * ground_y is just the vertical pivot row. */
@@ -14,7 +15,7 @@ static const AnimationDef ANIM_BULLET = {
     .anchor_x = 4.0f, .ground_y = 3,
 };
 
-/* Fully off-screen once the whole frame is past the edge. */
+/* Fully out of view once the whole frame is past the edge. */
 #define OFFSCREEN_MARGIN (BULLET_FRAME_W * SPRITE_SCALE)
 
 void bullets_clear(Bullets *bullets)
@@ -22,7 +23,7 @@ void bullets_clear(Bullets *bullets)
     memset(bullets, 0, sizeof(*bullets));
 }
 
-bool bullets_spawn(Bullets *bullets, float from_x, float x, float y, int dir)
+bool bullets_fire(Bullets *bullets, float from_x, float x, float y, int dir, const BulletSpec *spec)
 {
     for (int i = 0; i < BULLET_MAX; i++) {
         Bullet *b = &bullets->items[i];
@@ -34,22 +35,32 @@ bool bullets_spawn(Bullets *bullets, float from_x, float x, float y, int dir)
         b->prev_x = from_x;
         b->y = y;
         b->dir = dir < 0 ? -1 : 1;
+        b->spec = *spec;
         animation_play(&b->anim, &ANIM_BULLET);
         return true;
     }
     return false;
 }
 
-void bullets_update(Bullets *bullets, float dt)
+bool bullets_spawn(Bullets *bullets, float from_x, float x, float y, int dir)
+{
+    const BulletSpec plain = {weapon_damage(1), BULLET_SPEED, 0.0f, 1.0f, 0xffffff};
+    return bullets_fire(bullets, from_x, x, y, dir, &plain);
+}
+
+void bullets_update(Bullets *bullets, float dt, float view_left)
 {
     for (int i = 0; i < BULLET_MAX; i++) {
         Bullet *b = &bullets->items[i];
         if (!b->active)
             continue;
         b->prev_x = b->x;
-        b->x += (float)b->dir * BULLET_SPEED * dt;
+        b->x += (float)b->dir * b->spec.speed * dt;
+        b->flown += b->spec.speed * dt;
         animation_update(&b->anim, dt);
-        if (b->x < -OFFSCREEN_MARGIN || b->x > WINDOW_WIDTH + OFFSCREEN_MARGIN)
+        if (b->x < view_left - OFFSCREEN_MARGIN ||
+            b->x > view_left + WINDOW_WIDTH + OFFSCREEN_MARGIN ||
+            (b->spec.range > 0.0f && b->flown >= b->spec.range))
             b->active = false;
     }
 }

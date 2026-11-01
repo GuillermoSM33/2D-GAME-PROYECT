@@ -13,9 +13,19 @@ step "Comprobando herramientas"
 for tool in cc make pkg-config python3; do
     command -v "$tool" >/dev/null || fail "falta '$tool'. Instala: sudo apt install build-essential pkg-config python3"
 done
-pkg-config --exists sdl2 SDL2_ttf \
-    || fail "faltan SDL2/SDL2_ttf. Instala: sudo apt install libsdl2-dev libsdl2-ttf-dev"
-echo "SDL2 $(pkg-config --modversion sdl2), SDL2_ttf $(pkg-config --modversion SDL2_ttf)"
+case "$(uname -s)" in
+    MINGW*|MSYS*) WINDOWS=1 ;;
+    *)            WINDOWS=0 ;;
+esac
+for lib in sdl2 SDL2_ttf SDL2_mixer; do
+    pkg-config --exists "$lib" && continue
+    if [[ $WINDOWS == 1 ]]; then
+        fail "falta $lib. Instala (MSYS2 UCRT64): pacman -S mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-SDL2_ttf mingw-w64-ucrt-x86_64-SDL2_mixer"
+    fi
+    fail "falta $lib. Instala: sudo apt install libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev"
+done
+echo "SDL2 $(pkg-config --modversion sdl2), SDL2_ttf $(pkg-config --modversion SDL2_ttf)," \
+     "SDL2_mixer $(pkg-config --modversion SDL2_mixer)"
 
 if [[ "${1:-}" == "--clean" ]]; then
     step "Limpiando build/"
@@ -34,13 +44,18 @@ step "Verificando recursos incrustados"
 ./build/bin/Vaquera2D --verify
 
 step "Prueba de humo (sin ventana)"
-SDL_VIDEODRIVER=dummy ./build/bin/Vaquera2D --smoke-test
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/bin/Vaquera2D --smoke-test
 
 step "Publicando en dist/"
 mkdir -p dist
 cp build/bin/Vaquera2D dist/Vaquera2D.tmp
 mv dist/Vaquera2D.tmp dist/Vaquera2D
 chmod +x dist/Vaquera2D
+if [[ $WINDOWS == 1 ]]; then
+    # So the .exe runs on double-click: copy the MSYS2 DLLs it needs next to it.
+    ldd build/bin/Vaquera2D | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u | xargs -r cp -u -t dist/
+    echo "$(ls dist/*.dll | wc -l) DLL(s) junto al ejecutable"
+fi
 ls -lh dist/Vaquera2D
 
 printf '\nListo. Ejecuta: ./dist/Vaquera2D\n'

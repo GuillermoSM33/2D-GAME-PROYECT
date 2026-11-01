@@ -3,3 +3,4 @@ dist/
 legacy/
 __pycache__/
 *.pyc
+recordings/

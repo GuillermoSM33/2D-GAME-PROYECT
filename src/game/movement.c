@@ -9,7 +9,7 @@ float movement_min_x(void)
 
 float movement_max_x(void)
 {
-    return WINDOW_WIDTH - PLAYER_HALF_WIDTH;
+    return WORLD_WIDTH - PLAYER_HALF_WIDTH;
 }
 
 float movement_step(float x, int dir, bool run, float dt)

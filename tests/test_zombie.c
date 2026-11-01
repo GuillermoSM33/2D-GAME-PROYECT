@@ -58,8 +58,8 @@ static void test_bullet_stops_on_hit(void)
     bullets_spawn(&bullets, 300.0f, 300.0f, MUZZLE_Y, 1);
     int hits = 0;
     for (int i = 0; i < 60; i++) {
-        bullets_update(&bullets, FIXED_DT);
-        hits += combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects);
+        bullets_update(&bullets, FIXED_DT, 0.0f);
+        hits += combat_bullets_vs_zombie(&bullets, &zombie, &effects);
     }
     CHECK(hits == 1);
     CHECK(bullets_active_count(&bullets) == 0);
@@ -77,15 +77,16 @@ static void test_bullet_misses_above(void)
     bullets_clear(&bullets);
     bullets_spawn(&bullets, 300.0f, 300.0f, BASELINE - ZOMBIE_HEIGHT * SPRITE_SCALE - 10.0f, 1);
     for (int i = 0; i < 60; i++) {
-        bullets_update(&bullets, FIXED_DT);
-        CHECK(combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects) == 0);
+        bullets_update(&bullets, FIXED_DT, 0.0f);
+        CHECK(combat_bullets_vs_zombie(&bullets, &zombie, &effects) == 0);
     }
 }
 
-static void test_dead_fades_and_respawns_far(void)
+static void test_dead_fades_and_is_gone(void)
 {
     Zombie zombie;
     zombie_spawn(&zombie, &ZOMBIE_RIOT, 700.0f);
+    zombie.just_spawned = false;
     CHECK(zombie_hit(&zombie, 1000.0f) == HIT_KILL);
     CHECK(!zombie_alive(&zombie));
     float fall = (ZOMBIE_DEATH_FRAMES - 1) / ZOMBIE_DEATH_FPS;
@@ -93,10 +94,24 @@ static void test_dead_fades_and_respawns_far(void)
     CHECK_NEAR(zombie_opacity(&zombie), 1.0f, 1e-6f); /* Lies there first */
     zombie_update(&zombie, 200.0f, false, ZOMBIE_FADE_TIME / 2.0f);
     CHECK_NEAR(zombie_opacity(&zombie), 0.5f, 0.01f);
-    zombie_update(&zombie, 200.0f, false, ZOMBIE_FADE_TIME / 2.0f + ZOMBIE_RESPAWN_DELAY);
-    CHECK(zombie_alive(&zombie));
-    CHECK(zombie.health == ZOMBIE_RIOT.health);
-    CHECK_NEAR(zombie.x, WINDOW_WIDTH - ZOMBIE_SPAWN_MARGIN, 0.01f);
+    CHECK(!zombie_gone(&zombie));
+    zombie_update(&zombie, 200.0f, false, ZOMBIE_FADE_TIME / 2.0f + 0.001f);
+    CHECK(zombie_gone(&zombie)); /* The stage decides what comes next */
+    CHECK(!zombie_alive(&zombie));
+    /* With her near the left of the view, the next one enters on the right. */
+    CHECK_NEAR(zombie_spawn_x(200.0f), WINDOW_WIDTH - ZOMBIE_SPAWN_MARGIN, 0.01f);
+}
+
+static void test_level_scales_like_the_player(void)
+{
+    Zombie zombie;
+    zombie_spawn(&zombie, &ZOMBIE_RIOT, 600.0f);
+    CHECK(zombie.level == 1 && zombie.max_health == ZOMBIE_RIOT.health);
+    CHECK_NEAR(zombie.armor, ZOMBIE_RIOT.armor, 1e-4f);
+    zombie_set_level(&zombie, 3);
+    CHECK(zombie.health == zombie.max_health && zombie.max_health == 220);
+    CHECK_NEAR(zombie.armor, ZOMBIE_RIOT.armor + 2.0f * ZOMBIE_ARMOR_PER_LEVEL, 1e-4f);
+    CHECK_NEAR(zombie_attack_damage(&zombie), damage_at_level(ZOMBIE_ATTACK_BASE, 3), 1e-4f);
 }
 
 static void test_dead_zombie_lets_bullets_pass(void)
@@ -109,7 +124,7 @@ static void test_dead_zombie_lets_bullets_pass(void)
     zombie_hit(&zombie, 1000.0f);
     bullets_clear(&bullets);
     bullets_spawn(&bullets, 600.0f, 600.0f, MUZZLE_Y, 1);
-    CHECK(combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects) == 0);
+    CHECK(combat_bullets_vs_zombie(&bullets, &zombie, &effects) == 0);
     CHECK(bullets_active_count(&bullets) == 1);
 }
 
@@ -161,13 +176,13 @@ static void test_every_bullet_sparks(void)
     bullets_clear(&bullets);
     /* First hit recoils: its sheet already has sparks, so no extra effect. */
     bullets_spawn(&bullets, 560.0f, 560.0f, MUZZLE_Y, 1);
-    combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects);
+    combat_bullets_vs_zombie(&bullets, &zombie, &effects);
     CHECK(zombie.state == ZOMBIE_HURT);
     CHECK(effects_active_count(&effects) == 0);
     /* The next ones only hit the armor, and each sparks. */
     for (int shot = 0; shot < 3; shot++) {
         bullets_spawn(&bullets, 560.0f, 560.0f, MUZZLE_Y, 1);
-        combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects);
+        combat_bullets_vs_zombie(&bullets, &zombie, &effects);
     }
     CHECK(effects_active_count(&effects) == 3);
     const Effect *e = &effects.items[0];
@@ -200,7 +215,7 @@ static void test_point_blank_shot_hits(void)
     zombie_spawn(&zombie, &ZOMBIE_RIOT, 600.0f);
     bullets_clear(&bullets);
     bullets_spawn(&bullets, 560.0f, 560.0f + 35.5f * SPRITE_SCALE, MUZZLE_Y, 1);
-    CHECK(combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects) == 1);
+    CHECK(combat_bullets_vs_zombie(&bullets, &zombie, &effects) == 1);
 }
 
 static void test_fast_bullet_does_not_skip_through(void)
@@ -212,8 +227,8 @@ static void test_fast_bullet_does_not_skip_through(void)
     zombie_spawn(&zombie, &ZOMBIE_RIOT, 600.0f);
     bullets_clear(&bullets);
     bullets_spawn(&bullets, 300.0f, 300.0f, MUZZLE_Y, 1);
-    bullets_update(&bullets, 0.5f); /* One huge step from 300 to 750 */
-    CHECK(combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects) == 1);
+    bullets_update(&bullets, 0.5f, 0.0f); /* One huge step from 300 to 750 */
+    CHECK(combat_bullets_vs_zombie(&bullets, &zombie, &effects) == 1);
 }
 
 static void test_lethal_hit_skips_hurt(void)
@@ -250,7 +265,7 @@ static void test_killing_shot_adds_no_extra_sparks(void)
     zombie.health = 1;
     bullets_clear(&bullets);
     bullets_spawn(&bullets, 560.0f, 560.0f, MUZZLE_Y, 1);
-    combat_bullets_vs_zombie(&bullets, &zombie, weapon_damage(1), &effects);
+    combat_bullets_vs_zombie(&bullets, &zombie, &effects);
     CHECK(zombie.state == ZOMBIE_DEAD);
     CHECK(effects_active_count(&effects) == 0);
 }
@@ -358,6 +373,38 @@ static void test_shot_interrupts_swipe(void)
     }
 }
 
+static void test_growls_every_interval_while_alive(void)
+{
+    Zombie zombie;
+    zombie_spawn(&zombie, &ZOMBIE_RIOT, 800.0f);
+    CHECK(zombie.just_spawned);
+    int growls = 0;
+    for (float t = 0.0f; t < 3.0f * ZOMBIE_GROWL_INTERVAL - FIXED_DT / 2.0f; t += FIXED_DT) {
+        zombie_update(&zombie, 200.0f, false, FIXED_DT);
+        growls += zombie.growl_due;
+        zombie.growl_due = false;
+    }
+    CHECK(growls == 3); /* At 6, 12 and 18 s; the spawn growl covers 0 */
+}
+
+static void test_death_groans_and_stops_growling(void)
+{
+    Zombie zombie;
+    zombie_spawn(&zombie, &ZOMBIE_RIOT, 800.0f);
+    zombie.just_spawned = false;
+    CHECK(zombie_hit(&zombie, 1000.0f) == HIT_KILL);
+    CHECK(zombie.just_died);
+    zombie.just_died = false;
+    CHECK(zombie_hit(&zombie, 1000.0f) == HIT_NONE && !zombie.just_died); /* Dies only once */
+    /* Silent while it lies there and fades. */
+    int growls = 0;
+    while (!zombie_gone(&zombie)) {
+        zombie_update(&zombie, 200.0f, false, FIXED_DT);
+        growls += zombie.growl_due;
+    }
+    CHECK(growls == 0);
+}
+
 int main(void)
 {
     printf("test_zombie\n");
@@ -365,7 +412,8 @@ int main(void)
     RUN(test_walks_to_player_and_waits);
     RUN(test_bullet_stops_on_hit);
     RUN(test_bullet_misses_above);
-    RUN(test_dead_fades_and_respawns_far);
+    RUN(test_dead_fades_and_is_gone);
+    RUN(test_level_scales_like_the_player);
     RUN(test_dead_zombie_lets_bullets_pass);
     RUN(test_hurt_recoils_then_walks_on);
     RUN(test_bullet_stream_cannot_pin_it);
@@ -382,5 +430,7 @@ int main(void)
     RUN(test_nine_claws_kill_her);
     RUN(test_stepping_back_dodges);
     RUN(test_shot_interrupts_swipe);
+    RUN(test_growls_every_interval_while_alive);
+    RUN(test_death_groans_and_stops_growling);
     return TEST_EXIT();
 }

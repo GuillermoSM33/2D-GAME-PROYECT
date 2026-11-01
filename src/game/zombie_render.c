@@ -10,15 +10,15 @@
 #define BAR_H 6
 #define BAR_GAP 14 /* Window px between the helmet and the bar */
 
-static void draw_health_bar(SDL_Renderer *renderer, const Zombie *zombie)
+static void draw_health_bar(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
 {
-    int x = (int)lroundf(zombie->x) - BAR_W / 2;
+    int x = (int)lroundf(zombie->x - camera_x) - BAR_W / 2;
     int y = BASELINE - (int)(ZOMBIE_HEIGHT * SPRITE_SCALE) - BAR_GAP;
-    health_bar_draw(renderer, x, y, BAR_W, BAR_H, zombie->health, zombie->stats->health,
-                    zombie->stats->armor > 0.0f);
+    health_bar_draw(renderer, x, y, BAR_W, BAR_H, zombie->health, zombie->max_health,
+                    zombie->armor > 0.0f);
 }
 
-void zombie_render(SDL_Renderer *renderer, const Zombie *zombie)
+void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
 {
     const AnimationDef *def = zombie->anim.def;
     SDL_Texture *sheet = def ? assets_texture(def->sheet) : NULL;
@@ -30,7 +30,7 @@ void zombie_render(SDL_Renderer *renderer, const Zombie *zombie)
     float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;
     SDL_Rect src = {zombie->anim.frame * def->frame_w, 0, def->frame_w, def->frame_h};
     SDL_Rect dst = {
-        (int)lroundf(zombie->x - anchor_x * SPRITE_SCALE),
+        (int)lroundf(zombie->x - camera_x - anchor_x * SPRITE_SCALE),
         BASELINE - def->ground_y * SPRITE_SCALE,
         def->frame_w * SPRITE_SCALE,
         def->frame_h * SPRITE_SCALE,
@@ -40,6 +40,6 @@ void zombie_render(SDL_Renderer *renderer, const Zombie *zombie)
     SDL_RenderCopyEx(renderer, sheet, &src, &dst, 0.0, NULL, flip);
     SDL_SetTextureAlphaMod(sheet, 255);
 
-    if (zombie_alive(zombie) && zombie->health < zombie->stats->health)
-        draw_health_bar(renderer, zombie);
+    if (zombie_alive(zombie) && zombie->health < zombie->max_health)
+        draw_health_bar(renderer, zombie, camera_x);
 }

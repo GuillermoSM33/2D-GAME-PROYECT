@@ -4,7 +4,7 @@
 
 #include "config.h"
 
-#define SPARKS_SHEET "sprites/effects/sparks"
+#define SPARKS_SHEET "sprites/effects/armor_sparks"
 
 /* Cut from hurt.png (x 21..40, y 27..38 of its frames 0 and 1). The pivot is
  * the zombie's body center at the height the burst is drawn there, so sparks

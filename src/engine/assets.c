@@ -95,3 +95,37 @@ SDL_Surface *assets_surface_region(const char *name, int x, int y, int w, int h)
     SDL_FreeSurface(source);
     return region;
 }
+
+SDL_Texture *assets_texture_recolored(SDL_Renderer *renderer, const char *name,
+                                      const unsigned (*pairs)[2], int count)
+{
+    const EmbeddedImage *image = assets_find_image(name);
+    if (image == NULL)
+        return NULL;
+    size_t size = (size_t)image->width * (size_t)image->height * 4;
+    unsigned char *rgba = SDL_malloc(size);
+    if (rgba == NULL)
+        return NULL;
+    memcpy(rgba, image->rgba, size);
+    for (size_t i = 0; i < size; i += 4) {
+        unsigned rgb = ((unsigned)rgba[i] << 16) | ((unsigned)rgba[i + 1] << 8) | rgba[i + 2];
+        for (int k = 0; k < count; k++) {
+            if (pairs[k][0] == rgb) {
+                rgba[i] = (pairs[k][1] >> 16) & 0xFF;
+                rgba[i + 1] = (pairs[k][1] >> 8) & 0xFF;
+                rgba[i + 2] = pairs[k][1] & 0xFF;
+                break;
+            }
+        }
+    }
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(rgba, image->width, image->height, 32,
+                                                              image->width * 4, SDL_PIXELFORMAT_RGBA32);
+    SDL_Texture *texture = surface ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
+    SDL_FreeSurface(surface);
+    SDL_free(rgba);
+    if (texture) {
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
+    }
+    return texture;
+}

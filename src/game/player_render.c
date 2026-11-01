@@ -5,10 +5,11 @@
 #include "config.h"
 #include "engine/assets.h"
 
-void player_render(SDL_Renderer *renderer, const Player *player)
+void player_render(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
+                   float camera_x)
 {
     const AnimationDef *def = player->anim.def;
-    SDL_Texture *sheet = def ? assets_texture(def->sheet) : NULL;
+    SDL_Texture *sheet = def ? skin_sheet(skin, def->sheet) : NULL;
     if (sheet == NULL)
         return;
 
@@ -17,7 +18,7 @@ void player_render(SDL_Renderer *renderer, const Player *player)
     float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;
     SDL_Rect src = {player->anim.frame * def->frame_w, 0, def->frame_w, def->frame_h};
     SDL_Rect dst = {
-        (int)lroundf(player->x - anchor_x * SPRITE_SCALE),
+        (int)lroundf(player->x - camera_x - anchor_x * SPRITE_SCALE),
         BASELINE - def->ground_y * SPRITE_SCALE - (int)lroundf(player->jump.height),
         def->frame_w * SPRITE_SCALE,
         def->frame_h * SPRITE_SCALE,

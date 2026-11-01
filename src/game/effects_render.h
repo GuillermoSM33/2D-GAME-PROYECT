@@ -5,6 +5,6 @@
 
 #include "game/effects.h"
 
-void effects_render(SDL_Renderer *renderer, const Effects *effects);
+void effects_render(SDL_Renderer *renderer, const Effects *effects, float camera_x);
 
 #endif

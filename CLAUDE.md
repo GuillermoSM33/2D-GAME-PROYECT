@@ -2,7 +2,8 @@
 
 Juego 2D en C11 + SDL2/SDL2_ttf con motor propio (`src/engine`), lógica en `src/game`,
 pruebas en `tests/`. Los recursos se incrustan al compilar con `tools/embed_assets.py`.
-Documentación en `README.md` y `docs/`.
+Documentación en `README.md` y `docs/`; dónde va cada recurso y cómo se nombra:
+`docs/ASSETS.md` (respétalo al agregar sprites, fondos o sonidos).
 
 ## Directriz principal: Windows y Linux
 
@@ -15,6 +16,17 @@ Documentación en `README.md` y `docs/`.
 - No agregar dependencias que no existan tanto en apt (Ubuntu/Debian) como en MSYS2 UCRT64.
 - Después de un cambio, corre `./build.sh` en la máquina actual y avisa qué falta probar en
   el otro sistema.
+
+## Dependencias
+
+SDL2, SDL2_ttf y **SDL2_mixer** (audio).
+Si al bajar cambios `build.sh` dice que falta SDL2_mixer:
+
+- **Linux:** `sudo apt install libsdl2-mixer-dev`
+- **Windows (MSYS2 UCRT64):** `pacman -S mingw-w64-ucrt-x86_64-SDL2_mixer`
+
+Solo para `tools/crush_sfx.py` (grabar/convertir sonidos, no para compilar): **ffmpeg**
+(`sudo apt install ffmpeg` / `pacman -S mingw-w64-ucrt-x86_64-ffmpeg`).
 
 ## Compilar
 

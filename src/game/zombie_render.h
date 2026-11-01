@@ -6,6 +6,6 @@
 #include "game/zombie.h"
 
 /* The zombie, fading out once dead, and its health bar once damaged. */
-void zombie_render(SDL_Renderer *renderer, const Zombie *zombie);
+void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x);
 
 #endif

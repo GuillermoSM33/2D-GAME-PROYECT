@@ -7,7 +7,7 @@
  * drawn facing right. Nothing in the PNG marks where a frame ends: frame i
  * is simply the rectangle (i * frame_w, 0, frame_w, frame_h). */
 typedef struct {
-    const char *sheet; /* Embedded asset name, e.g. "sprites/player/walk" */
+    const char *sheet; /* Embedded asset name, e.g. "sprites/zombie/walk" */
     int frame_w;
     int frame_h;
     int first_frame;

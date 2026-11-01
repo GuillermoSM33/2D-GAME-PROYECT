@@ -5,6 +5,6 @@
 
 #include "game/bullet.h"
 
-void bullets_render(SDL_Renderer *renderer, const Bullets *bullets);
+void bullets_render(SDL_Renderer *renderer, const Bullets *bullets, float camera_x);
 
 #endif

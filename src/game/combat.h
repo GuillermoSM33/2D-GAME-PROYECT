@@ -6,10 +6,10 @@
 #include "game/player.h"
 #include "game/zombie.h"
 
-/* Bullets that reach a living zombie stop there and deal damage. Each one
- * sparks on the armor (the recoil and death sheets draw their own). Returns
- * how many hit. */
-int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, float damage, Effects *effects);
+/* Bullets that reach a living zombie stop there and deal their damage. Each
+ * one sparks on the armor (the recoil and death sheets draw their own).
+ * Returns how many hit. */
+int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, Effects *effects);
 
 /* Resolves a claw strike (zombie->struck): it lands if the player is still
  * within ZOMBIE_ATTACK_RANGE in front of the zombie, and pushes her away.

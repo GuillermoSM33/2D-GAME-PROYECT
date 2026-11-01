@@ -1,6 +1,7 @@
 # Especificación de sprites — Vaquera 2D
 
-Medidas tomadas del arte actual (`assets/sprites/player/`). Todas las medidas están en
+Medidas tomadas del arte de la vaquera (`assets/sprites/characters/cowgirl/`), que es la
+plantilla de todos los personajes ([`CHARACTERS.md`](CHARACTERS.md)). Todas las medidas están en
 **píxeles del arte (1×)** salvo que diga "en pantalla" (4×).
 
 ## Reglas para cualquier hoja
@@ -12,8 +13,8 @@ Medidas tomadas del arte actual (`assets/sprites/player/`). Todas las medidas es
 | Distribución | Una sola fila de cuadros del mismo tamaño, pegados y sin separación. El espacio vacío dentro de cada cuadro no importa. |
 | Tamaño de la hoja | Ancho = ancho del cuadro × número de cuadros. Alto = alto del cuadro exacto. `--verify` lo comprueba. |
 | Dirección | Solo mirando a la **derecha**. La izquierda se genera espejando. |
-| Bordes | Sin difuminado ni suavizado. Se permite semitransparencia: el humo ya usa alfa 170 y 235. |
-| Ubicación | `assets/sprites/<entidad>/<acción>.png`, por ejemplo `assets/sprites/player/kick.png`. |
+| Bordes | Sin difuminado ni suavizado. Se permite semitransparencia. |
+| Ubicación | `assets/sprites/<entidad>/<acción>.png`, por ejemplo `assets/sprites/zombie/idle.png`. Ver [`ASSETS.md`](ASSETS.md). |
 
 ## Cuerpo de la vaquera (medido)
 
@@ -28,13 +29,13 @@ Medidas tomadas del arte actual (`assets/sprites/player/`). Todas las medidas es
 
 | Hoja | Cuadro | Cuadros | Cuerpo en el cuadro (x) | Última fila de bota | Pivote en código (`anchor_x`, `ground_y`) |
 | --- | --- | --- | --- | --- | --- |
-| `walk.png` | 42 × 67 | 8, en ciclo, 9 fps | 6–32 | 59 | 19.5, 61 |
+| `walk.png` | 42 × 67 | 8, en ciclo, 12 fps (15 corriendo) | 6–32 | 59 | 19.5, 61 |
 | `jump.png` | 54 × 82 | 0–5 siguen el arco, 6–7 aterrizaje | 12–38 | 67 | 25.5, 69 |
 | `shoot.png` | 81 × 80 | 8, una vez, 16 fps | 18–44 | 66 | 31.5, 68 |
 | `bullet.png` | 8 × 6 | 4, en ciclo, 12 fps | bola en 1–6 | — | 4, 3 (centro de la bola) |
 
-Cuadros del disparo: 0–2 desenfunda, 3 apunta, **4 dispara** (sale la bala), 5–6 humo,
-7 enfunda.
+Cuadros del disparo: 0–2 desenfunda, 3 apunta, **4 dispara** (sale la bala), 5–6 retroceso,
+7 enfunda. El humo no se dibuja en la hoja: lo anima el juego (`src/game/smoke.c`).
 
 ### Plantilla recomendada para hojas nuevas
 
@@ -74,13 +75,11 @@ del suelo**, que en pantalla son 130 px adelante y 142 px arriba. De ahí sale l
 **Por qué 6 × 6 y no 5 × 5:** el centro del cañón cae entre dos filas; una bola de altura
 par queda centrada exacta, una impar queda medio píxel chueca.
 
-**Contraste:** el fondo es casi negro (`#202229`). Los colores muy oscuros (`#252018`,
-`#2c2c2c`) desaparecen sobre él; para cualquier objeto pequeño usa un contorno gris medio
-o más claro.
+**Contraste:** detrás de los personajes el paisaje es oscuro (luminancia ≤ 62, ver
+[`LANDSCAPE.md`](LANDSCAPE.md)). Los colores muy oscuros (`#252018`, `#2c2c2c`) desaparecen
+sobre él; para cualquier objeto pequeño usa un contorno gris medio o más claro.
 
 Otras balas o proyectiles: mismo formato de cuadro (8 × 6) si son del mismo calibre.
-Un impacto (opcional, todavía no existe): cuadro de **16 × 16**, 3–5 cuadros, centro del
-impacto en el centro del cuadro.
 
 **Ojo:** exporta siempre a 1×. Un sprite exportado a 4× se vería a 16× en el juego.
 
@@ -92,9 +91,11 @@ impacto en el centro del cuadro.
 | Línea del suelo | y = 470 | y ≈ 117 |
 | Altura de la vaquera | 224 px | 56 de los 135 de alto |
 
-- Los fondos se dibujan en un lienzo de 240 × 135 a 1×.
-- Los enemigos van a la misma escala que la vaquera: un humano de unos 56 px de alto.
-- Primer enemigo: [zombi antidisturbios](ZOMBIE.md).
+- Los fondos se dibujan en un lienzo de 240 × 135 a 1×. Capas, medidas, paletas y temas por
+  nivel: [`LANDSCAPE.md`](LANDSCAPE.md).
+- Los enemigos van a la misma escala que la vaquera: un humano de unos 56 px de alto. Estilo
+  y plantilla: [`ZOMBIE.md`](ZOMBIE.md).
+- Dónde va cada archivo y cómo se nombra: [`ASSETS.md`](ASSETS.md).
 
 ## Paleta (23 colores en uso)
 

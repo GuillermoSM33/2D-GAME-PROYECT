@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 
-REFERENCE = Path(__file__).resolve().parent.parent / 'assets/sprites/player/walk.png'
+REFERENCE = Path(__file__).resolve().parent.parent / 'assets/sprites/characters/cowgirl/walk.png'
 REFERENCE_FRAME_W = 42
 
 # Ranges for an enemy of the same style, around the cowgirl's own numbers

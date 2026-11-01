@@ -5,10 +5,11 @@ Usage: embed_assets.py <assets_dir> <output_dir>
 
 - PNG files (8-bit RGBA, non-interlaced) are decoded to raw RGBA pixels and
   exposed as EmbeddedImage entries.
-- Any other file (fonts, etc.) is exposed as a raw EmbeddedBlob.
+- Fonts and sounds (.ttf, .otf, .wav, .ogg) are exposed as raw EmbeddedBlob
+  entries; anything else is ignored.
 
 Asset names are their path relative to <assets_dir> without extension,
-for example "sprites/player/walk" or "fonts/DejaVuSansMono".
+for example "sprites/zombie/walk" or "fonts/DejaVuSansMono".
 Only the Python standard library is used.
 """
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pathlib import Path
 
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 IMAGE_EXTENSIONS = {'.png'}
-BLOB_EXTENSIONS = {'.ttf', '.otf'}
+BLOB_EXTENSIONS = {'.ttf', '.otf', '.wav', '.ogg'}
 
 
 def decode_png_rgba(path: Path) -> tuple[int, int, bytes]:

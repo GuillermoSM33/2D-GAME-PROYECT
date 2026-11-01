@@ -22,20 +22,27 @@ typedef enum {
 } Facing;
 
 typedef struct {
-    float x; /* Horizontal center of the body, in window pixels */
+    float x; /* Horizontal center of the body, in world pixels */
     Facing facing;
     PlayerState state;
     Jump jump;
     Shot shot;
     bool shot_fired; /* A bullet left on this update (hook for bullets, sound...) */
     int health;
+    int level;      /* Shown above her head; stats below come from it (progression.c) */
+    int max_health;
+    float armor;
     float hurt_time;      /* While > 0, she blinks red */
     float knockback_time; /* While > 0, she slides away from the hit */
     int knockback_dir;    /* -1 or +1 */
     Animation anim;
 } Player;
 
+/* Level 1, standing at the start, full health. */
 void player_init(Player *player);
+
+/* Her level's stats; with heal, back to full health (a level up does). */
+void player_set_stats(Player *player, int level, int max_health, float armor, bool heal);
 void player_update(Player *player, const InputState *input, float dt);
 
 /* Takes a hit of raw damage through her armor, pushed toward push_dir

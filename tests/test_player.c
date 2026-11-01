@@ -39,7 +39,8 @@ static void click(Player *player, InputState *input, bool left, bool right)
 
 static int shot_steps(void)
 {
-    return (int)(PLAYER_SHOOT_FRAMES / PLAYER_SHOOT_FPS / FIXED_DT) + 2;
+    /* The whole sequence plus the reload, which holds the smoke frame. */
+    return (int)((PLAYER_SHOOT_FRAMES / PLAYER_SHOOT_FPS + PLAYER_SHOOT_RELOAD_TIME) / FIXED_DT) + 2;
 }
 
 static int air_steps(void)
@@ -108,15 +109,17 @@ static void test_both_keys_last_wins(void)
     CHECK(player.state == PLAYER_WALK);
 }
 
-static void test_stays_inside_window(void)
+static void test_stays_inside_world(void)
 {
     Player player;
     InputState input;
     player_init(&player);
     input_init(&input);
-    step(&player, &input, true, false, true, 600);
+    player.x = movement_min_x() + 100.0f;
+    step(&player, &input, true, false, true, 60);
     CHECK_NEAR(player.x, movement_min_x(), 0.01f);
-    step(&player, &input, false, true, true, 600);
+    player.x = movement_max_x() - 100.0f;
+    step(&player, &input, false, true, true, 60);
     CHECK_NEAR(player.x, movement_max_x(), 0.01f);
 }
 
@@ -389,7 +392,7 @@ int main(void)
     RUN(test_run_is_faster);
     RUN(test_turns_and_stops);
     RUN(test_both_keys_last_wins);
-    RUN(test_stays_inside_window);
+    RUN(test_stays_inside_world);
     RUN(test_reset);
     RUN(test_walking_jump_right);
     RUN(test_no_double_jump);

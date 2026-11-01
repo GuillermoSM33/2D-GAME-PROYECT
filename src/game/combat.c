@@ -4,7 +4,7 @@
 
 #include "config.h"
 
-int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, float damage, Effects *effects)
+int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, Effects *effects)
 {
     int hits = 0;
     for (int i = 0; i < BULLET_MAX && zombie_alive(zombie); i++) {
@@ -12,7 +12,7 @@ int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, float damage, Eff
         if (!b->active || !zombie_overlaps(zombie, b->prev_x, b->x, b->y))
             continue;
         b->active = false;
-        if (zombie_hit(zombie, damage) == HIT_ARMOR)
+        if (zombie_hit_through(zombie, b->spec.damage, b->spec.armor_share) == HIT_ARMOR)
             effects_spawn(effects, effect_sparks(), zombie->x, b->y, zombie->facing);
         hits++;
     }

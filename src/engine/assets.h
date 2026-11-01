@@ -21,4 +21,10 @@ SDL_Texture *assets_texture(const char *name);
 /* New surface with a region of an embedded image (caller frees it). */
 SDL_Surface *assets_surface_region(const char *name, int x, int y, int w, int h);
 
+/* New texture of an embedded image with a palette swap (caller destroys it):
+ * every pixel whose color is pairs[i][0] (0xRRGGBB) becomes pairs[i][1],
+ * keeping its alpha. Pixel art that shares art between themes uses it. */
+SDL_Texture *assets_texture_recolored(SDL_Renderer *renderer, const char *name,
+                                      const unsigned (*pairs)[2], int count);
+
 #endif

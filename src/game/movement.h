@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 /* Horizontal walk/run step. dir is -1, 0 or +1. The result keeps the whole
- * sprite inside the window. */
+ * sprite inside the world. */
 float movement_step(float x, int dir, bool run, float dt);
 
 float movement_min_x(void);

@@ -7,9 +7,12 @@
 #include "game/damage.h"
 #include "game/movement.h"
 
-#define PLAYER_WALK_SHEET "sprites/player/walk"
-#define PLAYER_JUMP_SHEET "sprites/player/jump"
-#define PLAYER_SHOOT_SHEET "sprites/player/shoot"
+/* The cowgirl's sheets define the template every character follows (frame
+ * sizes, pivots, muzzle): the renderer swaps in each character's own sheets
+ * by file name (character_skin.c). */
+#define PLAYER_WALK_SHEET "sprites/characters/cowgirl/walk"
+#define PLAYER_JUMP_SHEET "sprites/characters/cowgirl/jump"
+#define PLAYER_SHOOT_SHEET "sprites/characters/cowgirl/shoot"
 
 /* Pivots measured on the art: the body spans x 6..32 (walk), 12..38 (jump)
  * and 18..44 (shoot); the boots end on rows 59, 67 and 66, two rows above
@@ -64,17 +67,32 @@ void player_init(Player *player)
     player->x = PLAYER_START_X;
     player->facing = FACING_RIGHT;
     player->state = PLAYER_IDLE;
-    player->health = PLAYER_HEALTH;
+    player->level = 1;
+    player->max_health = player->health = PLAYER_HEALTH;
+    player->armor = PLAYER_ARMOR;
     jump_reset(&player->jump);
     shot_reset(&player->shot);
     animation_play(&player->anim, &ANIM_IDLE);
+}
+
+void player_set_stats(Player *player, int level, int max_health, float armor, bool heal)
+{
+    player->level = level;
+    player->max_health = max_health;
+    player->armor = armor;
+    if (heal || player->health > max_health)
+        player->health = max_health;
 }
 
 void player_update(Player *player, const InputState *input, float dt)
 {
     player->shot_fired = false;
     if (input->pressed[ACTION_RESET]) {
+        /* Back to the start, keeping what she has earned. */
+        int level = player->level, max_health = player->max_health;
+        float armor = player->armor;
         player_init(player);
+        player_set_stats(player, level, max_health, armor, true);
         return;
     }
 
@@ -108,7 +126,7 @@ void player_update(Player *player, const InputState *input, float dt)
         animation_play(&player->anim, &ANIM_SHOOT);
     }
     if (player->shot.active && input->pressed[ACTION_JUMP])
-        shot_reset(&player->shot);
+        shot_cancel(&player->shot);
     if (player->shot.active) {
         player->shot_fired = shot_update(&player->shot, dt);
         if (player->shot.active) {
@@ -164,7 +182,7 @@ bool player_hit(Player *player, float damage, int push_dir)
 {
     if (!player_alive(player))
         return false;
-    player->health -= damage_after_armor(damage, PLAYER_ARMOR);
+    player->health -= damage_after_armor(damage, player->armor);
     player->hurt_time = PLAYER_HURT_TIME;
     player->knockback_time = PLAYER_KNOCKBACK_TIME;
     player->knockback_dir = push_dir < 0 ? -1 : 1;
@@ -172,7 +190,7 @@ bool player_hit(Player *player, float damage, int push_dir)
         return false;
     player->health = 0;
     player->state = PLAYER_DEAD;
-    shot_reset(&player->shot);
+    shot_cancel(&player->shot);
     animation_play(&player->anim, &ANIM_IDLE);
     return true;
 }
