@@ -28,6 +28,8 @@ typedef struct {
     /* Presses seen as events since the last read, so a click or tap shorter
      * than one update is never lost. */
     bool latched[ACTION_COUNT];
+    int pointer_x, pointer_y; /* The mouse, in window (logical) coordinates */
+    bool pointer_moved, pointer_clicked; /* Since the last platform_read_pointer */
 } Platform;
 
 bool platform_init(Platform *platform, const char *title, int width, int height);
@@ -41,6 +43,10 @@ void platform_poll_events(Platform *platform);
 /* Real keyboard/mouse state (not key events), so OS key auto-repeat never
  * matters, plus any presses latched since the previous call. */
 void platform_read_actions(Platform *platform, bool down[ACTION_COUNT]);
+
+/* The mouse since the previous call: where it is, whether it moved and
+ * whether the left button was clicked (for clicking menus). */
+void platform_read_pointer(Platform *platform, InputState *input);
 
 double platform_time(void);
 

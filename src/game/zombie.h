@@ -11,10 +11,12 @@ typedef struct {
     int health;
     float armor;
     float attack_base; /* Claw damage at level 1, before the player's armor */
+    unsigned tint;     /* 0xRRGGBB multiplied over its sheets: 0xffffff as drawn */
 } ZombieStats;
 
 extern const ZombieStats ZOMBIE_COMMON; /* Reference for balance; no art yet */
-extern const ZombieStats ZOMBIE_RIOT;   /* Riot gear: same health, 80 armor */
+extern const ZombieStats ZOMBIE_RIOT;   /* Riot gear: same health, 85 armor */
+extern const ZombieStats ZOMBIE_ELITE;  /* Heavier riot gear, harder claw, a rusty red tint */
 
 typedef enum {
     ZOMBIE_WALK, /* Limping toward the player */
@@ -40,7 +42,13 @@ typedef struct {
     float x;    /* Horizontal center of the body, in world pixels */
     int facing; /* -1 left, +1 right */
     ZombieState state;
+    bool awake; /* Asleep it stands where the stage put it until she comes near */
+    float idle_time; /* Asleep: its breathing, a slow rise and fall */
+    float rouse;     /* Just woken: seconds left of jolting and lurching before it walks */
+    bool hidden;     /* Shut in a coffin: not drawn, not hit, until it bursts open */
+    float caught;    /* Seconds left held in a bear trap: it struggles in place */
     int health;
+    float wound; /* Damage under a whole health point, kept for the next hit */
     float stagger_time; /* While > 0, hits do not make it recoil again */
     float dead_time; /* Seconds since death */
     float attack_cooldown; /* While > 0, it waits instead of attacking */
@@ -62,8 +70,14 @@ void zombie_set_level(Zombie *zombie, int level);
 /* Where a new zombie enters: near the edge of the view farther from her. */
 float zombie_spawn_x(float player_x);
 
+/* An asleep zombie starts its hunt (and its spawn growl): it turns on her
+ * and raises its claws for ZOMBIE_ROUSE_TIME, then limps toward her. */
+void zombie_wake(Zombie *zombie);
+
 /* Walks toward player_x and, within reach, attacks while the player is
- * alive. Once dead it falls, lies and fades; then zombie_gone. */
+ * alive; asleep it only turns to face her. Once dead it falls, lies and
+ * fades; then zombie_gone. The stage may pass a barricade's edge as
+ * player_x: it claws its way through that first. */
 void zombie_update(Zombie *zombie, float player_x, bool player_alive, float dt);
 
 /* Dead and fully faded out: the stage can place a chest or the next one. */
@@ -84,6 +98,12 @@ bool zombie_alive(const Zombie *zombie);
 
 /* Whether a horizontal path from x0 to x1 at height y crosses the body. */
 bool zombie_overlaps(const Zombie *zombie, float x0, float x1, float y);
+
+/* Art px it rises while asleep, breathing: 0 or 1. */
+int zombie_breath(const Zombie *zombie);
+
+/* Art px it shakes sideways while it jolts awake (0 otherwise). */
+int zombie_shudder(const Zombie *zombie);
 
 /* 1 while alive and while the body lies, then fading to 0. */
 float zombie_opacity(const Zombie *zombie);

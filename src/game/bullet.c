@@ -44,7 +44,7 @@ bool bullets_fire(Bullets *bullets, float from_x, float x, float y, int dir, con
 
 bool bullets_spawn(Bullets *bullets, float from_x, float x, float y, int dir)
 {
-    const BulletSpec plain = {weapon_damage(1), BULLET_SPEED, 0.0f, 1.0f, 0xffffff};
+    const BulletSpec plain = {weapon_damage(1), BULLET_SPEED, 0.0f, 1.0f, 0xffffff, 0.0f, false};
     return bullets_fire(bullets, from_x, x, y, dir, &plain);
 }
 
@@ -56,10 +56,11 @@ void bullets_update(Bullets *bullets, float dt, float view_left)
             continue;
         b->prev_x = b->x;
         b->x += (float)b->dir * b->spec.speed * dt;
+        b->y += b->spec.slope * b->spec.speed * dt;
         b->flown += b->spec.speed * dt;
         animation_update(&b->anim, dt);
         if (b->x < view_left - OFFSCREEN_MARGIN ||
-            b->x > view_left + WINDOW_WIDTH + OFFSCREEN_MARGIN ||
+            b->x > view_left + VIEW_WIDTH + OFFSCREEN_MARGIN ||
             (b->spec.range > 0.0f && b->flown >= b->spec.range))
             b->active = false;
     }

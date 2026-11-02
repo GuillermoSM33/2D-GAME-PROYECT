@@ -131,6 +131,105 @@ static void test_reload_follows_the_gun(void)
     CHECK_NEAR(shot.reload_time, PLAYER_SHOOT_RELOAD_TIME, 1e-6f);
 }
 
+static void test_burst_fires_three_spaced(void)
+{
+    /* One click: three bullets burst_gap apart, then the reload. */
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_reload(&shot, 0.3f);
+    shot_set_burst(&shot, 3, 0.07f, false);
+    shot_start(&shot);
+    float times[4];
+    int fires = 0;
+    bool flicked = false;
+    for (int i = 0; i < 120 && shot.active; i++) {
+        if (shot_update(&shot, FIXED_DT) && fires < 4)
+            times[fires++] = (float)i * FIXED_DT;
+        if (fires >= 1 && shot.burst_left > 0)
+            flicked |= shot_frame(&shot) == PLAYER_SHOOT_FIRE_FRAME + 1;
+        CHECK(fires < 3 || shot.burst_left == 0);
+    }
+    CHECK(fires == 3);
+    CHECK_NEAR(times[1] - times[0], 0.07f, FIXED_DT * 1.01f);
+    CHECK_NEAR(times[2] - times[1], 0.07f, FIXED_DT * 1.01f);
+    CHECK(flicked); /* The gun kicks between bullets */
+}
+
+static void test_no_follow_up_mid_burst(void)
+{
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_burst(&shot, 3, 0.07f, true);
+    shot_start(&shot);
+    while (!shot_update(&shot, FIXED_DT))
+        ;
+    CHECK(shot.burst_left == 2);
+    CHECK(!shot_start(&shot));
+    /* A jump cancels the burst but keeps the gun. */
+    shot_cancel(&shot);
+    CHECK(shot.burst == 3 && shot.automatic && shot.burst_left == 0);
+}
+
+static void test_magazine_runs_dry_and_reloads(void)
+{
+    /* Two shots per magazine, held trigger: two bullets, the reload sheet for
+     * its time, then two more, the first right after (already aimed). */
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_reload(&shot, 0.1f);
+    shot_set_magazine(&shot, 2, 1.0f, -1);
+    CHECK(shot.rounds == 2);
+    float times[4];
+    int fires = 0;
+    float reloading = 0.0f, t = 0.0f;
+    for (int i = 0; i < 600 && fires < 4; i++) {
+        shot_start(&shot);
+        if (shot_update(&shot, FIXED_DT))
+            times[fires++] = t;
+        if (shot_reloading(&shot))
+            reloading += FIXED_DT;
+        t += FIXED_DT;
+    }
+    CHECK(fires == 4);
+    CHECK_NEAR(reloading, 1.0f, FIXED_DT * 1.5f);
+    CHECK(times[2] - times[1] > 1.0f);
+    CHECK(times[2] - times[1] < 1.0f + 6.0f * frame_time());
+    CHECK(shot.rounds == 0);
+}
+
+static void test_burst_counts_as_one_shot(void)
+{
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_burst(&shot, 3, 0.07f, true);
+    shot_set_magazine(&shot, 5, 1.2f, -1);
+    shot_start(&shot);
+    int fires = 0;
+    for (int i = 0; i < 60; i++)
+        fires += shot_update(&shot, FIXED_DT);
+    CHECK(fires == 3 && shot.rounds == 4);
+}
+
+static void test_cut_reload_resumes_and_keeps_rounds(void)
+{
+    /* A jump cuts the reload: the magazine stays empty and the next pull
+     * reloads instead of firing. A gun put away keeps its count. */
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_magazine(&shot, 1, 1.0f, -1);
+    shot_start(&shot);
+    while (!shot_reloading(&shot))
+        shot_update(&shot, FIXED_DT);
+    shot_cancel(&shot);
+    CHECK(!shot_reloading(&shot) && shot.rounds == 0 && shot.magazine == 1);
+    CHECK(shot_start(&shot) && shot_reloading(&shot));
+    CHECK(!shot_start(&shot)); /* No shooting mid-reload */
+    shot_set_magazine(&shot, 8, 1.1f, 3);
+    CHECK(shot.rounds == 3);
+    shot_set_magazine(&shot, 0, 0.0f, -1);
+    CHECK(shot.magazine == 0); /* The revolver never runs dry */
+}
+
 int main(void)
 {
     printf("test_shoot\n");
@@ -141,5 +240,10 @@ int main(void)
     RUN(test_reload_holds_recoil_and_blocks);
     RUN(test_bullets_are_spaced_by_reload);
     RUN(test_reload_follows_the_gun);
+    RUN(test_burst_fires_three_spaced);
+    RUN(test_no_follow_up_mid_burst);
+    RUN(test_magazine_runs_dry_and_reloads);
+    RUN(test_burst_counts_as_one_shot);
+    RUN(test_cut_reload_resumes_and_keeps_rounds);
     return TEST_EXIT();
 }

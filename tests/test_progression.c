@@ -4,6 +4,7 @@
 #include "game/damage.h"
 #include "game/progression.h"
 #include "game/stages.h"
+#include "game/stage_run.h"
 #include "game/zombie.h"
 #include "test.h"
 
@@ -54,9 +55,11 @@ static void test_equal_levels_stay_balanced(void)
     }
 }
 
-/* Plays the campaign once in order, beating every zombie and opening every
- * chest, and checks each fight is achievable but not trivial: bullets to
- * kill and claws to die within a band, and she gains about one level a stage. */
+/* Plays the campaign once in order with the cowgirl, beating every zombie and
+ * opening every chest (hers after each zombie but the last, every elite's,
+ * the mission's at the gate), and checks each fight is achievable but not
+ * trivial: bullets to kill and claws to die within a band (an elite takes
+ * longer and hits harder), and she gains about one level a stage. */
 static void test_campaign_is_winnable_not_trivial(void)
 {
     Progress p;
@@ -66,23 +69,62 @@ static void test_campaign_is_winnable_not_trivial(void)
         int start_level = p.level;
         CHECK(start_level >= stage->zombie_level - 1); /* Never more than one level behind */
         for (int k = 0; k < stage->zombies; k++) {
+            const ZombieStats *stats = stage_zombie_stats(stage, k);
+            bool elite = stats == &ZOMBIE_ELITE;
             int z = stage_zombie_level(stage, k);
-            int shots = (int)ceilf((float)level_health(ZOMBIE_RIOT.health, z) /
-                                   (float)damage_after_armor(progress_damage(&p),
-                                                             level_armor(ZOMBIE_RIOT.armor, ZOMBIE_ARMOR_PER_LEVEL, z)));
+            int shots = (int)ceilf((float)level_health(stats->health, z) /
+                                   damage_through_armor(progress_damage(&p),
+                                                        level_armor(stats->armor, ZOMBIE_ARMOR_PER_LEVEL, z)));
             int claws = (int)ceilf((float)progress_max_health(&p) /
-                                   (float)damage_after_armor(damage_at_level(ZOMBIE_ATTACK_BASE, z),
+                                   (float)damage_after_armor(damage_at_level(stats->attack_base, z),
                                                              progress_armor(&p)));
-            CHECK(shots >= 6 && shots <= 16);
-            CHECK(claws >= 6 && claws <= 14);
+            CHECK(shots >= 6 && shots <= (elite ? 26 : 16));
+            CHECK(claws >= (elite ? 4 : 6) && claws <= 14);
             progress_add_xp(&p, kill_xp(z, p.level));
-            if (stage_chest_after(stage, k)) {
-                bool done = k == stage->zombies - 1;
+            bool last = k == stage->zombies - 1;
+            if (elite || (!last && stage_chest_after(stage, k)))
                 progress_add_xp(&p, chest_xp(p.level, stage->zombie_level, stage->complexity,
-                                             (float)(k + 1) / (float)stage->zombies, done));
+                                             (float)(k + 1) / (float)stage->zombies, false));
+        }
+        progress_add_xp(&p, chest_xp(p.level, stage->zombie_level, stage->complexity, 1.0f, true));
+        CHECK(p.level - start_level >= 1 && p.level - start_level <= 2);
+    }
+}
+
+static void test_routes_add_up(void)
+{
+    /* Each stage's zombie count is its spots', and they fit the pools. */
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        const StageDef *stage = &STAGES[s];
+        int zombies = 0, terrain = 1; /* The gate */
+        bool supply = false;
+        for (int i = 0; i < stage->spot_count; i++) {
+            const StageSpot *spot = &stage->spots[i];
+            bool fighter = spot->kind == SPOT_ZOMBIES || spot->kind == SPOT_ELITE ||
+                           spot->kind == SPOT_COFFINS;
+            zombies += fighter ? spot->count : 0;
+            terrain += spot->kind == SPOT_ZOMBIES || spot->kind == SPOT_ELITE ? 0 : spot->count;
+            supply |= spot->kind == SPOT_SUPPLY;
+            CHECK(spot->at > 0.0f && spot->at < 1.0f);
+            if (i > 0)
+                CHECK(spot->at >= stage->spots[i - 1].at); /* In route order */
+        }
+        CHECK(zombies == stage->zombies && zombies <= RUN_MAX_ZOMBIES);
+        int charges = 0;
+        for (int i = 0; i < stage->spot_count; i++) {
+            const StageSpot *spot = &stage->spots[i];
+            if (spot->kind == SPOT_DYNAMITE)
+                charges += spot->count * DYNAMITE_PER_BOX;
+            if (spot->kind == SPOT_SUPPLY)
+                charges += stage_supply_dynamite(stage);
+            if (spot->kind == SPOT_WALL && spot->count < 2) {
+                CHECK(charges > 0); /* A box before it that no other wall used */
+                charges--;
             }
         }
-        CHECK(p.level - start_level >= 1 && p.level - start_level <= 2);
+        CHECK(terrain <= TERRAIN_MAX && supply);
+        CHECK(stage->length >= 4.0f * VIEW_WIDTH);
+        CHECK(PLAYER_START_X + stage->length < WORLD_WIDTH - VIEW_WIDTH);
     }
 }
 
@@ -95,6 +137,8 @@ static void test_stages_unlock_in_order(void)
     record.cleared[0] = true;
     CHECK(stage_unlocked(&record, 1) && !stage_unlocked(&record, 2));
     CHECK(STAGE_COUNT == 5);
+    /* The wagon's dynamite grows with the road: 1, 2 or 3. */
+    CHECK(stage_supply_dynamite(&STAGES[0]) == 1 && stage_supply_dynamite(&STAGES[4]) == 3);
     /* Not linear: a breather and a jump. */
     CHECK(STAGES[2].zombie_level < 3 && STAGES[3].zombie_level > 3);
     CHECK(stage_zombie_level(&STAGES[4], STAGES[4].zombies - 1) == STAGES[4].zombie_level + 1);
@@ -108,6 +152,7 @@ int main(void)
     RUN(test_gap_rewards_challenge);
     RUN(test_equal_levels_stay_balanced);
     RUN(test_campaign_is_winnable_not_trivial);
+    RUN(test_routes_add_up);
     RUN(test_stages_unlock_in_order);
     return TEST_EXIT();
 }

@@ -20,6 +20,8 @@ typedef struct {
 static LoadedSound sounds[MAX_SOUNDS];
 static int sound_count;
 static bool ready;
+static float master = 1.0f;
+static float groups[AUDIO_GROUPS] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 bool audio_init(void)
 {
@@ -68,10 +70,35 @@ void audio_shutdown(void)
 
 void audio_play(const char *name)
 {
+    audio_play_in(name, 0);
+}
+
+void audio_play_in(const char *name, int group)
+{
+    if (group < 0 || group >= AUDIO_GROUPS)
+        group = 0;
     for (int i = 0; i < sound_count; i++) {
         if (strcmp(sounds[i].name, name) == 0) {
-            Mix_PlayChannel(-1, sounds[i].chunk, 0);
+            int channel = Mix_PlayChannel(-1, sounds[i].chunk, 0);
+            if (channel >= 0)
+                Mix_Volume(channel, (int)(MIX_MAX_VOLUME * master * groups[group] + 0.5f));
             return;
         }
     }
+}
+
+static float clamp01(float v)
+{
+    return v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+}
+
+void audio_set_master(float volume)
+{
+    master = clamp01(volume);
+}
+
+void audio_set_group(int group, float volume)
+{
+    if (group >= 0 && group < AUDIO_GROUPS)
+        groups[group] = clamp01(volume);
 }

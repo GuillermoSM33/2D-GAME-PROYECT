@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_TEXTURES 64
+#define MAX_TEXTURES 128
 
 typedef struct {
     const char *name;

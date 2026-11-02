@@ -7,8 +7,9 @@
 #include "game/player.h"
 
 /* Kept apart from player.c so the player logic builds and tests without SDL.
- * The skin gives the character's own sheets for the template's animations. */
+ * The skin gives the character's own sheets for the template's animations,
+ * shooting with the gun in weapon_slot. */
 void player_render(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
-                   float camera_x);
+                   const WeaponId *guns, int weapon_slot, float camera_x);
 
 #endif

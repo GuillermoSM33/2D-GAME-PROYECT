@@ -77,6 +77,16 @@ void platform_poll_events(Platform *platform)
             break;
         case SDL_MOUSEBUTTONDOWN:
             latch(platform, BIND_MOUSE, event.button.button);
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                platform->pointer_x = event.button.x;
+                platform->pointer_y = event.button.y;
+                platform->pointer_clicked = true;
+            }
+            break;
+        case SDL_MOUSEMOTION:
+            platform->pointer_x = event.motion.x;
+            platform->pointer_y = event.motion.y;
+            platform->pointer_moved = true;
             break;
         }
     }
@@ -100,6 +110,15 @@ void platform_read_actions(Platform *platform, bool down[ACTION_COUNT])
         if (held)
             down[b->action] = true;
     }
+}
+
+void platform_read_pointer(Platform *platform, InputState *input)
+{
+    input->pointer_x = platform->pointer_x;
+    input->pointer_y = platform->pointer_y;
+    input->pointer_moved = platform->pointer_moved;
+    input->pointer_clicked = platform->pointer_clicked;
+    platform->pointer_moved = platform->pointer_clicked = false;
 }
 
 double platform_time(void)

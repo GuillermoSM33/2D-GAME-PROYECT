@@ -8,11 +8,11 @@ de cuadros, mirando a la derecha) y el estilo de la vaquera descrito en
 | Personaje | Habilidad | Armas | Arte |
 | --- | --- | --- | --- |
 | **La Vaquera** (`cowgirl`) | **Botín:** los zombis que vence sueltan cofres | Cañón de mano | Hecho |
-| **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Provisional |
+| **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Hecho |
 | **El Héroe** (`hero`) | **Prototipo:** arma experimental que atraviesa la armadura | Cañón de plasma | Provisional |
 
-**Provisional** quiere decir que el juego usa a la vaquera teñida de un color (gris azulado
-el SWAT, verde azulado el héroe) mientras no existan sus hojas. Se pueden jugar y probar sus
+**Provisional** quiere decir que el juego usa a la vaquera teñida de un color (verde azulado
+el héroe) mientras no existan sus hojas. Se pueden jugar y probar sus
 habilidades desde ya; cuando lleguen sus PNG, el juego los usa solo, sin tocar código.
 
 ## En el juego
@@ -32,24 +32,75 @@ Los tres comparten controles, cuerpo, vida, armadura y reglas de nivel (ver el
   (`tests/test_progression.c`).
 - **Arsenal (SWAT):** `Q` o clic derecho cambia entre rifle y escopeta, cuando no está a
   mitad de un disparo. El arma en mano se ve abajo a la derecha.
-- **Prototipo (Héroe):** su cañón de plasma solo cuenta el 40 % de la armadura del blanco.
+- **Prototipo (Héroe):** su cañón de plasma solo cuenta el 60 % de la armadura del blanco.
   Rinde más cuanto más blindado esté el enemigo.
+
+### Poderes de nivel 3
+
+Al llegar a nivel 3 (`POWER_LEVEL`) cada personaje gana un poder; el de `F` (o clic central)
+espera 15 s entre usos (`POWER_COOLDOWN`) y su panel, bajo el del arma, dice si está listo.
+
+- **Vaquera:** cambia su cañón por **pistolas duales**, una en cada mano (dos balas por tiro,
+  ×0.62 cada una: unas 1.25 veces más rápida que el cañón, `tests/test_characters.c`). Con `F`
+  dispara un **tiro de rebote**: sus balas doradas pegan al primer zombi y siguen al segundo
+  con 45 % menos de daño, o 30 % más si el primero cayó.
+- **SWAT:** con `F` lanza una **granada** (`throw.png`): vuela en arco, rebota en el suelo y en
+  los muros y estalla a los 1.5 s como un barril (radio 260 px, ×3 su daño), sin abrir muros.
+- **Héroe:** ninguno todavía.
 
 ### Armas
 
 Tabla en `src/game/weapons.c`. El daño es un múltiplo del daño de su nivel de arma, así que
-todas crecen igual con el personaje. Están equilibradas a un daño por segundo parecido contra
-el zombi antidisturbios, cada una a su manera (`tests/test_characters.c` falla si alguna se
-aleja más de 20 % del cañón de mano).
+todas crecen igual con el personaje (y con las mejoras de arma que vengan). Están equilibradas
+por **tiempo para matar** a los 3 zombis antidisturbios de una etapa seguidos, medido con el
+disparo real (desenfunde, ráfagas, recargas y cargadores): `tests/test_characters.c` lo mide
+con el arma de nivel 1 a 8 contra zombis de hasta 2 niveles arriba o abajo, y falla si el promedio de alguna se aleja más de 10 % del
+cañón de mano o algún caso más de 25 % (los tiros enteros hacen escalones).
 
-| Arma | Daño por bala | Recarga | Balas por disparo | Alcance | Armadura que cuenta | Color de la bala |
-| --- | --- | --- | --- | --- | --- | --- |
-| Cañón de mano | ×1.0 | 0.38 s | 1 | Pantalla | 100 % | Original |
-| Rifle | ×0.45 | 0.14 s | 1 | Pantalla | 100 % | Blanco azulado |
-| Escopeta | ×0.55 | 0.62 s | 3 (separadas 14 px) | 380 px | 100 % | Naranja claro |
-| Cañón de plasma | ×1.1 | 0.62 s | 1 | Pantalla | **40 %** | Verde azulado |
+| Arma | Tiempo para matar (antidisturbios) | Contra el zombi común | Su manera |
+| --- | --- | --- | --- |
+| Cañón de mano | 1.00 (la referencia) | 1.00 | Tiros fuertes y parejos |
+| Rifle | 1.00 | 0.96 | Ráfagas que pegan duro, pero cada 5 cambia el cargador (1.2 s) |
+| Escopeta | 0.96 si pegan los 3 perdigones | 0.95 | Fuerte de cerca; de lejos el abanico falla; 8 cartuchos |
+| Cañón de plasma | 0.94 | 1.08 | Atraviesa parte de la armadura: especialista contra blindados |
 
-Todas usan la misma bala (`sprites/weapons/bullet.png`) teñida con su color.
+Menos es más rápido. En nivel 1, los 3 antidisturbios de nivel 1 seguidos: cañón de mano 30
+tiros (13.3 s), rifle 18 ráfagas con 3 cambios de cargador (12.9 s), escopeta 18 disparos con
+2 recargas (13.4 s), plasma 18 (12.1 s). Cada zombi: 10 tiros, 6 ráfagas o 6 escopetazos.
+
+| Arma | Daño por bala | Recarga | Cargador | Balas por disparo | Alcance | Armadura que cuenta | Color de la bala | Humo |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Cañón de mano | ×1.0 | 0.38 s | — | 1 | Pantalla | 100 % | Original | 6 bocanadas, ×1 |
+| Rifle | ×0.53 | 0.35 s | **5 ráfagas, 1.2 s** | **Ráfaga de 3** (cada 0.07 s) | Pantalla | 100 % | Blanco azulado | 3 bocanadas, ×0.7 |
+| Escopeta | ×0.60 | 0.62 s | **8 cartuchos, 1.1 s** | 3 en abanico | 380 px | 100 % | Naranja claro | 10 bocanadas, ×1.5 |
+| Cañón de plasma | ×1.3 | 0.62 s | — | 1 | Pantalla | **60 %** | Verde azulado | 6 bocanadas, ×1 |
+
+**Ráfaga (rifle):** cada disparo suelta 3 balas seguidas; entre una y otra el arma alterna el
+cuadro del fogonazo y el del retroceso, y la recarga empieza tras la última. Es automático:
+con el botón presionado sigue disparando ráfagas. **Abanico (escopeta):** los perdigones salen
+a 10 px entre sí y se separan 0.18 px por cada px que avanzan (`pellet_spread`): el de en medio
+va recto y los de los lados se abren, así que de lejos alguno puede fallar.
+
+**Cargador (`magazine` en `weapons.c`):** cada disparo gasta uno (una ráfaga cuenta como uno).
+Con el último, tras el retroceso, el personaje cambia el cargador (`magazine_reload`) con la
+hoja de recarga del arma; al terminar queda apuntando, así que con el botón presionado sigue
+disparando. Mientras recarga no dispara; saltar corta la recarga y el arma sigue vacía (el
+siguiente clic recarga). Cambiar de arma guarda lo que le queda a cada una: no hay recarga
+gratis. El HUD muestra lo que queda (`Rifle  3/5`) o `RECARGANDO`.
+
+Todas usan la misma bala (`sprites/weapons/bullet.png`) teñida con su color. **Humo:** cuántas
+bocanadas suelta cada disparo y de qué tamaño es la nube (el tamaño también alarga lo que dura).
+
+**Hoja de disparo por arma:** si un arma tiene `shoot_sheet` en `weapons.c`, mientras está en
+mano el personaje dispara con `sprites/characters/<id>/<shoot_sheet>.png` en lugar de
+`shoot.png` (mismo tamaño y plantilla; la boca del cañón en el mismo punto). La escopeta del
+SWAT usa `shoot_shotgun.png`. `--verify` la exige en cuanto el personaje tiene arte propio.
+
+**Hoja de recarga por arma:** un arma con cargador nombra su `reload_sheet`
+(`sprites/characters/<id>/<reload_sheet>.png`, mismo tamaño y plantilla que `shoot.png`, 8
+cuadros repartidos en el tiempo de recarga). La del rifle del SWAT es `reload.png` y la de la
+escopeta `reload_shotgun.png`. Sin ella (un personaje con arte provisional) se sostiene el
+cuadro de retroceso.
 
 ## La plantilla: lo que todo personaje comparte
 
@@ -116,15 +167,31 @@ Lo mismo que hace funcionar a la vaquera y al zombi
 **Concepto:** un policía de unidad táctica en el viejo oeste invadido. Pesado y práctico.
 
 - **Cabeza:** casco táctico redondo y bajo (no más alto que la línea verde) con gafas de
-  protección subidas o una visera corta; la cara plana como la de la vaquera, con barba de
-  1–2 tonos.
+  protección subidas o una visera corta. `make_swat.py` le sombrea el lente del visor (con un
+  brillo fijo en el mismo punto del lente en cada cuadro) y a la cara la mejilla en sombra y la
+  mandíbula marcada, en todos los cuadros; la cara sigue sin rasgos, como la de la vaquera.
 - **Torso:** chaleco antibalas con 2–3 bolsas de 2–3 px, hombreras pequeñas. Lo más ancho son
   los hombros (26–28 px).
 - **Piernas:** pantalón táctico con rodilleras de 1 placa, botas altas.
-- **Armas:** en `shoot.png` dibuja **el rifle** (corto, de culata plegable), sostenido con las
-  dos manos y la boca del cañón en la cruz amarilla. Una sola hoja para las dos armas: la
-  escopeta se distingue por sus balas, no por el dibujo.
-- **Fogonazo** (cuadro 4): blanco y amarillo, más corto y seco que el del revólver.
+- **Armas:** `shoot.png` lleva **el rifle** (corto, de culata plegable) y `shoot_shotgun.png`
+  **la escopeta** (culata completa, cañón largo y corredera), las dos con ambas manos y la boca
+  del cañón en la cruz amarilla. Cuadros 0–2 sube el arma desde abajo, 3 apunta, 4 dispara,
+  5–6 retroceso (la escopeta patea más) y 7 la baja.
+- **Recarga:** `reload.png` (rifle): saca el cargador, toma uno nuevo del chaleco, lo mete y
+  jala la palanca de carga. `reload_shotgun.png`: tres cartuchos rojos del chaleco al tubo bajo
+  el cajón y bombea la corredera. La mano de atrás sostiene el arma por el guardamanos.
+- **Fogonazo** (cuadro 4): el del rifle blanco y amarillo, corto y seco; el de la escopeta más
+  grande y anaranjado, abierto en abanico.
+- **Caminata y salto:** los cuadros dibujados a mano. El salto usa esos mismos cuadros enteros,
+  bajándolos al agacharse y al caer y doblando las piernas en el aire, con los tiempos del
+  salto de la vaquera.
+
+**Cómo se hacen sus hojas:** `python3 tools/make_swat.py` las genera todas (walk, jump, shoot,
+shoot_shotgun, reload y reload_shotgun) a partir del dibujo original, `docs/templates/swat/walk_source.png`. El walk es
+ese dibujo tal cual; el jump, sus cuadros movidos y con las piernas dobladas; el shoot, su
+cuadro 0 sin el brazo, con los brazos (hombro-codo-mano) sosteniendo el arma, y los
+fogonazos. Las poses están en tablas dentro del script. Para cambiar al personaje, edita
+`walk_source.png` y vuelve a correrlo.
 
 | Parte | Colores |
 | --- | --- |

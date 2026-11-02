@@ -37,6 +37,7 @@ typedef struct {
      * {original 0xRRGGBB, this theme's}. None for the sunset itself. */
     unsigned prop_recolor[THEME_MAX_RECOLORS][2];
     int prop_recolor_count;
+    int house_chance; /* Percent of the house slots with a building in the background */
 } ThemeDef;
 
 extern const ThemeDef THEME_ATARDECER;

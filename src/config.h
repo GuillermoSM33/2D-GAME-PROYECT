@@ -15,6 +15,14 @@
 #define FRAME_SNAP_TOLERANCE 0.1f /* Fraction of the target */
 
 /* World */
+/* The world is laid out in a view VIEW_WIDTH x VIEW_HEIGHT px (its art at
+ * SPRITE_SCALE) and drawn at VIEW_SCALE of that: 3 window px per art px,
+ * still whole pixels, so she sees a third more of the road. It fills the
+ * window's bottom; the band above it is sky, where the HUD sits. */
+#define VIEW_WIDTH 1280
+#define VIEW_HEIGHT 540
+#define VIEW_SCALE 0.75f
+#define VIEW_TOP (WINDOW_HEIGHT - (int)(VIEW_HEIGHT * VIEW_SCALE)) /* Window y of the view's top: 135 */
 #define BASELINE 470
 #define SPRITE_SCALE 4
 #define GROUND_ROW 117 /* Art row of the ground line (window y 468); props rest on it */
@@ -55,11 +63,28 @@
 /* Seconds from a bullet until the next shot can start. With the aim frame
  * a follow-up fires 1/16 s later: one bullet every 0.445 s. */
 #define PLAYER_SHOOT_RELOAD_TIME 0.3825f
+#define PLAYER_RELOAD_FRAMES 8 /* A magazine going in (reload sheets), over the gun's reload time */
+#define PLAYER_RELOAD_WALK_MULT 0.5f /* Walking while a magazine goes in: half speed */
+#define PLAYER_VAULT_SPEED 520.0f  /* Window px per second over a barricade: clears it in one jump */
+#define VAULT_REACH 80.0f          /* Window px from where a barricade stops her to vault it */
+#define PLAYER_WAIST_ROW 46        /* Walk-frame row where legs start (reloading while walking) */
+/* Sitting on a bench (sit sheet, tools/make_sit.py): 12 frames of 72 x 67. */
+#define PLAYER_THROW_FRAMES 8      /* The grenade throw, on the shoot template */
+#define PLAYER_THROW_FPS 14.0f
+#define PLAYER_THROW_RELEASE_FRAME 4 /* The grenade leaves the hand */
+#define PLAYER_SIT_FRAME_W 72
+#define PLAYER_SIT_ANCHOR_X 35.5f  /* Sat facing the viewer: the body in the frame's middle */
+#define PLAYER_SIT_FRAMES 14
+#define SIT_DOWN_TIME 0.2f         /* Frame 0, getting down */
+#define SIT_RELOAD_TIME 2.0f       /* Frames 4-9, per gun missing a round: it gets full */
+#define SIT_BREATH_FPS 1.5f        /* Frames 1-3, sat */
+#define SIT_DOZE_TIME 7.0f         /* Seconds sat before she starts nodding off (frames 10-13) */
+#define SIT_DOZE_FPS 2.5f
 
 /* Gun smoke (smoke.c): puffs leave the muzzle one after another, rise, drift
  * ahead, grow and fade. Colors are the greys the shoot sheet's smoke used. */
-#define SMOKE_PUFFS_PER_SHOT 6
-#define SMOKE_MAX_PUFFS 24          /* Enough for the clouds of several shots */
+#define SMOKE_PUFFS_PER_SHOT 6      /* The revolver's; each gun sets its own (weapons.c) */
+#define SMOKE_MAX_PUFFS 64          /* Enough for the clouds of several shots */
 #define SMOKE_PUFF_INTERVAL 0.05f   /* Seconds between puffs of one shot */
 #define SMOKE_PUFF_LIFE 0.75f       /* Seconds a puff lasts, +-20% */
 #define SMOKE_DRIFT_SPEED 55.0f     /* px/s ahead, slowed by SMOKE_DRAG */
@@ -86,7 +111,7 @@
 
 /* Damage: a weapon of level L deals DAMAGE_BASE * (1 + DAMAGE_LEVEL_GROWTH * (L - 1)),
  * so each level adds 60% of the base. Armor A lets through ARMOR_SCALE / (ARMOR_SCALE + A)
- * of it: 80 armor stops 44%, and no amount of armor makes an enemy immune. */
+ * of it: 85 armor stops 46%, and no amount of armor makes an enemy immune. */
 #define DAMAGE_BASE 20.0f
 #define DAMAGE_LEVEL_GROWTH 0.6f
 #define ARMOR_SCALE 100.0f
@@ -106,7 +131,7 @@
 /* A kill gives XP_PER_ZOMBIE_LEVEL x the zombie's level, +-XP_GAP_STEP per
  * level it is above or below her (within XP_GAP_MIN..XP_GAP_MAX): weaker
  * zombies are worth less, so replaying easy stages can't skip the curve. */
-#define XP_PER_ZOMBIE_LEVEL 25.0f
+#define XP_PER_ZOMBIE_LEVEL 11.0f
 #define XP_GAP_STEP 0.25f
 #define XP_GAP_MIN 0.25f
 #define XP_GAP_MAX 1.75f
@@ -143,19 +168,22 @@
 #define ZOMBIE_FRAME_W 72
 #define ZOMBIE_FRAME_H 72
 #define ZOMBIE_WALK_FRAMES 8
-#define ZOMBIE_WALK_FPS 7.5f  /* 8 display frames per art frame at 60 Hz */
+#define ZOMBIE_WALK_FPS 7.95f /* Its feet keep up with ZOMBIE_SPEED */
 #define ZOMBIE_HURT_FRAMES 3     /* 0 recoil with sparks, 1 sparks fade, 2 back to stance */
 #define ZOMBIE_HURT_FPS 12.0f
 #define ZOMBIE_DEATH_FRAMES 8    /* 0 standing, 1 jolt with sparks, 2-4 knees, 5-6 falls, 7 lying */
 #define ZOMBIE_DEATH_FPS 10.0f
 #define ZOMBIE_ATTACK_FRAMES 6   /* 0-1 wind up, 2 strike, 3 hold, 4-5 recover */
-#define ZOMBIE_ATTACK_FPS 10.0f
+#define ZOMBIE_ATTACK_FPS 11.0f
 #define ZOMBIE_ATTACK_STRIKE_FRAME 2
 #define ZOMBIE_ATTACK_BASE 15.0f /* Same formula as the weapon, with this base */
 #define ZOMBIE_ATTACK_RANGE 180.0f   /* Claw trail's reach, window px between body centers */
-#define ZOMBIE_ATTACK_COOLDOWN 0.8f  /* Seconds between the end of one attack and the next */
+#define ZOMBIE_CLAW_HEIGHT 60.0f     /* Window px over the ground: her feet above this, it misses */
+#define ZOMBIE_ATTACK_COOLDOWN 0.72f /* Seconds between the end of one attack and the next */
 #define ZOMBIE_STAGGER_COOLDOWN 0.5f /* After a recoil, hits only spark for this long */
-#define ZOMBIE_SPEED 60.0f       /* px per second, a slow limp: exactly 1 px per step */
+#define ZOMBIE_SPEED 63.6f       /* px per second, a slow limp */
+#define ZOMBIE_BREATH_TIME 1.6f  /* Seconds of one breath while it waits asleep */
+#define ZOMBIE_ROUSE_TIME 0.6f   /* Seconds it jolts awake and lurches before it walks */
 #define ZOMBIE_REACH 140.0f      /* Stops this far from the player's center: claw tip on her body */
 #define ZOMBIE_HALF_WIDTH 16.0f  /* Hitbox, in art px from the body center */
 #define ZOMBIE_HEIGHT 60.0f      /* Hitbox, in art px above the ground line */
@@ -179,6 +207,9 @@
 #define PLAYER_HALF_WIDTH (PLAYER_WALK_FRAME_W * SPRITE_SCALE / 2.0f)
 
 #define PLAYER_START_X (WORLD_WIDTH / 2.0f) /* Mid-level: room to walk both ways */
+/* Where she stands in the view, from its left edge: the roads lead right, so
+ * two thirds of the screen show what is coming. */
+#define CAMERA_PLAYER_SHARE 0.32f
 /* Whole pixels per 60 Hz step (4 walking, 6 running), so scrolling moves the
  * same amount every frame instead of an uneven 6, 7, 6, 6, 7... */
 #define PLAYER_WALK_SPEED 240.0f   /* px per second */
@@ -196,6 +227,150 @@
 /* Jump arc: peak height in window px and total time in the air. */
 #define PLAYER_JUMP_HEIGHT 96.0f
 #define PLAYER_JUMP_TIME 0.6f
+
+/* The stage's road (stage_run.c, stages.c): she walks from PLAYER_START_X
+ * to a gate StageDef.length ahead, past its zombies' groups and its terrain. */
+#define RUN_MAX_ZOMBIES 16
+#define RUN_MAX_CHESTS 6
+/* A group wakes when even its farthest zombie is this close: they all stand
+ * in view first (she sees 870 px ahead), none walks in from off screen. */
+#define ROUTE_WAKE_DISTANCE 820.0f
+#define ROUTE_GROUP_SPACING 150.0f /* Window px between the zombies of a group */
+#define ROUTE_LOCK_MARGIN 160.0f   /* A woken group keeps her from going past its last zombie + this */
+#define ROUTE_PX_PER_METER 48.0f   /* For the distance to the goal in the HUD */
+#define ROUTE_QUEUE_STEP 40.0f     /* Zombies queue up by her: each a step behind; two still reach */
+#define PLAYER_BODY_HALF_WIDTH 40.0f /* What runs into a barricade: her body, not the frame */
+
+/* Terrain (terrain.c, art from tools/make_terrain.py). */
+#define TERRAIN_MAX 48
+#define POWER_LEVEL 3             /* Each character's level-3 power: dual pistols, grenades */
+#define GRENADE_SPEED_X 430.0f    /* Window px/s ahead when thrown */
+#define GRENADE_SPEED_Y 560.0f    /* ...and up */
+#define GRENADE_GRAVITY 1500.0f
+#define GRENADE_BOUNCE 0.35f      /* Speed kept off the ground or a wall */
+#define GRENADE_FUSE 1.5f         /* Seconds from the throw to the blast */
+#define GRENADE_RADIUS 260.0f     /* Window px to a body's edge: the blast reaches it */
+#define GRENADE_DAMAGE_MULT 3.0f  /* Times her weapon damage, armor at BARREL_ARMOR_SHARE */
+#define GRENADE_SELF_MULT 1.0f    /* Claws of the stage's zombies on her, if she's caught in it */
+#define POWER_COOLDOWN 15.0f      /* Seconds between uses of a level-3 power (F) */
+#define RICOCHET_LOSS 0.55f       /* A ricochet's second hit: 45% less damage... */
+#define RICOCHET_KILL_BONUS 1.30f /* ...or 30% more if the first target died */
+#define RICOCHET_TINT 0xffd060    /* Its bullets glow gold */
+#define GRENADE_FRAME 8           /* weapons/grenade: 4 frames tumbling */
+#define HOUSE_FRAME_W 80          /* Buildings off the road, behind it (props/houses) */
+#define HOUSE_FRAME_H 64
+#define HOUSE_FRAMES 9           /* Five houses, then church, sheriff, smithy, stable */
+#define HOUSE_SCALE 3             /* Smaller than the props: further away */
+#define HOUSE_PARALLAX 0.8f       /* ...and slower */
+#define HOUSE_SPACING 700.0f      /* A slot for a house every this many px of their strip */
+#define BARRICADE_FRAME_W 52
+#define BARRICADE_FRAME_H 20
+#define BARRICADE_TOP 76.0f       /* Window px: above the claw, under her jump's peak */
+#define BARRICADE_STRIKES 4       /* Claw strikes that wreck it */
+#define BARRICADE_CLAW_GAP 36.0f  /* A zombie clawing it stands this far from its edge */
+#define WALL_FRAME_W 44           /* The tall palisade: her height, no jumping it */
+#define WALL_FRAME_H 72
+#define WALL_RUINS_W 180          /* The ruined house round a palisade, drawn behind it */
+#define WALL_RUINS_H 84
+#define FACADE_W 180              /* A wall that is a building's front: church, sheriff... */
+#define FACADE_H 128
+#define FACADE_KINDS 4
+#define DOOR_FRAME_W 44           /* ...its barred door, as wide as the palisade */
+#define DOOR_FRAME_H 64
+#define WALL_STRIKES 14           /* Claws take a long while; a blast takes a moment */
+#define WALL_USE_RANGE 70.0f      /* Window px from its edge to light a charge on it */
+#define CHARGE_FUSE 2.5f          /* Seconds from lighting to the blast: time to step back */
+#define CHARGE_FRAME_W 14
+#define CHARGE_FRAME_H 20
+#define DYNAMITE_FRAME_W 24
+#define DYNAMITE_FRAME_H 18
+#define DYNAMITE_PER_BOX 1
+#define PICKUP_RANGE 80.0f        /* Window px from a box's center: walk over it */
+#define BARREL_FRAME_W 26
+#define BARREL_FRAME_H 36
+#define BARREL_RADIUS 320.0f      /* Window px from the barrel to a body's edge: the blast reaches it */
+#define BARREL_CHAIN_RADIUS 260.0f /* ...and sets off barrels this close */
+#define BARREL_SHOT_MARGIN 16.0f  /* Window px over its lid a bullet still hits it */
+#define BLAST_FIRE_SPREAD 120.0f  /* Burning patches left either side of a blast, this far apart */
+#define BLAST_FIRE_TIME 2.0f      /* Seconds they burn (each a little more or less) */
+#define WALL_BARREL_GAP 170.0f    /* A barrel set against a wall, this far before it */
+#define BARREL_DAMAGE_MULT 4.0f   /* Times her weapon damage, so it grows with upgrades */
+#define BARREL_ARMOR_SHARE 0.5f   /* Armor counts half against a blast */
+#define BARREL_SELF_MULT 2.0f     /* Her own blast hurts like this many claws of the stage's zombies */
+#define SUPPLY_FRAME_W 100
+#define SUPPLY_FRAME_H 56
+#define SUPPLY_RANGE 160.0f       /* Window px from its center: walk up to take it */
+#define SUPPLY_HEAL_SHARE 0.35f   /* Of her max health */
+#define SUPPLY_DYNAMITE_MEDIUM 20000.0f /* Roads longer than this: 2 charges in the wagon */
+#define SUPPLY_DYNAMITE_LONG 28000.0f   /* ...and than this: 3 */
+#define GOAL_FRAME_W 108
+#define GOAL_FRAME_H 96
+#define CRATE_FRAME_W 18          /* A loose crate: 3 shots to break, loot inside */
+#define CRATE_FRAME_H 16
+#define CRATE_HITS 3
+#define CRATE_SPACING 84.0f       /* Window px between crates of one spot */
+#define TRAP_SPACING 220.0f
+#define LAMP_SPACING 320.0f
+#define COFFIN_SPACING 130.0f
+#define LOOT_GOLD_SHARE 0.5f      /* A crate's gold: this share of a chest's XP */
+#define BOTTLES_XP_SHARE 0.4f     /* All three bottles: this share of a chest's XP */
+#define LOOT_AMMO_CHANCE 35       /* Percent of crates: the gun in hand's magazine full */
+#define LOOT_HEALTH_CHANCE 30     /* ...health (LOOT_HEALTH_SHARE of her max) */
+#define LOOT_DYNAMITE_CHANCE 15   /* ...a charge of dynamite; the rest, gold (XP) */
+#define LOOT_HEALTH_SHARE 0.2f
+#define BOTTLES_FRAME_W 36        /* Three bottles on a fence rail: frames with 3, 2, 1, 0 left */
+#define BOTTLES_FRAME_H 22
+#define BOTTLE_COUNT 3
+#define TRAP_FRAME_W 20           /* A bear trap: open, shut */
+#define TRAP_FRAME_H 8
+#define TRAP_REACH 44.0f          /* Window px from its center: a foot on it snaps it */
+#define TRAP_HOLD 3.0f            /* Seconds a zombie stays caught */
+#define TRAP_DAMAGE_MULT 2.0f     /* Times her weapon damage to a zombie; her: TRAP_SELF_MULT claws */
+#define TRAP_SELF_MULT 1.5f
+#define COFFIN_FRAME_W 20         /* Upright coffin: closed, burst open */
+#define COFFIN_FRAME_H 44
+#define COFFIN_HITS 2             /* Shots that burst it open early */
+#define COFFIN_RANGE 340.0f       /* Window px: she comes this near, it bursts open */
+#define LAMP_FRAME_W 14           /* Oil lamp on a post: lit, post without its lamp */
+#define LAMP_FRAME_H 56
+#define FIRE_FRAME_W 32           /* Burning oil on the ground */
+#define FIRE_FRAME_H 24
+#define FIRE_FRAMES 4
+#define FIRE_FPS 10.0f
+#define FIRE_TIME 5.0f            /* Seconds a fallen lamp's oil burns */
+#define FIRE_REACH 72.0f          /* Window px from its center: in the flames */
+#define FIRE_TICK 0.5f            /* Seconds between burns */
+#define FIRE_DAMAGE_MULT 0.6f     /* Times her weapon damage per burn, a third of the armor counting */
+#define FIRE_SELF_MULT 0.5f       /* Claws of the stage's zombies per burn on her */
+#define BENCH_FRAME_W 76           /* A bench to rest on, from the front: its seat at a sitter's lap */
+#define BENCH_FRAME_H 32
+#define BENCH_RANGE 90.0f          /* Window px from its center: E sits her on it */
+#define BENCH_HEAL_MIN 5           /* Health the first sit gives, a fixed roll per bench */
+#define BENCH_HEAL_MAX 15
+#define CAMPFIRE_FRAME_W 48        /* A campfire to rest by */
+#define CAMPFIRE_FRAME_H 44
+#define CAMPFIRE_FRAMES 4         /* Per look: the fire alone, then with a pot over it */
+#define CAMPFIRE_RANGE 140.0f      /* Window px from its center: warm enough to heal */
+#define CAMPFIRE_HEAL 1.5f         /* Health per CAMPFIRE_HEAL_TIME by the fire */
+#define CAMPFIRE_HEAL_TIME 3.0f
+#define REST_GAP 280.0f            /* A campfire this far past its bench */
+#define HEAL_FRAME_W 64            /* The green aura round a healed body and a + over it */
+#define HEAL_FRAME_H 96
+#define HEAL_GLOW_TIME 2.0f        /* Seconds she glows green after a heal */
+#define HEAL_FRAMES 12
+#define HEAL_FPS 8.0f
+#define GLOW_SIZE 32               /* The light round a flame (effects/glow), stretched */
+#define LAMP_LIGHT 300.0f          /* Window px across the light of a lamp */
+#define FIRE_LIGHT 380.0f          /* ...of burning oil, a campfire */
+#define SMOKE_EVERY 0.35f          /* Seconds between puffs off a fire */
+#define EXPLOSION_FRAME_W 72
+#define EXPLOSION_FRAME_H 72
+#define EXPLOSION_FRAMES 8
+#define EXPLOSION_FPS 14.0f
+
+/* The interface's pixel art (game/ui.c) is drawn at this scale: a 24 px
+ * board corner is 72 window px. Its text uses the pixel font at 2-8. */
+#define UI_SCALE 3
 
 /* Colors (0xRRGGBB) */
 #define COLOR_BACKGROUND 0x202229
@@ -221,6 +396,7 @@
 #define AUDIO_RATE 44100
 #define AUDIO_BUFFER 512   /* Samples per callback: small, so shots sound on time */
 #define AUDIO_CHANNELS 16  /* Effects that can overlap */
-#define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME) */
+#define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME): every sound, before the volume menu */
+#define AUDIO_GROUPS 4     /* Volume groups (audio_play_in): see SoundGroup in settings.h */
 
 #endif

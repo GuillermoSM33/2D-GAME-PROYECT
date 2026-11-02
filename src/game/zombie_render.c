@@ -23,22 +23,25 @@ void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
     const AnimationDef *def = zombie->anim.def;
     SDL_Texture *sheet = def ? assets_texture(def->sheet) : NULL;
     float opacity = zombie_opacity(zombie);
-    if (sheet == NULL || opacity <= 0.0f)
+    if (sheet == NULL || opacity <= 0.0f || zombie->hidden)
         return;
 
     bool left = zombie->facing < 0;
     float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;
     SDL_Rect src = {zombie->anim.frame * def->frame_w, 0, def->frame_w, def->frame_h};
     SDL_Rect dst = {
-        (int)lroundf(zombie->x - camera_x - anchor_x * SPRITE_SCALE),
-        BASELINE - def->ground_y * SPRITE_SCALE,
+        (int)lroundf(zombie->x - camera_x - anchor_x * SPRITE_SCALE) + zombie_shudder(zombie) * SPRITE_SCALE,
+        BASELINE - def->ground_y * SPRITE_SCALE - zombie_breath(zombie) * SPRITE_SCALE,
         def->frame_w * SPRITE_SCALE,
         def->frame_h * SPRITE_SCALE,
     };
     SDL_RendererFlip flip = left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    unsigned tint = zombie->stats ? zombie->stats->tint : 0xffffff;
+    SDL_SetTextureColorMod(sheet, (Uint8)(tint >> 16), (Uint8)(tint >> 8), (Uint8)tint);
     SDL_SetTextureAlphaMod(sheet, (Uint8)lroundf(opacity * 255.0f));
     SDL_RenderCopyEx(renderer, sheet, &src, &dst, 0.0, NULL, flip);
     SDL_SetTextureAlphaMod(sheet, 255);
+    SDL_SetTextureColorMod(sheet, 255, 255, 255);
 
     if (zombie_alive(zombie) && zombie->health < zombie->max_health)
         draw_health_bar(renderer, zombie, camera_x);

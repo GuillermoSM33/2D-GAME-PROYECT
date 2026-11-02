@@ -9,11 +9,13 @@
 
 /* Background layers and props are pixel art at the sprites' scale. */
 #define PX SPRITE_SCALE
+#define HOUSES_SHEET "sprites/props/houses"
 
 /* The props' sheets in the current theme's colors: the embedded ones for the
  * sunset, palette-swapped copies for the others (made when the theme changes). */
 static const ThemeDef *props_theme;
 static SDL_Texture *themed_props[PROP_KIND_COUNT];
+static SDL_Texture *themed_houses;
 static bool themed_owned; /* The copies are ours to destroy */
 
 static void release_props(void)
@@ -23,6 +25,9 @@ static void release_props(void)
             SDL_DestroyTexture(themed_props[k]);
         themed_props[k] = NULL;
     }
+    if (themed_owned && themed_houses)
+        SDL_DestroyTexture(themed_houses);
+    themed_houses = NULL;
     themed_owned = false;
     props_theme = NULL;
 }
@@ -40,6 +45,9 @@ static void prepare_props(SDL_Renderer *renderer, const ThemeDef *theme)
                                                          theme->prop_recolor_count)
                               : assets_texture(sheet);
     }
+    themed_houses = themed_owned ? assets_texture_recolored(renderer, HOUSES_SHEET, theme->prop_recolor,
+                                                            theme->prop_recolor_count)
+                                 : assets_texture(HOUSES_SHEET);
     props_theme = theme;
 }
 
@@ -64,11 +72,18 @@ static void draw_layer(SDL_Renderer *renderer, SDL_Texture *texture, const Backg
     if (!layer->repeat) {
         SDL_Rect dst = {0, y, w, h};
         SDL_RenderCopy(renderer, texture, NULL, &dst);
+        /* Wider than the art (the sky): its last column carries on, its bands
+         * being level, to the view's edge. */
+        if (w < VIEW_WIDTH) {
+            SDL_Rect edge = {layer->width - 1, 0, 1, layer->height};
+            SDL_Rect rest = {w, y, VIEW_WIDTH - w, h};
+            SDL_RenderCopy(renderer, texture, &edge, &rest);
+        }
         return;
     }
     /* Leftmost tile: where the scrolled strip starts, wrapped into [-w, 0). */
     int x = -(int)lroundf(fmodf(offset, (float)w));
-    for (; x < WINDOW_WIDTH; x += w) {
+    for (; x < VIEW_WIDTH; x += w) {
         SDL_Rect dst = {x, y, w, h};
         SDL_RenderCopy(renderer, texture, NULL, &dst);
     }
@@ -98,25 +113,62 @@ static void draw_props(SDL_Renderer *renderer, const World *world, float camera_
         if (!chunk->loaded)
             continue;
         float screen_x = (float)(chunk->index * WORLD_CHUNK_W) - camera_x;
-        if (screen_x > WINDOW_WIDTH || screen_x + WORLD_CHUNK_W < 0.0f)
+        if (screen_x > VIEW_WIDTH || screen_x + WORLD_CHUNK_W < 0.0f)
             continue; /* Loaded ahead, not on screen yet (props stay inside their chunk) */
         for (int p = 0; p < chunk->prop_count; p++)
             draw_prop(renderer, &chunk->props[p], screen_x);
     }
 }
 
+/* Buildings off the road on a strip of their own, behind the props: a slot
+ * every HOUSE_SPACING, filled or not and with which one by a hash of the slot,
+ * so the same road always shows the same town. */
+static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float camera_x)
+{
+    if (themed_houses == NULL || theme->house_chance <= 0)
+        return;
+    float strip = camera_x * HOUSE_PARALLAX;
+    int w = HOUSE_FRAME_W * HOUSE_SCALE, h = HOUSE_FRAME_H * HOUSE_SCALE;
+    long first = (long)floorf((strip - (float)w) / HOUSE_SPACING);
+    long last = (long)floorf((strip + (float)VIEW_WIDTH) / HOUSE_SPACING);
+    for (long slot = first; slot <= last; slot++) {
+        unsigned hash = (unsigned)slot * 2654435761u;
+        hash ^= hash >> 15;
+        hash *= 0x2c1b3c6du;
+        hash ^= hash >> 12;
+        if ((int)(hash % 100u) >= theme->house_chance)
+            continue;
+        int variant = (int)((hash >> 8) % HOUSE_FRAMES);
+        float jitter = (float)((hash >> 16) % 300u);
+        SDL_Rect src = {variant * HOUSE_FRAME_W, 0, HOUSE_FRAME_W, HOUSE_FRAME_H};
+        SDL_Rect dst = {(int)lroundf((float)slot * HOUSE_SPACING + jitter - strip),
+                        GROUND_ROW * PX - h - 2 * PX, w, h};
+        SDL_RenderCopy(renderer, themed_houses, &src, &dst);
+    }
+}
+
+unsigned scene_sky_top(const ThemeDef *theme)
+{
+    char name[96];
+    snprintf(name, sizeof(name), "backgrounds/%s/%s", theme->name, BACKGROUND_LAYERS[0].file);
+    const EmbeddedImage *sky = assets_find_image(name);
+    if (sky == NULL)
+        return COLOR_BACKGROUND;
+    return ((unsigned)sky->rgba[0] << 16) | ((unsigned)sky->rgba[1] << 8) | sky->rgba[2];
+}
+
 void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, double time)
 {
     const ThemeDef *theme = world->theme;
     prepare_props(renderer, theme);
-    platform_set_color(renderer, COLOR_BACKGROUND);
-    SDL_RenderClear(renderer);
 
     /* Back to front; the props stand between the hills and the ground. */
     for (int i = 0; i < BACKGROUND_LAYER_COUNT; i++) {
         const BackgroundLayer *layer = &BACKGROUND_LAYERS[i];
-        if (i == BACKGROUND_LAYER_COUNT - 1)
+        if (i == BACKGROUND_LAYER_COUNT - 1) {
+            draw_houses(renderer, theme, camera_x);
             draw_props(renderer, world, camera_x);
+        }
         SDL_Texture *texture = layer_texture(theme, layer);
         if (texture)
             draw_layer(renderer, texture, layer, camera_x * layer->parallax);

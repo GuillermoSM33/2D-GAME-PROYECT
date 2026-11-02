@@ -18,8 +18,13 @@ float weapon_damage(int level)
 
 int damage_after_armor(float damage, float armor)
 {
+    int points = (int)lroundf(damage_through_armor(damage, armor));
+    return points < 1 ? 1 : points;
+}
+
+float damage_through_armor(float damage, float armor)
+{
     if (armor < 0.0f)
         armor = 0.0f;
-    int points = (int)lroundf(damage * ARMOR_SCALE / (ARMOR_SCALE + armor));
-    return points < 1 ? 1 : points;
+    return damage * ARMOR_SCALE / (ARMOR_SCALE + armor);
 }

@@ -24,12 +24,13 @@ CORE_SRC := src/engine/input.c src/engine/animation.c src/game/movement.c src/ga
             src/game/damage.c src/game/zombie.c src/game/combat.c src/game/effects.c \
             src/game/camera.c src/game/world.c src/game/props.c src/game/themes.c src/game/smoke.c \
             src/game/progression.c src/game/stages.c src/game/chest.c src/game/stage_run.c \
-            src/game/menu.c src/game/weapons.c src/game/characters.c src/game/char_select.c
-APP_SRC  := src/main.c src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c \
+            src/game/menu.c src/game/weapons.c src/game/characters.c src/game/char_select.c \
+            src/game/terrain.c src/game/settings.c
+APP_SRC  := src/main.c src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c src/engine/pixfont.c \
             src/game/controls.c src/game/scene.c src/game/hud.c src/game/player_render.c \
             src/game/bullet_render.c src/game/zombie_render.c src/game/effects_render.c \
             src/game/health_bar.c src/game/smoke_render.c src/game/chest_render.c \
-            src/game/character_skin.c
+            src/game/character_skin.c src/game/terrain_render.c src/game/ui.c
 GEN_SRC  := $(GEN)/assets_data.c
 TESTS    := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/test_*.c))
 ASSETS   := $(shell find assets -type f \( -name '*.png' -o -name '*.ttf' -o -name '*.wav' -o -name '*.ogg' \))

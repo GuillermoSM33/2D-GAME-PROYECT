@@ -13,4 +13,7 @@ void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, doub
 /* Frees the theme's recolored props. */
 void scene_shutdown(void);
 
+/* The color of the sky's top row: the band above the view is filled with it. */
+unsigned scene_sky_top(const ThemeDef *theme);
+
 #endif

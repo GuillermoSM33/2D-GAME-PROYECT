@@ -12,4 +12,8 @@ float weapon_damage(int level);
  * below 1, so every hit counts. */
 int damage_after_armor(float damage, float armor);
 
+/* The same, unrounded: zombies keep the fractions (zombie.c), so light rounds
+ * lose nothing to rounding and the guns stay balanced at any damage. */
+float damage_through_armor(float damage, float armor);
+
 #endif

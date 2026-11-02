@@ -6,6 +6,6 @@
 
 float camera_left(float player_x)
 {
-    float left = player_x - WINDOW_WIDTH / 2.0f;
-    return fminf(WORLD_WIDTH - WINDOW_WIDTH, fmaxf(0.0f, left));
+    float left = player_x - VIEW_WIDTH * CAMERA_PLAYER_SHARE;
+    return fminf(WORLD_WIDTH - VIEW_WIDTH, fmaxf(0.0f, left));
 }

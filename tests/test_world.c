@@ -8,9 +8,9 @@
 
 static void test_camera_follows_and_stops_at_ends(void)
 {
-    CHECK_NEAR(camera_left(PLAYER_START_X), PLAYER_START_X - WINDOW_WIDTH / 2.0f, 0.01f);
+    CHECK_NEAR(camera_left(PLAYER_START_X), PLAYER_START_X - VIEW_WIDTH * CAMERA_PLAYER_SHARE, 0.01f);
     CHECK_NEAR(camera_left(100.0f), 0.0f, 0.01f);
-    CHECK_NEAR(camera_left(WORLD_WIDTH - 100.0f), WORLD_WIDTH - WINDOW_WIDTH, 0.01f);
+    CHECK_NEAR(camera_left(WORLD_WIDTH - 100.0f), WORLD_WIDTH - VIEW_WIDTH, 0.01f);
 }
 
 static void test_same_index_same_chunk(void)
@@ -97,7 +97,7 @@ static void test_loads_only_what_is_in_view(void)
     int first, last;
     layer_visible(&world.ground, cam, &first, &last);
     CHECK(layer_loaded_count(&world.ground) == last - first + 1);
-    CHECK(last - first + 1 <= WINDOW_WIDTH / WORLD_CHUNK_W + 1 + 2 * WORLD_LOAD_MARGIN);
+    CHECK(last - first + 1 <= VIEW_WIDTH / WORLD_CHUNK_W + 1 + 2 * WORLD_LOAD_MARGIN);
     for (int i = first; i <= last; i++)
         CHECK(layer_chunk(&world.ground, i) != NULL);
     CHECK(layer_chunk(&world.ground, first - 1) == NULL);

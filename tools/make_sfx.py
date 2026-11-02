@@ -3,7 +3,8 @@
 
 Usage: tools/make_sfx.py [assets_dir]   (default: assets)
 
-Writes assets/sounds/player/*.wav: 22050 Hz, mono, 8-bit unsigned PCM, the format of
+Writes assets/sounds/player/*.wav (shot, reload) and sounds/world/*.wav
+(explosion, supply, fuse, glass, wood, snap): 22050 Hz, mono, 8-bit unsigned PCM, the format of
 old consoles. The sounds are synthesized like a chiptune sound chip does: a
 noise channel from a 15-bit LFSR plus square waves, each with its own volume
 envelope and pitch slide. Deterministic, so re-running gives the same files.
@@ -98,9 +99,134 @@ def reload() -> list[float]:
     return out
 
 
-SOUNDS = {
-    'shot': shot,
-    'reload': reload,
+def explosion() -> list[float]:
+    """A powder barrel going up: a hard crack, a deep boom and falling debris."""
+    length = int(RATE * 1.1)
+    noise = Noise()
+    debris = Noise()
+    thump = Square(duty=0.5)
+    out = []
+    for i in range(length):
+        t = i / RATE
+        clock = 6000.0 * math.exp(-t * 6.0) + 180.0
+        boom = noise.step(clock) * (0.8 * math.exp(-t * 4.0) + 0.2 * math.exp(-t * 1.5))
+        freq = 120.0 * math.exp(-t * 8.0) + 32.0
+        body = thump.step(freq) * 0.6 * math.exp(-t * 5.0)
+        rattle = debris.step(2500.0) * 0.18 * max(0.0, math.sin(t * 40.0)) * math.exp(-t * 3.0)             if t > 0.25 else 0.0
+        attack = min(1.0, t / 0.002)
+        out.append(attack * (0.7 * boom + body + rattle))
+    return out
+
+
+def supply() -> list[float]:
+    """Supplies taken: two quick rising blips and a box being set down."""
+    length = int(RATE * 0.45)
+    lead = Square(duty=0.25)
+    noise = Noise()
+    out = []
+    for i in range(length):
+        t = i / RATE
+        if t < 0.08:
+            tone = lead.step(660.0) * 0.45
+        elif t < 0.18:
+            tone = lead.step(990.0) * 0.45 * math.exp(-(t - 0.08) * 8.0)
+        else:
+            tone = 0.0
+        thud = noise.step(900.0) * 0.5 * math.exp(-(t - 0.25) * 30.0) if t >= 0.25 else 0.0
+        out.append(tone + thud)
+    return out
+
+
+def fuse() -> list[float]:
+    """A fuse lit: a match struck (a scratch and a soft whoosh as it catches),
+    then the fuse burning, a thin hiss with pops at random, never repeating,
+    dying down over the charge's fuse (CHARGE_FUSE in src/config.h). The
+    blast is its own sound."""
+    length = int(RATE * 2.4)
+    scratch = Noise()
+    hiss = Noise()
+    pop = Noise()
+    out = []
+    state = 12345
+    pop_left = 0
+    for i in range(length):
+        t = i / RATE
+        # Strike: a rough scratch (0-0.08 s), then the flare catching.
+        strike = 0.0
+        if t < 0.08:
+            strike = scratch.step(4000.0 + 30000.0 * t) * 0.55 * (1.0 - t / 0.08)
+        flare = hiss.step(9000.0) * 0.45 * math.exp(-(t - 0.08) * 9.0) if t >= 0.08 else 0.0
+        # Burning: a quiet hiss whose loudness wanders, dimming toward the end.
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        wander = 0.75 + 0.25 * ((state >> 16) % 1000) / 1000.0
+        burn = hiss.step(14000.0) * 0.16 * wander * (1.0 - 0.5 * t / 2.4) if t >= 0.12 else 0.0
+        # Pops: short random bursts, a few per second.
+        if pop_left == 0 and t >= 0.15 and (state >> 8) % 1400 == 0:
+            pop_left = int(RATE * 0.012)
+        crackle = 0.0
+        if pop_left > 0:
+            crackle = pop.step(2500.0) * 0.45 * pop_left / (RATE * 0.012)
+            pop_left -= 1
+        fade = min(1.0, (2.4 - t) / 0.15)
+        out.append(fade * (strike + flare + burn + crackle))
+    return out
+
+
+def glass() -> list[float]:
+    """Bottles shot to bits: a bright crack and tinkling shards."""
+    length = int(RATE * 0.5)
+    crack = Noise()
+    tinkle = Square(duty=0.125)
+    out = []
+    state = 99
+    for i in range(length):
+        t = i / RATE
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        hit = crack.step(16000.0) * 0.6 * math.exp(-t * 40.0)
+        freq = 2400.0 + 1600.0 * ((state >> 16) % 7) / 7.0
+        shards = tinkle.step(freq) * 0.18 * math.exp(-t * 7.0) if t > 0.03 else 0.0
+        out.append(hit + shards)
+    return out
+
+
+def wood() -> list[float]:
+    """A crate split open: a dry crack and boards clattering down."""
+    length = int(RATE * 0.45)
+    crack = Noise()
+    knock = Square(duty=0.5)
+    out = []
+    for i in range(length):
+        t = i / RATE
+        snap = crack.step(5000.0) * 0.6 * math.exp(-t * 30.0)
+        thud = knock.step(150.0 * math.exp(-t * 4.0) + 70.0) * 0.4 * math.exp(-t * 12.0)
+        clatter = crack.step(1800.0) * 0.25 * abs(math.sin(t * 60.0)) * math.exp(-t * 6.0) if t > 0.12 else 0.0
+        out.append(snap + thud + clatter)
+    return out
+
+
+def snap() -> list[float]:
+    """A bear trap shutting: two iron jaws clanging together."""
+    length = int(RATE * 0.35)
+    clang = Square(duty=0.25)
+    hit = Noise()
+    out = []
+    for i in range(length):
+        t = i / RATE
+        ring = clang.step(780.0 + 120.0 * math.sin(t * 90.0)) * 0.35 * math.exp(-t * 9.0)
+        bang = hit.step(9000.0) * 0.6 * math.exp(-t * 50.0)
+        out.append(ring + bang)
+    return out
+
+
+SOUNDS = {  # name: (folder under sounds/, synth)
+    'shot': ('player', shot),
+    'reload': ('player', reload),
+    'explosion': ('world', explosion),
+    'supply': ('world', supply),
+    'fuse': ('world', fuse),
+    'glass': ('world', glass),
+    'wood': ('world', wood),
+    'snap': ('world', snap),
 }
 
 
@@ -113,9 +239,9 @@ def write_wav(path: Path, samples: list[float]) -> None:
 
 def main() -> int:
     assets_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('assets')
-    out_dir = assets_dir / 'sounds' / 'player'
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for name, make in SOUNDS.items():
+    for name, (folder, make) in SOUNDS.items():
+        out_dir = assets_dir / 'sounds' / folder
+        out_dir.mkdir(parents=True, exist_ok=True)
         samples = make()
         write_wav(out_dir / f'{name}.wav', samples)
         print(f'make_sfx: {out_dir / name}.wav ({len(samples) / RATE:.2f} s)')

@@ -10,12 +10,15 @@ typedef enum {
     ACTION_RUN,
     ACTION_JUMP,
     ACTION_SHOOT,
-    ACTION_RESET,
-    ACTION_QUIT,
+    ACTION_RELOAD,  /* A new magazine now; after a defeat, retry the stage */
+    ACTION_QUIT,    /* Back one screen; in a stage, the pause menu */
     ACTION_UP,      /* Menus */
     ACTION_DOWN,
     ACTION_CONFIRM,
     ACTION_SWAP,    /* Switch guns (the SWAT) */
+    ACTION_USE,     /* Light a charge on a wall */
+    ACTION_VAULT,   /* Leap over a low barricade */
+    ACTION_POWER,   /* The level-3 power: a grenade, a ricochet shot */
     ACTION_COUNT
 } Action;
 
@@ -24,6 +27,11 @@ typedef struct {
     bool pressed[ACTION_COUNT];  /* Went down this update */
     bool released[ACTION_COUNT]; /* Went up this update */
     int last_horizontal;         /* -1 left, +1 right: the most recently pressed */
+    /* The mouse, in window coordinates (platform_read_pointer): where it is,
+     * whether it moved and whether the left button was clicked since the
+     * previous read. */
+    int pointer_x, pointer_y;
+    bool pointer_moved, pointer_clicked;
 } InputState;
 
 void input_init(InputState *input);

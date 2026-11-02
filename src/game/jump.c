@@ -19,27 +19,45 @@ bool jump_start(Jump *jump)
         return false;
     jump->airborne = true;
     jump->time = 0.0f;
-    jump->height = 0.0f;
+    jump->base = jump->height; /* From the ground or from what she stands on */
     return true;
 }
 
-bool jump_update(Jump *jump, float dt)
+void jump_fall(Jump *jump)
+{
+    if (jump->airborne)
+        return;
+    /* The arc's top half is skipped: she drops from where she is. */
+    jump->airborne = true;
+    jump->time = PLAYER_JUMP_TIME / 2.0f;
+    jump->base = jump->height - PLAYER_JUMP_HEIGHT;
+}
+
+bool jump_update_over(Jump *jump, float dt, float floor)
 {
     if (!jump->airborne)
         return false;
     jump->time += dt;
-    if (jump->time >= PLAYER_JUMP_TIME) {
+    float t = jump->time;
+    jump->height = jump->base + JUMP_VELOCITY * t - 0.5f * JUMP_GRAVITY * t * t;
+    bool falling = t >= PLAYER_JUMP_TIME / 2.0f;
+    if (falling && jump->height <= floor) {
         jump_reset(jump);
+        jump->height = floor;
         return true;
     }
-    float t = jump->time;
-    jump->height = JUMP_VELOCITY * t - 0.5f * JUMP_GRAVITY * t * t;
     return false;
+}
+
+bool jump_update(Jump *jump, float dt)
+{
+    return jump_update_over(jump, dt, 0.0f);
 }
 
 float jump_progress(const Jump *jump)
 {
     if (!jump->airborne)
         return 0.0f;
-    return jump->time / PLAYER_JUMP_TIME;
+    float p = jump->time / PLAYER_JUMP_TIME;
+    return p < 1.0f ? p : 1.0f;
 }

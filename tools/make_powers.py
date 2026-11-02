@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Make the art of the characters' level-3 powers.
+
+Usage: tools/make_powers.py
+
+Writes:
+  assets/sprites/characters/cowgirl/shoot_dual.png  Her shoot sheet with a
+      hand cannon in each hand: her far arm (the grey sleeve on her hip) is
+      raised across her front holding a second one just under the first;
+      her near arm and its gun stay on top. Same template as shoot.png (8
+      frames of 81 x 80).
+  assets/sprites/weapons/grenade.png  The SWAT's hand grenade, tumbling
+      (4 frames of 8 x 8): olive body, its lever and the pin's ring.
+
+The SWAT's throwing sheet is made with his other sheets (tools/make_swat.py).
+Uses only the standard library.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from embed_assets import decode_png_rgba  # noqa: E402
+from make_sprites import Image, rgb  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+SHOOT_W, SHOOT_H, FRAMES = 81, 80, 8
+NEAR_FROM_X = 38            # Shoot-frame columns from here: her near (gun) arm and its gun
+GUN_FROM_X = 46             # ...and from here, the gun alone (and its flash)
+SECOND_GUN = (-2, 6)        # The far hand's gun from the near one (art px): just below it
+GREY_ARM = {(0xa7, 0xa8, 0xa8), (0x86, 0x86, 0x89), (0x50, 0x50, 0x50)}
+SKIN = {(0xfe, 0xdc, 0xa3), (0xd9, 0x9a, 0x5b), (0x89, 0x41, 0x1f), (0x8a, 0x43, 0x22)}  # And its shadows
+GLOVE = {(0x69, 0x68, 0x67), (0x99, 0x9a, 0x9c)}
+INK = rgb(0x252018)
+SLEEVE = [rgb(0xa7a8a8), rgb(0x868689), rgb(0x505050)]   # Her grey sleeve, light to dark
+CORSET = rgb(0x2c2c2c)
+
+
+def load(path: Path) -> Image:
+    w, h, px = decode_png_rgba(path)
+    img = Image(w, h)
+    for y in range(h):
+        for x in range(w):
+            i = (y * w + x) * 4
+            img.set(x, y, tuple(px[i:i + 4]))
+    return img
+
+
+def frame_pixels(sheet: Image, f: int) -> dict:
+    out = {}
+    for y in range(SHOOT_H):
+        for x in range(SHOOT_W):
+            c = sheet.get(f * SHOOT_W + x, y)
+            if c[3]:
+                out[(x, y)] = c
+    return out
+
+
+def sleeve(shoulder: tuple, hand: tuple) -> dict:
+    """Her grey puffed sleeve from the shoulder to the hand, as on her art: a
+    round puff over the shoulder, the sleeve narrowing to the wrist, lit on
+    top and shaded under, outlined."""
+    (sx, sy), (hx, hy) = shoulder, hand
+    n = max(abs(hx - sx), abs(hy - sy), 1)
+    px = {}
+
+    def paint(x: int, y: int, cy: float, r: float) -> None:
+        k = (y - cy) / max(r, 0.5)
+        px[(x, y)] = SLEEVE[0] if k < -0.35 else SLEEVE[1] if k < 0.45 else SLEEVE[2]
+
+    for t in range(n + 1):
+        cx = sx + (hx - sx) * t / n
+        cy = sy + (hy - sy) * t / n
+        r = 2.6 - 1.2 * t / n                                  # Thick at the shoulder, thin at the wrist
+        for y in range(int(cy - r - 1), int(cy + r + 2)):
+            for x in range(int(cx - r - 1), int(cx + r + 2)):
+                if (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r:
+                    paint(x, y, cy, r)
+    for y in range(sy - 4, sy + 4):                            # The puff over the shoulder
+        for x in range(sx - 4, sx + 4):
+            if (x + 0.5 - sx) ** 2 + (y + 0.5 - sy) ** 2 <= 3.4 ** 2:
+                paint(x, y, sy, 3.4)
+    out = dict(px)
+    for (x, y) in px:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + dx, y + dy) not in px:
+                out[(x + dx, y + dy)] = INK
+    return out
+
+
+def make_shoot_dual() -> Image:
+    """Each frame of her shoot sheet with her far arm (the grey sleeve on her
+    hip) raised: it crosses in front of her and holds a second hand cannon
+    just under the first, which, with her near arm, stays on top. A frame
+    with no gun out (low ready) stays as drawn."""
+    shoot = load(ROOT / 'assets/sprites/characters/cowgirl/shoot.png')
+    out = Image(shoot.width, shoot.height)
+    dx, dy = SECOND_GUN
+    for f in range(FRAMES):
+        ox = f * SHOOT_W
+        px = frame_pixels(shoot, f)
+        if len([1 for (x, _) in px if x >= GUN_FROM_X]) < 25:
+            # Low ready, no gun out yet: her own frame as drawn, hand on the hip.
+            for (x, y), c in px.items():
+                out.set(ox + x, y, c)
+            continue
+        # Her arm on the hip: the grey sleeve and the hand under it, left of her gun arm.
+        # Its hand lay on her waist: no skin left below her chest there either.
+        arm = {(x, y) for (x, y), c in px.items()
+               if (x < 32 and y >= 33 and c[:3] in GREY_ARM) or
+               (x < NEAR_FROM_X and y >= 38 and c[:3] in SKIN) or
+               (x < GUN_FROM_X and y >= 49 and c[:3] in SKIN)}
+        greys = sorted((y, x) for (x, y) in arm if px[(x, y)][:3] in GREY_ARM)
+        shoulder = (greys[0][1] + 1, greys[0][0] + 1) if greys else (26, 37)
+        base = dict(px)
+        removed = set(arm)
+        for xy in arm:
+            del base[xy]
+        for (x, y), c in list(base.items()):                  # Its outline, left alone
+            if c[:3] == INK[:3] and not any((x + a, y + b) in base and base[(x + a, y + b)][:3] != INK[:3]
+                                            for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                del base[(x, y)]
+                removed.add((x, y))
+        # Where it lay on her (the hand on her hip): her clothes carry on there,
+        # copied from the nearest pixel on the right in the same row.
+        for (x, y) in sorted(removed, key=lambda xy: -xy[0]):
+            row = [xx for (xx, yy) in base if yy == y]
+            if not row or not min(row) < x < max(row):
+                continue
+            right = next((base[(xx, y)] for xx in range(x + 1, max(row) + 1)
+                          if (xx, y) in base and base[(xx, y)][:3] != INK[:3]), CORSET)
+            base[(x, y)] = right
+        # Her side, under where the arm was: an outline straight from the
+        # shoulder down to the waist, her clothes filled in up to it.
+        rows = sorted({y for (_, y) in arm if y < 50})
+        if rows:
+            def leftmost(y):
+                xs = [x for (x, yy) in base if yy == y and x < NEAR_FROM_X]
+                return min(xs) if xs else None
+            y0, y1 = rows[0] - 1, rows[-1] + 1
+            while y1 < SHOOT_H - 1 and leftmost(y1) is None:
+                y1 += 1
+            top, bottom = leftmost(y0), leftmost(y1)
+            if top is not None and bottom is not None:
+                for y in range(y0 + 1, y1):
+                    edge = round(top + (bottom - top) * (y - y0) / (y1 - y0))
+                    inner = leftmost(y)
+                    if inner is None or inner <= edge:
+                        continue
+                    fill = next((base[(xx, y)] for xx in range(inner, NEAR_FROM_X)
+                                 if (xx, y) in base and base[(xx, y)][:3] != INK[:3]), CORSET)
+                    for x in range(edge + 1, inner):
+                        base[(x, y)] = fill
+                    base[(edge, y)] = INK
+        gun_px = px
+        glove = [(x, y) for (x, y), c in px.items() if x >= NEAR_FROM_X and c[:3] in GLOVE]
+        if glove:
+            gx = round(sum(x for x, _ in glove) / len(glove))
+            gy = round(sum(y for _, y in glove) / len(glove))
+        else:
+            gun = [(x, y) for (x, y) in gun_px if x >= GUN_FROM_X]
+            gx, gy = min(gun) if gun else (46, 40)
+        hand = (gx + dx, gy + dy)
+        shift = (hand[0] - gx, hand[1] - gy)
+        layers = [base, sleeve(shoulder, hand)]
+        second = {}
+        for (x, y), c in gun_px.items():                      # The second gun, a shade darker
+            if x >= GUN_FROM_X:
+                second[(x + shift[0], y + shift[1])] = tuple(round(v * 0.86) for v in c[:3]) + (255,)
+        layers.append(second)
+        layers.append({(hand[0] + a, hand[1] + b): rgb(0x999a9c) if b == 0 else rgb(0x696867)
+                       for a in (0, 1) for b in (0, 1)})
+        layers.append({xy: c for xy, c in px.items()                 # Near arm on top
+                       if xy[0] >= NEAR_FROM_X and not (xy[1] >= 49 and c[:3] in SKIN)})
+        for layer in layers:
+            for (x, y), c in layer.items():
+                if 0 <= x < SHOOT_W and 0 <= y < SHOOT_H:
+                    out.set(ox + x, y, c)
+    return out
+
+
+GRENADE = [rgb(0x2a2c1a), rgb(0x4a5030), rgb(0x6a7444), rgb(0x8e9a5c)]
+LEVER = rgb(0xa7a8a8)
+GRENADE_INK = rgb(0x140e0e)
+
+
+def make_grenade() -> Image:
+    """4 frames of 8 x 8, a quarter turn each."""
+    body = [
+        "..ooo...",
+        ".oLLso..",
+        "o3332o..",
+        "o3221o..",
+        "o3221o..",
+        "o2211o..",
+        ".o11o...",
+        "..oo....",
+    ]
+    keys = {'o': GRENADE_INK, '1': GRENADE[0], '2': GRENADE[1], '3': GRENADE[2], 'L': LEVER, 's': GRENADE[3]}
+    img = Image(8 * 4, 8)
+    for f in range(4):
+        for y, row in enumerate(body):
+            for x, k in enumerate(row):
+                if k == '.':
+                    continue
+                # A quarter turn per frame about the middle.
+                rx, ry = x - 3.5, y - 3.5
+                for _ in range(f):
+                    rx, ry = -ry, rx
+                tx, ty = int(round(rx + 3.5)), int(round(ry + 3.5))
+                if 0 <= tx < 8 and 0 <= ty < 8:
+                    img.set(f * 8 + tx, ty, keys[k])
+    return img
+
+
+def main() -> int:
+    out = {
+        'assets/sprites/characters/cowgirl/shoot_dual.png': make_shoot_dual(),
+        'assets/sprites/weapons/grenade.png': make_grenade(),
+    }
+    for name, img in out.items():
+        img.save(ROOT / name)
+        print(f'make_powers: {name} ({img.width} x {img.height})')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

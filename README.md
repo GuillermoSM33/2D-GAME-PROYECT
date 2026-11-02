@@ -14,18 +14,29 @@ por nivel. Hacia la izquierda se usa el mismo arte espejado.
 ./dist/Vaquera2D
 ```
 
+El juego abre en el **menú principal** (Jugar, Controles, Volumen, Salir), todo en pixel art
+sobre el paisaje del primer nivel. **Volumen** tiene tres barras: General (todo), Personaje (lo
+que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus voces). Los
+controles también se ven en el menú, en **Controles**:
+
 | Tecla | Acción |
 | --- | --- |
-| `D` o `→` | Caminar a la derecha |
-| `A` o `←` | Caminar a la izquierda |
+| `A` / `D` (o `←` / `→`) | Caminar |
 | `Shift` + movimiento | Correr |
-| `Espacio`, `W` o `↑` | Saltar (también caminando o corriendo) |
-| Clic izquierdo | Disparar (de pie; hacia la dirección que tengas presionada) |
-| `Q` o clic derecho | Cambiar de arma (el SWAT) |
-| `R` | Reiniciar el nivel |
-| `Esc` | Volver: del nivel al menú, del menú a la selección de personaje, y salir |
-| `←`/`→` y `Enter` | Elegir personaje |
-| `↑`/`↓` o `W`/`S`, `Enter` o `Espacio` | Elegir y empezar un nivel en el menú |
+| `Espacio`, `W` o `↑` | Saltar (y subirse a una barricada baja) |
+| Clic izquierdo | Disparar (mantenido: ráfagas del rifle) |
+| `R` | Recargar (cuando el cargador no está lleno; tras una derrota, reintentar) |
+| `Q` o clic derecho | Cambiar de arma (el SWAT), en cualquier momento |
+| `E` | Poner dinamita en un muro alto, o sentarse en una banca |
+| `N` | Atravesar una barricada baja |
+| `F` o clic central | Poder de nivel 3 (cada 15 s): granada del SWAT, disparo de rebote de la vaquera |
+| `Esc` | Pausa: Continuar, Reiniciar nivel, Volumen, Controles, Salir al menú |
+| `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y volumen) |
+
+Durante el nivel, el HUD muestra la vida, el arma con sus balas (o `RECARGANDO`), la dinamita,
+los zombis vencidos y los metros a la salida. Mientras recarga puede caminar a media velocidad.
+`--capturas DIR` guarda cada pantalla como BMP (menús, una pelea, un muro, la pausa, una
+derrota) para revisar el arte sin jugar.
 
 Hay **tres personajes**: la Vaquera (sus zombis sueltan cofres), el SWAT (cambia entre rifle
 y escopeta) y el Héroe (cañón de plasma que atraviesa la armadura). Cada uno tiene su propio
@@ -61,12 +72,14 @@ El daño se calcula así (`src/game/damage.c`, valores en `config.h`):
 
 ```text
 daño del arma  = 20 × (1 + 0.6 × (nivel − 1))      nivel 1: 20   nivel 2: 32   nivel 3: 44
-daño recibido  = daño del arma × 100 / (100 + armadura), redondeado y mínimo 1
+daño recibido  = daño del arma × 100 / (100 + armadura)
 ```
 
-En nivel 1, el zombi común (sin arte todavía: 100 de vida, sin armadura) cae con 5 balas
-y el antidisturbios (100 de vida, 80 de armadura, que para el 44 % del daño) con 10. Con
-el nivel crecen su vida, su armadura y su garra (ver abajo).
+Los zombis guardan la fracción de cada golpe (10.8 quita 10 y deja 0.8 para el siguiente),
+así que ningún arma pierde daño al redondear, por ligeras que sean sus balas. En nivel 1, el
+zombi común (sin arte todavía: 100 de vida, sin armadura) cae con 5 balas y el
+antidisturbios (100 de vida, 85 de armadura, que para el 46 % del daño) con 10. Con el nivel
+crecen su vida, su armadura y su garra (ver abajo).
 
 ### Vida de la vaquera
 
@@ -86,12 +99,58 @@ Al abrir el juego aparece el **menú** con los niveles 1-1 a 1-5: cuántos zombi
 uno, de qué nivel, y si está completado o bloqueado. Cada nivel se abre al completar el
 anterior. El progreso dura mientras el juego está abierto (todavía no se guarda).
 
-En un nivel aparece **un zombi a la vez**. Al vencerlo, cuando su cuerpo se desvanece, deja
-un **cofre** en ese lugar (según el nivel: `chest_every`). El cofre se abre al acercarse
-(`chest/open.png`, 6 cuadros) soltando chispas doradas (`sparks.png`: luz por la rendija,
-estallido de rayos y destellos que suben), da su experiencia, se queda abierto un momento y se
-desvanece; entonces llega el siguiente zombi. Vencer a todos (la **misión**) y abrir el
-último cofre completa el nivel.
+Cada nivel es un **camino** hacia una salida (un portón con faroles) a 12–20 vistas de donde
+empieza el personaje (19 000–31 000 px); el HUD muestra cuántos metros faltan. El mundo se
+dibuja a 3 px por píxel de arte (`VIEW_SCALE`), así que se ve un tercio más de camino, y la
+cámara deja al personaje en el primer tercio: unos 870 px por delante. Arriba, en la franja de
+cielo, va el HUD. Lo que hay en cada camino está en la tabla de su nivel (`src/game/stages.c`),
+distinta por tema:
+
+- **Grupos de zombis** dormidos, de pie y respirando a la vista; despiertan juntos cuando hasta
+  el más lejano está en pantalla, se giran hacia ella, se sacuden al despertar y dan un primer paso tambaleante.
+  Mientras un grupo pelea no se puede seguir (`¡ACABA CON ELLOS!`); al vencerlo, `¡ADELANTE! →`.
+  Cuando la rodean se forman en fila.
+- **Zombi de élite** (desde 1-3): más blindado, garra más dura, tono rojizo; siempre deja cofre.
+- **Ataúdes** (cementerio, pueblo fantasma): un zombi encerrado que revienta la tapa cuando ella
+  se acerca o le dispara. Emboscada; cuenta en la misión.
+- **Barricadas bajas**: se saltan, se sube uno encima (fuera del alcance de la garra) o se
+  **atraviesan con N**. Los zombis las rompen a zarpazos.
+- **Muros altos**: una empalizada que cierra el hueco entre las ruinas de una casa o, uno de
+  cada dos, la puerta atrancada de un edificio que cruza el camino (iglesia, comisaría,
+  herrería, establo; la fachada es decorado y queda tras volar la puerta); no se saltan y
+  paran las balas. Se vuelan con **dinamita** (`E`; mecha de 2.5 s,
+  hay que alejarse) o con un barril al lado; los zombis tardan mucho en tirarlos. La dinamita
+  sale de cajas, de cajas de madera rotas y de la carreta.
+- **Barriles de pólvora**: un disparo los hace estallar; hieren a los zombis cerca (320 px hasta
+  el borde del cuerpo), encienden barriles vecinos y rompen barricadas, muros, cajas y faroles;
+  también la lastiman a ella. Dejan fuego en el suelo unos 2 s, que quema a quien lo pise.
+- **Cajas de madera**: 3 balazos (o una explosión) y sueltan botín, el mismo siempre para cada
+  caja: balas para el arma en mano, 20 % de vida, una dinamita u oro (experiencia).
+- **Botellas en la cerca** (atardecer, pueblo): tiro al blanco; las tres dan experiencia.
+- **Trampas para osos**: atrapan 3 s al zombi que las pisa y lo hieren; si las pisa ella, la muerden.
+- **Faroles de aceite** (noche, pueblo): iluminan; derribados de un disparo dejan el suelo
+  ardiendo 5 s, que quema a los zombis que pasan (y a ella).
+- **Carreta de provisiones**: una vez por nivel, cargadores llenos, 35 % de vida y dinamita
+  según el largo del nivel (1 corto, 2 medio, 3 muy largo).
+- **Descanso**: una **banca** (`E` para sentarse) y, a unos pasos, una **fogata** (una de cada
+  dos con una olla colgada de un palo sobre horquetas). Sentada recarga, una tras
+  otra y con el arma en el regazo (2 s cada una), cada arma a la que le falte una bala, todas
+  las veces que se siente; la primera vez
+  en cada banca cura de 5 a 15. Junto a la fogata cura 1.5 cada 3 s. Cada curación muestra un
+  aura verde con un `+`. Si se queda sentada un rato, empieza a cabecear. Se levanta al moverse,
+  saltar, disparar o recibir un golpe.
+
+Lejos del camino, detrás, se ven casas (saloon, chozas, graneros, casas caídas, tanques de agua), más en el pueblo
+fantasma; son solo fondo. El fuego, la fogata y las explosiones sueltan humo que sube; los faroles, el fuego y la fogata
+iluminan alrededor.
+
+Al vencer a un zombi, cuando su cuerpo se desvanece, deja un **cofre** si el personaje tiene esa
+habilidad (la vaquera; según `chest_every`). El cofre se abre al acercarse (`chest/open.png`, 6
+cuadros) soltando chispas doradas (`sparks.png`: luz por la rendija, estallido de rayos y
+destellos que suben), da su experiencia, se queda abierto un momento y se desvanece. Vencidos
+todos (la **misión**), aparece el **cofre de la misión** en la salida; abrirlo completa el nivel.
+La experiencia de un nivel solo cuenta al completarlo: reiniciar (`R`) o salir (`ESC`) antes
+devuelve el progreso a como estaba al entrar, así que repetir un nivel a medias no sube de nivel.
 
 El nivel se muestra en una **placa de pixel art en forma de pirámide invertida**: una franja
 con remaches donde el juego escribe el número y, debajo, facetas con arista central que bajan
@@ -106,7 +165,7 @@ nivel está bloqueado). Arriba a la izquierda, el nivel y la misión (zombis ven
 | Con el nivel N | Vaquera | Zombi antidisturbios |
 | --- | --- | --- |
 | Vida | 100 × (1 + 0.6 × (N − 1)) | 100 × (1 + 0.6 × (N − 1)) |
-| Armadura | 25 + 5 × (N − 1) | 80 + 8 × (N − 1) |
+| Armadura | 25 + 5 × (N − 1) | 85 + 8 × (N − 1) |
 | Ataque | arma de nivel N: 20 × (1 + 0.6 × (N − 1)) | garra de nivel N: 15 × (1 + 0.6 × (N − 1)) |
 
 Vida y daño crecen igual, así que **dos del mismo nivel pelean lo mismo en el nivel 1 que en
@@ -116,7 +175,7 @@ al de la vaquera, pero las recompensas podrán subirlos aparte.
 
 **Experiencia:** pasar del nivel N al N + 1 pide `120 × N^1.5` (120, 339, 624, 960…).
 
-- **Matar un zombi** da `25 × su nivel`, con +25 % por cada nivel que esté por encima de
+- **Matar un zombi** da `16 × su nivel`, con +25 % por cada nivel que esté por encima de
   ella y −25 % por cada uno por debajo (entre ×0.25 y ×1.75). Así repetir niveles fáciles
   rinde poco.
 - **Un cofre** da una parte de lo que pide su nivel actual: `10 % × complejidad del nivel`,
@@ -191,8 +250,9 @@ quieras publicar, usa `./build.sh`.
 ## Sonido
 
 Efectos de 8 bits con SDL2_mixer. `tools/make_sfx.py` los sintetiza (ruido tipo LFSR y
-ondas cuadradas, como un chip de consola) y escribe `assets/sounds/player/*.wav`; al
-compilar se incrustan en el ejecutable. Suenan el disparo (`player/shot`) y, enseguida, la
+ondas cuadradas, como un chip de consola) y escribe `assets/sounds/player/*.wav` y
+`assets/sounds/world/*.wav` (la explosión de un barril y las provisiones); al compilar se
+incrustan en el ejecutable. Suenan el disparo (`player/shot`) y, enseguida, la
 recarga del cañón de mano (`player/reload`: baqueta, bala asentada y martillo), que
 dura lo mismo que la espera entre disparos (`PLAYER_SHOOT_RELOAD_TIME`). El zombi tiene
 tres voces, todas sacadas de una misma grabación con `tools/crush_sfx.py` (ver abajo): al
@@ -264,12 +324,13 @@ src/
     animation.c/.h       Animaciones por fotogramas en una hoja de sprites (sin SDL)
     assets.c/.h          Texturas a partir de los recursos incrustados
     text.c/.h            Texto pre-renderizado con SDL2_ttf
-    audio.c/.h           Efectos de sonido con SDL2_mixer (silencio si no hay audio)
+    audio.c/.h           Efectos de sonido con SDL2_mixer, con volumen general y por grupo (silencio si no hay audio)
+    pixfont.c/.h         Fuente pixel propia (sprites/ui/font): mayúsculas con acentos, escalas enteras
   game/                  Lo propio de este juego
     controls.c/.h        Teclas y botones del mouse asignados a cada acción
     player.c/.h          Estados del personaje: idle / walk / run / jump / land / shoot / dead, vida y empujón (sin SDL)
     movement.c/.h        Caminar, correr y límites de pantalla (sin SDL)
-    jump.c/.h            Arco del salto: altura y tiempo en el aire fijos (sin SDL)
+    jump.c/.h            Arco del salto: altura y tiempo fijos, desde y hacia lo que pisa (sin SDL)
     shoot.c/.h           Secuencia del disparo: momento de la bala y disparos encadenados (sin SDL)
     bullet.c/.h          Balas en vuelo con el daño, alcance y color de su arma (sin SDL)
     bullet_render.c/.h   Dibujo de las balas
@@ -288,10 +349,14 @@ src/
     props.c/.h           Los decorados: hoja, tamaño de cuadro y variantes de cada uno (sin SDL)
     themes.c/.h          Capas del fondo (fila, paralaje, tamaño) y los temas con sus decorados (sin SDL)
     scene.c/.h           Dibujo del paisaje: capas del tema con paralaje y decorados de los tramos cargados
-    hud.c/.h             Selección de personaje, menú de niveles, HUD (nivel, misión, vida, XP, arma), placas y avisos
+    hud.c/.h             Menú principal, controles, volumen, personajes, niveles, pausa y HUD del nivel, en pixel art
+    ui.c/.h              Piezas de la interfaz: tableros, botones, teclas, iconos, barras y texto pixel
+    settings.c/.h        Volúmenes por grupo y listas de menú (sin SDL)
     progression.c/.h     Niveles y experiencia: estadísticas por nivel, curva de XP y recompensas (sin SDL)
-    stages.c/.h          Los niveles 1-1 a 1-5: zombis, su nivel, cofres y complejidad (sin SDL)
-    stage_run.c/.h       Una partida de un nivel: misión, cofres, XP y siguiente zombi (sin SDL)
+    stages.c/.h          Los niveles 1-1 a 1-5: su camino (grupos, élite, terreno), nivel, cofres y complejidad (sin SDL)
+    stage_run.c/.h       Una partida de un nivel: el camino, grupos que despiertan y detienen, cofres, XP y salida (sin SDL)
+    terrain.c/.h         Barricadas, barriles de pólvora, carreta de provisiones y salida (sin SDL)
+    terrain_render.c/.h  Dibujo del terreno del camino
     chest.c/.h           Cofre: cerrado, abriéndose al acercarse, abierto y desvanecido (sin SDL)
     chest_render.c/.h    Dibujo del cofre
     menu.c/.h            Selección de nivel en el menú (sin SDL)
@@ -305,6 +370,12 @@ tools/sprite_style.py    Compara el nivel de detalle de una hoja con la vaquera
 tools/make_sfx.py        Sintetiza los efectos de 8 bits en assets/sounds/
 tools/crush_sfx.py       Graba o convierte audio a efecto de 8 bits (usa ffmpeg)
 tools/make_sprites.py    Genera en pixel art las placas de nivel y las chispas del cofre
+tools/make_terrain.py    Genera el terreno del camino (barricadas, muro, barriles, dinamita, cajas, botellas,
+                         trampas, ataúdes, faroles, fuego, banca, fogata, carreta, salida) y efectos
+tools/make_ui.py         Genera la fuente pixel y el kit de interfaz (tableros, botones, teclas, iconos, armas)
+tools/make_sit.py        Genera las hojas de sentado, de frente (sentarse, descansar, recargar sentada, cabecear)
+tools/make_sun.py        Pinta el sol entero en los cielos de atardecer y pueblo fantasma
+tools/make_powers.py     Arte de los poderes de nivel 3: las pistolas duales de la vaquera y la granada
 tools/make_character_base.py  Genera la base (maniquí) de los personajes y sus guías
 tools/check_landscape.py Revisa las capas de un tema de paisaje antes de usarlas
 tests/                   Pruebas de la lógica pura

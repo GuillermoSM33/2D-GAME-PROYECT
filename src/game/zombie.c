@@ -50,10 +50,15 @@ static const AnimationDef ANIM_ATTACK = {
 static const AnimationDef *const ANIMATIONS[] = {&ANIM_WALK, &ANIM_HURT, &ANIM_DEATH, &ANIM_ATTACK};
 
 const ZombieStats ZOMBIE_COMMON = {
-    .health = 100, .armor = 0.0f, .attack_base = ZOMBIE_ATTACK_BASE,
+    .health = 100, .armor = 0.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xffffff,
 };
 const ZombieStats ZOMBIE_RIOT = {
-    .health = 100, .armor = 80.0f, .attack_base = ZOMBIE_ATTACK_BASE,
+    .health = 100, .armor = 85.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xffffff,
+};
+/* About twice as long to put down as a riot zombie, and its claw hurts a
+ * third more: one per stage, guarding something. */
+const ZombieStats ZOMBIE_ELITE = {
+    .health = 150, .armor = 120.0f, .attack_base = ZOMBIE_ATTACK_BASE * 1.35f, .tint = 0xffa080,
 };
 
 void zombie_spawn(Zombie *zombie, const ZombieStats *stats, float x)
@@ -63,6 +68,7 @@ void zombie_spawn(Zombie *zombie, const ZombieStats *stats, float x)
     zombie->x = x;
     zombie->facing = -1; /* zombie_update turns it toward the player */
     zombie->state = ZOMBIE_WALK;
+    zombie->awake = true;
     zombie->just_spawned = true;
     zombie->growl_time = ZOMBIE_GROWL_INTERVAL; /* Its spawn growl counts as the first */
     animation_play(&zombie->anim, &ANIM_WALK);
@@ -75,18 +81,70 @@ void zombie_set_level(Zombie *zombie, int level)
     zombie->max_health = level_health(zombie->stats->health, zombie->level);
     zombie->armor = level_armor(zombie->stats->armor, ZOMBIE_ARMOR_PER_LEVEL, zombie->level);
     zombie->health = zombie->max_health;
+    zombie->wound = 0.0f;
 }
 
 float zombie_spawn_x(float player_x)
 {
     float left = camera_left(player_x);
-    return player_x - left <= WINDOW_WIDTH / 2.0f ? left + WINDOW_WIDTH - ZOMBIE_SPAWN_MARGIN
+    return player_x - left <= VIEW_WIDTH / 2.0f ? left + VIEW_WIDTH - ZOMBIE_SPAWN_MARGIN
                                                   : left + ZOMBIE_SPAWN_MARGIN;
+}
+
+void zombie_wake(Zombie *zombie)
+{
+    if (zombie->awake)
+        return;
+    zombie->awake = true;
+    zombie->just_spawned = true;
+    zombie->rouse = ZOMBIE_ROUSE_TIME;
+}
+
+int zombie_breath(const Zombie *zombie)
+{
+    if (zombie->state == ZOMBIE_DEAD)
+        return 0;
+    if (zombie->awake) /* Woken: it jerks upright, then settles */
+        return zombie->rouse > ZOMBIE_ROUSE_TIME - 0.15f ? 2 : 0;
+    return fmodf(zombie->idle_time, ZOMBIE_BREATH_TIME) < ZOMBIE_BREATH_TIME / 2.0f ? 1 : 0;
 }
 
 void zombie_update(Zombie *zombie, float player_x, bool player_alive, float dt)
 {
     zombie->struck = false;
+    if (!zombie->awake && zombie->state != ZOMBIE_DEAD) {
+        /* Standing on the first walk frame, breathing, watching her come.
+         * Each one breathes on its own beat (its spot sets the phase). */
+        if (zombie->idle_time == 0.0f)
+            zombie->idle_time = fmodf(zombie->x * 0.013f, ZOMBIE_BREATH_TIME) + 0.001f;
+        zombie->idle_time += dt;
+        zombie->facing = player_x < zombie->x ? -1 : 1;
+        animation_restart(&zombie->anim);
+        return;
+    }
+    if (zombie->caught > 0.0f && zombie->state != ZOMBIE_DEAD) {
+        /* In a trap: it writhes on the spot (the recoil's first frames). */
+        zombie->caught -= dt;
+        zombie->facing = player_x < zombie->x ? -1 : 1;
+        animation_play(&zombie->anim, &ANIM_HURT);
+        animation_set_frame(&zombie->anim, (int)(zombie->caught * 6.0f) % 2);
+        if (zombie->caught > 0.0f)
+            return;
+        zombie->caught = 0.0f;
+        animation_play(&zombie->anim, &ANIM_WALK);
+    }
+    if (zombie->rouse > 0.0f && zombie->state != ZOMBIE_DEAD && zombie->state != ZOMBIE_HURT) {
+        /* Woken: it jerks upright and shudders, turned on her, then lurches
+         * into its first step and sets off. */
+        zombie->rouse -= dt;
+        zombie->facing = player_x < zombie->x ? -1 : 1;
+        animation_play(&zombie->anim, &ANIM_WALK);
+        animation_set_frame(&zombie->anim, zombie->rouse > ZOMBIE_ROUSE_TIME / 2.0f ? 0 : 1);
+        if (zombie->rouse > 0.0f)
+            return;
+        zombie->rouse = 0.0f;
+        animation_play(&zombie->anim, &ANIM_WALK);
+    }
     if (zombie->stagger_time > 0.0f)
         zombie->stagger_time = fmaxf(0.0f, zombie->stagger_time - dt);
     if (zombie->attack_cooldown > 0.0f)
@@ -153,7 +211,10 @@ HitResult zombie_hit_through(Zombie *zombie, float damage, float armor_share)
 {
     if (!zombie_alive(zombie))
         return HIT_NONE;
-    zombie->health -= damage_after_armor(damage, zombie->armor * armor_share);
+    zombie->wound += damage_through_armor(damage, zombie->armor * armor_share);
+    int points = (int)zombie->wound;
+    zombie->wound -= (float)points;
+    zombie->health -= points;
     if (zombie->health > 0) {
         if (zombie->stagger_time > 0.0f)
             return HIT_ARMOR;
@@ -177,6 +238,13 @@ HitResult zombie_hit_through(Zombie *zombie, float damage, float armor_share)
 float zombie_attack_damage(const Zombie *zombie)
 {
     return damage_at_level(zombie->stats->attack_base, zombie->level);
+}
+
+int zombie_shudder(const Zombie *zombie)
+{
+    if (!zombie->awake || zombie->rouse <= ZOMBIE_ROUSE_TIME / 2.0f || zombie->state == ZOMBIE_DEAD)
+        return 0;
+    return (int)(zombie->rouse * 25.0f) % 2 ? 1 : -1;
 }
 
 bool zombie_alive(const Zombie *zombie)

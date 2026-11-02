@@ -32,23 +32,43 @@ static Puff *free_puff(Smoke *smoke)
     return oldest;
 }
 
-void smoke_emit(Smoke *smoke, float x, float y, int dir)
+void smoke_emit(Smoke *smoke, float x, float y, int dir, int puffs, float scale)
 {
     unsigned cloud = ++smoke->emitted;
     float side = dir < 0 ? -1.0f : 1.0f;
-    for (int i = 0; i < SMOKE_PUFFS_PER_SHOT; i++) {
+    for (int i = 0; i < puffs; i++) {
         Puff *p = free_puff(smoke);
         memset(p, 0, sizeof(*p));
         p->active = true;
         p->delay = (float)i * SMOKE_PUFF_INTERVAL;
-        p->life = SMOKE_PUFF_LIFE * (0.8f + 0.4f * vary(cloud, i, 0));
+        p->life = SMOKE_PUFF_LIFE * scale * (0.8f + 0.4f * vary(cloud, i, 0));
+        p->scale = scale;
         p->x = x;
         p->y = y;
         /* The first puffs are pushed out by the shot, the later ones just leak. */
-        float push = 1.0f - (float)i / SMOKE_PUFFS_PER_SHOT;
+        float push = 1.0f - (float)i / (float)puffs;
         p->vx = side * (SMOKE_DRIFT_SPEED * (0.5f + push) + 15.0f * vary(cloud, i, 1));
         p->vy = -SMOKE_RISE_SPEED * (0.7f + 0.6f * vary(cloud, i, 2));
         p->phase = 6.2831853f * vary(cloud, i, 3);
+    }
+}
+
+void smoke_rise(Smoke *smoke, float x, float y, int puffs, float scale)
+{
+    unsigned cloud = ++smoke->emitted;
+    for (int i = 0; i < puffs; i++) {
+        Puff *p = free_puff(smoke);
+        memset(p, 0, sizeof(*p));
+        p->active = true;
+        p->delay = (float)i * SMOKE_PUFF_INTERVAL;
+        p->life = SMOKE_PUFF_LIFE * 1.8f * scale * (0.8f + 0.4f * vary(cloud, i, 0));
+        p->scale = scale;
+        p->x = x + 24.0f * (vary(cloud, i, 1) - 0.5f);
+        p->y = y;
+        /* Straight up, wavering a little: no shot behind it. */
+        p->vx = 14.0f * (vary(cloud, i, 2) - 0.5f);
+        p->vy = -SMOKE_RISE_SPEED * (1.4f + 0.6f * vary(cloud, i, 3));
+        p->phase = 6.2831853f * vary(cloud, i, 4);
     }
 }
 
@@ -88,7 +108,8 @@ float puff_progress(const Puff *puff)
 int puff_size(const Puff *puff)
 {
     float t = puff_progress(puff);
-    return (int)lroundf(SMOKE_PUFF_START_SIZE + (SMOKE_PUFF_END_SIZE - SMOKE_PUFF_START_SIZE) * t);
+    float size = SMOKE_PUFF_START_SIZE + (SMOKE_PUFF_END_SIZE - SMOKE_PUFF_START_SIZE) * t;
+    return (int)lroundf(size * puff->scale);
 }
 
 float puff_opacity(const Puff *puff)

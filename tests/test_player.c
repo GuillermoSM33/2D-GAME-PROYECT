@@ -123,19 +123,57 @@ static void test_stays_inside_world(void)
     CHECK_NEAR(player.x, movement_max_x(), 0.01f);
 }
 
-static void test_reset(void)
+static void test_reload_key(void)
+{
+    /* R puts a magazine in whenever it isn't full; with no magazine it does nothing. */
+    Player player;
+    InputState input;
+    bool down[ACTION_COUNT] = {0};
+    player_init(&player);
+    input_init(&input);
+    down[ACTION_RELOAD] = true;
+    input_update(&input, down);
+    player_update(&player, &input, FIXED_DT);
+    CHECK(!player.shot.active); /* The revolver has no magazine */
+    shot_set_magazine(&player.shot, 5, 1.0f, 5);
+    input_init(&input);
+    input_update(&input, down);
+    player_update(&player, &input, FIXED_DT);
+    CHECK(!player.shot.active); /* Full: nothing to do */
+    shot_set_magazine(&player.shot, 5, 1.0f, 1);
+    input_init(&input);
+    input_update(&input, down);
+    player_update(&player, &input, FIXED_DT);
+    CHECK(shot_reloading(&player.shot) && player.state == PLAYER_SHOOT);
+    for (int i = 0; i < 90; i++) {
+        input_init(&input);
+        player_update(&player, &input, FIXED_DT);
+    }
+    CHECK(player.shot.rounds == 5);
+}
+
+static void test_walks_slowly_while_reloading(void)
 {
     Player player;
     InputState input;
     bool down[ACTION_COUNT] = {0};
     player_init(&player);
     input_init(&input);
-    step(&player, &input, true, false, false, 30);
-    down[ACTION_RESET] = true;
+    shot_set_magazine(&player.shot, 5, 1.0f, 0);
+    down[ACTION_RELOAD] = true;
     input_update(&input, down);
     player_update(&player, &input, FIXED_DT);
-    CHECK_NEAR(player.x, PLAYER_START_X, 0.01f);
-    CHECK(player.facing == FACING_RIGHT);
+    down[ACTION_RELOAD] = false;
+    down[ACTION_RIGHT] = true;
+    down[ACTION_RUN] = true; /* No running while reloading */
+    float x = player.x;
+    for (int i = 0; i < 30; i++) {
+        input_update(&input, down);
+        player_update(&player, &input, FIXED_DT);
+    }
+    CHECK(shot_reloading(&player.shot));
+    CHECK_NEAR(player.x - x, PLAYER_WALK_SPEED * PLAYER_RELOAD_WALK_MULT * 30.0f * FIXED_DT, 1.0f);
+    CHECK(player.state == PLAYER_WALK);
 }
 
 static void test_walking_jump_right(void)
@@ -281,21 +319,6 @@ static void test_jump_cancels_shot(void)
     CHECK(!player.shot.active);
 }
 
-static void test_reset_cancels_shot(void)
-{
-    Player player;
-    InputState input;
-    bool down[ACTION_COUNT] = {0};
-    player_init(&player);
-    input_init(&input);
-    click(&player, &input, false, false);
-    down[ACTION_RESET] = true;
-    input_update(&input, down);
-    player_update(&player, &input, FIXED_DT);
-    CHECK(player.state == PLAYER_IDLE);
-    CHECK(!player.shot.active);
-}
-
 static void test_muzzle_follows_facing(void)
 {
     Player player;
@@ -341,11 +364,10 @@ static void test_hit_pushes_and_blinks(void)
     CHECK(player.state == PLAYER_IDLE);
 }
 
-static void test_dead_ignores_input_until_reset(void)
+static void test_dead_ignores_input(void)
 {
     Player player;
     InputState input;
-    bool down[ACTION_COUNT] = {0};
     player_init(&player);
     input_init(&input);
     player.health = 5;
@@ -361,12 +383,6 @@ static void test_dead_ignores_input_until_reset(void)
     CHECK(!player.jump.airborne);
     CHECK(player.state == PLAYER_DEAD);
     CHECK(!player_hit(&player, 15.0f, 1)); /* Already down */
-    input_init(&input);
-    down[ACTION_RESET] = true;
-    input_update(&input, down);
-    player_update(&player, &input, FIXED_DT);
-    CHECK(player_alive(&player));
-    CHECK(player.health == PLAYER_HEALTH);
 }
 
 static void test_death_mid_shot_holsters(void)
@@ -393,7 +409,8 @@ int main(void)
     RUN(test_turns_and_stops);
     RUN(test_both_keys_last_wins);
     RUN(test_stays_inside_world);
-    RUN(test_reset);
+    RUN(test_reload_key);
+    RUN(test_walks_slowly_while_reloading);
     RUN(test_walking_jump_right);
     RUN(test_no_double_jump);
     RUN(test_holding_jump_does_not_repeat);
@@ -403,11 +420,10 @@ int main(void)
     RUN(test_shoot_faces_held_direction);
     RUN(test_no_shooting_in_the_air);
     RUN(test_jump_cancels_shot);
-    RUN(test_reset_cancels_shot);
     RUN(test_muzzle_follows_facing);
     RUN(test_short_tap_moves_a_leg);
     RUN(test_hit_pushes_and_blinks);
-    RUN(test_dead_ignores_input_until_reset);
+    RUN(test_dead_ignores_input);
     RUN(test_death_mid_shot_holsters);
     return TEST_EXIT();
 }

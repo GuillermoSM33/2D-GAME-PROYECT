@@ -63,7 +63,9 @@ static void test_bullet_stops_on_hit(void)
     }
     CHECK(hits == 1);
     CHECK(bullets_active_count(&bullets) == 0);
-    CHECK(zombie.health == ZOMBIE_RIOT.health - 11);
+    /* 10.8 through the armor: 10 off its health, the rest kept for the next hit. */
+    CHECK(zombie.health ==
+          ZOMBIE_RIOT.health - (int)damage_through_armor(weapon_damage(1), ZOMBIE_RIOT.armor));
     CHECK(zombie.state == ZOMBIE_HURT);
 }
 
@@ -99,7 +101,7 @@ static void test_dead_fades_and_is_gone(void)
     CHECK(zombie_gone(&zombie)); /* The stage decides what comes next */
     CHECK(!zombie_alive(&zombie));
     /* With her near the left of the view, the next one enters on the right. */
-    CHECK_NEAR(zombie_spawn_x(200.0f), WINDOW_WIDTH - ZOMBIE_SPAWN_MARGIN, 0.01f);
+    CHECK_NEAR(zombie_spawn_x(200.0f), VIEW_WIDTH - ZOMBIE_SPAWN_MARGIN, 0.01f);
 }
 
 static void test_level_scales_like_the_player(void)
@@ -160,7 +162,9 @@ static void test_bullet_stream_cannot_pin_it(void)
     CHECK(zombie.state == ZOMBIE_WALK);
     CHECK(zombie_hit(&zombie, weapon_damage(1)) == HIT_ARMOR);
     CHECK(zombie.state == ZOMBIE_WALK); /* Still recovering: keeps walking */
-    CHECK(zombie.health == ZOMBIE_RIOT.health - 22); /* but loses health */
+    /* ...but loses health */
+    CHECK(zombie.health == ZOMBIE_RIOT.health -
+                           (int)(2.0f * damage_through_armor(weapon_damage(1), ZOMBIE_RIOT.armor)));
     for (int i = 0; i < 40; i++)
         zombie_update(&zombie, 200.0f, false, FIXED_DT);
     CHECK(zombie_hit(&zombie, weapon_damage(1)) == HIT_STAGGER); /* Recovered */

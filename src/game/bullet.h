@@ -13,6 +13,8 @@ typedef struct {
     float range;       /* Window px it flies before vanishing; 0 = until off screen */
     float armor_share; /* Share of the target's armor that counts */
     unsigned tint;     /* 0xRRGGBB over the sprite */
+    float slope;       /* Px down per px flown: shotgun pellets fan out; 0 = straight */
+    bool ricochet;     /* Glances off the first body it hits on to the next (combat.c) */
 } BulletSpec;
 
 typedef struct {
@@ -21,6 +23,7 @@ typedef struct {
     float prev_x; /* Where the last step started: it swept prev_x..x */
     int dir;    /* -1 left, +1 right */
     float flown;  /* Window px since it left the muzzle */
+    const void *glanced; /* The body a ricochet glanced off (not hit twice), or NULL */
     BulletSpec spec;
     Animation anim;
 } Bullet;

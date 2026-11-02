@@ -94,7 +94,7 @@ void world_init(World *world, const ThemeDef *theme)
 void layer_visible(const ChunkLayer *layer, float camera_left, int *first, int *last)
 {
     int a = (int)floorf(camera_left / WORLD_CHUNK_W) - WORLD_LOAD_MARGIN;
-    int b = (int)floorf((camera_left + WINDOW_WIDTH - 1.0f) / WORLD_CHUNK_W) + WORLD_LOAD_MARGIN;
+    int b = (int)floorf((camera_left + VIEW_WIDTH - 1.0f) / WORLD_CHUNK_W) + WORLD_LOAD_MARGIN;
     *first = a < 0 ? 0 : a;
     *last = b >= layer->chunk_count ? layer->chunk_count - 1 : b;
 }

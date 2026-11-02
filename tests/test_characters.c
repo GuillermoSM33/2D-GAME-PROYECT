@@ -1,10 +1,13 @@
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "config.h"
 #include "game/char_select.h"
 #include "game/characters.h"
+#include "game/damage.h"
 #include "game/progression.h"
+#include "game/shoot.h"
 #include "game/weapons.h"
 #include "game/zombie.h"
 #include "test.h"
@@ -34,12 +37,88 @@ static void test_weapons_are_on_par(void)
         float armor = level_armor(ZOMBIE_RIOT.armor, ZOMBIE_ARMOR_PER_LEVEL, level);
         float revolver = weapon_dps(WEAPON_REVOLVER, base, armor);
         for (int w = 0; w < WEAPON_COUNT; w++) {
+            if (w == WEAPON_DUAL)
+                continue; /* A level's reward: stronger on purpose (below) */
             float dps = weapon_dps(w, base, armor);
             CHECK(dps > revolver * 0.8f && dps < revolver * 1.2f);
         }
     }
     CHECK(weapon_def(WEAPON_SHOTGUN)->pellets == 3 && weapon_def(WEAPON_SHOTGUN)->range > 0.0f);
     CHECK(weapon_def(WEAPON_RIFLE)->reload_time < weapon_def(WEAPON_REVOLVER)->reload_time);
+}
+
+#define KILLS 3 /* A stage's worth of riot zombies, one after another */
+
+/* Seconds to kill KILLS riot zombies of zombie_level in a row with this gun
+ * at weapon_level, pulling the trigger every step and landing every pellet:
+ * the real shot timing (draw, bursts, reloads, magazines) and the real hits. */
+static float time_to_kill(WeaponId id, int weapon_level, int zombie_level)
+{
+    const WeaponDef *w = weapon_def(id);
+    Zombie zombie;
+    zombie_spawn(&zombie, &ZOMBIE_RIOT, 0.0f);
+    zombie_set_level(&zombie, zombie_level);
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_reload(&shot, w->reload_time);
+    shot_set_burst(&shot, w->burst, w->burst_gap, w->automatic);
+    shot_set_magazine(&shot, w->magazine, w->magazine_reload, -1);
+    int kills = 0;
+    for (int step = 0; step < 20000; step++) {
+        shot_start(&shot);
+        if (!shot_update(&shot, FIXED_DT))
+            continue;
+        for (int p = 0; p < w->pellets; p++)
+            zombie_hit_through(&zombie, weapon_damage(weapon_level) * w->damage_mult, w->armor_share);
+        if (zombie_alive(&zombie))
+            continue;
+        if (++kills == KILLS)
+            return (float)step * FIXED_DT;
+        zombie_spawn(&zombie, &ZOMBIE_RIOT, 0.0f); /* The next one, right away */
+        zombie_set_level(&zombie, zombie_level);
+    }
+    return 1e9f;
+}
+
+static void test_guns_kill_about_as_fast(void)
+{
+    /* Against the riot zombie, at every weapon level and with the zombie up to
+     * 2 levels either side (weapon upgrades will open that gap): on average
+     * within 10% of the revolver, and never off by more than 25% (whole
+     * shots make some steps). */
+    for (int id = 0; id < WEAPON_COUNT; id++) {
+        if (id == WEAPON_DUAL)
+            continue;
+        float sum = 0.0f;
+        int n = 0;
+        for (int wl = 1; wl <= 8; wl++)
+            for (int zl = wl - 2; zl <= wl + 2; zl++) {
+                if (zl < 1)
+                    continue;
+                float ratio = time_to_kill(id, wl, zl) / time_to_kill(WEAPON_REVOLVER, wl, zl);
+                CHECK(ratio > 0.75f && ratio < 1.25f);
+                sum += ratio;
+                n++;
+            }
+        CHECK(sum / (float)n > 0.9f && sum / (float)n < 1.1f);
+    }
+}
+
+static void test_dual_pistols_are_a_reward(void)
+{
+    /* The cowgirl's level-3 guns: faster than her single cannon, by 10% to
+     * 50% on average, never slower, at the levels she has them. */
+    float sum = 0.0f;
+    int n = 0;
+    for (int wl = POWER_LEVEL; wl <= 8; wl++)
+        for (int zl = wl - 2; zl <= wl + 2; zl++) {
+            float speedup = time_to_kill(WEAPON_REVOLVER, wl, zl) / time_to_kill(WEAPON_DUAL, wl, zl);
+            CHECK(speedup >= 1.0f);
+            sum += speedup;
+            n++;
+        }
+    printf("    duales: %.2fx el revolver\n", sum / (float)n);
+    CHECK(sum / (float)n > 1.1f && sum / (float)n < 1.5f);
 }
 
 static void test_select_wraps_and_confirms(void)
@@ -66,6 +145,8 @@ int main(void)
     printf("test_characters\n");
     RUN(test_three_characters_with_their_abilities);
     RUN(test_weapons_are_on_par);
+    RUN(test_guns_kill_about_as_fast);
+    RUN(test_dual_pistols_are_a_reward);
     RUN(test_select_wraps_and_confirms);
     return TEST_EXIT();
 }

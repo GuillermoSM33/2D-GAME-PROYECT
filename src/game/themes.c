@@ -30,6 +30,7 @@ const ThemeDef THEME_ATARDECER = {
         [PROP_CACTUS] = 4, [PROP_ROCK] = 3, [PROP_FENCE] = 2, [PROP_DEAD_TREE] = 2,
         [PROP_WAGON_WHEEL] = 1, [PROP_SKULL] = 1, [PROP_SIGN] = 1,
     },
+    .house_chance = 35,
 };
 
 /* Graveyard at dusk: graves and crosses, bare trees, broken fences; purple. */
@@ -45,6 +46,7 @@ const ThemeDef THEME_CEMENTERIO = {
         {CACTUS_LIT, 0x4c3a50}, {LIT, 0x453449},
     },
     .prop_recolor_count = 6,
+    .house_chance = 25,
 };
 
 /* Moonlit desert: cacti, rocks and skulls under a full moon; dark blue. */
@@ -60,6 +62,7 @@ const ThemeDef THEME_NOCHE = {
         {CACTUS_LIT, 0x34425b}, {LIT, 0x34425c},
     },
     .prop_recolor_count = 6,
+    .house_chance = 30,
 };
 
 /* Ghost town under a red moon: signs, wagon wheels and fences; dark red. */
@@ -75,4 +78,5 @@ const ThemeDef THEME_PUEBLO_FANTASMA = {
         {CACTUS_LIT, 0x5c2e33}, {LIT, 0x562b30},
     },
     .prop_recolor_count = 6,
+    .house_chance = 70, /* A town: buildings all along */
 };
