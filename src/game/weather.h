@@ -9,7 +9,7 @@
  * the fight. Rain falls slanted and splashes on the road; wind blows dust
  * and leaves across and now and then rolls a tumbleweed through; a storm is
  * both, harder, with lightning. No SDL: weather.c moves the particles, the
- * game draws them. */
+ * weather_render.c draws them across the full window, behind the HUD. */
 typedef enum {
     WEATHER_CLEAR,
     WEATHER_WIND,
@@ -18,7 +18,7 @@ typedef enum {
 } Weather;
 
 typedef struct {
-    float x, y;  /* World x, view y */
+    float x, y;  /* World x, view y (negative y also covers the sky above the view) */
     float speed; /* Its own pace, times the weather's */
     bool leaf;   /* Wind: a leaf (bigger, fluttering) instead of dust */
 } WeatherBit;
@@ -47,5 +47,9 @@ bool weather_blows(const WeatherState *weather);
 
 /* Px per second the wind pushes things right (0 without wind). */
 float weather_wind(const WeatherState *weather);
+
+/* World/view y corresponding to the window's top. Rain must start above this
+ * negative height, so it also covers the sky band above the world viewport. */
+float weather_view_top(void);
 
 #endif

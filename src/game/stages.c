@@ -111,6 +111,47 @@ int stage_zombie_level(const StageDef *stage, int index)
 
 const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
 {
+    if (!stage || index < 0 || index >= stage->zombies)
+        return &ZOMBIE_RIOT;
+    /* Keep the tutorial and the original elite encounters intact. Other
+     * existing slots introduce every profession and then its runner. No
+     * extra bodies, XP or chests are inserted into the route. Runner spots
+     * always contain runners; later ordinary spots finish their catalogue. */
+    int next_normal = 1; /* Riot normal already appears throughout 1-1. */
+    int next_runner = 0;
+    int repeat = 0;
+    for (int mission = 0; mission < STAGE_COUNT; mission++) {
+        const StageDef *route = &STAGES[mission];
+        int k = 0;
+        for (int s = 0; s < route->spot_count; s++) {
+            const StageSpot *spot = &route->spots[s];
+            if (spot->kind != SPOT_ZOMBIES && spot->kind != SPOT_ELITE && spot->kind != SPOT_COFFINS &&
+                spot->kind != SPOT_AMBUSH && spot->kind != SPOT_RUNNERS)
+                continue;
+            for (int body = 0; body < spot->count; body++, k++) {
+                const ZombieStats *stats;
+                if (spot->kind == SPOT_ELITE) {
+                    stats = &ZOMBIE_ELITE;
+                } else if (mission == 0) {
+                    stats = &ZOMBIE_RIOT;
+                } else if (spot->kind == SPOT_RUNNERS) {
+                    stats = zombie_stats((ZombieKind)(next_runner++ % ZOMBIE_KIND_COUNT), true);
+                } else if (next_normal < ZOMBIE_KIND_ELITE) {
+                    stats = zombie_stats((ZombieKind)next_normal++, false);
+                } else if (next_runner < ZOMBIE_KIND_COUNT) {
+                    stats = zombie_stats((ZombieKind)next_runner++, true);
+                } else {
+                    /* Repeat a mixture after all fifty are represented.
+                     * Normal elites remain reserved for their original spots. */
+                    ZombieKind kind = (ZombieKind)((repeat / 2) % ZOMBIE_KIND_ELITE);
+                    stats = zombie_stats(kind, (repeat++ % 2) != 0);
+                }
+                if (stage == route && index == k)
+                    return stats;
+            }
+        }
+    }
+    /* Standalone/custom route definitions keep the original spot contract. */
     int k = 0;
     for (int s = 0; s < stage->spot_count; s++) {
         const StageSpot *spot = &stage->spots[s];
@@ -118,9 +159,8 @@ const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
             spot->kind != SPOT_AMBUSH && spot->kind != SPOT_RUNNERS)
             continue;
         if (index < k + spot->count)
-            return spot->kind == SPOT_ELITE     ? &ZOMBIE_ELITE
-                   : spot->kind == SPOT_RUNNERS ? &ZOMBIE_RUNNER
-                                                : &ZOMBIE_RIOT;
+            return spot->kind == SPOT_ELITE ? &ZOMBIE_ELITE :
+                   spot->kind == SPOT_RUNNERS ? &ZOMBIE_RUNNER : &ZOMBIE_RIOT;
         k += spot->count;
     }
     return &ZOMBIE_RIOT;

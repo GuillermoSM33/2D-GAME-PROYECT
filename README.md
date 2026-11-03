@@ -3,8 +3,8 @@
 Juego 2D en **C + SDL2**: una vaquera de pixel art contra zombis, por niveles (1-1 a 1-5)
 con cofres de recompensa, experiencia y niveles para ella y para los zombis. Sprites:
 caminata (8 fotogramas de 42 × 67 px), salto (8 de 54 × 82), disparo (8 de 81 × 80), bala
-(4 de 8 × 6), el zombi antidisturbios (caminata de 8, impacto de 3, muerte de 8 y ataque
-de 6, de 72 × 72) y el cofre (6 de 72 × 72), sobre un paisaje del oeste por capas con un tema
+(4 de 8 × 6), 25 familias de zombis con variantes normales y corredoras (cuadros de
+72 × 72) y el cofre (6 de 72 × 72), sobre un paisaje del oeste por capas con un tema
 por nivel. Hacia la izquierda se usa el mismo arte espejado.
 
 ## Jugar
@@ -14,7 +14,7 @@ por nivel. Hacia la izquierda se usa el mismo arte espejado.
 ./dist/Vaquera2D
 ```
 
-El juego abre en el **menú principal** (Jugar, Controles, Volumen, Salir), todo en pixel art
+El juego abre en el **menú principal** (Jugar, Almanaque, Controles, Volumen, Salir), todo en pixel art
 sobre el paisaje del primer nivel. **Volumen** tiene tres barras: General (todo), Personaje (lo
 que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus voces). Los
 controles también se ven en el menú, en **Controles**:
@@ -32,13 +32,19 @@ controles también se ven en el menú, en **Controles**:
 | `U` | Si sangra, vendarse (mantener; detiene el sangrado en 1.5 s, caminando a la mitad de velocidad); si no, beber un galón de agua |
 | `N` | Atravesar una barricada baja |
 | `F` o clic central | Poder de nivel 3 (cada 15 s): granada del SWAT, disparo de rebote de la vaquera |
-| `Esc` | Pausa: Continuar, Reiniciar nivel, Volumen, Controles, Salir al menú |
+| `B` | Abrir el almanaque durante la partida, también mientras está pausada |
+| `L` | Encender o apagar la linterna durante el nivel; ilumina hacia donde mira en los temas nocturnos |
+| `Esc` | Pausa: Continuar, Reiniciar nivel, Almanaque, Volumen, Controles, Salir al menú |
 | `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y volumen) |
 
-Durante el nivel, el HUD muestra la vida, el arma con sus balas (o `RECARGANDO`), la dinamita,
-el oro, los zombis vencidos y los metros a la salida. Mientras recarga puede caminar a media velocidad.
-`--capturas DIR` guarda cada pantalla como BMP (menús, una pelea, un muro, la pausa, una
-derrota) para revisar el arte sin jugar.
+Durante el nivel, el HUD distribuye la misión y los suministros a la izquierda, vida y
+experiencia a la derecha, y el arma, las balas y el poder en sus paneles propios. La
+recarga muestra su progreso; los estados llevan iconos y explicación al pasar el mouse.
+Los números y nombres ajustan su escala al espacio del panel para conservar la lectura.
+Mientras recarga puede caminar a media velocidad.
+`--capturas DIR` guarda 29 pantallas como BMP para revisar el arte sin jugar: menús,
+combate, obstáculos, pausa, derrota, clima, farol, linterna y destello de explosión,
+además de las siete páginas completas del catálogo (`23_catalogo_01` a `23_catalogo_07`).
 
 Hay **tres personajes**: la Vaquera (sus zombis sueltan cofres), el SWAT (cambia entre rifle
 y escopeta) y el Héroe (cañón de plasma que atraviesa la armadura). Cada uno tiene su propio
@@ -55,6 +61,31 @@ bocanadas de humo animadas (`smoke.c`) que suben, avanzan, crecen y se desvanece
 y desaparece al salir de la pantalla (hasta 16 a la vez).
 
 ## Enemigo y daño
+
+Hay **25 familias y 50 variantes**: antidisturbios, soldado, policía, antidisturbios con
+escudo, cinco civiles hombres y cinco mujeres, quemado, zombi degradado, perro infectado,
+sheriff, vaquero, motociclista a pie, sacerdote, carcelero, bombero, carnicero y el
+antidisturbios de élite. Cada familia tiene una variante normal y otra corredora.
+La ropa y el equipo determinan la protección; los civiles y criaturas sin equipo
+mantienen armadura cero al subir de nivel. El corredor conserva su protección y daño,
+tiene el 55 % de la vida base y se mueve 1.8 veces más rápido que su familia normal.
+La velocidad propia de la profesión no sube con el nivel.
+
+Cada familia cuenta con siete hojas: reposo (`idle`, 4 cuadros), caminar (`walk`, 8),
+correr (`run`, 8), atacar (`attack`, 6), recibir un golpe (`hurt`, 3), morir (`death`, 8)
+y forcejear atrapado (`caught`, 4). El ataque impacta en el cuadro 2 y el cuerpo muerto
+permanece en el cuadro 7. Los recursos se organizan en
+`assets/sprites/zombies/<id>/`; el antidisturbios conserva sus cuatro hojas originales.
+La plantilla, las profesiones y sus valores están en [docs/ZOMBIE.md](docs/ZOMBIE.md).
+
+El **almanaque** se abre con `B` en la partida o mediante su opción en el menú principal
+y en la pausa. Registra por separado las 50 variantes: los desconocidos muestran un
+candado hasta encontrarlos, y las fichas conocidas enseñan su animación, profesión,
+protección, encuentros, bajas y estadísticas de nivel 1 y del mayor nivel observado.
+`WASD` o flechas recorren la galería; clic o `Enter` abre la ficha; `Esc` vuelve primero
+a la galería y después a la pantalla anterior. Consultarlo detiene la partida y sus
+sonidos. Los registros pertenecen a cada personaje y duran toda la sesión, incluidos
+los reintentos; todavía no se guardan al cerrar el juego.
 
 El zombi antidisturbios entra cojeando por el borde de la pantalla más lejano a ella, siempre hacia la vaquera, y se
 detiene a 140 px de ella para atacarla con la garra (`attack.png`, 0.6 s): toma impulso
@@ -79,7 +110,7 @@ daño recibido  = daño del arma × 100 / (100 + armadura)
 
 Los zombis guardan la fracción de cada golpe (10.8 quita 10 y deja 0.8 para el siguiente),
 así que ningún arma pierde daño al redondear, por ligeras que sean sus balas. En nivel 1, el
-zombi común (sin arte todavía: 100 de vida, sin armadura) cae con 5 balas y el
+zombi común de referencia usado en las pruebas (100 de vida, sin armadura) cae con 5 balas y el
 antidisturbios (100 de vida, 85 de armadura, que para el 46 % del daño) con 10. Con el nivel
 crecen su vida, su armadura y su garra (ver abajo).
 
@@ -113,7 +144,8 @@ distinta por tema:
   Mientras un grupo pelea no se puede seguir (`¡ACABA CON ELLOS!`); al vencerlo, `¡ADELANTE! →`.
   Cuando la rodean se forman en fila.
 - **Zombi de élite** (desde 1-3): más blindado, garra más dura, tono rojizo; siempre deja cofre.
-- **Corredores** (desde 1-2): manadas de zombis verdosos, frágiles y casi el doble de rápidos.
+- **Corredores** (desde 1-2): variantes de todas las profesiones, con menos vida y 1.8 veces
+  la velocidad de su familia. Hay civiles, criaturas y enemigos equipados entre ellos.
 - **Emboscadas** (`¡EMBOSCADA!`): al llegar a ciertos puntos (casi siempre antes de un muro) entran zombis caminando desde fuera de la pantalla, por detrás y, si
   el camino está libre, por delante. Hasta vencerlos no se puede seguir, pero queda espacio
   para moverse (560 px más allá del punto).
@@ -167,6 +199,10 @@ distinta por tema:
 **Clima** por nivel: viento en 1-1 y 1-4 (polvo, hojas y alguna planta rodadora), lluvia en
 1-2 y 1-3 (gotas inclinadas que salpican en el camino, el cielo más oscuro) y tormenta en 1-5
 (lluvia con viento y relámpagos).
+La lluvia atraviesa el cielo y llega hasta el camino; el viento lleva polvo y hojas
+pequeños y translúcidos, y la planta rodadora conserva sus píxeles de origen. Los truenos
+llegan poco después del relámpago. Los efectos del clima se dibujan antes del HUD, que
+conserva sus textos e iconos legibles.
 
 **Estados** (bajo la vida en el HUD, como íconos pequeños con los segundos que quedan; al
 pasar el mouse sobre uno se abre con su nombre y explicación): sangrado y lentitud de las
@@ -207,8 +243,15 @@ vuelo cruzan la línea de tiro): caen, quedan en el suelo y se desvanecen; una e
 también los mata.
 
 Lejos del camino, detrás, se ven casas (saloon, chozas, graneros, casas caídas, tanques de agua), más en el pueblo
-fantasma; son solo fondo. El fuego, la fogata y las explosiones sueltan humo que sube; los faroles, el fuego y la fogata
-iluminan alrededor.
+fantasma; son solo fondo. El fuego, la fogata y las explosiones sueltan humo que sube.
+Los faroles iluminan desde su altura, las llamas desde el suelo y las explosiones
+producen un destello que se apaga. La luz alcanza el terreno y proyecta sombras hacia
+el lado opuesto de cada fuente; los muros y barricadas bloquean su paso.
+
+En los temas nocturnos, la **linterna** parte de la mano y abre un haz hacia donde mira
+el personaje. `L` alterna su encendido; empieza encendida al iniciar un nivel. Las
+fuentes cálidas tienen una intensidad que varía suavemente. Esta iluminación modifica
+la presentación del mundo, sin cambiar daño, colisiones ni visibilidad de la interfaz.
 
 Al vencer a un zombi, en cuanto cae al suelo, deja un **cofre** si el personaje tiene esa
 habilidad (la vaquera; según `chest_every`), también el último del nivel. El cofre se abre al acercarse (`chest/open.png`, 6
@@ -252,15 +295,17 @@ al de la vaquera, pero las recompensas podrán subirlos aparte.
 
 | Nivel | Zombis | Nivel de zombis | Complejidad | Pensado para |
 | --- | --- | --- | --- | --- |
-| 1-1 | 3 | 1 | 1.00 | Pelea pareja, para aprender |
-| 1-2 | 4 | 2 | 1.10 | Pareja |
-| 1-3 | 5 | **2** (uno menos) | 1.20 | Respiro: llega con nivel 3 |
-| 1-4 | 5 | **4** (salta dos) | 1.35 | Subida de dificultad |
-| 1-5 | 6 | 5, el último **6** (jefe) | 1.50 | El más exigente |
+| 1-1 | 10 | 1 | 1.00 | Antidisturbios originales, para aprender |
+| 1-2 | 14 | 2 | 1.10 | Presenta profesiones y corredores |
+| 1-3 | 13 | 3 | 1.20 | Ataúdes, trampas y primer élite |
+| 1-4 | 19 | 4 | 1.35 | Más corredores y combate nocturno |
+| 1-5 | 22 | 5, el último **6** (jefe) | 1.50 | Completa las variantes y combina los peligros |
 
 Jugando cada nivel una vez (todos los zombis y cofres), la vaquera sube un nivel por nivel
-completado y llega a cada uno con el nivel de sus zombis o uno más: entre 7 y 12 balas
-por zombi y entre 9 y 13 zarpazos para caer. `tests/test_progression.c` juega la campaña
+completado y llega a cada uno cerca del nivel de sus zombis. Las profesiones frágiles,
+blindadas y corredoras requieren distintas cantidades de disparos. La campaña mantiene
+78 enemigos y tres encuentros de élite, con las mismas fórmulas de experiencia y cofres.
+`tests/test_progression.c` juega la campaña
 y falla si algún nivel queda imposible o trivial; si cambias números, corre las pruebas.
 
 ## Requisitos (Ubuntu/Debian)
@@ -315,10 +360,10 @@ quieras publicar, usa `./build.sh`.
 
 ## Sonido
 
-Efectos de 8 bits con SDL2_mixer. `tools/make_sfx.py` los sintetiza (ruido tipo LFSR y
-ondas cuadradas, como un chip de consola) y escribe `assets/sounds/player/*.wav` y
-`assets/sounds/world/*.wav` (la explosión de un barril y las provisiones); al compilar se
-incrustan en el ejecutable. Suenan el disparo (`player/shot`) y, enseguida, la
+Audio con SDL2_mixer: los once sonidos legacy se conservan y los efectos nuevos se
+montan con grabaciones CC0 y capas de los originales. `tools/make_sfx.py` coordina su
+generación; fuentes, edición y comprobaciones en [docs/AUDIO.md](docs/AUDIO.md).
+Todos se incrustan en el ejecutable. La vaquera conserva el disparo (`player/shot`) y la
 recarga del cañón de mano (`player/reload`: baqueta, bala asentada y martillo), que
 dura lo mismo que la espera entre disparos (`PLAYER_SHOOT_RELOAD_TIME`). El zombi tiene
 tres voces, todas sacadas de una misma grabación con `tools/crush_sfx.py` (ver abajo): al
@@ -332,8 +377,9 @@ python3 tools/crush_sfx.py convert recordings/zombie_growl.wav zombie/spawn --pi
 python3 tools/crush_sfx.py convert recordings/zombie_growl.wav zombie/idle --start 0.35 --end 1.05 --pitch -7 --fade 0.15 $CLEAN
 python3 tools/crush_sfx.py convert recordings/zombie_growl.wav zombie/death --pitch -2 --glide -12 --fade 0.4 $CLEAN
 ```
- Para cambiar los sintetizados, edita su función en `tools/make_sfx.py`, corre `python3 tools/make_sfx.py`
-y recompila. El volumen está en `SFX_VOLUME` (`src/config.h`). Si no hay dispositivo
+Para regenerar los nuevos, usa `python3 tools/make_sfx.py --fetch` la primera vez y
+`python3 tools/make_sfx.py` después; necesita FFmpeg solo al crear audio. Compilar y jugar
+usan los WAV terminados. El volumen está en `SFX_VOLUME` (`src/config.h`). Si no hay dispositivo
 de audio, el juego sigue sin sonido.
 
 ### Grabar tus propios sonidos
@@ -401,9 +447,11 @@ src/
     bullet.c/.h          Balas en vuelo con el daño, alcance y color de su arma (sin SDL)
     bullet_render.c/.h   Dibujo de las balas
     damage.c/.h          Daño por nivel (arma y garra) y reducción por armadura (sin SDL)
-    zombie.c/.h          Zombi: tipos y nivel (vida, armadura, garra), avance, ataque, retroceso y muerte (sin SDL)
+    zombie.c/.h          Catálogo de 25 familias/50 variantes, estadísticas y siete animaciones por familia (sin SDL)
     combat.c/.h          Balas contra el zombi y garra contra la vaquera (sin SDL)
     zombie_render.c/.h   Dibujo del zombi: espejo, desvanecido y barra de vida
+    almanac.c/.h         Encuentros y bajas por variante, desbloqueos, estadísticas y navegación del almanaque (sin SDL)
+    almanac_render.c/.h  Galería y fichas del almanaque, con animaciones y estadísticas comparadas
     effects.c/.h         Efectos de una sola pasada, como las chispas en la armadura (sin SDL)
     effects_render.c/.h  Dibujo de los efectos
     player_render.c/.h   Dibujo del personaje con su arte (recorte del fotograma, espejo, altura, parpadeo rojo)
@@ -423,6 +471,9 @@ src/
     stage_run.c/.h       Una partida de un nivel: el camino, grupos que despiertan y detienen, cofres, XP y salida (sin SDL)
     terrain.c/.h         Barricadas, barriles de pólvora, carreta de provisiones y salida (sin SDL)
     terrain_render.c/.h  Dibujo del terreno del camino
+    lighting.c/.h        Fuentes a su altura real, bloqueo de luz y proyección de sombras (sin SDL)
+    weather.c/.h         Estado y partículas de viento, lluvia y tormenta (sin SDL)
+    weather_render.c/.h  Composición del clima sobre cielo y mundo, conservando el estado del renderer
     chest.c/.h           Cofre: cerrado, abriéndose al acercarse, abierto y desvanecido (sin SDL)
     chest_render.c/.h    Dibujo del cofre
     menu.c/.h            Selección de nivel en el menú (sin SDL)
@@ -433,7 +484,7 @@ src/
 assets/                  Sprites, fondos, sonidos y fuentes: mapa completo en docs/ASSETS.md
 tools/embed_assets.py    Convierte PNG/TTF/WAV en datos C (solo biblioteca estándar de Python)
 tools/sprite_style.py    Compara el nivel de detalle de una hoja con la vaquera
-tools/make_sfx.py        Sintetiza los efectos de 8 bits en assets/sounds/
+tools/make_sfx.py        Coordina los efectos grabados CC0 y las capas originales en assets/sounds/
 tools/crush_sfx.py       Graba o convierte audio a efecto de 8 bits (usa ffmpeg)
 tools/make_sprites.py    Genera en pixel art las placas de nivel y las chispas del cofre
 tools/make_terrain.py    Genera el terreno del camino (barricadas, muro, barriles, dinamita, cajas, botellas,
@@ -446,13 +497,14 @@ tools/make_care.py       Beber y vendarse de la vaquera (drink.png, bandage.png)
 tools/make_faint.py      El desmayo de la vaquera y el SWAT (faint.png) a partir de su hoja de caminar
 tools/make_melee.py      El culatazo de la vaquera (melee.png) a partir de su hoja de disparo
 tools/make_powers.py     Arte de los poderes de nivel 3: las pistolas duales de la vaquera y la granada
+tools/make_zombies.py    Compone prendas editadas sobre el cuerpo nativo y exporta las siete hojas por familia
 tools/make_character_base.py  Genera la base (maniquí) de los personajes y sus guías
 tools/check_landscape.py Revisa las capas de un tema de paisaje antes de usarlas
 tests/                   Pruebas de la lógica pura
 docs/ASSETS.md           Mapa de recursos: carpetas, nombres, qué los genera y qué comprueba --verify
 docs/SPRITES.md          Especificación para dibujar sprites (tamaños, pivotes, paleta)
 docs/LANDSCAPE.md        Especificación del paisaje: capas con paralaje, paletas y temas por nivel
-docs/ZOMBIE.md           Especificación del zombi antidisturbios
+docs/ZOMBIE.md           Catálogo, escalado y plantilla de estilo compartida de los zombis
 docs/CHARACTERS.md       Personajes: habilidades, armas, plantilla, base y cómo dibujar uno nuevo
 docs/templates/          La base de los personajes (la vaquera en grises), para dibujar encima
 build/                   Generado (temporales)

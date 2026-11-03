@@ -9,7 +9,7 @@ Usage: embed_assets.py <assets_dir> <output_dir>
   entries; anything else is ignored.
 
 Asset names are their path relative to <assets_dir> without extension,
-for example "sprites/zombie/walk" or "fonts/DejaVuSansMono".
+for example "sprites/zombies/riot/walk" or "fonts/DejaVuSansMono".
 Only the Python standard library is used.
 """
 from __future__ import annotations

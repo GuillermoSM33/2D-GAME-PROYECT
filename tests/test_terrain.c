@@ -263,6 +263,53 @@ static void test_blast_opens_coffins_and_crates(void)
     CHECK(fires == 3);
 }
 
+static void test_material_impacts_survive_event_clear(void)
+{
+    Terrain t;
+    static const unsigned material[] = {
+        TERRAIN_SOUND_HIT_WOOD, TERRAIN_SOUND_HIT_SAND,
+        TERRAIN_SOUND_HIT_WOOD, TERRAIN_SOUND_HIT_METAL
+    };
+    for (int variant = 0; variant < BARRICADE_KINDS; variant++) {
+        terrain_clear(&t);
+        Piece *p = terrain_add(&t, TERRAIN_BARRICADE, 1000.0f);
+        p->variant = variant;
+        CHECK(!terrain_claw(&t, 0)); /* An impact, even when the piece survives */
+        terrain_update(&t, FIXED_DT);
+        terrain_clear_events(&t);
+        CHECK(terrain_take_sound_events(&t) == material[variant]);
+        CHECK(terrain_take_sound_events(&t) == 0); /* Consumed exactly once */
+        p->spent = true;
+        terrain_claw(&t, 0);
+        CHECK(terrain_take_sound_events(&t) == 0);
+    }
+    terrain_clear(&t);
+    terrain_add(&t, TERRAIN_WIRE, 1000.0f);
+    CHECK(terrain_melee(&t, 990.0f, 1010.0f) == 1);
+    CHECK(terrain_take_sound_events(&t) == TERRAIN_SOUND_HIT_WIRE);
+    terrain_clear(&t);
+    terrain_add(&t, TERRAIN_WALL, 1000.0f)->variant = 1;
+    shoot_at(&t, 1000.0f);
+    CHECK(terrain_take_sound_events(&t) == TERRAIN_SOUND_HIT_STONE);
+}
+
+static void test_explosions_preserve_source_kind(void)
+{
+    Terrain t;
+    terrain_clear(&t);
+    terrain_add(&t, TERRAIN_BARREL, 1000.0f)->blowing = true;
+    terrain_plant_charge(&t, 3000.0f);
+    terrain_add(&t, TERRAIN_WALL, 5000.0f)->fuse = 0.001f;
+    t.items[1].fuse = 0.001f;
+    terrain_update(&t, FIXED_DT);
+    float xs[4];
+    TerrainKind kinds[4];
+    CHECK(terrain_explosions_typed(&t, xs, kinds, 4) == 3);
+    CHECK(kinds[0] == TERRAIN_BARREL && kinds[1] == TERRAIN_CHARGE && kinds[2] == TERRAIN_WALL);
+    CHECK_NEAR(xs[1], 3000.0f, 1e-3f);
+    CHECK(terrain_explosions_typed(&t, xs, kinds, 4) == 0);
+}
+
 int main(void)
 {
     printf("test_terrain\n");
@@ -280,5 +327,7 @@ int main(void)
     RUN(test_bottles_one_per_shot);
     RUN(test_lamp_falls_into_fire);
     RUN(test_blast_opens_coffins_and_crates);
+    RUN(test_material_impacts_survive_event_clear);
+    RUN(test_explosions_preserve_source_kind);
     return TEST_EXIT();
 }

@@ -72,18 +72,24 @@ static void test_campaign_is_winnable_not_trivial(void)
             const ZombieStats *stats = stage_zombie_stats(stage, k);
             bool elite = stats == &ZOMBIE_ELITE;
             int z = stage_zombie_level(stage, k);
-            int shots = (int)ceilf((float)level_health(stats->health, z) /
-                                   damage_through_armor(progress_damage(&p),
-                                                        level_armor(stats->armor, ZOMBIE_ARMOR_PER_LEVEL, z)));
+            Zombie opponent;
+            zombie_spawn(&opponent, stats, 0.0f);
+            zombie_set_level(&opponent, z);
+            int shots = (int)ceilf((float)opponent.max_health /
+                                   damage_through_armor(progress_damage(&p), opponent.armor));
             int claws = (int)ceilf((float)progress_max_health(&p) /
                                    (float)damage_after_armor(damage_at_level(stats->attack_base, z),
                                                              progress_armor(&p)));
-            if (stats == &ZOMBIE_RUNNER) { /* Frail, but it gets to her first */
-                CHECK(shots >= 3 && shots <= 8);
-                CHECK(claws >= 6 && claws <= 18);
+            if (s == 0) { /* The original tutorial's balance remains intact. */
+                CHECK(stats == &ZOMBIE_RIOT);
+                CHECK(shots >= 6 && shots <= 16);
+                CHECK(claws >= 6 && claws <= 14);
+            } else if (stats->runner) { /* Faster approach trades away health, not equipment. */
+                CHECK(shots >= 1 && shots <= 16);
+                CHECK(claws >= 5 && claws <= 22);
             } else {
-                CHECK(shots >= 6 && shots <= (elite ? 26 : 16));
-                CHECK(claws >= (elite ? 4 : 6) && claws <= 14);
+                CHECK(shots >= (elite ? 8 : 3) && shots <= (elite ? 26 : 20));
+                CHECK(claws >= (elite ? 4 : 5) && claws <= 22);
             }
             float share = stage_xp_share(stage);
             progress_add_xp(&p, (int)lroundf((float)kill_xp(z, p.level) * share));

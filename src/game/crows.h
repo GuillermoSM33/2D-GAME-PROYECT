@@ -26,7 +26,7 @@ typedef struct {
     Crow items[CROWS_MAX];
     int count;
     int took_off; /* Crows that took off on the last update (for a caw) */
-    int killed;   /* Crows killed on the last update */
+    int killed;   /* Crows killed during the current simulation step */
 } Crows;
 
 /* Flocks along the road from start_x to start_x + length, the same for a
@@ -44,7 +44,8 @@ void crows_noise(Crows *crows, float x, float range);
 int crows_shoot(Crows *crows, Bullets *bullets);
 
 /* A blast at x: crows within radius die, the rest take off. */
-void crows_blast(Crows *crows, float x, float radius);
+/* Returns the number of crows killed by the blast. */
+int crows_blast(Crows *crows, float x, float radius);
 
 /* Its frame in sprites/crow/crow: 0-1 pecking, 2-5 the wingbeat, 6
  * falling dead, 7 lying dead. */

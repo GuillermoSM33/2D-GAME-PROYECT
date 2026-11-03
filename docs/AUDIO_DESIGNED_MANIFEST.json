@@ -1,0 +1,242 @@
+{
+  "generator": "tools/make_designed_sfx.py",
+  "subjective_listening_verified": false,
+  "sources": {
+    "internal_protected": [
+      {
+        "path": "assets/sounds/player/shot.wav",
+        "sha256": "dcdd6b2cb6d89c5d77abfb2669ac59b4f2d99c47debb4e92c5ef61524b799177",
+        "bytes": 12171
+      },
+      {
+        "path": "assets/sounds/player/reload.wav",
+        "sha256": "2b292cb031e6ea3baea9015e38c49fbc853d349fd7fba476981b5067148ee4a2",
+        "bytes": 8864
+      },
+      {
+        "path": "assets/sounds/world/explosion.wav",
+        "sha256": "3f77dd069ff3258524fe0af5f2f3039965dad0bacfec827d7b627bb24b1fd150",
+        "bytes": 24299
+      },
+      {
+        "path": "assets/sounds/world/wood.wav",
+        "sha256": "f03439d7331087392c4973408b7e2e8ba279b79b25fe517d695197f48e4636e0",
+        "bytes": 9966
+      },
+      {
+        "path": "assets/sounds/world/glass.wav",
+        "sha256": "f0ab8c4c66c5fdd04c609591492a662e8aff14e54eb1b5054a9fbfa7eb748621",
+        "bytes": 11069
+      },
+      {
+        "path": "assets/sounds/world/snap.wav",
+        "sha256": "5b3cb3fe729d6c4ece13f3d4ccbf0db2367cb4d68d3c2762f2816bc0a3715adc",
+        "bytes": 7761
+      },
+      {
+        "path": "assets/sounds/world/fuse.wav",
+        "sha256": "227ef0d806eec133fba4d47ce3d92099c98900b4147a0910ad6bf4c2b4346818",
+        "bytes": 52964
+      },
+      {
+        "path": "assets/sounds/world/supply.wav",
+        "sha256": "33acd794de89f1da5a9d59d776e2d0a497f227c14ed7c83db751dc81a53f6a33",
+        "bytes": 9966
+      },
+      {
+        "path": "assets/sounds/zombie/spawn.wav",
+        "sha256": "95b95b6ee2960dd64dab5973611072e46b25d0d33593f4bb1ce24e6252ceb8df",
+        "bytes": 96166
+      },
+      {
+        "path": "assets/sounds/zombie/idle.wav",
+        "sha256": "041b7f60811878c21b6142cd3ee0ade39fc7808c0ba5537b06dd2ce958a2e8db",
+        "bytes": 46296
+      },
+      {
+        "path": "assets/sounds/zombie/death.wav",
+        "sha256": "9862a617c96544bbd480ffbd6745bf79183bc22ac85ca413d6597af14f41a4f3",
+        "bytes": 123588
+      }
+    ],
+    "foley": {
+      "path": "recordings/cc0_foley/100-CC0-wood-metal-SFX.zip",
+      "sha256": "be6eba63b03409ac0c77787a956b1503a7c186403d04aef9725c52644a4b7878",
+      "bytes": 1990361,
+      "author": "rubberduck",
+      "license": "CC0-1.0",
+      "page": "https://opengameart.org/content/100-cc0-metal-and-wood-sfx",
+      "members_sha256": {
+        "lock_open_01.ogg": "f37728690c9559d32527b55e25102a1acb7beafdfab7ad12e099285d13d29e01",
+        "keys_01.ogg": "8bc33b2545a8bd9c1b0e2c47665c6bb9ca981ab972415f66a2d468d0b4921a5a",
+        "metal_close_01.ogg": "f504b912782760ff3ec25814db6c27bd2d884a94cda2a94d0ffbec921ab478b6",
+        "metal_falling_01.ogg": "84f68de4298918630f328087486619e4b80892f7655724f9d391af730b37cea0",
+        "metal_hit_01.ogg": "f5fd185fce454947c1d91ce6757e219c4d7c6c139d4aa9d419cd7a79c7f6df3b",
+        "metal_hit_02.ogg": "9074c0828727bd00834cabcaaf5b8cbff2cfad7b45676b95d86c0919e444f8b1",
+        "metal_spring_01.ogg": "bc7d84bf0353ef884c62dc0a9ef29e05864d452ac8509a40e125fb9d7507f98f",
+        "metal_slam_01.ogg": "a335ccf202578bd740f930f0648a4dcbbbce3ebb2519335be023532578f56176",
+        "wood_breaking_01.ogg": "83a0e17e536a17897d5915e88c9e70d0be06d0a43bb3a38f44314ada46b06a3e",
+        "wood_falling_01.ogg": "38c5307455f35c3b61e06fbd01cae41f245cd45b12807747bd5830b2ff7448d1",
+        "wood_close_01.ogg": "e4cbbaa6331b42a32cc3a63d643f4849c65c39a45e7c57d568eb1790619af06d",
+        "wood_squeak_01.ogg": "c6c90e02993b2e044937f344351b417aeff6841aa4cd683f208d85ececf23392"
+      }
+    },
+    "field_blast": {
+      "path": "recordings/cc0_foley/dynamite_source.mp3",
+      "sha256": "03ede4462a6657fdd181fa65f9aab9d6fcc181be6cdbb2fb461ee2aa638da318",
+      "bytes": 689760,
+      "author": "Felix Blume",
+      "license": "CC0-1.0",
+      "page": "https://freesound.org/people/felix.blume/sounds/251401/",
+      "selected_interval_seconds": [
+        0.025,
+        1.9
+      ]
+    }
+  },
+  "outputs": {
+    "world/grenade_explosion": {
+      "path": "assets/sounds/world/grenade_explosion.wav",
+      "sha256": "0bfef34d9268094eedbc5c22e3cde397a58313db429696082a2556095cfec2c8",
+      "seconds": 0.949977,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.11996,
+      "peak": 0.899963,
+      "dc": -8.216e-05
+    },
+    "world/dynamite_explosion": {
+      "path": "assets/sounds/world/dynamite_explosion.wav",
+      "sha256": "df92f090f57e55de176b89cfd0c9b7483f3defb828355655583fd91f574fce38",
+      "seconds": 1.649977,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.136836,
+      "peak": 0.899963,
+      "dc": -4.757e-05
+    },
+    "world/ambush": {
+      "path": "assets/sounds/world/ambush.wav",
+      "sha256": "20d3f5f3777992656772f4b3fcd1d68358ce1af8d8505d61921596fe9074993a",
+      "seconds": 0.8,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.095149,
+      "peak": 0.899963,
+      "dc": -0.00013918
+    },
+    "world/chest": {
+      "path": "assets/sounds/world/chest.wav",
+      "sha256": "40be99f64238a68679fb008130da072c7194f5623cf769f6c5d2bb545cb033d5",
+      "seconds": 0.889977,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.068085,
+      "peak": 0.899963,
+      "dc": 4.4e-07
+    },
+    "world/level_up": {
+      "path": "assets/sounds/world/level_up.wav",
+      "sha256": "722766c5b3d113a90590e4a793f53627ac6ca8a760931b569bf2e8880234d11f",
+      "seconds": 0.9,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.062453,
+      "peak": 0.899963,
+      "dc": -7.09e-06
+    },
+    "world/victory": {
+      "path": "assets/sounds/world/victory.wav",
+      "sha256": "0590e385004f40eda692aca97dc78894d54f8e9ec521e879078e421f24973c02",
+      "seconds": 1.349977,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.058357,
+      "peak": 0.899963,
+      "dc": -5.83e-06
+    },
+    "weapons/plasma_shot": {
+      "path": "assets/sounds/weapons/plasma_shot.wav",
+      "sha256": "c2903255092214b93bb6d70acb7925bbdfc3d2fe9264145525e5a20bd7511116",
+      "seconds": 0.46,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.15765,
+      "peak": 0.899963,
+      "dc": -0.00069525
+    },
+    "weapons/plasma_reload": {
+      "path": "assets/sounds/weapons/plasma_reload.wav",
+      "sha256": "03bcc9b9f483c337f2c00d9aa7d11426a0886a8a7199980c359e8531c5dc0e68",
+      "seconds": 0.62,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.104997,
+      "peak": 0.829163,
+      "dc": -9.3e-07
+    },
+    "weapons/plasma_empty": {
+      "path": "assets/sounds/weapons/plasma_empty.wav",
+      "sha256": "8fa3c9abae4adbb2b053af3434f3f440cf6b30abd6ddc7b91549097ffb3bebd4",
+      "seconds": 0.24,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.069998,
+      "peak": 0.624054,
+      "dc": -1.108e-05
+    },
+    "weapons/ricochet": {
+      "path": "assets/sounds/weapons/ricochet.wav",
+      "sha256": "3af6d1a841815d0402be56c7c95ee72b64e80cfb2db106c23d3e7c5ce1e9af41",
+      "seconds": 0.309977,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.058723,
+      "peak": 0.899963,
+      "dc": -0.00063016
+    },
+    "ui/move": {
+      "path": "assets/sounds/ui/move.wav",
+      "sha256": "5988fbe44f22a027e86abf9751e3061b81897e15a8eda99abbc88fd7bbac4421",
+      "seconds": 0.074966,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.039999,
+      "peak": 0.300659,
+      "dc": -0.00010357
+    },
+    "ui/confirm": {
+      "path": "assets/sounds/ui/confirm.wav",
+      "sha256": "722d423571e32078b90b8e1e8d6501f026e09f720a17c39b449aa0137e1bf84c",
+      "seconds": 0.18,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.050404,
+      "peak": 0.419983,
+      "dc": -2.844e-05
+    },
+    "ui/back": {
+      "path": "assets/sounds/ui/back.wav",
+      "sha256": "f05aae5ab28d77d05af9cb27223ed3e0096f5d3eefe3d7838acbd4f599a3e689",
+      "seconds": 0.169977,
+      "sample_rate": 22050,
+      "bits": 16,
+      "channels": 1,
+      "rms": 0.0444,
+      "peak": 0.399994,
+      "dc": -2.978e-05
+    }
+  }
+}

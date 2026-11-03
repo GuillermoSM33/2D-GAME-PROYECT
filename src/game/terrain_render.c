@@ -86,22 +86,133 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
     }
 }
 
-void terrain_render_lights(SDL_Renderer *renderer, const Terrain *terrain, float camera_x, double time)
+#define LIGHT_W (VIEW_WIDTH / SPRITE_SCALE)
+#define LIGHT_H (VIEW_HEIGHT / SPRITE_SCALE)
+static SDL_Texture *light_mask;
+static SDL_Renderer *light_renderer;
+static Uint32 light_pixels[LIGHT_W * LIGHT_H];
+
+void terrain_render_shutdown(void)
 {
-    SDL_Texture *glow = assets_texture("sprites/effects/glow");
-    if (glow == NULL)
-        return;
-    float xs[TERRAIN_MAX], sizes[TERRAIN_MAX];
-    int n = terrain_lights(terrain, xs, sizes, TERRAIN_MAX);
-    SDL_SetTextureBlendMode(glow, SDL_BLENDMODE_ADD);
-    for (int i = 0; i < n; i++) {
-        /* A flame's flicker: two slow waves, a little different per light. */
-        float flicker = 0.85f + 0.1f * (float)sin(time * 7.0 + xs[i] * 0.01) +
-                        0.05f * (float)sin(time * 13.0 + xs[i] * 0.03);
-        int size = (int)(sizes[i] * flicker);
-        SDL_Rect dst = {(int)lroundf(xs[i] - camera_x) - size / 2, BASELINE - size * 2 / 3, size, size};
-        SDL_SetTextureAlphaMod(glow, (Uint8)(150.0f * flicker));
-        SDL_RenderCopy(renderer, glow, NULL, &dst);
+    if (light_mask)
+        SDL_DestroyTexture(light_mask);
+    light_mask = NULL;
+    light_renderer = NULL;
+}
+
+static void draw_shadow(SDL_Renderer *renderer, const Lighting *lighting, float foot_x,
+                         float height, float half_width, float camera_x)
+{
+    const WorldLight *strongest = NULL;
+    float best = .025f;
+    for (int i = 0; i < lighting->count; i++) {
+        const WorldLight *light = &lighting->lights[i];
+        float value = lighting_strength_at(lighting, light, foot_x, BASELINE - height * .5f);
+        if (value > best) { best = value; strongest = light; }
     }
-    SDL_SetTextureAlphaMod(glow, 255);
+    GroundShadow shadow;
+    if (!strongest || !lighting_ground_shadow(strongest, foot_x, height, half_width, &shadow))
+        return;
+    int rows = (int)ceilf(shadow.depth / SPRITE_SCALE);
+    for (int row = 0; row < rows; row++) {
+        float t = (float)row / (float)rows;
+        float center = shadow.near_x + (shadow.far_x - shadow.near_x) * t - camera_x;
+        float half = shadow.half_width + (shadow.far_half_width - shadow.half_width) * t;
+        Uint8 alpha = (Uint8)lroundf(shadow.opacity * (1.0f - t) * (1.0f - t) * 255.0f);
+        SDL_SetRenderDrawColor(renderer, 12, 9, 15, alpha);
+        SDL_Rect stripe = {(int)lroundf(center - half), BASELINE + row * SPRITE_SCALE + 2,
+                           (int)lroundf(half * 2.0f), SPRITE_SCALE};
+        SDL_RenderFillRect(renderer, &stripe);
+    }
+}
+
+void terrain_render_surface_lights(SDL_Renderer *renderer, const Lighting *lighting,
+                            const Player *player, const Zombie *zombies, int zombie_count,
+                            float camera_x)
+{
+    if (!renderer || !lighting)
+        return;
+    Uint8 old_r, old_g, old_b, old_a;
+    SDL_BlendMode old_mode;
+    SDL_GetRenderDrawColor(renderer, &old_r, &old_g, &old_b, &old_a);
+    SDL_GetRenderDrawBlendMode(renderer, &old_mode);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    if (lighting->night) {
+        if (player && player_alive(player))
+            draw_shadow(renderer, lighting, player->x, PLAYER_HEAD_HEIGHT * SPRITE_SCALE,
+                        PLAYER_BODY_HALF_WIDTH * .75f, camera_x);
+        for (int i = 0; zombies && i < zombie_count; i++) {
+            const Zombie *z = &zombies[i];
+            if (zombie_alive(z) && !z->hidden && z->caught <= 0.0f &&
+                z->x > camera_x - 180.0f && z->x < camera_x + VIEW_WIDTH + 180.0f)
+                draw_shadow(renderer, lighting, z->x, zombie_body_height(z),
+                            zombie_body_half_width(z) * .70f, camera_x);
+        }
+        if (!light_mask || light_renderer != renderer) {
+            terrain_render_shutdown();
+            light_mask = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                                          SDL_TEXTUREACCESS_STREAMING, LIGHT_W, LIGHT_H);
+            light_renderer = renderer;
+            if (light_mask)
+                SDL_SetTextureBlendMode(light_mask, SDL_BLENDMODE_MOD);
+        }
+        if (light_mask) {
+            for (int y = 0; y < LIGHT_H; y++)
+                for (int x = 0; x < LIGHT_W; x++)
+                    light_pixels[y * LIGHT_W + x] = 0xff000000u |
+                        lighting_color_at(lighting, camera_x + x * SPRITE_SCALE + SPRITE_SCALE / 2.0f,
+                                          y * SPRITE_SCALE + SPRITE_SCALE / 2.0f);
+            SDL_UpdateTexture(light_mask, NULL, light_pixels, LIGHT_W * sizeof(Uint32));
+            SDL_Rect dst = {0, 0, VIEW_WIDTH, VIEW_HEIGHT};
+            SDL_RenderCopy(renderer, light_mask, NULL, &dst);
+        }
+    }
+    SDL_SetRenderDrawColor(renderer, old_r, old_g, old_b, old_a);
+    SDL_SetRenderDrawBlendMode(renderer, old_mode);
+}
+
+void terrain_render_light_bloom(SDL_Renderer *renderer, const Lighting *lighting, float camera_x)
+{
+    if (!renderer || !lighting)
+        return;
+    SDL_Texture *glow = assets_texture("sprites/effects/glow");
+    if (glow) {
+        Uint8 alpha, red, green, blue;
+        SDL_BlendMode blend;
+        SDL_GetTextureAlphaMod(glow, &alpha);
+        SDL_GetTextureColorMod(glow, &red, &green, &blue);
+        SDL_GetTextureBlendMode(glow, &blend);
+        SDL_SetTextureBlendMode(glow, SDL_BLENDMODE_ADD);
+        SDL_SetTextureColorMod(glow, 255, 172, 77);
+        for (int i = 0; i < lighting->count; i++) {
+            const WorldLight *light = &lighting->lights[i];
+            if (light->kind == LIGHT_FLASHLIGHT)
+                continue; /* Its cone comes from the directional surface mask. */
+            float size = light->kind == LIGHT_EXPLOSION ? light->radius * .70f : light->radius * .45f;
+            SDL_Rect halo = {(int)lroundf(light->x - camera_x - size * .5f),
+                             (int)lroundf(light->y - size * .5f), (int)size, (int)size};
+            SDL_SetTextureAlphaMod(glow, (Uint8)fminf(100.0f,
+                (lighting->night ? 53.0f : 15.0f) * light->strength));
+            SDL_RenderCopy(renderer, glow, NULL, &halo);
+            /* The lit ground is an ellipse in perspective, centred under
+             * the source, not another upright glowing ball. */
+            float width = light->radius * 1.4f;
+            SDL_Rect pool = {(int)lroundf(light->x - camera_x - width * .5f), BASELINE - 15,
+                             (int)width, 48};
+            SDL_SetTextureAlphaMod(glow, (Uint8)fminf(45.0f,
+                (lighting->night ? 26.0f : 7.0f) * light->strength));
+            SDL_RenderCopy(renderer, glow, NULL, &pool);
+        }
+        SDL_SetTextureAlphaMod(glow, alpha);
+        SDL_SetTextureColorMod(glow, red, green, blue);
+        SDL_SetTextureBlendMode(glow, blend);
+    }
+}
+
+void terrain_render_lights(SDL_Renderer *renderer, const Lighting *lighting,
+                            const Player *player, const Zombie *zombies, int zombie_count,
+                            float camera_x)
+{
+    terrain_render_surface_lights(renderer, lighting, player, zombies, zombie_count, camera_x);
+    terrain_render_light_bloom(renderer, lighting, camera_x);
 }

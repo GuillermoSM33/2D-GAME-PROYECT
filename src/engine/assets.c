@@ -3,18 +3,18 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_TEXTURES 128
-
 typedef struct {
     const char *name;
     SDL_Texture *texture;
 } LoadedTexture;
 
-static LoadedTexture textures[MAX_TEXTURES];
+static LoadedTexture *textures;
 static int texture_count;
 
 const EmbeddedImage *assets_find_image(const char *name)
 {
+    if (!name)
+        return NULL;
     for (int i = 0; i < embedded_image_count; i++) {
         if (strcmp(embedded_images[i].name, name) == 0)
             return &embedded_images[i];
@@ -24,6 +24,8 @@ const EmbeddedImage *assets_find_image(const char *name)
 
 const EmbeddedBlob *assets_find_blob(const char *name)
 {
+    if (!name)
+        return NULL;
     for (int i = 0; i < embedded_blob_count; i++) {
         if (strcmp(embedded_blobs[i].name, name) == 0)
             return &embedded_blobs[i];
@@ -40,9 +42,14 @@ static SDL_Surface *surface_from_image(const EmbeddedImage *image)
 
 bool assets_load(SDL_Renderer *renderer)
 {
-    if (embedded_image_count > MAX_TEXTURES) {
-        fprintf(stderr, "Demasiadas imágenes incrustadas (%d > %d)\n",
-                embedded_image_count, MAX_TEXTURES);
+    assets_unload();
+    if (!renderer || embedded_image_count < 0)
+        return false;
+    if (embedded_image_count == 0)
+        return true;
+    textures = SDL_calloc((size_t)embedded_image_count, sizeof(*textures));
+    if (!textures) {
+        fprintf(stderr, "No se pudo reservar la tabla de imágenes: %s\n", SDL_GetError());
         return false;
     }
     for (int i = 0; i < embedded_image_count; i++) {
@@ -68,11 +75,15 @@ void assets_unload(void)
 {
     for (int i = 0; i < texture_count; i++)
         SDL_DestroyTexture(textures[i].texture);
+    SDL_free(textures);
+    textures = NULL;
     texture_count = 0;
 }
 
 SDL_Texture *assets_texture(const char *name)
 {
+    if (!name)
+        return NULL;
     for (int i = 0; i < texture_count; i++) {
         if (strcmp(textures[i].name, name) == 0)
             return textures[i].texture;

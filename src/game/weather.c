@@ -25,12 +25,18 @@ float weather_wind(const WeatherState *weather)
     return weather->kind == WEATHER_STORM ? WIND_SPEED * 1.4f : weather->kind == WEATHER_WIND ? WIND_SPEED : 0.0f;
 }
 
+float weather_view_top(void)
+{
+    return -(float)VIEW_TOP / VIEW_SCALE;
+}
+
 static void new_drop(WeatherState *w, WeatherBit *d, float camera_x, bool anywhere)
 {
-    /* From above the view, far enough upwind to land anywhere across it. */
-    float lead = weather_wind(w) * RAIN_SLANT * (float)VIEW_HEIGHT / RAIN_SPEED;
+    /* Rain covers the sky band too, above the world's viewport. */
+    float top = weather_view_top();
+    float lead = weather_wind(w) * RAIN_SLANT * ((float)BASELINE - top) / RAIN_SPEED;
     d->x = camera_x - lead - 100.0f + roll(w) * ((float)VIEW_WIDTH + 200.0f + lead);
-    d->y = anywhere ? roll(w) * (float)BASELINE : -roll(w) * 200.0f;
+    d->y = anywhere ? top + roll(w) * ((float)BASELINE - top) : top - roll(w) * 200.0f;
     d->speed = 0.8f + roll(w) * 0.4f;
 }
 
@@ -39,7 +45,7 @@ static void new_dust(WeatherState *w, WeatherBit *d, float camera_x, bool anywhe
     d->x = anywhere ? camera_x + roll(w) * (float)VIEW_WIDTH : camera_x - 20.0f - roll(w) * 200.0f;
     d->y = (float)BASELINE - 170.0f + roll(w) * 160.0f; /* Low, along the road: not in her way */
     d->speed = 0.6f + roll(w) * 0.8f;
-    d->leaf = roll(w) < 0.15f;
+    d->leaf = roll(w) < WEATHER_LEAF_CHANCE;
 }
 
 void weather_start(WeatherState *weather, Weather kind, float camera_x)

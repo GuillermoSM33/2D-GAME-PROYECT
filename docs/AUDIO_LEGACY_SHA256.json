@@ -1,0 +1,17 @@
+{
+  "description": "Original WAV hashes captured before sound expansion; never regenerate this baseline from current assets.",
+  "algorithm": "sha256",
+  "files": {
+    "assets/sounds/player/reload.wav": "2b292cb031e6ea3baea9015e38c49fbc853d349fd7fba476981b5067148ee4a2",
+    "assets/sounds/player/shot.wav": "dcdd6b2cb6d89c5d77abfb2669ac59b4f2d99c47debb4e92c5ef61524b799177",
+    "assets/sounds/world/explosion.wav": "3f77dd069ff3258524fe0af5f2f3039965dad0bacfec827d7b627bb24b1fd150",
+    "assets/sounds/world/fuse.wav": "227ef0d806eec133fba4d47ce3d92099c98900b4147a0910ad6bf4c2b4346818",
+    "assets/sounds/world/glass.wav": "f0ab8c4c66c5fdd04c609591492a662e8aff14e54eb1b5054a9fbfa7eb748621",
+    "assets/sounds/world/snap.wav": "5b3cb3fe729d6c4ece13f3d4ccbf0db2367cb4d68d3c2762f2816bc0a3715adc",
+    "assets/sounds/world/supply.wav": "33acd794de89f1da5a9d59d776e2d0a497f227c14ed7c83db751dc81a53f6a33",
+    "assets/sounds/world/wood.wav": "f03439d7331087392c4973408b7e2e8ba279b79b25fe517d695197f48e4636e0",
+    "assets/sounds/zombie/death.wav": "9862a617c96544bbd480ffbd6745bf79183bc22ac85ca413d6597af14f41a4f3",
+    "assets/sounds/zombie/idle.wav": "041b7f60811878c21b6142cd3ee0ade39fc7808c0ba5537b06dd2ce958a2e8db",
+    "assets/sounds/zombie/spawn.wav": "95b95b6ee2960dd64dab5973611072e46b25d0d33593f4bb1ce24e6252ceb8df"
+  }
+}

@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Generate the game's 8-bit style sound effects as WAV files.
+"""Build the game's effects from recorded CC0 foley and original layers.
 
-Usage: tools/make_sfx.py [assets_dir]   (default: assets)
+Usage: tools/make_sfx.py [assets_dir] [--only folder/name ...] [--fetch]
 
-Writes assets/sounds/player/*.wav (shot, reload) and sounds/world/*.wav
-(explosion, supply, fuse, glass, wood, snap): 22050 Hz, mono, 8-bit unsigned PCM, the format of
-old consoles. The sounds are synthesized like a chiptune sound chip does: a
-noise channel from a 15-bit LFSR plus square waves, each with its own volume
-envelope and pitch slide. Deterministic, so re-running gives the same files.
-Uses only the standard library.
+The default uses recorded physical mechanisms, impacts, birds and weather.
+It never replaces original world/zombie or player/shot,reload WAVs.
+FFmpeg is needed only for authoring. Source licences: docs/AUDIO.md.
+Legacy synthesis helpers remain for tools/crush_sfx.py and --legacy, which
+only creates missing originals; it never overwrites an existing recording.
 """
 from __future__ import annotations
 
+import argparse
 import math
 import struct
 import sys
+import importlib
+import subprocess
 from pathlib import Path
 
 RATE = 22050
@@ -218,18 +220,6 @@ def snap() -> list[float]:
     return out
 
 
-SOUNDS = {  # name: (folder under sounds/, synth)
-    'shot': ('player', shot),
-    'reload': ('player', reload),
-    'explosion': ('world', explosion),
-    'supply': ('world', supply),
-    'fuse': ('world', fuse),
-    'glass': ('world', glass),
-    'wood': ('world', wood),
-    'snap': ('world', snap),
-}
-
-
 def write_wav(path: Path, samples: list[float]) -> None:
     pcm = bytes(max(0, min(255, round(128 + s * 127))) for s in samples)
     header = struct.pack('<4sI4s4sIHHIIHH4sI', b'RIFF', 36 + len(pcm), b'WAVE',
@@ -237,16 +227,58 @@ def write_wav(path: Path, samples: list[float]) -> None:
     path.write_bytes(header + pcm)
 
 
+# Builders have disjoint output catalogues. The discarded simple pulse/noise
+# drafts cannot be restored accidentally by running the authoring command.
+BUILDERS = ('make_weapon_foley', 'make_foley_sfx', 'make_nature_sfx', 'make_designed_sfx')
+LEGACY_SOUNDS = {
+    'player/shot': shot, 'player/reload': reload,
+    'world/explosion': explosion, 'world/supply': supply, 'world/fuse': fuse,
+    'world/glass': glass, 'world/wood': wood, 'world/snap': snap,
+}
+
+
+def catalog() -> dict[str, tuple[str, ...]]:
+    result = {name: tuple(importlib.import_module(name).OUTPUTS) for name in BUILDERS}
+    flat = [path for paths in result.values() for path in paths]
+    if len(set(flat)) != len(flat):
+        raise RuntimeError('Two sound builders write the same effect')
+    return result
+
+
 def main() -> int:
-    assets_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('assets')
-    for name, (folder, make) in SOUNDS.items():
-        out_dir = assets_dir / 'sounds' / folder
-        out_dir.mkdir(parents=True, exist_ok=True)
-        samples = make()
-        write_wav(out_dir / f'{name}.wav', samples)
-        print(f'make_sfx: {out_dir / name}.wav ({len(samples) / RATE:.2f} s)')
+    builders = catalog()
+    choices = sorted(path for paths in builders.values() for path in paths)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('assets_dir', nargs='?', type=Path, default=Path('assets'))
+    parser.add_argument('--only', nargs='+', choices=choices)
+    parser.add_argument('--fetch', action='store_true', help='download missing verified CC0 sources')
+    parser.add_argument('--legacy', action='store_true', help='also create missing legacy synth files')
+    args = parser.parse_args()
+    selected = set(args.only or choices)
+    for module, names in builders.items():
+        subset = [name for name in names if name in selected]
+        if not subset:
+            continue
+        command = [sys.executable, str(Path(__file__).with_name(module + '.py')),
+                   str(args.assets_dir), '--only', *subset]
+        if args.fetch:
+            command.append('--fetch')
+        subprocess.run(command, check=True)
+    if args.legacy:
+        for name, make in LEGACY_SOUNDS.items():
+            path = args.assets_dir / 'sounds' / (name + '.wav')
+            if path.exists():
+                print(f'make_sfx: preserved {path}')
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_wav(path, make())
+            print(f'make_sfx: {path} (missing original recreated)')
+    print(f'make_sfx: {len(selected)} recorded/designed effects; original files preserved.')
     return 0
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except subprocess.CalledProcessError as error:
+        sys.exit(error.returncode)

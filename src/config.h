@@ -416,7 +416,8 @@
 #define SPLASH_EVERY 0.25f        /* Seconds between splashes of a walker in water */
 /* Weather (weather.c). */
 #define WEATHER_DROPS 160
-#define WEATHER_DUST 16
+#define WEATHER_DUST 6           /* Sparse visual motes; wind physics is independent */
+#define WEATHER_LEAF_CHANCE 0.04f
 #define WEATHER_SPLASHES 24
 #define RAIN_SPEED 950.0f         /* View px per second down */
 #define RAIN_SLANT 0.6f           /* Of the wind, sideways */
@@ -581,7 +582,7 @@
 /* Audio: 8-bit effects from assets/sounds (regenerate with tools/make_sfx.py). */
 #define AUDIO_RATE 44100
 #define AUDIO_BUFFER 512   /* Samples per callback: small, so shots sound on time */
-#define AUDIO_CHANNELS 16  /* Effects that can overlap */
+#define AUDIO_CHANNELS 32  /* 30 overlapping effects and two weather loops */
 #define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME): every sound, before the volume menu */
 #define AUDIO_GROUPS 4     /* Volume groups (audio_play_in): see SoundGroup in settings.h */
 

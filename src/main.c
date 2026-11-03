@@ -5,6 +5,7 @@
  * XP levels her up across stages. Art and sounds are embedded in the executable at
  * build time (see tools/embed_assets.py).
  */
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -31,6 +32,10 @@
 #include "game/zombie_render.h"
 #include "game/crows.h"
 #include "game/weather.h"
+#include "game/weather_render.h"
+#include "game/almanac.h"
+#include "game/almanac_render.h"
+#include "game/lighting.h"
 #include "game/hallucination.h"
 #include "game/camera.h"
 #include "game/props.h"
@@ -202,7 +207,7 @@ static bool verify_image(const char *name, int width, int height)
 
 static int verify_assets(void)
 {
-    const AnimationDef *anims[32];
+    const AnimationDef *anims[ZOMBIE_KIND_COUNT * ZOMBIE_ANIM_COUNT + 64];
     int player_count;
     const AnimationDef *const *player_anims = player_animations(&player_count);
     int anim_count = 0;
@@ -285,16 +290,50 @@ static int verify_assets(void)
         fprintf(stderr, "FALTA o INCOMPLETA: sprites/ui/font (corre tools/make_ui.py)\n");
         failures++;
     }
+    if (!hud_verify_layout()) {
+        fprintf(stderr, "HUD: elementos fuera de sus límites o texto sin espacio.\n");
+        failures++;
+    }
     failures += verify_characters();
     const char *blobs[] = {"fonts/DejaVuSansMono", "fonts/DejaVuSansMono-Bold",
                            "sounds/player/shot", "sounds/player/reload", "sounds/zombie/spawn",
                            "sounds/zombie/idle", "sounds/zombie/death", "sounds/world/explosion",
                            "sounds/world/supply", "sounds/world/fuse",
-                           "sounds/world/glass", "sounds/world/wood", "sounds/world/snap"};
+                           "sounds/world/glass", "sounds/world/wood", "sounds/world/snap",
+                           "sounds/player/drink", "sounds/crow/caw", "sounds/crow/death",
+                           "sounds/dog/spawn", "sounds/dog/idle", "sounds/dog/death",
+                           "sounds/player/hurt", "sounds/player/jump", "sounds/player/land",
+                           "sounds/player/death", "sounds/player/bandage", "sounds/player/faint",
+                           "sounds/effects/hit_flesh", "sounds/effects/hit_armor",
+                           "sounds/world/hit_wood", "sounds/world/hit_metal", "sounds/world/hit_stone",
+                           "sounds/world/hit_wire", "sounds/world/hit_sand", "sounds/world/wire",
+                           "sounds/world/rope", "sounds/world/trap_escape", "sounds/world/ambush",
+                           "sounds/world/grenade_explosion", "sounds/world/dynamite_explosion",
+                           "sounds/world/footstep", "sounds/world/run_step", "sounds/world/sit",
+                           "sounds/world/stand", "sounds/world/chest", "sounds/world/level_up",
+                           "sounds/world/victory", "sounds/weather/wind", "sounds/weather/rain",
+                           "sounds/weather/thunder", "sounds/ui/move", "sounds/ui/confirm",
+                           "sounds/ui/back", "sounds/weapons/switch", "sounds/weapons/grenade_throw",
+                           "sounds/weapons/ricochet"};
     for (size_t i = 0; i < sizeof(blobs) / sizeof(blobs[0]); i++) {
         if (assets_find_blob(blobs[i]) == NULL) {
             fprintf(stderr, "FALTA: %s\n", blobs[i]);
             failures++;
+        }
+    }
+    for (int id = 0; id < WEAPON_COUNT; id++) {
+        const WeaponDef *w = weapon_def((WeaponId)id);
+        const char *paths[] = {w->shot_sound, w->cycle_sound, w->reload_sound,
+                              w->empty_sound, w->melee_sound};
+        for (size_t s = 0; s < sizeof(paths) / sizeof(paths[0]); s++) {
+            if (!paths[s])
+                continue;
+            char name[128];
+            snprintf(name, sizeof(name), "sounds/%s", paths[s]);
+            if (!assets_find_blob(name)) {
+                fprintf(stderr, "FALTA: %s (%s)\n", name, w->name);
+                failures++;
+            }
         }
     }
     if (failures)
@@ -440,7 +479,8 @@ static void apply_volumes(void)
 /* Something the character does or sets off. */
 static void play_sound(const char *name)
 {
-    audio_play_in(name, SOUND_PLAYER);
+    if (name)
+        audio_play_in(name, SOUND_PLAYER);
 }
 
 /* The options screen, while open. Returns false once it is left. A changed
@@ -454,8 +494,10 @@ static bool volume_step(const InputState *input)
         apply_volumes();
         if (row == VOLUME_ZOMBIE)
             audio_play_in("zombie/idle", SOUND_ZOMBIE);
+        else if (row == VOLUME_PLAYER)
+            play_sound("player/shot");
         else
-            play_sound(row == VOLUME_PLAYER ? "player/shot" : "player/reload");
+            audio_play("ui/confirm");
     }
     return true;
 }
@@ -489,22 +531,26 @@ static void apply_pointer(InputState *input, int *selected)
             apply_volumes();
             if (zone.index == VOLUME_ZOMBIE)
                 audio_play_in("zombie/idle", SOUND_ZOMBIE);
+            else if (zone.index == VOLUME_PLAYER)
+                play_sound("player/shot");
             else
-                play_sound(zone.index == VOLUME_PLAYER ? "player/shot" : "player/reload");
+                audio_play("ui/confirm");
         }
         break;
     }
 }
 
-/* The zombie's three voices, all from one recording (see README, Sonido). */
+/* Existing zombie recordings remain untouched. The new dog has its own
+ * recorded canine voice rather than using a human groan. */
 static void play_zombie_voice(Zombie *zombie)
 {
+    bool dog = zombie->kind == ZOMBIE_KIND_DOG;
     if (zombie->just_spawned)
-        audio_play_in("zombie/spawn", SOUND_ZOMBIE);
+        audio_play_in(dog ? "dog/spawn" : "zombie/spawn", SOUND_ZOMBIE);
     else if (zombie->just_died)
-        audio_play_in("zombie/death", SOUND_ZOMBIE);
+        audio_play_in(dog ? "dog/death" : "zombie/death", SOUND_ZOMBIE);
     else if (zombie->growl_due)
-        audio_play_in("zombie/idle", SOUND_ZOMBIE);
+        audio_play_in(dog ? "dog/idle" : "zombie/idle", SOUND_ZOMBIE);
     zombie->just_spawned = zombie->just_died = zombie->growl_due = false;
 }
 
@@ -519,11 +565,12 @@ static void set_window_icon(SDL_Window *window)
 }
 
 typedef enum {
-    SCREEN_TITLE,     /* Jugar, Controles, Volumen, Salir */
+    SCREEN_TITLE,     /* Jugar, Almanaque, Controles, Volumen, Salir */
     SCREEN_CONTROLS,
     SCREEN_VOLUME,
     SCREEN_CHARACTER, /* Elige tu personaje */
     SCREEN_MENU,      /* Its stages */
+    SCREEN_ALMANAC,
     SCREEN_STAGE
 } Screen;
 
@@ -534,6 +581,7 @@ typedef enum { PAUSE_VIEW_LIST, PAUSE_VIEW_VOLUME, PAUSE_VIEW_CONTROLS } PauseVi
 typedef struct {
     Progress progress;
     StageRecord record;
+    Almanac almanac;
 } Profile;
 
 /* Everything one play of a stage uses, reset when it starts. */
@@ -549,6 +597,7 @@ typedef struct {
     Effects effects;
     Smoke smoke;
     StageRun run; /* The road: its zombies, terrain and chests */
+    AlmanacEncounter encounter;
     World world;
     float prev_zombie_x[RUN_MAX_ZOMBIES]; /* Before the last step, to draw in between */
     float smoke_timer; /* Seconds until fires puff smoke again */
@@ -557,6 +606,8 @@ typedef struct {
     WeatherState weather;
     Hallucination visions; /* What her thirst makes her see */
     float splash_timer; /* Seconds until the walkers in water splash again */
+    float footstep_distance; /* Actual ground travel, so blocked feet stay quiet */
+    float thunder_wait; /* Delay between lightning and its thunder; -1 = none */
     /* Her trail of blood while she bleeds: drops on the road drying away. */
     float blood_x[BLOOD_DROPS], blood_age[BLOOD_DROPS];
     int blood_next;
@@ -567,6 +618,8 @@ typedef struct {
     bool paused;     /* Esc: the pause menu, the stage frozen behind it */
     ListMenu pause_menu;
     PauseView pause_view;
+    bool request_almanac;
+    bool flashlight;
 } StagePlay;
 
 static const WeaponDef *weapon_in_hand(const StagePlay *play)
@@ -596,6 +649,7 @@ static void equip_weapon(StagePlay *play)
 static void start_stage(StagePlay *play, int index, const CharacterDef *character,
                         const Progress *progress)
 {
+    audio_stop_all();
     play->character = character;
     play->weapon_slot = 0;
     play->power_cooldown = 0.0f;
@@ -607,6 +661,9 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     set_guns(play, progress->level);
     play->progress_at_start = *progress;
     play->paused = false;
+    play->request_almanac = false;
+    play->flashlight = true;
+    almanac_encounter_start(&play->encounter);
     player_init(&play->player);
     player_set_stats(&play->player, progress->level, progress_max_health(progress),
                      character_armor(play->character, progress->armor_level), true);
@@ -629,6 +686,8 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     }
     scene_set_rivers(river_xs, rivers, terrain_half_width(TERRAIN_RIVER));
     play->splash_timer = 0.0f;
+    play->footstep_distance = 0.0f;
+    play->thunder_wait = -1.0f;
     play->faint_timer = 0.0f;
     hallucination_clear(&play->visions);
     for (int k = 0; k < RUN_MAX_ZOMBIES; k++)
@@ -665,6 +724,7 @@ static void fire_weapon(StagePlay *play, const Progress *progress)
         spec.ricochet = true;
         spec.tint = RICOCHET_TINT;
         play->ricochet_armed = false;
+        play_sound("weapons/ricochet");
     }
     for (int p = 0; p < w->pellets; p++) {
         float side = (float)p - (float)(w->pellets - 1) / 2.0f;
@@ -674,8 +734,8 @@ static void fire_weapon(StagePlay *play, const Progress *progress)
     smoke_emit(&play->smoke, mx, my, player->facing, w->smoke_puffs, w->smoke_scale);
     if (w->shot_sound)
         play_sound(w->shot_sound);
-    if (w->reload_sound)
-        play_sound(w->reload_sound); /* Starts after a pause: the reload */
+    if (w->cycle_sound)
+        play_sound(w->cycle_sound); /* The action between shots, not a new magazine */
 }
 
 /* The supply wagon: every gun's magazine full again (a reload going on is done). */
@@ -729,11 +789,16 @@ static void swap_weapon(StagePlay *play)
 {
     if (play->character->weapon_count < 2 || !player_alive(&play->player))
         return;
+    const WeaponDef *before = weapon_in_hand(play);
+    if (play->player.state != PLAYER_SIT)
+        audio_stop(before->reload_sound);
+    audio_stop(before->cycle_sound);
     if (play->player.shot.active)
         shot_cancel(&play->player.shot);
     play->rounds[play->weapon_slot] = play->player.shot.rounds;
     play->weapon_slot = (play->weapon_slot + 1) % play->character->weapon_count;
     equip_weapon(play);
+    play_sound("weapons/switch");
     const WeaponDef *w = weapon_in_hand(play);
     shot_set_burst(&play->player.shot, w->burst, w->burst_gap, w->automatic);
     hud_popup(w->name, COLOR_HUD_PRIMARY, play->player.x,
@@ -794,6 +859,9 @@ static bool pause_step(StagePlay *play, const InputState *input, Progress *progr
         drop_unearned(play, progress);
         start_stage(play, play->run.stage_index, play->character, progress);
         return true;
+    case PAUSE_ALMANAC:
+        play->request_almanac = true;
+        return true;
     case PAUSE_VOLUME:
         list_menu_init(&volume_menu, VOLUME_ROWS);
         play->pause_view = PAUSE_VIEW_VOLUME;
@@ -809,15 +877,60 @@ static bool pause_step(StagePlay *play, const InputState *input, Progress *progr
     }
 }
 
+/* Drain the events only after bullets, blows and the stage have all run.
+ * A bit per material prevents a shotgun's pellets multiplying the volume. */
+static void play_run_sounds(StageRun *run)
+{
+    static const struct { unsigned event; const char *name; } sounds[] = {
+        {RUN_SOUND_HIT_WOOD, "world/hit_wood"},
+        {RUN_SOUND_HIT_METAL, "world/hit_metal"},
+        {RUN_SOUND_HIT_STONE, "world/hit_stone"},
+        {RUN_SOUND_HIT_SAND, "world/hit_sand"},
+        {RUN_SOUND_HIT_WIRE, "world/hit_wire"},
+        {RUN_SOUND_HIT_FLESH, "effects/hit_flesh"},
+        {RUN_SOUND_HIT_ARMOR, "effects/hit_armor"},
+        {RUN_SOUND_TRAP_BEAR, "world/snap"},
+        {RUN_SOUND_TRAP_ROPE, "world/rope"},
+        {RUN_SOUND_TRAP_SPIKES, "world/hit_metal"},
+    };
+    unsigned events = run_take_sound_events(run);
+    for (size_t s = 0; s < sizeof(sounds) / sizeof(sounds[0]); s++) {
+        if (events & sounds[s].event)
+            play_sound(sounds[s].name);
+    }
+}
+
+static void stage_weather_sound(StagePlay *play)
+{
+    if (play->run.phase == RUN_FIGHTING && weather_blows(&play->weather))
+        audio_loop_in("weather/wind", SOUND_MASTER, play->weather.kind == WEATHER_STORM ? 0.60f : 0.45f);
+    else
+        audio_stop_loop("weather/wind");
+    if (play->run.phase == RUN_FIGHTING && weather_rains(&play->weather))
+        audio_loop_in("weather/rain", SOUND_MASTER, play->weather.kind == WEATHER_STORM ? 0.65f : 0.45f);
+    else
+        audio_stop_loop("weather/rain");
+}
+
 /* One fixed step of a stage. Returns false to go back to the stage menu. */
 static bool stage_step(StagePlay *play, const InputState *input, Profile *profile)
 {
     Player *player = &play->player;
     Progress *progress = &profile->progress;
+    if (input->pressed[ACTION_ALMANAC]) {
+        play->request_almanac = true;
+        return true;
+    }
     if (play->paused) {
         hud_update(0.0f);
         return pause_step(play, input, progress);
     }
+    if (input->pressed[ACTION_LIGHT]) {
+        play->flashlight = !play->flashlight;
+        audio_play("ui/confirm");
+    }
+    almanac_observe(&profile->almanac, &play->encounter, play->run.zombies,
+                    play->run.zombie_count, camera_left(player->x), VIEW_WIDTH);
     bool cleared = play->run.phase == RUN_CLEARED;
     if (cleared && (input->pressed[ACTION_CONFIRM] || input->pressed[ACTION_QUIT]))
         return false;
@@ -835,6 +948,16 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         start_stage(play, play->run.stage_index, play->character, progress);
         return true;
     }
+    PlayerState previous_state = player->state;
+    bool was_alive = player_alive(player);
+    bool was_airborne = player->jump.airborne;
+    int previous_health = player->health;
+    float previous_hurt = player->hurt_time;
+    float previous_x = player->x;
+    int previous_sit_gun = player->sit_gun;
+    float previous_sit_reload = player->sit_gun_time;
+    float previous_drink = player->drink_time;
+    float previous_bandage = player->bandage;
     if (input->pressed[ACTION_SWAP])
         swap_weapon(play);
     /* E: a charge on the wall she is at; a seat on the bench there; else a
@@ -843,35 +966,38 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         if (run_use(&play->run, player)) {
             play_sound("world/fuse");
         } else if (run_sit(&play->run, player, guns_need_reload(play))) {
-            if (player->sit_gun >= 0)
-                play_sound("player/reload");
+            play_sound("world/sit");
         }
     }
     if (input->pressed[ACTION_VAULT])
         run_vault(&play->run, player);
     if (input->pressed[ACTION_MELEE] && play->run.phase == RUN_FIGHTING) {
         if (player->state == PLAYER_CAUGHT) { /* At the ropes */
-            play_sound(player_struggle(player) ? "world/snap" : "world/wood");
+            play_sound(weapon_in_hand(play)->melee_sound);
+            play_sound(player_struggle(player) ? "world/trap_escape" : "world/rope");
         } else {
-            player_melee(player);
+            if (player_melee(player))
+                play_sound(weapon_in_hand(play)->melee_sound);
         }
     }
 
     for (int k = 0; k < RUN_MAX_ZOMBIES; k++)
         play->prev_zombie_x[k] = play->run.zombies[k].x;
     bool was_reloading = shot_reloading(&player->shot);
+    int previous_rounds = player->shot.rounds;
+    const WeaponDef *weapon = weapon_in_hand(play);
     run_place_player(&play->run, player);
     InputState in = *input;
     play->power_cooldown = fmaxf(0.0f, play->power_cooldown - FIXED_DT);
     if (in.pressed[ACTION_POWER])
         use_power(play, &in, progress);
     player_update(player, &in, FIXED_DT);
-    if (player->threw)
+    if (player->threw) {
         run_throw(&play->run, player);
+        play_sound("weapons/grenade_throw");
+    }
     if (player->struck) {
         run_melee(&play->run, player, progress);
-        if (play->run.melee_hits > 0)
-            play_sound("world/wood");
     }
     for (int d = 0; d < BLOOD_DROPS; d++)
         play->blood_age[d] += FIXED_DT;
@@ -884,13 +1010,20 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         play->blood_next = (play->blood_next + 1) % BLOOD_DROPS;
     }
     if (shot_reloading(&player->shot) && !was_reloading)
-        play_sound("player/reload"); /* A new magazine going in */
+        play_sound(weapon->reload_sound);
+    if (was_reloading && input->pressed[ACTION_JUMP])
+        audio_stop(weapon->cycle_sound);
+    if (weapon->magazine > 0 &&
+        ((previous_rounds > 0 && player->shot.rounds == 0) ||
+         (previous_rounds == 0 && input->pressed[ACTION_SHOOT] && !was_reloading)))
+        play_sound(weapon->empty_sound);
     bullets_update(&play->bullets, FIXED_DT, camera_left(player->x));
     if (player->shot_fired) {
         fire_weapon(play, progress);
         crows_noise(&play->crows, player->x, CROW_SHOT_RANGE);
     }
-    crows_shoot(&play->crows, &play->bullets); /* A crow in the line of fire takes the bullet */
+    if (crows_shoot(&play->crows, &play->bullets) > 0)
+        play_sound("crow/death");
     hallucination_shoot(&play->visions, &play->bullets); /* A bullet wasted on nothing */
     run_bullets(&play->run, &play->bullets, &play->effects);
     effects_update(&play->effects, FIXED_DT);
@@ -898,7 +1031,10 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
 
     StageRun *run = &play->run;
     run_update(run, player, progress, FIXED_DT);
+    almanac_observe(&profile->almanac, &play->encounter, run->zombies,
+                    run->zombie_count, camera_left(player->x), VIEW_WIDTH);
     if (run->levels_gained > 0) { /* Stronger, but her wounds stay: only rests heal */
+        play_sound("world/level_up");
         player_set_stats(player, progress->level, progress_max_health(progress),
                          character_armor(play->character, progress->armor_level), false);
         if (set_guns(play, progress->level))
@@ -909,17 +1045,36 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
             hud_popup(play->character->power_name, COLOR_HUD_XP, player->x, above, true);
         }
     }
+    if (run->chests_opened > 0)
+        play_sound("world/chest");
     for (int c = 0; c < run->chests_opened; c++)
         effects_spawn(&play->effects, chest_sparks(), run->opened_x[c], BASELINE, 1);
     for (int b = 0; b < run->blasts; b++) {
         effects_spawn(&play->effects, terrain_explosion(), run->blast_x[b], BASELINE, 1);
-        play_sound("world/explosion");
-        crows_blast(&play->crows, run->blast_x[b], BARREL_RADIUS);
+        const char *blast_sound = run->blast_kind[b] == BLAST_GRENADE ? "world/grenade_explosion" :
+                                  run->blast_kind[b] == BLAST_DYNAMITE ? "world/dynamite_explosion" :
+                                  "world/explosion";
+        play_sound(blast_sound);
+        if (crows_blast(&play->crows, run->blast_x[b], BARREL_RADIUS) > 0)
+            play_sound("crow/death");
     }
     bool moving = player->state == PLAYER_WALK || player->state == PLAYER_RUN ||
                   player->state == PLAYER_JUMP;
     crows_update(&play->crows, player->x, moving, FIXED_DT);
+    if (play->crows.took_off > 0)
+        play_sound("crow/caw");
+    float previous_flash_wait = play->weather.flash_wait;
     weather_update(&play->weather, camera_left(player->x), FIXED_DT);
+    if (play->weather.kind == WEATHER_STORM && play->weather.flash_wait > previous_flash_wait)
+        play->thunder_wait = 0.28f; /* A little distance between light and sound */
+    if (play->thunder_wait >= 0.0f) {
+        play->thunder_wait -= FIXED_DT;
+        if (play->thunder_wait <= 0.0f) {
+            audio_play_in_gain("weather/thunder", SOUND_MASTER, 0.85f);
+            play->thunder_wait = -1.0f;
+        }
+    }
+    stage_weather_sound(play);
     hallucination_update(&play->visions, player_thirst_level(player) >= 3 && player_alive(player), player->x,
                          player->facing, camera_left(player->x), FIXED_DT);
     for (int v = 0; v < play->visions.vanished; v++) /* Gone like smoke */
@@ -966,22 +1121,74 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         play_sound("world/glass");
         hud_popup("¡BUEN TIRO!", COLOR_HUD_TITLE, player->x, above_tag, true);
     }
-    if (run->traps_sprung > 0)
-        play_sound("world/snap");
+    play_run_sounds(run);
+    if (run->coffins_burst > 0)
+        play_sound("world/wood");
     if (run->wire_bit)
-        play_sound("world/snap");
+        play_sound("world/wire");
+    if (previous_drink <= 0.0f && player->drink_time > 0.0f)
+        play_sound("player/drink");
+    if (previous_drink > 0.0f && player->drink_time <= 0.0f && !player->drank)
+        audio_stop("player/drink");
     if (player->drank) {
-        play_sound("world/supply");
         hud_popup("¡HIDRATADO!", COLOR_HUD_XP, player->x, above_tag, true);
     }
+    if (previous_bandage <= 0.0f && player->bandage > 0.0f)
+        play_sound("player/bandage");
+    if (previous_bandage > 0.0f && player->bandage <= 0.0f && !player->bandaged)
+        audio_stop("player/bandage");
     if (player->bandaged) {
-        play_sound("player/reload");
         hud_popup("SANGRADO DETENIDO", COLOR_HUD_XP, player->x, above_tag, true);
     }
     if (player->sit_reloaded) { /* A gun's sitting reload is done; the next starts */
         refill_gun(play, player->sit_reloaded_gun);
-        if (player->sit_gun >= 0)
-            play_sound("player/reload");
+    }
+    if (player->state == PLAYER_SIT && player->sit_gun >= 0 && player->sit_gun_time > 0.0f) {
+        const WeaponDef *sat_weapon = weapon_def(play->guns[player->sit_gun]);
+        /* The bench's animation is longer than the standing reload. Keep
+         * the actual mechanism at its natural speed; its final latch lands
+         * when this gun finishes, rather than speeding up its recording. */
+        float sound_at = fmaxf(0.0f, SIT_RELOAD_TIME - sat_weapon->magazine_reload);
+        if (player->sit_gun_time >= sound_at &&
+            (previous_sit_gun != player->sit_gun || previous_sit_reload < sound_at ||
+             previous_sit_reload <= 0.0f))
+            play_sound(sat_weapon->reload_sound);
+    }
+    if (previous_state == PLAYER_SIT && player->state != PLAYER_SIT) {
+        if (player_alive(player) && player->state != PLAYER_CAUGHT)
+            play_sound("world/stand");
+        if (previous_sit_gun >= 0)
+            audio_stop(weapon_def(play->guns[previous_sit_gun])->reload_sound);
+    }
+    if (was_alive && !player_alive(player)) {
+        audio_stop(weapon->cycle_sound);
+        audio_stop(weapon->reload_sound);
+        audio_stop("player/drink");
+        audio_stop("player/bandage");
+        play_sound(player->fainted ? "player/faint" : "player/death");
+    } else if (player_alive(player) &&
+               (player->health < previous_health || player->hurt_time > previous_hurt)) {
+        play_sound("player/hurt");
+    }
+    if (was_alive && player_alive(player)) {
+        if (!was_airborne && player->jump.airborne && player->state != PLAYER_CAUGHT &&
+            (input->pressed[ACTION_JUMP] || input->pressed[ACTION_VAULT])) {
+            audio_stop(weapon->cycle_sound);
+            play_sound("player/jump");
+        }
+        if (was_airborne && !player->jump.airborne && player->state != PLAYER_CAUGHT)
+            play_sound("player/land");
+        if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && !player->jump.airborne) {
+            play->footstep_distance += fabsf(player->x - previous_x);
+            float stride = player->state == PLAYER_RUN ? 68.0f : 48.0f;
+            if (play->footstep_distance >= stride) {
+                play->footstep_distance = fmodf(play->footstep_distance, stride);
+                audio_play_in_gain(player->state == PLAYER_RUN ? "world/run_step" : "world/footstep",
+                                   SOUND_PLAYER, 0.45f);
+            }
+        } else {
+            play->footstep_distance = 0.0f;
+        }
     }
     if (run->healed > 0) { /* A green aura and a + off her head */
         char str[16];
@@ -1006,6 +1213,7 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
     if (run->elite_woke)
         hud_popup("¡ZOMBI DE ÉLITE!", COLOR_HUD_DANGER, player->x, above_tag, true);
     if (run->ambushed) { /* They walk in from off screen: no sliding in from their old spot */
+        play_sound("world/ambush");
         hud_popup("¡EMBOSCADA!", COLOR_HUD_DANGER, player->x, above_tag, true);
         for (int k = 0; k < run->zombie_count; k++)
             play->prev_zombie_x[k] = run->zombies[k].x;
@@ -1015,8 +1223,18 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
     if (run->group_beaten && run->defeated < run->stage->zombies)
         hud_popup("¡ADELANTE!  →", COLOR_HUD_TITLE, player->x, above_tag, true);
     announce_rewards(play, progress);
-    if (run->cleared_now)
+    if (run->cleared_now) {
+        play_sound("world/victory");
         profile->record.cleared[run->stage_index] = true;
+    }
+    /* A pickup or a rope trap can cancel a reload inside run_update, after
+     * player_update has already run. Check after all those events as well. */
+    if (was_reloading && !shot_reloading(&player->shot))
+        audio_stop(weapon->reload_sound);
+    if (player->state == PLAYER_CAUGHT && previous_state != PLAYER_CAUGHT) {
+        audio_stop(weapon->reload_sound);
+        audio_stop(weapon->cycle_sound);
+    }
     for (int k = 0; k < run->zombie_count; k++)
         play_zombie_voice(&run->zombies[k]);
     hud_update(FIXED_DT);
@@ -1062,86 +1280,23 @@ static void draw_blood(SDL_Renderer *renderer, const StagePlay *play, float came
     SDL_SetTextureAlphaMod(sheet, 255);
 }
 
-/* The weather over the view: slanted rain splashing on the road, dust and
- * leaves on the wind, a tumbleweed, the storm's gloom and lightning. Pixel
- * art: every bit a whole art px. */
-static void draw_weather(SDL_Renderer *renderer, const WeatherState *w, float camera_x)
-{
-    const int px = SPRITE_SCALE;
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    if (weather_rains(w)) {
-        SDL_SetRenderDrawColor(renderer, 0x10, 0x18, 0x30, w->kind == WEATHER_STORM ? 70 : 45);
-        SDL_Rect gloom = {0, 0, VIEW_WIDTH, VIEW_HEIGHT};
-        SDL_RenderFillRect(renderer, &gloom);
-        int slant = weather_blows(w) ? 1 : 0;
-        SDL_SetRenderDrawColor(renderer, 0xa8, 0xc4, 0xdc, 150);
-        for (int i = 0; i < WEATHER_DROPS; i++) {
-            int x = (int)lroundf((w->drops[i].x - camera_x) / px) * px;
-            int y = (int)lroundf(w->drops[i].y / px) * px;
-            for (int k = 0; k < 3; k++) { /* A streak three art px long */
-                SDL_Rect r = {x - k * slant * px, y - k * px, px, px};
-                SDL_RenderFillRect(renderer, &r);
-            }
-        }
-        SDL_SetRenderDrawColor(renderer, 0xc8, 0xdc, 0xec, 170);
-        for (int i = 0; i < WEATHER_SPLASHES; i++) {
-            if (w->splash_age[i] > 0.15f)
-                continue;
-            int x = (int)lroundf((w->splash_x[i] - camera_x) / px) * px;
-            int y = BASELINE + (i * 37 % 60) / px * px;
-            SDL_Rect a = {x - px, y - px, px, px}, b = {x + px, y - px, px, px};
-            SDL_RenderFillRect(renderer, &a);
-            SDL_RenderFillRect(renderer, &b);
-        }
-    }
-    if (weather_blows(w)) {
-        for (int i = 0; i < WEATHER_DUST; i++) {
-            const WeatherBit *d = &w->dust[i];
-            int x = (int)lroundf((d->x - camera_x) / px) * px;
-            int y = (int)lroundf(d->y / px) * px;
-            if (d->leaf) {
-                SDL_SetRenderDrawColor(renderer, 0x8a, 0x6a, 0x3a, 170);
-                SDL_Rect r = {x, y, 2 * px, px};
-                SDL_RenderFillRect(renderer, &r);
-            } else {
-                SDL_SetRenderDrawColor(renderer, 0xc8, 0xb0, 0x90, 90);
-                SDL_Rect r = {x, y, px, px};
-                SDL_RenderFillRect(renderer, &r);
-            }
-        }
-        SDL_Texture *weed = assets_texture("sprites/effects/tumbleweed");
-        if (w->tumbling && weed) {
-            int size = TUMBLE_FRAME * px;
-            SDL_Rect src = {(int)(w->tumble_time * 10.0f) % 4 * TUMBLE_FRAME, 0, TUMBLE_FRAME, TUMBLE_FRAME};
-            SDL_Rect dst = {(int)lroundf(w->tumble_x - camera_x) - size / 2,
-                            BASELINE - size - (int)lroundf(w->tumble_height), size, size};
-            SDL_RenderCopy(renderer, weed, &src, &dst);
-        }
-    }
-    if (w->flash > 0.0f) {
-        SDL_SetRenderDrawColor(renderer, 0xe8, 0xf0, 0xff, (Uint8)lroundf(fminf(1.0f, w->flash) * 150.0f));
-        SDL_Rect all = {0, 0, VIEW_WIDTH, VIEW_HEIGHT};
-        SDL_RenderFillRect(renderer, &all);
-    }
-}
-
 /* Heat haze over a hot road: pale wavering streaks rising off the ground,
  * drifting with the view, in whole art px. */
 static void draw_heat(SDL_Renderer *renderer, float camera_x, double time)
 {
     const int px = SPRITE_SCALE;
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    for (int row = 0; row < 14; row++) {
-        int y = BASELINE - 8 * px - row * 3 * px;
+    for (int row = 0; row < 5; row++) {
+        int y = BASELINE - 2 * px - row * 2 * px;
         float t = (float)time * 2.2f + (float)row * 0.9f;
-        Uint8 alpha = (Uint8)(80 - row * 5);
+        Uint8 alpha = (Uint8)(16 - row * 2);
         SDL_SetRenderDrawColor(renderer, 0xff, 0xec, 0xc8, alpha);
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 5; i++) {
             /* Streaks spaced along the road, each wobbling sideways. */
-            float world = (float)(i * 170 + row * 61) - fmodf(camera_x * 0.9f, 170.0f * 9.0f);
+            float world = (float)(i * 290 + row * 61) - fmodf(camera_x * 0.9f, 290.0f * 5.0f);
             int x = (int)lroundf((world + sinf(t + (float)i * 1.7f) * 3.0f * px) / px) * px;
             x = ((x % (VIEW_WIDTH + 200)) + VIEW_WIDTH + 200) % (VIEW_WIDTH + 200) - 100;
-            int len = (6 + (i * 5 + row) % 9) * px;
+            int len = (2 + (i * 5 + row) % 4) * px;
             SDL_Rect r = {x, y + (int)lroundf(sinf(t * 1.3f + (float)i)) * px, len, px};
             SDL_RenderFillRect(renderer, &r);
         }
@@ -1264,7 +1419,14 @@ static void draw_stage(Platform *platform, StagePlay *play, const CharacterSkin 
     float camera_x = camera_left(player_view.x);
     world_stream(&play->world, camera_x);
     begin_view(platform->renderer, play->world.theme);
-    scene_draw(platform->renderer, &play->world, camera_x, platform_time());
+    bool separated_light = false;
+    if (play->world.theme->night) {
+        scene_draw_distant(platform->renderer, &play->world, camera_x);
+        separated_light = scene_begin_foreground(platform->renderer);
+        scene_draw_near(platform->renderer, &play->world, camera_x, platform_time());
+    } else {
+        scene_draw(platform->renderer, &play->world, camera_x, platform_time());
+    }
     terrain_render(platform->renderer, &play->run.terrain, camera_x);
     draw_blood(platform->renderer, play, camera_x);
     draw_crows(platform->renderer, &play->crows, camera_x);
@@ -1291,15 +1453,25 @@ static void draw_stage(Platform *platform, StagePlay *play, const CharacterSkin 
             zombie_render(platform->renderer, &zombie_view[k], camera_x);
     }
     terrain_render_front(platform->renderer, &play->run.terrain, camera_x);
-    terrain_render_lights(platform->renderer, &play->run.terrain, camera_x, platform_time());
     bullets_render(platform->renderer, &play->bullets, camera_x);
     effects_render(platform->renderer, &play->effects, camera_x);
     smoke_render(platform->renderer, &play->smoke, camera_x);
+    Lighting lighting;
+    lighting_build(&lighting, &play->run.terrain, &play->effects, &player_view,
+                    play->world.theme->night, play->flashlight, camera_x, platform_time());
+    if (separated_light)
+        terrain_render_surface_lights(platform->renderer, &lighting, &player_view, zombie_view, zombie_count, camera_x);
+    else
+        terrain_render_lights(platform->renderer, &lighting, &player_view, zombie_view, zombie_count, camera_x);
     if (play->run.stage->hot)
         draw_heat(platform->renderer, camera_x, platform_time());
-    draw_weather(platform->renderer, &play->weather, camera_x);
     draw_heatstroke(platform->renderer, play->player.fatigue, platform_time());
+    if (separated_light) {
+        scene_end_foreground(platform->renderer);
+        terrain_render_light_bloom(platform->renderer, &lighting, camera_x);
+    }
     end_view(platform->renderer);
+    weather_render(platform->renderer, &play->weather, camera_x);
     const CharacterDef *c = play->character;
     const WeaponDef *w = weapon_in_hand(play);
     HudWeapon gun = {
@@ -1455,6 +1627,119 @@ static void capture_screens(Platform *platform, const char *dir, CharacterSkin *
                    play.player.jump.height);
         save_capture(r, dir, "10_descanso");
     }
+    /* Reproducible visual checks: each weather at its real stage, including
+     * the upper sky, then a crowded HUD with a reload and several ailments. */
+    static const char *const weather_names[] = {NULL, "11_viento", "12_lluvia", "13_tormenta"};
+    for (int kind = WEATHER_WIND; kind <= WEATHER_STORM; kind++) {
+        int stage = 0;
+        for (int s = 0; s < STAGE_COUNT; s++) {
+            if ((int)STAGES[s].weather == kind) {
+                stage = s;
+                break;
+            }
+        }
+        start_stage(&play, stage, &CHARACTERS[0], &profiles[0].progress);
+        weather_start(&play.weather, (Weather)kind, camera_left(play.player.x));
+        for (int step = 0; step < 150; step++)
+            weather_update(&play.weather, camera_left(play.player.x), FIXED_DT);
+        if (kind == WEATHER_STORM)
+            play.weather.flash = 0.0f; /* Inspect the rain rather than a white flash */
+        draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f,
+                   play.player.x, play.player.jump.height);
+        save_capture(r, dir, weather_names[kind]);
+    }
+    Progress veteran = profiles[1].progress;
+    veteran.level = POWER_LEVEL;
+    veteran.gold = 123456;
+    start_stage(&play, 2, &CHARACTERS[1], &veteran);
+    swap_weapon(&play);
+    play.player.health = 27;
+    play.player.water = 12;
+    play.player.bleed_time = 10.0f;
+    play.player.slow_time = 3.0f;
+    play.player.thirst = DEHYDRATED;
+    play.player.wet = 1.0f;
+    play.run.dynamite = 12;
+    play.player.shot.rounds = 0;
+    shot_reload_now(&play.player.shot);
+    draw_stage(platform, &play, &skins[1], &veteran, 1.0f,
+               play.player.x, play.player.jump.height);
+    save_capture(r, dir, "14_hud_estados_recarga");
+    veteran.gold = veteran.xp = INT_MAX;
+    play.player.health = 123456789;
+    play.player.max_health = INT_MAX;
+    play.player.water = INT_MAX;
+    play.player.cold = true;
+    play.player.fatigue = FATIGUE_STROKE;
+    play.run.omen = true;
+    play.run.dynamite = INT_MAX;
+    play.power_cooldown = 9.0f;
+    draw_stage(platform, &play, &skins[1], &veteran, 1.0f,
+               play.player.x, play.player.jump.height);
+    save_capture(r, dir, "15_hud_contadores_largos");
+
+    Almanac review_book;
+    AlmanacView review_view;
+    almanac_init(&review_book);
+    almanac_view_init(&review_view);
+    almanac_discover(&review_book, ZOMBIE_KIND_RIOT, false, 3);
+    almanac_discover(&review_book, ZOMBIE_KIND_SOLDIER, true, 5);
+    almanac_discover(&review_book, ZOMBIE_KIND_RIOT_SHIELD, false, 7);
+    almanac_discover(&review_book, ZOMBIE_KIND_CIVIL_FEMALE_1, false, 2);
+    almanac_view_select(&review_view, almanac_index(ZOMBIE_KIND_RIOT_SHIELD, false));
+    draw_backdrop(platform, menu_world, .70f);
+    almanac_render(r, &review_book, &review_view, .25f);
+    save_capture(r, dir, "16_almanaque");
+    review_view.detail = true;
+    draw_backdrop(platform, menu_world, .70f);
+    almanac_render(r, &review_book, &review_view, .25f);
+    save_capture(r, dir, "17_almanaque_ficha");
+
+    /* One fixed night scene isolates light height, occlusion and the
+     * difference between a high lantern, a hand-held beam and a blast. */
+    start_stage(&play, 3, &CHARACTERS[1], &profiles[1].progress);
+    terrain_clear(&play.run.terrain);
+    terrain_add(&play.run.terrain, TERRAIN_LAMP, play.player.x + 170.0f);
+    terrain_add(&play.run.terrain, TERRAIN_BARREL, play.player.x + 320.0f);
+    terrain_add(&play.run.terrain, TERRAIN_WALL, play.player.x + 520.0f);
+    terrain_add(&play.run.terrain, TERRAIN_BENCH, play.player.x - 220.0f);
+    play.run.zombie_count = 1;
+    zombie_spawn(&play.run.zombies[0], &ZOMBIE_RIOT, play.player.x + 350.0f);
+    play.prev_zombie_x[0] = play.run.zombies[0].x;
+    weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+    play.flashlight = false;
+    draw_stage(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "18_luz_farol");
+    play.flashlight = true;
+    draw_stage(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "19_luz_linterna");
+    play.flashlight = false;
+    effects_spawn(&play.effects, terrain_explosion(), play.player.x + 300.0f, BASELINE, 1);
+    draw_stage(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "20_luz_explosion");
+    effects_update(&play.effects, .4f);
+    draw_stage(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "21_luz_explosion_cola");
+    effects_clear(&play.effects);
+    play.run.terrain.items[0].spent = true;
+    terrain_add(&play.run.terrain, TERRAIN_FIRE, play.run.terrain.items[0].x);
+    draw_stage(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "22_farol_roto");
+
+    /* Every shipped identity at its real gallery size. This fixture does not
+     * reveal entries in the player's profile or alter campaign encounters. */
+    for (int kind = 0; kind < ZOMBIE_KIND_COUNT; kind++)
+        for (int runner = 0; runner < 2; runner++)
+            almanac_discover(&review_book, (ZombieKind)kind, runner != 0, 5);
+    review_view.detail = false;
+    for (int page = 0; page < almanac_pages(); page++) {
+        char name[64];
+        almanac_view_select(&review_view, page * ALMANAC_PAGE_SIZE);
+        draw_backdrop(platform, menu_world, .70f);
+        almanac_render(r, &review_book, &review_view, .45f);
+        snprintf(name, sizeof(name), "23_catalogo_%02d", page + 1);
+        save_capture(r, dir, name);
+    }
 }
 
 static int run_game(bool smoke_mode, const char *capture_dir)
@@ -1484,6 +1769,7 @@ static int run_game(bool smoke_mode, const char *capture_dir)
     for (int c = 0; c < CHARACTER_COUNT; c++) {
         progress_init(&profiles[c].progress);
         stage_record_init(&profiles[c].record);
+        almanac_init(&profiles[c].almanac);
     }
     int hero = 0; /* The character being played */
     CharSelect char_select;
@@ -1500,6 +1786,9 @@ static int run_game(bool smoke_mode, const char *capture_dir)
     SmokeTest smoke = {.enabled = smoke_mode};
     input_init(&input);
     Screen screen = SCREEN_TITLE;
+    Screen almanac_return = SCREEN_TITLE;
+    AlmanacView almanac_view;
+    almanac_view_init(&almanac_view);
     if (capture_dir) {
         capture_screens(&platform, capture_dir, skins, profiles, &menu_world);
         status = 0;
@@ -1557,6 +1846,10 @@ static int run_game(bool smoke_mode, const char *capture_dir)
                 selected = play.pause_view == PAUSE_VIEW_LIST     ? &play.pause_menu.selected
                            : play.pause_view == PAUSE_VIEW_VOLUME ? &volume_menu.selected
                                                                   : NULL;
+            Screen previous_screen = screen;
+            bool was_paused = (screen == SCREEN_STAGE && play.paused) ||
+                              (screen == SCREEN_ALMANAC && almanac_return == SCREEN_STAGE);
+            int previous_selection = selected ? *selected : -1;
             apply_pointer(&input, selected);
 
             /* Esc goes back one screen: the stage's pause, its menu, character
@@ -1566,6 +1859,11 @@ static int run_game(bool smoke_mode, const char *capture_dir)
                 case TITLE_PLAY:
                     char_select_init(&char_select, hero);
                     screen = SCREEN_CHARACTER;
+                    break;
+                case TITLE_ALMANAC:
+                    almanac_return = SCREEN_TITLE;
+                    almanac_view_init(&almanac_view);
+                    screen = SCREEN_ALMANAC;
                     break;
                 case TITLE_CONTROLS:
                     screen = SCREEN_CONTROLS;
@@ -1606,9 +1904,36 @@ static int run_game(bool smoke_mode, const char *capture_dir)
                     prev_player_x = play.player.x;
                     screen = SCREEN_STAGE;
                 }
+            } else if (screen == SCREEN_ALMANAC) {
+                int before = almanac_view.selected;
+                if (!almanac_view_update(&almanac_view, &input))
+                    screen = almanac_return;
+                else if (before != almanac_view.selected)
+                    audio_play("ui/move");
             } else if (!stage_step(&play, &input, &profiles[hero])) {
                 menu_init(&menu, &profiles[hero].record);
                 screen = SCREEN_MENU;
+            }
+            if (screen == SCREEN_STAGE && play.request_almanac) {
+                play.request_almanac = false;
+                almanac_return = SCREEN_STAGE;
+                almanac_view_init(&almanac_view);
+                screen = SCREEN_ALMANAC;
+            }
+            bool now_paused = (screen == SCREEN_STAGE && play.paused) ||
+                              (screen == SCREEN_ALMANAC && almanac_return == SCREEN_STAGE);
+            if (previous_screen == SCREEN_STAGE && screen != SCREEN_STAGE && screen != SCREEN_ALMANAC)
+                audio_stop_all();
+            else if (was_paused != now_paused)
+                audio_pause(now_paused);
+            bool menu_input = previous_screen != SCREEN_STAGE || was_paused || now_paused;
+            if (menu_input) {
+                if (input.pressed[ACTION_QUIT])
+                    audio_play("ui/back");
+                else if (input.pressed[ACTION_CONFIRM])
+                    audio_play("ui/confirm");
+                else if (selected && *selected != previous_selection)
+                    audio_play("ui/move");
             }
             if (smoke.enabled) {
                 smoke_observe(&smoke, &play.player, &play.bullets, &play.run.zombies[0]);
@@ -1637,6 +1962,9 @@ static int run_game(bool smoke_mode, const char *capture_dir)
             draw_backdrop(&platform, &menu_world, 0.45f);
             hud_draw_menu(platform.renderer, CHARACTERS[hero].name, &profiles[hero].progress,
                           &profiles[hero].record, menu.selected);
+        } else if (screen == SCREEN_ALMANAC) {
+            draw_backdrop(&platform, &menu_world, 0.70f);
+            almanac_render(platform.renderer, &profiles[hero].almanac, &almanac_view, (float)platform_time());
         } else {
             draw_stage(&platform, &play, &skins[hero], &profiles[hero].progress,
                        accumulator / FIXED_DT, prev_player_x, prev_jump);
@@ -1651,6 +1979,7 @@ cleanup:
     for (int c = 0; c < CHARACTER_COUNT; c++)
         skin_free(&skins[c]);
     scene_shutdown();
+    terrain_render_shutdown();
     audio_shutdown();
     hud_shutdown();
     if (text_ready)

@@ -73,7 +73,9 @@ int stage_supply_dynamite(const StageDef *stage);
  * stage of STAGE_XP_ZOMBIES zombies or fewer, less with more). */
 float stage_xp_share(const StageDef *stage);
 
-/* Kind of the stage's zombie number index: riot or elite. */
+/* Stable profession/runner stats of this slot. The tutorial and original
+ * elites are unchanged; all fifty catalogue variants appear by the final
+ * stage, using the same route slots, zombie counts and rewards. */
 const ZombieStats *stage_zombie_stats(const StageDef *stage, int index);
 
 /* Whether beating zombie number index (0 = first) leaves a chest, with the

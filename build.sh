@@ -27,9 +27,22 @@ done
 echo "SDL2 $(pkg-config --modversion sdl2), SDL2_ttf $(pkg-config --modversion SDL2_ttf)," \
      "SDL2_mixer $(pkg-config --modversion SDL2_mixer)"
 
+step "Comprobando sonidos y originales protegidos"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_audio.py
+
+step "Comprobando sprites de las familias y originales protegidos"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/make_zombies.py --verify
+
 if [[ "${1:-}" == "--clean" ]]; then
     step "Limpiando build/"
     make clean
+fi
+
+if [[ $WINDOWS == 1 ]]; then
+    # MSYS2's login profile points TMPDIR at its installation. Keep compiler
+    # scratch files alongside the build so ordinary workspace access is enough.
+    mkdir -p build/tmp
+    export TMPDIR="$PWD/build/tmp"
 fi
 
 JOBS="$(nproc 2>/dev/null || echo 2)"

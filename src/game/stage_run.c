@@ -6,6 +6,21 @@
 #include "game/combat.h"
 #include "game/damage.h"
 
+unsigned run_take_sound_events(StageRun *run)
+{
+    unsigned events = run->sound_events | terrain_take_sound_events(&run->terrain);
+    run->sound_events = 0;
+    return events;
+}
+
+static HitResult hit_zombie(StageRun *run, Zombie *zombie, float damage, float armor_share)
+{
+    HitResult result = zombie_hit_through(zombie, damage, armor_share);
+    if (result != HIT_NONE)
+        run->sound_events |= zombie->armor > 0.0f ? RUN_SOUND_HIT_ARMOR : RUN_SOUND_HIT_FLESH;
+    return result;
+}
+
 void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests)
 {
     memset(run, 0, sizeof(*run));
@@ -208,8 +223,13 @@ int run_bullets(StageRun *run, Bullets *bullets, Effects *effects)
     /* Walls first: nothing behind one gets hit. */
     int hits = terrain_shoot(&run->terrain, bullets);
     for (int k = 0; k < run->zombie_count; k++) {
-        if (run->zombies[k].awake && !run->zombies[k].hidden) /* Asleep they are out of the fight */
-            hits += combat_bullets_vs_zombie(bullets, &run->zombies[k], effects);
+        Zombie *z = &run->zombies[k];
+        if (z->awake && !z->hidden) { /* Asleep they are out of the fight */
+            int impacts = combat_bullets_vs_zombie(bullets, z, effects);
+            hits += impacts;
+            if (impacts > 0)
+                run->sound_events |= z->armor > 0.0f ? RUN_SOUND_HIT_ARMOR : RUN_SOUND_HIT_FLESH;
+        }
     }
     return hits;
 }
@@ -254,10 +274,10 @@ void run_melee(StageRun *run, const Player *player, const Progress *progress)
     float lo = fminf(player->x, reach), hi = fmaxf(player->x, reach);
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
-        float half = ZOMBIE_HALF_WIDTH * SPRITE_SCALE;
+        float half = zombie_body_half_width(z);
         if (!z->awake || z->hidden || !zombie_alive(z) || z->x + half < lo || z->x - half > hi)
             continue;
-        zombie_hit_through(z, progress_damage(progress) * MELEE_DAMAGE_MULT, MELEE_ARMOR_SHARE);
+        hit_zombie(run, z, progress_damage(progress) * MELEE_DAMAGE_MULT, MELEE_ARMOR_SHARE);
         z->x += (float)player->facing * MELEE_PUSH;
         run->melee_hits++;
     }
@@ -336,14 +356,16 @@ static void zombie_chest(StageRun *run, int k, const Progress *progress)
 static void blow_up(StageRun *run, Player *player, const Progress *progress)
 {
     float xs[RUN_MAX_BLASTS];
-    int n = terrain_explosions(&run->terrain, xs, RUN_MAX_BLASTS);
+    TerrainKind kinds[RUN_MAX_BLASTS];
+    int n = terrain_explosions_typed(&run->terrain, xs, kinds, RUN_MAX_BLASTS);
     for (int b = 0; b < n; b++) {
+        run->blast_kind[run->blasts] = kinds[b] == TERRAIN_BARREL ? BLAST_BARREL : BLAST_DYNAMITE;
         run->blast_x[run->blasts++] = xs[b];
         float damage = progress_damage(progress) * BARREL_DAMAGE_MULT;
         for (int k = 0; k < run->zombie_count; k++) {
             Zombie *z = &run->zombies[k];
-            if (z->awake && fabsf(z->x - xs[b]) - ZOMBIE_HALF_WIDTH * SPRITE_SCALE <= BARREL_RADIUS)
-                zombie_hit_through(z, damage, BARREL_ARMOR_SHARE);
+            if (z->awake && fabsf(z->x - xs[b]) - zombie_body_half_width(z) <= BARREL_RADIUS)
+                hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
         }
         if (fabsf(player->x - xs[b]) - PLAYER_BODY_HALF_WIDTH <= BARREL_RADIUS) {
             float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
@@ -372,14 +394,16 @@ void run_throw(StageRun *run, const Player *player)
  * what breaks nearby breaks (terrain_grenade). */
 static void grenade_blast(StageRun *run, Player *player, const Progress *progress, float x)
 {
-    if (run->blasts < RUN_MAX_BLASTS)
+    if (run->blasts < RUN_MAX_BLASTS) {
+        run->blast_kind[run->blasts] = BLAST_GRENADE;
         run->blast_x[run->blasts++] = x;
+    }
     float damage = progress_damage(progress) * GRENADE_DAMAGE_MULT;
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
         if (z->awake && !z->hidden && zombie_alive(z) &&
-            fabsf(z->x - x) - ZOMBIE_HALF_WIDTH * SPRITE_SCALE <= GRENADE_RADIUS)
-            zombie_hit_through(z, damage, BARREL_ARMOR_SHARE);
+            fabsf(z->x - x) - zombie_body_half_width(z) <= GRENADE_RADIUS)
+            hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
     }
     if (fabsf(player->x - x) - PLAYER_BODY_HALF_WIDTH <= GRENADE_RADIUS) {
         float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
@@ -580,12 +604,14 @@ static void spring_traps(StageRun *run, Player *player, const Progress *progress
                 continue;
             p->spent = true;
             run->traps_sprung++;
+            run->sound_events |= RUN_SOUND_TRAP_BEAR;
             z->caught = TRAP_HOLD;
-            zombie_hit_through(z, progress_damage(progress) * TRAP_DAMAGE_MULT, 0.5f);
+            hit_zombie(run, z, progress_damage(progress) * TRAP_DAMAGE_MULT, 0.5f);
         }
         if (!p->spent && player->jump.height <= 0.0f && fabsf(player->x - p->x) <= TRAP_REACH) {
             p->spent = true;
             run->traps_sprung++;
+            run->sound_events |= RUN_SOUND_TRAP_BEAR;
             float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
             player_hit(player, claw * TRAP_SELF_MULT, player->facing > 0 ? -1 : 1);
             player_bleed(player, claw * BLEED_SHARE);
@@ -613,17 +639,19 @@ static void spring_hangers(StageRun *run, Player *player, const Progress *progre
                 continue;
             p->spent = true;
             run->traps_sprung++;
+            run->sound_events |= RUN_SOUND_TRAP_ROPE;
             z->x = p->x;
             z->caught = kind == CATCH_NET ? NET_HOLD : SNARE_HOLD;
             z->catch_kind = kind;
             z->catch_time = 0.0f;
             z->catch_anchor_x = tip_x;
             z->catch_anchor_y = tip_y;
-            zombie_hit_through(z, progress_damage(progress) * TRAP_DAMAGE_MULT * 0.5f, 0.5f);
+            hit_zombie(run, z, progress_damage(progress) * TRAP_DAMAGE_MULT * 0.5f, 0.5f);
         }
         if (!p->spent && player->jump.height <= 0.0f && fabsf(player->x - p->x) <= TRAP_REACH) {
             p->spent = true;
             run->traps_sprung++;
+            run->sound_events |= RUN_SOUND_TRAP_ROPE;
             player->x = p->x;
             player_catch(player, kind, tip_x, tip_y);
         }
@@ -658,6 +686,7 @@ static void spikes(StageRun *run, Player *player, const Progress *progress)
             continue;
         p->hits = 1; /* Out: they run through whoever is on it, once */
         run->traps_sprung++;
+        run->sound_events |= RUN_SOUND_TRAP_SPIKES;
         if (her) {
             float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
             player_hit(player, claw * SPIKES_SELF_MULT, player->facing > 0 ? -1 : 1);
@@ -666,7 +695,7 @@ static void spikes(StageRun *run, Player *player, const Progress *progress)
         for (int k = 0; k < run->zombie_count; k++) {
             Zombie *z = &run->zombies[k];
             if (z->awake && !z->hidden && zombie_alive(z) && fabsf(z->x - p->x) <= half)
-                zombie_hit_through(z, progress_damage(progress) * SPIKES_DAMAGE_MULT, 0.3f);
+                hit_zombie(run, z, progress_damage(progress) * SPIKES_DAMAGE_MULT, 0.3f);
         }
     }
 }

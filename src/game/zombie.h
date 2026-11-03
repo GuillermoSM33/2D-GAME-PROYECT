@@ -6,6 +6,35 @@
 #include "engine/animation.h"
 #include "game/catch.h"
 
+typedef enum {
+    ZOMBIE_KIND_RIOT,
+    ZOMBIE_KIND_SOLDIER,
+    ZOMBIE_KIND_POLICE,
+    ZOMBIE_KIND_RIOT_SHIELD,
+    ZOMBIE_KIND_CIVIL_MALE_1,
+    ZOMBIE_KIND_CIVIL_MALE_2,
+    ZOMBIE_KIND_CIVIL_MALE_3,
+    ZOMBIE_KIND_CIVIL_MALE_4,
+    ZOMBIE_KIND_CIVIL_MALE_5,
+    ZOMBIE_KIND_CIVIL_FEMALE_1,
+    ZOMBIE_KIND_CIVIL_FEMALE_2,
+    ZOMBIE_KIND_CIVIL_FEMALE_3,
+    ZOMBIE_KIND_CIVIL_FEMALE_4,
+    ZOMBIE_KIND_CIVIL_FEMALE_5,
+    ZOMBIE_KIND_BURNED,
+    ZOMBIE_KIND_SKELETON,
+    ZOMBIE_KIND_DOG,
+    ZOMBIE_KIND_SHERIFF,
+    ZOMBIE_KIND_COWBOY,
+    ZOMBIE_KIND_MOTORCYCLE,
+    ZOMBIE_KIND_PRIEST,
+    ZOMBIE_KIND_JAILER,
+    ZOMBIE_KIND_FIREFIGHTER,
+    ZOMBIE_KIND_BUTCHER,
+    ZOMBIE_KIND_ELITE,
+    ZOMBIE_KIND_COUNT
+} ZombieKind;
+
 /* What sets one kind of zombie apart from another, at level 1. Its level
  * scales all three the same way as the player's (progression.c). */
 typedef struct {
@@ -14,12 +43,33 @@ typedef struct {
     float attack_base; /* Claw damage at level 1, before the player's armor */
     unsigned tint;     /* 0xRRGGBB multiplied over its sheets: 0xffffff as drawn */
     float speed;       /* Times ZOMBIE_SPEED (and its walk animation) */
+    ZombieKind kind;
+    bool runner;
 } ZombieStats;
 
-extern const ZombieStats ZOMBIE_COMMON; /* Reference for balance; no art yet */
+typedef struct {
+    const char *id; /* sprites/zombies/<id>/... */
+    const char *name;
+    const char *description;
+    const char *armor_profession;
+    const ZombieStats *stats; /* Normal variant, level 1 */
+} ZombieKindDef;
+
+typedef enum {
+    ZOMBIE_ANIM_IDLE, ZOMBIE_ANIM_WALK, ZOMBIE_ANIM_RUN, ZOMBIE_ANIM_ATTACK,
+    ZOMBIE_ANIM_HURT, ZOMBIE_ANIM_DEATH, ZOMBIE_ANIM_CAUGHT, ZOMBIE_ANIM_COUNT
+} ZombieAnimation;
+
+/* Stable references for every profession and its runner variant. Invalid
+ * kind values safely select the original riot profession. */
+const ZombieKindDef *zombie_kind_def(ZombieKind kind);
+const ZombieStats *zombie_stats(ZombieKind kind, bool runner);
+const AnimationDef *zombie_animation(ZombieKind kind, ZombieAnimation action);
+
+extern const ZombieStats ZOMBIE_COMMON; /* Legacy unarmored balance reference */
 extern const ZombieStats ZOMBIE_RIOT;   /* Riot gear: same health, 85 armor */
 extern const ZombieStats ZOMBIE_ELITE;  /* Heavier riot gear, harder claw, a rusty red tint */
-extern const ZombieStats ZOMBIE_RUNNER; /* Light gear, frail, fast: a sickly green tint */
+extern const ZombieStats ZOMBIE_RUNNER; /* Legacy light-gear runner; catalogue uses zombie_stats */
 
 typedef enum {
     ZOMBIE_WALK, /* Limping toward the player */
@@ -39,6 +89,8 @@ typedef enum {
 
 typedef struct {
     const ZombieStats *stats;
+    ZombieKind kind;
+    bool runner;
     int level;
     int max_health; /* stats at this level */
     float armor;
@@ -112,6 +164,11 @@ bool zombie_alive(const Zombie *zombie);
 
 /* Whether a horizontal path from x0 to x1 at height y crosses the body. */
 bool zombie_overlaps(const Zombie *zombie, float x0, float x1, float y);
+
+/* Collision dimensions in world/window pixels. The large hound is lower
+ * and wider than a human, while its head still meets the normal gun line. */
+float zombie_body_height(const Zombie *zombie);
+float zombie_body_half_width(const Zombie *zombie);
 
 /* Art px it rises while asleep, breathing: 0 or 1. */
 int zombie_breath(const Zombie *zombie);

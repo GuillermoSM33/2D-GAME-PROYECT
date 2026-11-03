@@ -12,7 +12,9 @@
 const EmbeddedImage *assets_find_image(const char *name);
 const EmbeddedBlob *assets_find_blob(const char *name);
 
-/* Uploads every embedded image as a texture. */
+/* Uploads every embedded image as a texture, sizing the table to the actual
+ * catalogue. Reloading first releases the previous textures; unload is safe
+ * before loading, after failure, or more than once. */
 bool assets_load(SDL_Renderer *renderer);
 void assets_unload(void);
 

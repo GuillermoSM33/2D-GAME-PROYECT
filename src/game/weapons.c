@@ -10,7 +10,8 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
     [WEAPON_REVOLVER] = {
         .name = "Cañón de mano", .damage_mult = 1.0f, .reload_time = PLAYER_SHOOT_RELOAD_TIME,
         .pellets = 1, .speed = BULLET_SPEED, .armor_share = 1.0f, .tint = 0xffffff,
-        .shot_sound = "player/shot", .reload_sound = "player/reload",
+        .shot_sound = "player/shot", .cycle_sound = "player/reload", .reload_sound = "player/reload",
+        .empty_sound = "player/empty", .melee_sound = "player/melee",
         .smoke_puffs = SMOKE_PUFFS_PER_SHOT, .smoke_scale = 1.0f,
     },
     [WEAPON_RIFLE] = {
@@ -18,14 +19,17 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .burst = 3, .burst_gap = 0.07f, .automatic = true, /* Light rounds, so many of them */
         .magazine = 5, .magazine_reload = 1.2f, /* 5 bursts, then a new magazine */
         .pellets = 1, .speed = 1300.0f, .armor_share = 1.0f, .tint = 0xd8e0ff,
-        .shot_sound = "player/shot",
+        .shot_sound = "weapons/rifle_shot", .reload_sound = "weapons/rifle_reload",
+        .empty_sound = "weapons/rifle_empty", .melee_sound = "weapons/rifle_melee",
         .smoke_puffs = 3, .smoke_scale = 0.7f, /* A quick wisp: it fires often */
         .reload_sheet = "reload",
     },
     [WEAPON_SHOTGUN] = {
         .name = "Escopeta", .damage_mult = 0.60f, .reload_time = 0.62f,
         .pellets = 3, .pellet_gap = 10.0f, .pellet_spread = 0.18f, /* A fan */ .speed = 1000.0f, .range = 380.0f, .armor_share = 1.0f,
-        .tint = 0xffd8a8, .shot_sound = "player/shot", .reload_sound = "player/reload",
+        .tint = 0xffd8a8, .shot_sound = "weapons/shotgun_shot", .cycle_sound = "weapons/shotgun_cycle",
+        .reload_sound = "weapons/shotgun_reload",
+        .empty_sound = "weapons/shotgun_empty", .melee_sound = "weapons/shotgun_melee",
         .smoke_puffs = 10, .smoke_scale = 1.5f, /* A thick cloud */
         .magazine = 8, .magazine_reload = 1.1f, /* 8 shells in the tube */
         .shoot_sheet = "shoot_shotgun", .reload_sheet = "reload_shotgun", .sit_sheet = "sit_shotgun",
@@ -36,14 +40,18 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
          * single cannon, as a level's reward. */
         .name = "Pistolas duales", .damage_mult = 0.68f, .reload_time = PLAYER_SHOOT_RELOAD_TIME,
         .pellets = 2, .pellet_gap = 16.0f, .speed = BULLET_SPEED, .armor_share = 1.0f, .tint = 0xffffff,
-        .shot_sound = "player/shot", .reload_sound = "player/reload",
+        .shot_sound = "weapons/dual_shot", .cycle_sound = "weapons/dual_reload",
+        .reload_sound = "weapons/dual_reload",
+        .empty_sound = "weapons/dual_empty", .melee_sound = "weapons/dual_melee",
         .smoke_puffs = SMOKE_PUFFS_PER_SHOT + 2, .smoke_scale = 1.2f,
         .shoot_sheet = "shoot_dual", .melee_sheet = "melee_dual",
     },
     [WEAPON_PLASMA] = {
         .name = "Cañón de plasma", .damage_mult = 1.3f, .reload_time = 0.62f,
         .pellets = 1, .speed = 700.0f, .armor_share = 0.6f, .tint = 0x80ffd8,
-        .shot_sound = "player/shot",
+        .shot_sound = "weapons/plasma_shot", .cycle_sound = "weapons/plasma_reload",
+        .reload_sound = "weapons/plasma_reload",
+        .empty_sound = "weapons/plasma_empty", .melee_sound = "weapons/plasma_melee",
         .smoke_puffs = SMOKE_PUFFS_PER_SHOT, .smoke_scale = 1.0f,
     },
 };

@@ -153,6 +153,30 @@ static void test_select_wraps_and_confirms(void)
     CHECK(select.selected == 0);
 }
 
+static void test_each_weapon_has_its_own_sound(void)
+{
+    const WeaponDef *cowgirl = weapon_def(WEAPON_REVOLVER);
+    CHECK(strcmp(cowgirl->shot_sound, "player/shot") == 0);
+    CHECK(strcmp(cowgirl->cycle_sound, "player/reload") == 0);
+    for (int id = 0; id < WEAPON_COUNT; id++) {
+        const WeaponDef *w = weapon_def((WeaponId)id);
+        CHECK(w->shot_sound && w->reload_sound && w->empty_sound && w->melee_sound);
+        if (id != WEAPON_REVOLVER) {
+            CHECK(strcmp(w->shot_sound, cowgirl->shot_sound) != 0);
+            CHECK(strcmp(w->reload_sound, cowgirl->reload_sound) != 0);
+        }
+        for (int other = id + 1; other < WEAPON_COUNT; other++) {
+            const WeaponDef *next = weapon_def((WeaponId)other);
+            CHECK(strcmp(w->shot_sound, next->shot_sound) != 0);
+            CHECK(strcmp(w->reload_sound, next->reload_sound) != 0);
+            CHECK(strcmp(w->empty_sound, next->empty_sound) != 0);
+            CHECK(strcmp(w->melee_sound, next->melee_sound) != 0);
+        }
+    }
+    const WeaponDef *shotgun = weapon_def(WEAPON_SHOTGUN);
+    CHECK(shotgun->cycle_sound && strcmp(shotgun->cycle_sound, shotgun->reload_sound) != 0);
+}
+
 int main(void)
 {
     printf("test_characters\n");
@@ -162,5 +186,6 @@ int main(void)
     RUN(test_dual_pistols_are_a_reward);
     RUN(test_armor_by_character);
     RUN(test_select_wraps_and_confirms);
+    RUN(test_each_weapon_has_its_own_sound);
     return TEST_EXIT();
 }

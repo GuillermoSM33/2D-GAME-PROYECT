@@ -39,6 +39,16 @@ typedef enum {
 /* What a broken crate gives (terrain_loot). */
 typedef enum { LOOT_AMMO, LOOT_HEALTH, LOOT_DYNAMITE, LOOT_GOLD, LOOT_WATER } Loot;
 
+/* Material impacts survive terrain_clear_events until the sound consumer
+ * takes them. Repeated impacts of one kind within a tick share one cue. */
+typedef enum {
+    TERRAIN_SOUND_HIT_WOOD = 1u << 0,
+    TERRAIN_SOUND_HIT_METAL = 1u << 1,
+    TERRAIN_SOUND_HIT_STONE = 1u << 2,
+    TERRAIN_SOUND_HIT_WIRE = 1u << 3,
+    TERRAIN_SOUND_HIT_SAND = 1u << 4
+} TerrainSound;
+
 #define TERRAIN_EVENTS 8
 
 typedef struct {
@@ -70,6 +80,7 @@ typedef struct {
     Piece items[TERRAIN_MAX];
     int count;
     TerrainEvents events;
+    unsigned sound_events;
 } Terrain;
 
 void terrain_clear(Terrain *terrain);
@@ -118,10 +129,6 @@ int terrain_bench_heal(int stage_index, int index);
 
 /* Whether x is warm by a campfire. */
 bool terrain_by_campfire(const Terrain *terrain, float x);
-
-/* What gives light (a lit lamp, burning oil, a campfire), for the renderer:
- * its x and the width of its light. Returns how many, up to max. */
-int terrain_lights(const Terrain *terrain, float *xs, float *sizes, int max);
 
 /* Where smoke rises from (burning oil, campfires). Returns how many. */
 int terrain_smokes(const Terrain *terrain, float *xs, int max);
@@ -178,11 +185,18 @@ void terrain_update(Terrain *terrain, float dt);
 /* Forgets this step's events, once the stage has acted on them. */
 void terrain_clear_events(Terrain *terrain);
 
+/* Takes pending material impacts once, independently of loot events. */
+unsigned terrain_take_sound_events(Terrain *terrain);
+
 /* What blows up now: barrels hit and charges burnt down, each setting off
  * barrels within BARREL_CHAIN_RADIUS and wrecking barricades and walls,
  * breaking crates and bottles, felling lamps and bursting coffins within
  * BARREL_RADIUS. Their x into xs (up to max). Returns how many. */
 int terrain_explosions(Terrain *terrain, float *xs, int max);
+
+/* Also returns the original kind (barrel, wall charge, planted charge) for
+ * each blast. kinds may be NULL, as in terrain_explosions. */
+int terrain_explosions_typed(Terrain *terrain, float *xs, TerrainKind *kinds, int max);
 
 /* Picks up the dynamite boxes next to x. Returns how many charges. */
 int terrain_take_dynamite(Terrain *terrain, float x);

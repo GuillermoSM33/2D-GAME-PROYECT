@@ -14,7 +14,7 @@ plantilla de todos los personajes ([`CHARACTERS.md`](CHARACTERS.md)). Todas las 
 | Tamaño de la hoja | Ancho = ancho del cuadro × número de cuadros. Alto = alto del cuadro exacto. `--verify` lo comprueba. |
 | Dirección | Solo mirando a la **derecha**. La izquierda se genera espejando. |
 | Bordes | Sin difuminado ni suavizado. Se permite semitransparencia. |
-| Ubicación | `assets/sprites/<entidad>/<acción>.png`, por ejemplo `assets/sprites/zombie/idle.png`. Ver [`ASSETS.md`](ASSETS.md). |
+| Ubicación | `assets/sprites/<entidad>/<acción>.png`, por ejemplo `assets/sprites/zombies/riot/idle.png`. Ver [`ASSETS.md`](ASSETS.md). |
 
 ## Cuerpo de la vaquera (medido)
 

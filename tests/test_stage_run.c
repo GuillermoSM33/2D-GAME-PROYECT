@@ -223,6 +223,8 @@ static void test_barrel_blast(void)
         run_update(&run, &player, &progress, FIXED_DT);
     }
     CHECK(barrel->spent && run.blasts >= 1);
+    for (int b = 0; b < run.blasts; b++)
+        CHECK(run.blast_kind[b] == BLAST_BARREL);
     CHECK(z->health < z->max_health);
     CHECK(player.health == player.max_health); /* 600 px off: safe */
     int spent = 0;
@@ -305,6 +307,8 @@ static void test_trap_holds_a_zombie(void)
     player.x = trap->x - 600.0f;
     run_update(&run, &player, &progress, FIXED_DT);
     CHECK(trap->spent && z->caught > 0.0f && z->health < z->max_health && run.traps_sprung == 1);
+    CHECK(run_take_sound_events(&run) & RUN_SOUND_TRAP_BEAR);
+    CHECK(run_take_sound_events(&run) == 0);
     float x = z->x;
     for (int i = 0; i < 60; i++)
         zombie_update(z, player.x, true, FIXED_DT);
@@ -597,6 +601,8 @@ static void test_charge_on_the_road(void)
     for (int i = 0; i < (int)((CHARGE_FUSE + 0.2f) / FIXED_DT); i++) {
         run_update(&run, &player, &progress, FIXED_DT);
         blew |= run.blasts > 0;
+        for (int b = 0; b < run.blasts; b++)
+            CHECK(run.blast_kind[b] == BLAST_DYNAMITE);
     }
     CHECK(blew);
     CHECK(run.zombies[0].health < run.zombies[0].max_health);
@@ -693,6 +699,7 @@ static void test_net_hangs_her_till_she_cuts_free(void)
     terrain_add(&run.terrain, TERRAIN_NET, player.x + 20.0f);
     run_update(&run, &player, &progress, FIXED_DT);
     CHECK(player.state == PLAYER_CAUGHT && player.catch_kind == CATCH_NET);
+    CHECK(run_take_sound_events(&run) & RUN_SOUND_TRAP_ROPE);
     InputState in = {0};
     in.down[ACTION_RIGHT] = true;
     float x = player.x;
@@ -737,6 +744,7 @@ static void test_spikes_come_up(void)
     for (int i = 0; i < (int)((SPIKES_DELAY + 0.1f) / FIXED_DT); i++)
         run_update(&run, &player, &progress, FIXED_DT);
     CHECK(player.health < player.max_health && player.bleed_time > 0.0f);
+    CHECK(run_take_sound_events(&run) & RUN_SOUND_TRAP_SPIKES);
 }
 
 static void test_wet_dries_by_the_weather(void)
@@ -984,6 +992,8 @@ static void test_grenade_arcs_and_blows(void)
     while (run.grenades[0].active && steps++ < 600) {
         run_update(&run, &player, &progress, FIXED_DT);
         blasts += run.blasts;
+        for (int b = 0; b < run.blasts; b++)
+            CHECK(run.blast_kind[b] == BLAST_GRENADE);
     }
     CHECK(blasts == 1 && steps >= (int)(GRENADE_FUSE / FIXED_DT) - 2);
     CHECK(run.zombies[0].health < run.zombies[0].max_health);
@@ -1009,6 +1019,74 @@ static void test_some_walls_are_buildings(void)
         }
     }
     CHECK(buildings > 0 && palisades > 0);
+}
+
+static void test_impacts_accumulate_until_played(void)
+{
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    run.zombie_count = 1;
+    zombie_spawn(&run.zombies[0], &ZOMBIE_RIOT, player.x + 100.0f);
+    run.zombies[0].awake = true;
+    run_melee(&run, &player, &progress);
+    CHECK(run.sound_events & RUN_SOUND_HIT_ARMOR);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run_take_sound_events(&run) == RUN_SOUND_HIT_ARMOR);
+    CHECK(run_take_sound_events(&run) == 0);
+
+    zombie_spawn(&run.zombies[0], &ZOMBIE_COMMON, player.x + 300.0f);
+    run.zombies[0].awake = true;
+    Bullets bullets;
+    Effects effects;
+    bullets_clear(&bullets);
+    effects_clear(&effects);
+    float y = BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE;
+    bullets_spawn(&bullets, player.x + 200.0f, player.x + 320.0f, y, 1);
+    CHECK(run_bullets(&run, &bullets, &effects) == 1);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run_take_sound_events(&run) == RUN_SOUND_HIT_FLESH);
+    CHECK(run_take_sound_events(&run) == 0);
+
+    run.zombie_count = 0;
+    terrain_add(&run.terrain, TERRAIN_BARRICADE, player.x + 100.0f)->variant = 3;
+    run_melee(&run, &player, &progress);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run_take_sound_events(&run) == RUN_SOUND_HIT_METAL);
+    CHECK(run_take_sound_events(&run) == 0);
+}
+
+static void test_dog_body_edge_receives_melee_and_blasts(void)
+{
+    for (int action = 0; action < 3; action++) {
+        StageRun run;
+        Player player;
+        Progress progress;
+        setup(&run, &player, &progress, 0, false);
+        terrain_clear(&run.terrain);
+        run.zombie_count = 1;
+        Zombie *dog = &run.zombies[0];
+        float blast_x = player.x + 1500.0f;
+        float edge = action == 0 ? player.x + PLAYER_BODY_HALF_WIDTH + MELEE_REACH :
+                     blast_x + (action == 1 ? BARREL_RADIUS : GRENADE_RADIUS);
+        zombie_spawn(dog, zombie_stats(ZOMBIE_KIND_DOG, false),
+                     edge + 22.0f * SPRITE_SCALE - 1.0f);
+        if (action == 0) {
+            run_melee(&run, &player, &progress);
+        } else {
+            if (action == 1)
+                terrain_add(&run.terrain, TERRAIN_BARREL, blast_x)->blowing = true;
+            else {
+                run.grenades[0] = (Grenade){.active = true, .x = blast_x, .fuse = FIXED_DT / 2};
+            }
+            run_update(&run, &player, &progress, FIXED_DT);
+            CHECK(run.blasts == 1);
+        }
+        CHECK(dog->health < dog->max_health);
+        CHECK(run.sound_events & RUN_SOUND_HIT_FLESH);
+    }
 }
 
 int main(void)
@@ -1053,5 +1131,7 @@ int main(void)
     RUN(test_sit_reloads_each_gun);
     RUN(test_campfire_warms);
     RUN(test_dozing_off);
+    RUN(test_impacts_accumulate_until_played);
+    RUN(test_dog_body_edge_receives_melee_and_blasts);
     return TEST_EXIT();
 }

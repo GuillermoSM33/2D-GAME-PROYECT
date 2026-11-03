@@ -17,10 +17,11 @@
  * menus, the pause, the controls and volume screens, and the readouts during
  * a stage. */
 
-typedef enum { TITLE_PLAY, TITLE_CONTROLS, TITLE_VOLUME, TITLE_QUIT, TITLE_ITEMS } TitleItem;
+typedef enum { TITLE_PLAY, TITLE_ALMANAC, TITLE_CONTROLS, TITLE_VOLUME, TITLE_QUIT, TITLE_ITEMS } TitleItem;
 typedef enum {
     PAUSE_CONTINUE,
     PAUSE_RETRY,
+    PAUSE_ALMANAC,
     PAUSE_VOLUME,
     PAUSE_CONTROLS,
     PAUSE_LEAVE,
@@ -58,6 +59,10 @@ bool hud_zone_at(int x, int y, HudZone *zone);
 
 bool hud_init(SDL_Renderer *renderer);
 void hud_shutdown(void);
+
+/* Checks gameplay panel bounds and real pixel-font measurements, including
+ * large counters. No renderer/window needed; used by resource verification. */
+bool hud_verify_layout(void);
 
 /* During a stage: her health and XP, the gun and its rounds, the dynamite,
  * the zombies beaten and the meters to the gate, the fight holding her, a

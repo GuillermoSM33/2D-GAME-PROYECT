@@ -32,7 +32,10 @@ typedef struct {
     float armor_share;    /* Share of the target's armor that counts: 1 all, 0.5 half */
     unsigned tint;        /* 0xRRGGBB multiplied over the bullet sprite */
     const char *shot_sound;   /* Path under assets/sounds, or NULL */
-    const char *reload_sound;
+    const char *cycle_sound;  /* Between shots: ramrod, pump, plasma recharge */
+    const char *reload_sound; /* Replacing the magazine (including on a bench) */
+    const char *empty_sound;  /* Trigger pulled with an empty magazine */
+    const char *melee_sound;  /* Swing of this gun */
     int smoke_puffs;          /* Puffs of gun smoke per shot */
     float smoke_scale;        /* Size of that cloud: 1 is the revolver's */
     /* The character's sheet drawn while shooting this gun, instead of "shoot"

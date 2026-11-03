@@ -117,14 +117,18 @@ int crows_shoot(Crows *crows, Bullets *bullets)
     return hits;
 }
 
-void crows_blast(Crows *crows, float x, float radius)
+int crows_blast(Crows *crows, float x, float radius)
 {
+    int killed = 0;
     for (int i = 0; i < crows->count; i++) {
         Crow *c = &crows->items[i];
-        if (!c->gone && !c->dead && fabsf(c->x - x) <= radius)
+        if (!c->gone && !c->dead && fabsf(c->x - x) <= radius) {
             kill(crows, c);
+            killed++;
+        }
     }
     crows_noise(crows, x, CROW_BLAST_RANGE);
+    return killed;
 }
 
 float crow_opacity(const Crow *crow)

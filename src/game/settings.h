@@ -7,6 +7,7 @@
 
 /* Volume groups the game plays its sounds in (audio_play_in). */
 typedef enum {
+    SOUND_MASTER = 0, /* Ambient weather and UI follow the general volume */
     SOUND_PLAYER = 1, /* Everything the character does or sets off: guns, reloads, blasts, pickups */
     SOUND_ZOMBIE = 2  /* The zombies' voices */
 } SoundGroup;

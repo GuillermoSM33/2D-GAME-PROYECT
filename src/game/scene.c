@@ -17,6 +17,12 @@ static const ThemeDef *props_theme;
 static SDL_Texture *themed_props[PROP_KIND_COUNT];
 static SDL_Texture *themed_houses;
 static bool themed_owned; /* The copies are ours to destroy */
+static SDL_Texture *foreground;
+static SDL_Renderer *foreground_renderer;
+static SDL_Texture *previous_target;
+static SDL_Rect previous_viewport;
+static float previous_scale_x, previous_scale_y;
+static bool foreground_active;
 
 static void release_props(void)
 {
@@ -53,6 +59,13 @@ static void prepare_props(SDL_Renderer *renderer, const ThemeDef *theme)
 
 void scene_shutdown(void)
 {
+    if (foreground_active && foreground_renderer)
+        SDL_SetRenderTarget(foreground_renderer, previous_target);
+    if (foreground)
+        SDL_DestroyTexture(foreground);
+    foreground = NULL;
+    foreground_renderer = NULL;
+    foreground_active = false;
     release_props();
 }
 
@@ -190,22 +203,29 @@ unsigned scene_sky_top(const ThemeDef *theme)
     return ((unsigned)sky->rgba[0] << 16) | ((unsigned)sky->rgba[1] << 8) | sky->rgba[2];
 }
 
-void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, double time)
+void scene_draw_distant(SDL_Renderer *renderer, const World *world, float camera_x)
 {
     const ThemeDef *theme = world->theme;
     prepare_props(renderer, theme);
 
-    /* Back to front; the props stand between the hills and the ground. */
-    for (int i = 0; i < BACKGROUND_LAYER_COUNT; i++) {
+    for (int i = 0; i < BACKGROUND_LAYER_COUNT - 1; i++) {
         const BackgroundLayer *layer = &BACKGROUND_LAYERS[i];
-        if (i == BACKGROUND_LAYER_COUNT - 1) {
-            draw_houses(renderer, theme, camera_x);
-            draw_props(renderer, world, camera_x);
-        }
         SDL_Texture *texture = layer_texture(theme, layer);
         if (texture)
             draw_layer(renderer, texture, layer, camera_x * layer->parallax);
     }
+    draw_houses(renderer, theme, camera_x);
+}
+
+void scene_draw_near(SDL_Renderer *renderer, const World *world, float camera_x, double time)
+{
+    const ThemeDef *theme = world->theme;
+    prepare_props(renderer, theme);
+    draw_props(renderer, world, camera_x);
+    const BackgroundLayer *ground = &BACKGROUND_LAYERS[BACKGROUND_LAYER_COUNT - 1];
+    SDL_Texture *texture = layer_texture(theme, ground);
+    if (texture)
+        draw_layer(renderer, texture, ground, camera_x * ground->parallax);
     if (theme->fog) {
         SDL_Texture *fog = layer_texture(theme, &FOG_LAYER);
         /* Wrapped to one tile's worth of drift, so a long session keeps float precision. */
@@ -213,4 +233,56 @@ void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, doub
         if (fog)
             draw_layer(renderer, fog, &FOG_LAYER, camera_x * FOG_LAYER.parallax + drift);
     }
+}
+
+void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, double time)
+{
+    scene_draw_distant(renderer, world, camera_x);
+    scene_draw_near(renderer, world, camera_x, time);
+}
+
+bool scene_begin_foreground(SDL_Renderer *renderer)
+{
+    if (!renderer || foreground_active || !SDL_RenderTargetSupported(renderer))
+        return false;
+    if (foreground_renderer != renderer || !foreground) {
+        if (foreground)
+            SDL_DestroyTexture(foreground);
+        foreground = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+                                       SDL_TEXTUREACCESS_TARGET, WINDOW_WIDTH, WINDOW_HEIGHT);
+        foreground_renderer = renderer;
+        if (!foreground)
+            return false;
+        SDL_SetTextureBlendMode(foreground, SDL_BLENDMODE_BLEND);
+    }
+    previous_target = SDL_GetRenderTarget(renderer);
+    SDL_RenderGetViewport(renderer, &previous_viewport);
+    SDL_RenderGetScale(renderer, &previous_scale_x, &previous_scale_y);
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+    if (SDL_SetRenderTarget(renderer, foreground) != 0)
+        return false;
+    SDL_RenderSetScale(renderer, 1.0f, 1.0f);
+    SDL_RenderSetViewport(renderer, NULL);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawColor(renderer, r, g, b, a);
+    SDL_RenderSetScale(renderer, previous_scale_x, previous_scale_y);
+    SDL_RenderSetViewport(renderer, &previous_viewport);
+    foreground_active = true;
+    return true;
+}
+
+void scene_end_foreground(SDL_Renderer *renderer)
+{
+    if (!foreground_active || renderer != foreground_renderer)
+        return;
+    SDL_SetRenderTarget(renderer, previous_target);
+    SDL_RenderSetScale(renderer, 1.0f, 1.0f);
+    SDL_RenderSetViewport(renderer, NULL);
+    SDL_Rect window = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
+    SDL_RenderCopy(renderer, foreground, NULL, &window);
+    SDL_RenderSetScale(renderer, previous_scale_x, previous_scale_y);
+    SDL_RenderSetViewport(renderer, &previous_viewport);
+    foreground_active = false;
 }

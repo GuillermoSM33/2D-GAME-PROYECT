@@ -11,7 +11,8 @@ int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, Effects *effects)
         Bullet *b = &bullets->items[i];
         if (!b->active || b->glanced == zombie || !zombie_overlaps(zombie, b->prev_x, b->x, b->y))
             continue;
-        if (zombie_hit_through(zombie, b->spec.damage, b->spec.armor_share) == HIT_ARMOR)
+        if (zombie_hit_through(zombie, b->spec.damage, b->spec.armor_share) == HIT_ARMOR &&
+            zombie->armor > 0.0f)
             effects_spawn(effects, effect_sparks(), zombie->x, b->y, zombie->facing);
         hits++;
         if (b->spec.ricochet) {

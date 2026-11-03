@@ -29,6 +29,21 @@ typedef enum {
 #define RUN_MAX_BLASTS 4
 #define RUN_MAX_GRENADES 3
 
+typedef enum { BLAST_BARREL, BLAST_DYNAMITE, BLAST_GRENADE } BlastKind;
+
+typedef enum {
+    RUN_SOUND_HIT_WOOD = TERRAIN_SOUND_HIT_WOOD,
+    RUN_SOUND_HIT_METAL = TERRAIN_SOUND_HIT_METAL,
+    RUN_SOUND_HIT_STONE = TERRAIN_SOUND_HIT_STONE,
+    RUN_SOUND_HIT_WIRE = TERRAIN_SOUND_HIT_WIRE,
+    RUN_SOUND_HIT_SAND = TERRAIN_SOUND_HIT_SAND,
+    RUN_SOUND_HIT_FLESH = 1u << 5,
+    RUN_SOUND_HIT_ARMOR = 1u << 6,
+    RUN_SOUND_TRAP_BEAR = 1u << 7,
+    RUN_SOUND_TRAP_ROPE = 1u << 8,
+    RUN_SOUND_TRAP_SPIKES = 1u << 9
+} RunSound;
+
 /* A thrown grenade: flying, bouncing, then going off. */
 typedef struct {
     bool active;
@@ -89,8 +104,14 @@ typedef struct {
     int healed;        /* Health a bench or a campfire gave: the caller shows it and clears it */
     int blasts;
     float blast_x[RUN_MAX_BLASTS];
+    BlastKind blast_kind[RUN_MAX_BLASTS];
+    unsigned sound_events; /* Accumulated until run_take_sound_events, not run_update */
     Grenade grenades[RUN_MAX_GRENADES];
 } StageRun;
+
+/* Drain impacts/traps once after run_update. Includes run_bullets/run_melee
+ * from before that update; no cue is lost when loot events are cleared. */
+unsigned run_take_sound_events(StageRun *run);
 
 /* Lays out the stage's road ahead of player_x: zombies asleep in their
  * groups, terrain, the gate. Without drops_chests (the cowgirl's ability)

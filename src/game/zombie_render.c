@@ -1,6 +1,7 @@
 #include "game/zombie_render.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "config.h"
 #include "engine/assets.h"
@@ -11,10 +12,34 @@
 #define BAR_H 6
 #define BAR_GAP 14 /* Window px between the helmet and the bar */
 
+SDL_Texture *zombie_animation_texture(const AnimationDef *animation, int *frame)
+{
+    if (!animation || !frame)
+        return NULL;
+    SDL_Texture *sheet = assets_texture(animation->sheet);
+    if (!sheet) {
+        const char *action = strrchr(animation->sheet, '/');
+        action = action ? action + 1 : animation->sheet;
+        const char *fallback = strcmp(action, "death") == 0 ? "sprites/zombies/riot/death" :
+                               strcmp(action, "attack") == 0 ? "sprites/zombies/riot/attack" :
+                               strcmp(action, "hurt") == 0 || strcmp(action, "caught") == 0
+                                   ? "sprites/zombies/riot/hurt" : "sprites/zombies/riot/walk";
+        sheet = assets_texture(fallback);
+    }
+    if (sheet) {
+        int width = 0;
+        SDL_QueryTexture(sheet, NULL, NULL, &width, NULL);
+        int count = animation->frame_w > 0 ? width / animation->frame_w : 0;
+        if (count > 0)
+            *frame = *frame < 0 ? 0 : *frame >= count ? count - 1 : *frame;
+    }
+    return sheet;
+}
+
 static void draw_health_bar(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
 {
     int x = (int)lroundf(zombie->x - camera_x) - BAR_W / 2;
-    int y = BASELINE - (int)(ZOMBIE_HEIGHT * SPRITE_SCALE) - BAR_GAP;
+    int y = BASELINE - (int)zombie_body_height(zombie) - BAR_GAP;
     health_bar_draw(renderer, x, y, BAR_W, BAR_H, zombie->health, zombie->max_health,
                     zombie->armor > 0.0f);
 }
@@ -22,14 +47,15 @@ static void draw_health_bar(SDL_Renderer *renderer, const Zombie *zombie, float 
 void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
 {
     const AnimationDef *def = zombie->anim.def;
-    SDL_Texture *sheet = def ? assets_texture(def->sheet) : NULL;
+    int frame = zombie->anim.frame;
+    SDL_Texture *sheet = zombie_animation_texture(def, &frame);
     float opacity = zombie_opacity(zombie);
     if (sheet == NULL || opacity <= 0.0f || zombie->hidden)
         return;
 
     bool left = zombie->facing < 0;
     float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;
-    SDL_Rect src = {zombie->anim.frame * def->frame_w, 0, def->frame_w, def->frame_h};
+    SDL_Rect src = {frame * def->frame_w, 0, def->frame_w, def->frame_h};
     SDL_Rect dst = {
         (int)lroundf(zombie->x - camera_x - anchor_x * SPRITE_SCALE) + zombie_shudder(zombie) * SPRITE_SCALE,
         BASELINE - def->ground_y * SPRITE_SCALE - zombie_breath(zombie) * SPRITE_SCALE,

@@ -157,6 +157,25 @@ static int strikes(const Piece *p)
     return KINDS[p->kind].strikes;
 }
 
+static unsigned impact_sound(const Piece *p)
+{
+    switch (p->kind) {
+    case TERRAIN_BARRICADE:
+        return p->variant == 3 ? TERRAIN_SOUND_HIT_METAL
+             : p->variant == 1 ? TERRAIN_SOUND_HIT_SAND : TERRAIN_SOUND_HIT_WOOD;
+    case TERRAIN_WALL:
+        return p->variant == 1 ? TERRAIN_SOUND_HIT_STONE : TERRAIN_SOUND_HIT_WOOD;
+    case TERRAIN_CRATE:
+    case TERRAIN_COFFIN:
+    case TERRAIN_BARREL:
+        return TERRAIN_SOUND_HIT_WOOD;
+    case TERRAIN_WIRE:
+        return TERRAIN_SOUND_HIT_WIRE;
+    default:
+        return 0;
+    }
+}
+
 bool terrain_claw(Terrain *terrain, int index)
 {
     if (index < 0 || index >= terrain->count)
@@ -164,6 +183,7 @@ bool terrain_claw(Terrain *terrain, int index)
     Piece *p = &terrain->items[index];
     if (!terrain_blocks(p))
         return false;
+    terrain->sound_events |= impact_sound(p);
     p->damage++;
     p->spent = p->damage >= strikes(p);
     if (p->spent)
@@ -183,6 +203,8 @@ static void strike(Terrain *terrain, int index, bool blast)
     Piece *p = &terrain->items[index];
     if (p->spent)
         return;
+    if (!blast)
+        terrain->sound_events |= impact_sound(p);
     TerrainEvents *ev = &terrain->events;
     switch (p->kind) {
     case TERRAIN_CRATE:
@@ -250,21 +272,6 @@ bool terrain_by_campfire(const Terrain *terrain, float x)
             return true;
     }
     return false;
-}
-
-int terrain_lights(const Terrain *terrain, float *xs, float *sizes, int max)
-{
-    int n = 0;
-    for (int i = 0; i < terrain->count && n < max; i++) {
-        const Piece *p = &terrain->items[i];
-        bool lamp = p->kind == TERRAIN_LAMP && !p->spent;
-        bool fire = (p->kind == TERRAIN_FIRE && !p->spent) || p->kind == TERRAIN_CAMPFIRE;
-        if (!lamp && !fire)
-            continue;
-        xs[n] = p->x;
-        sizes[n++] = lamp ? LAMP_LIGHT : FIRE_LIGHT;
-    }
-    return n;
 }
 
 int terrain_smokes(const Terrain *terrain, float *xs, int max)
@@ -335,6 +342,7 @@ int terrain_shoot(Terrain *terrain, Bullets *bullets)
             if (target && bullet->glanced == p)
                 continue; /* It already glanced off this one */
             hits++;
+            terrain->sound_events |= impact_sound(p);
             if (target && bullet->spec.ricochet) {
                 /* The cowgirl's ricochet: it breaks through on to the next. */
                 bullet->spec.ricochet = false;
@@ -491,6 +499,13 @@ void terrain_clear_events(Terrain *terrain)
     memset(&terrain->events, 0, sizeof(terrain->events));
 }
 
+unsigned terrain_take_sound_events(Terrain *terrain)
+{
+    unsigned events = terrain->sound_events;
+    terrain->sound_events = 0;
+    return events;
+}
+
 void terrain_update(Terrain *terrain, float dt)
 {
     for (int i = 0; i < terrain->count; i++) {
@@ -529,6 +544,11 @@ void terrain_update(Terrain *terrain, float dt)
 
 int terrain_explosions(Terrain *terrain, float *xs, int max)
 {
+    return terrain_explosions_typed(terrain, xs, NULL, max);
+}
+
+int terrain_explosions_typed(Terrain *terrain, float *xs, TerrainKind *kinds, int max)
+{
     int count = 0;
     bool more = true;
     while (more) { /* A blast sets off the barrels next to it, in the same step */
@@ -539,8 +559,11 @@ int terrain_explosions(Terrain *terrain, float *xs, int max)
                 continue;
             p->blowing = false;
             p->spent = true;
-            if (count < max)
+            if (count < max) {
+                if (kinds)
+                    kinds[count] = p->kind;
                 xs[count++] = p->x;
+            }
             /* Burning bits left on the ground round it, each dying out on its own. */
             for (int f = -1; f <= 1; f++) {
                 Piece *fire = terrain_add(terrain, TERRAIN_FIRE, p->x + (float)f * BLAST_FIRE_SPREAD);

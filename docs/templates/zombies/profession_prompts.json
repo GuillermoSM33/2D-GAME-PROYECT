@@ -1,0 +1,337 @@
+{
+  "generated_with": "Built-in image_gen imagegen tool; transparent background; source bitmap references supplied.",
+  "purpose": "Permanent raster authoring sources. Runtime PNGs are exported by tools/make_zombies.py; rejected body redesigns live only under build/rejected_zombies.",
+  "approved_reference": "Original assets/sprites/zombies/riot/walk.png plus user-approved soldier clothing-layer edit. No soldier_pose/chibi sources.",
+  "native_contract": {
+    "frame": [
+      72,
+      72
+    ],
+    "pivot_x": 27.5,
+    "ground_y": 68,
+    "visible_last_foot_row": 66,
+    "human_height": 58,
+    "dog_height": [
+      38,
+      40
+    ],
+    "dog_width": [
+      45,
+      52
+    ],
+    "facing": "right",
+    "actions": {
+      "idle": 4,
+      "walk": 8,
+      "run": 8,
+      "attack": 6,
+      "hurt": 3,
+      "death": 8,
+      "caught": 4
+    },
+    "attack_contact_frame": 2,
+    "death_prone_frame": 7
+  },
+  "clothing_prompt": "Production sprite edit based on the approved original Vaquera 2D pixel style: 58px adult figure in a 72px cell, warm dark clustered shading, small abstract face without drawn features. Preserve the source outfit, silhouette, proportions, folds and equipment for that profession. The complete source character is authoritative, including its head and clothes. Do not inherit the RIOT respirator, helmet, plates, sleeves, kneepads, eye dots or impact sparks on unrelated professions. Use the original RIOT only as a style and motion reference. Exactly eight separate walking poses in one horizontal transparent row, facing right, no background, captions or grid. Headgear must stay attached to its own head throughout animation; collars belong to the neck, badges to the chest, keys to the waist. A bare face is a small flat olive/grey block with one shadow, not a respirator recolored green.",
+  "profession_specifications": {
+    "soldier": "Keep the approved olive-khaki infantry helmet shell, camouflage jacket, webbing, belt ammunition pouches, trousers and boots. Under the helmet show uncovered featureless olive skin: no respirator, silver cage, mouthpiece, visor rim or added facial features. Do not change the approved clothing art.",
+    "police": "Small charcoal peaked police cap with brass badge, worn dark short uniform shirt/jacket with breast pockets and collar, matching trousers, belt holster and baton. No gun in hands.",
+    "riot_shield": "Keep existing riot silhouette/gear, add opaque dark gunmetal rectangular shield from chest to shin on forward arm, angular upper corners, two-level inset plate, brief edge highlights, no lettering.",
+    "sheriff": "Low broad brown sheriff hat/brass star, worn leather duster over tan vest, chest badge, gunbelt and holster, dark trousers, hands empty.",
+    "cowboy": "Wide worn brown curled-brim hat/ochre band, leather waistcoat, rust-red torn shirt, dark red neckerchief, worn chaps over trousers, no badge/duster.",
+    "priest": "Small uncovered hair silhouette, dark long split-tail cassock, cream clerical collar, narrow belt and small brass cross, dense dark cloth folds rather than flat black areas.",
+    "jailer": "Low leather peaked cap, worn heavy double-breasted coat with brass buttons, utility belt and large brass jail keys, trousers/boots, baton at opposite hip.",
+    "firefighter": "Dented brass fire helmet with rear neck brim, brown turnout coat with short ochre/cream bands on arms and hem, tool on belt, original adult body. Exposed face is an abstract two-tone olive/grey skin block without drawn eyes/nose/mouth; no RIOT cage or breathing mask.",
+    "butcher": "Small dirty cream cloth cap, rolled brown sleeves, stained warm beige/cream apron tied at waist to knees, cleaver on belt, old dark brown/red stains without facial detail.",
+    "burned": "Charred blackened torn uniform/helmet with ragged brown seams, restrained ember red/orange cracks and pale ash highlights; no large flames/smoke or new face features.",
+    "motorcycle": "Walking motorcyclist, round dark motorcycle helmet/opaque visor without military brim, worn dark leather biker jacket, diagonal zipper/lapels/snaps, dark pants, belt/boots; no vehicle."
+  },
+  "special_base_specifications": {
+    "skeleton_walk": "Very decomposed, gaunt adult zombie with continuous dried olive-gray cadaver skin, shredded dark shirt and torn brown trousers/shoes. Partial exposed bone only:2–3dull rib fragments through one chest tear and a narrow shin/forearm patch. Skin-covered featureless small head; no helmet/visor/respirator, no whole ivory skeleton or clean bone body. Same original riot's58px anatomy/poses and tiny dark clustered pixel style. Source skeleton_walk_clothes_source.png.",
+    "dog_walk": "New quadruped adult hound in original game's pixel style, dark earthy fur/olive rear-flank patch/small cream rib patch, four separated canine legs, pointed ears, long snout and straight shaggy tail,38-40px high45-52px wide in72cell, lastfeet66, abstract featureless head; eight actual walking poses. Source dog_walk_source.png."
+  },
+  "special_action_prompts": [
+    {
+      "file": "dog_run_source.png",
+      "prompt": "Production PIXEL ART sprite sheet for the SAME undead four-legged hound in reference1, preserving its exact breed, dark brown/ochre fur, olive ragged rear-flank patch and small3-rib cream patch, narrow waist, long angular snout, pointed small ears, straight shaggy tail. All side-view facing RIGHT, four genuine canine legs, never humanoid. Same tiny clustered palette/outline hand as original Vaquera2D, not cartoon or illustration, no gradients/grain/smoothness. Warm#252018 contour and restrained13-16earth colors. Abstract dog face with one shade, NO eyes/teeth/tongue/nose dots/facial details. Logical72x72 cells; standingheight38-40native pixels including ears, feetlastrow66, full dogwidth45-52px. Keep bodies/heads consistent across all frames and keep limbs inside each cell with transparent margins. Transparent background genuinely empty, no text/labels/grid/floor/shadow. Single HORIZONTAL row only. Exactly EIGHT consecutive real GALLOPING/RUNNING frames, native576x72: collect fourlegs, push off rear legs, suspended forward lunge, forelegs extended contact, body stretched horizontal with rearlegs behind, compress, suspended legs under belly, rearfoot landing into nextcycle. These are visibly DIFFERENT poses from walking: longer stride, forward lean, alternating suspended phases, four legs clearly distinguishable. No identical copied walkframes. Preserve same hound physical dimensions and features.",
+      "reference_files": [
+        "docs/templates/zombies/dog_walk_source.png"
+      ]
+    },
+    {
+      "file": "dog_attack_source.png",
+      "prompt": "Production PIXEL ART sprite sheet for the SAME undead four-legged hound in reference1, preserving its exact breed, dark brown/ochre fur, olive ragged rear-flank patch and small3-rib cream patch, narrow waist, long angular snout, pointed small ears, straight shaggy tail. All side-view facing RIGHT, four genuine canine legs, never humanoid. Same tiny clustered palette/outline hand as original Vaquera2D, not cartoon or illustration, no gradients/grain/smoothness. Warm#252018 contour and restrained13-16earth colors. Abstract dog face with one shade, NO eyes/teeth/tongue/nose dots/facial details. Logical72x72 cells; standingheight38-40native pixels including ears, feetlastrow66, full dogwidth45-52px. Keep bodies/heads consistent across all frames and keep limbs inside each cell with transparent margins. Transparent background genuinely empty, no text/labels/grid/floor/shadow. Single HORIZONTAL row only. Exactly SIX frames (not8), native432x72:0low crouched anticipation,1pull body back,2FULL ATTACK STRIKE pouncing RIGHT with forepaws/muzzle forward and one rearfoot onground,3short followthrough,4withdraw,5settle torest. The THIRD figure(index2) is the attack contact frame. Jaw may separate as a simple dark silhouette gap, NOteeth/details. Full creature remains inside each72x72cell. Only6figures.",
+      "reference_files": [
+        "docs/templates/zombies/dog_walk_source.png"
+      ]
+    },
+    {
+      "file": "dog_death_source.png",
+      "prompt": "Production PIXEL ART sprite sheet for the SAME undead four-legged hound in reference1, preserving its exact breed, dark brown/ochre fur, olive ragged rear-flank patch and small3-rib cream patch, narrow waist, long angular snout, pointed small ears, straight shaggy tail. All side-view facing RIGHT, four genuine canine legs, never humanoid. Same tiny clustered palette/outline hand as original Vaquera2D, not cartoon or illustration, no gradients/grain/smoothness. Warm#252018 contour and restrained13-16earth colors. Abstract dog face with one shade, NO eyes/teeth/tongue/nose dots/facial details. Logical72x72 cells; standingheight38-40native pixels including ears, feetlastrow66, full dogwidth45-52px. Keep bodies/heads consistent across all frames and keep limbs inside each cell with transparent margins. Transparent background genuinely empty, no text/labels/grid/floor/shadow. Single HORIZONTAL row only. Exactly EIGHT consecutive DYING/FALLING frames, native576x72:0standing neutral,1brief hit jolt,2front knees buckle,3head/chest lower,4tip onto its side,5fall onto ground with legs folding,6settle,7LAST figure fully lying motionless on its side with headRIGHT and legs folded close, body flat atnativey55..66, not standing/kneeling in lastcell. Groundlastbodypixels66. No particles/blood/gore, no detached parts.",
+      "reference_files": [
+        "docs/templates/zombies/dog_walk_source.png"
+      ]
+    },
+    {
+      "file": "skeleton_run_source.png",
+      "prompt": "PRECISE ANIMATION EDIT for Vaquera2D. Reference1 is the NEW APPROVED VERY DECOMPOSED FLESH-AND-RAGS ZOMBIE identity; reference2 supplies ONLY action poses/timing from the original game's riot zombie. Replace reference2's armored bodies with reference1's exact identity; retain reference1 skin/rags/partial-bones appearance and small head/body proportions in everyframe. This is NOT an ivory fantasy skeleton: most surfaces are continuous dried olive-gray cadaver skin plus shredded dark charcoal-brown shirt and torn brown trousers/worn dark shoes. Only2–3short dull ochre rib fragments through one torn chest patch and a narrow shin bone strip/one small forearm patch; remaining arms/legs/head still covered with attachedskin/tissue/rags. No clean whole ribcage/pelvis, no full all-bone limbs or feet. Head is SKIN-COVERED small13–14px flatolive-gray block with ONE broad dark shadow and NO facial features: no eyes/eyeholes/teeth/grin/mouth/nose. Absolutely NO helmet/cap/visor/respirator/careta/mask/armor fromreference2. Same narrow adult58nativepxbody, hunched thin24pxshoulders, long23pxlegs, torsoanchorx27.5 in72x72logicalcell, groundy68/lastfeet66 in contact. Match original game’s tiny irregular clustered1px detail and near-complete#252018outline;13–16flatcolors, darkmajority65–85%, small bonehighlights under10%, palette#4a5240 #6f7a5c #9aa37e skin,#252018 #463322 #684833 #876439rags,#2c2c2c #424242shadow, dullbrown/ochrebone(notivorywhite). No added brightcolors, no larger head, no smoothpainting/gradients/grain/dither/noise, no detailedgore/organs/splatter, no particles/sparks/orangeattackarcs. All figures faceRIGHT, all complete and separated inside72x72cells, exactly ONE horizontalrow, no text/labels/grid/floor/shadow, transparent background with clean emptyspace outsidefigures. Exactly EIGHT RUNNING poses, native576x72. Use reference2's distinct running support/push-off/suspension cycle:0rightfootcontact,1compress,2push-off,3AIRBORNEbothfeet3pxaboveground,4leftfootcontact/counterarms,5compress,6push-off,7AIRBORNEbothfeet2pxaboveground. Strong forwardlean and widerstride thanwalk, not identical walking poses or speedonly. Preserve same58pxbody/smallhead/skinpatches/shirt/pants fromreference1; no tissue disappears as legs extend.",
+      "reference_files": [
+        "docs/templates/zombies/skeleton_walk_clothes_source.png",
+        "assets/sprites/zombies/riot/run.png"
+      ]
+    },
+    {
+      "file": "skeleton_attack_source.png",
+      "prompt": "PRECISE ANIMATION EDIT for Vaquera2D. Reference1 is the NEW APPROVED VERY DECOMPOSED FLESH-AND-RAGS ZOMBIE identity; reference2 supplies ONLY action poses/timing from the original game's riot zombie. Replace reference2's armored bodies with reference1's exact identity; retain reference1 skin/rags/partial-bones appearance and small head/body proportions in everyframe. This is NOT an ivory fantasy skeleton: most surfaces are continuous dried olive-gray cadaver skin plus shredded dark charcoal-brown shirt and torn brown trousers/worn dark shoes. Only2–3short dull ochre rib fragments through one torn chest patch and a narrow shin bone strip/one small forearm patch; remaining arms/legs/head still covered with attachedskin/tissue/rags. No clean whole ribcage/pelvis, no full all-bone limbs or feet. Head is SKIN-COVERED small13–14px flatolive-gray block with ONE broad dark shadow and NO facial features: no eyes/eyeholes/teeth/grin/mouth/nose. Absolutely NO helmet/cap/visor/respirator/careta/mask/armor fromreference2. Same narrow adult58nativepxbody, hunched thin24pxshoulders, long23pxlegs, torsoanchorx27.5 in72x72logicalcell, groundy68/lastfeet66 in contact. Match original game’s tiny irregular clustered1px detail and near-complete#252018outline;13–16flatcolors, darkmajority65–85%, small bonehighlights under10%, palette#4a5240 #6f7a5c #9aa37e skin,#252018 #463322 #684833 #876439rags,#2c2c2c #424242shadow, dullbrown/ochrebone(notivorywhite). No added brightcolors, no larger head, no smoothpainting/gradients/grain/dither/noise, no detailedgore/organs/splatter, no particles/sparks/orangeattackarcs. All figures faceRIGHT, all complete and separated inside72x72cells, exactly ONE horizontalrow, no text/labels/grid/floor/shadow, transparent background with clean emptyspace outsidefigures. Exactly SIX ATTACK poses (not8), native432x72:0windup,1pullarmback,2FULLCLAWSTRIKEarmreachingRIGHT(contactframe),3followthrough,4recover,5settle. The THIRD figure(index2) is the full contact strike. Same legs/bodypose language asreference2 but only reference1's flesh/rags/partialbones. No metal equipment and no orange/red slashgraphic, just body/hand motion. All6wholefigures.",
+      "reference_files": [
+        "docs/templates/zombies/skeleton_walk_clothes_source.png",
+        "assets/sprites/zombies/riot/attack.png"
+      ]
+    },
+    {
+      "file": "skeleton_death_source.png",
+      "prompt": "PRECISE ANIMATION EDIT for Vaquera2D. Reference1 is the NEW APPROVED VERY DECOMPOSED FLESH-AND-RAGS ZOMBIE identity; reference2 supplies ONLY action poses/timing from the original game's riot zombie. Replace reference2's armored bodies with reference1's exact identity; retain reference1 skin/rags/partial-bones appearance and small head/body proportions in everyframe. This is NOT an ivory fantasy skeleton: most surfaces are continuous dried olive-gray cadaver skin plus shredded dark charcoal-brown shirt and torn brown trousers/worn dark shoes. Only2–3short dull ochre rib fragments through one torn chest patch and a narrow shin bone strip/one small forearm patch; remaining arms/legs/head still covered with attachedskin/tissue/rags. No clean whole ribcage/pelvis, no full all-bone limbs or feet. Head is SKIN-COVERED small13–14px flatolive-gray block with ONE broad dark shadow and NO facial features: no eyes/eyeholes/teeth/grin/mouth/nose. Absolutely NO helmet/cap/visor/respirator/careta/mask/armor fromreference2. Same narrow adult58nativepxbody, hunched thin24pxshoulders, long23pxlegs, torsoanchorx27.5 in72x72logicalcell, groundy68/lastfeet66 in contact. Match original game’s tiny irregular clustered1px detail and near-complete#252018outline;13–16flatcolors, darkmajority65–85%, small bonehighlights under10%, palette#4a5240 #6f7a5c #9aa37e skin,#252018 #463322 #684833 #876439rags,#2c2c2c #424242shadow, dullbrown/ochrebone(notivorywhite). No added brightcolors, no larger head, no smoothpainting/gradients/grain/dither/noise, no detailedgore/organs/splatter, no particles/sparks/orangeattackarcs. All figures faceRIGHT, all complete and separated inside72x72cells, exactly ONE horizontalrow, no text/labels/grid/floor/shadow, transparent background with clean emptyspace outsidefigures. Exactly EIGHT DYING/COLLAPSING poses, native576x72:0standing,1impactjolt,2kneesbuckle,3kneeling,4torso tippingforward,5fallsideways,6groundcontact,7LASTFULLYPRONE body onground with headRIGHT and torso/skin/rags attached, nativebottom66 andbodywithin x12..70,y52..66. Never standing/kneeling finalpose. Corpse keeps actualSKINONHEAD/ARMS and darkraggedcloth, not an ivory bonepile. No newgore/particles, no enlarginghead whenfalling.",
+      "reference_files": [
+        "docs/templates/zombies/skeleton_walk_clothes_source.png",
+        "assets/sprites/zombies/riot/death.png"
+      ]
+    }
+  ],
+  "shared_run_source": {
+    "file": "riot_run_source.png",
+    "prompt": "Use case: precise-object-edit. Create ONE reusable RUN animation sheet for the EXACT original riot zombie in reference1; reference2 is only the user-approved clothing edit showing acceptable tiny native pixel detail, NOT a new body style. Keep the original riot zombie's exact helmet/head shape, abstract olive face behind small visor, armor plates, narrow hunched adult silhouette, proportions, warm/neutral palette and finely clustered pixel rendering. Do not invent a new zombie, no chibi, no large head, no extra face features/eyes/teeth/nose. ORIGINAL body58nativepixels tall, head13-14pxwide, shoulders24-26, legs23px, feet10-13, torso anchorx27.5 in72x72cell, groundy68 and footlastpixel66 duringcontact. All faceRIGHT. Native single576x72 strip EIGHT complete distinct RUNNING poses with exact equal72x72cells, not a walk sheet with faster cadence. Same scale/equipment in everyframe. Stronger forward torso lean than walking (about10degrees), active arm counter-swing, distinctly wider leg stride. The8states:0rightfoot forwardcontact,leftlegtrails;1weightcompress kneesbend;2rearlegpush-off and bodyforward;3CLEAR AIRBORNE suspended stride BOTHfeet3pixelsABOVEground andlegsseparated;4leftfoot forwardcontact,rightlegtrails withcounterarms;5compress oppositefoot;6push-off oppositeleg;7CLEAR AIRBORNE recovery BOTHfeet2pixelsaboveground,kneesdrawnunderbody. Keep upperbody/helmet within72cell and faceabstract exactly the original's drawing language. RUN cycle must visibly show foot contact/push-off/suspension, no cloned frames, no simply shifted walking poses. Dark#252018outline, existing slate/gray armor and warm olive skin, same tiny1px clusters and short platehighlights, at most16flatcolors, no smooth/photorealpainting, no noise/dither/grain, no orange action arcs, no effects/particles, no text/labels/grid/floor/shadow. Transparent background. Only8figures in ONE horizontalrow, each fullyvisible with transparentmargin.",
+    "reference_files": [
+      "assets/sprites/zombies/riot/walk.png",
+      "assets/sprites/zombies/soldier/walk.png"
+    ],
+    "role": "Single shared original-riot running-pose source; reindex to the original riot palette before clothing transfer, preserve contact/suspension phases."
+  },
+  "skeleton_identity": {
+    "internal_id": "skeleton",
+    "appearance": "Skin-and-rags decomposed zombie with only partial bone exposure; not a fantasy skeleton.",
+    "native_size": [
+      72,
+      72
+    ],
+    "standing_height": 58,
+    "anchor_x": 27.5,
+    "ground_y": 68,
+    "visible_last_foot_row": 66,
+    "action_frames": {
+      "walk": 8,
+      "run": 8,
+      "attack": 6,
+      "death": 8
+    },
+    "palette": "14–18 dark native colors; preserve the actual original olive skin ramp #4a5240/#6f7a5c/#9aa37e for flesh rather than applying a clothing-only palette.",
+    "walk_source": "skeleton_walk_clothes_source.png",
+    "walk_prompt": "PRECISE CHARACTER CORRECTION for Vaquera2D. Image1 is an OLD REJECTED clean fantasy skeleton walk sheet to REPLACE; image2 is the ORIGINAL GAME'S riot zombie WALK anatomy/poses/pixel texture; image3 is the cowgirl's flat-face drawing style. The corrected enemy MUST be a VERY DECAYED HUMAN ZOMBIE WITH SKIN AND RAGGED CLOTHES, NOT an ivory fantasy skeleton and NOT a recolor of clean bones. Redesign all8figures of image1 into the SAME coherent new flesh-and-rags zombie identity while following image2's exact8walking pose sequence and original tiny pixel hand. Full-body sideview facing RIGHT, EIGHT distinct limping walking frames in ONE horizontal transparent strip, logical576x72 with72x72cells. Adult58nativepixelheight from small heady9 to lastshoe/footrow66; torsoanchorx27.5, groundy68, thin24pxshoulders, longlegs~23px, small13pxhead, forward stoop. Main visible surfaces must be dried OLIVE-GRAY cadaver skin and TORN DARK CLOTHING: desiccated narrow chest/arms with continuous flesh still attached, charcoal-brown shredded shirt with irregular torn sleeves and hem, torn dark-brown trousers, worn small dark shoes. Partial exposed BONE is a MINOR accent only:2or3short dull ochre/tan rib fragments through ONE ragged chest patch surrounded by skin, a small forearm patch and one narrow shin strip through a trouser tear. The rest remains skin/tissue/rags. NO whole ivory ribcage, NO clean uncovered skeleton torso/pelvis/arms/legs, NO detached bones, NO all-bone feet. Small head is SKIN-COVERED gray-olive, featureless flat shape with ONE broad dark shadow, no helmet/cap/visor/metal respirator/careta/mask. Absolutely NO drawn eyes/eyeholes/teeth/grin/mouth/nose/facial features; a tiny dull jaw-edge bone hint may be outside the skin silhouette, never a smiling skull. Character reads starved, exhausted, dried and severely decomposed, not muscular/chibi/cute. Pixel style MUST match the original riot/cowgirl: tiny irregular clustered1px highlights on material edges, nearly complete dark#252018outline,13-16flatcolors, majority dark values65-85%, restrained pale accents under10%. Actual original skin ramp#4a5240 #6f7a5c #9aa37e; rags#252018 #463322 #684833 #876439, shadows neutral#2c2c2c #424242; exposed bone muted brown/ochre, not white. NO smooth painting/gradients/glow/grain/dithering/pixelnoise, no detailed wounds/organs/splatter, no labels/text/numbers/grid/floor/shadow. All8nativefigures fully separated with transparent margins, same clothes, skin patches and partial bones everyframe, poses follow old riot's same limping legs and hunched reaching arm. Transparent background genuinely empty.",
+    "original_style_references": [
+      "assets/sprites/zombies/riot/walk.png",
+      "assets/sprites/characters/cowgirl/walk.png"
+    ],
+    "body_rules": "Small skin-covered abstract head, no new facial features; attached cadaver flesh and ragged clothing dominate;2–3partial ribs, narrow shin/forearm patches only. No armor, helmet, metal face frame, bright ivory bone body, or gore effects."
+  },
+  "historical_clothing_prompt": "PRECISE CLOTHING-ONLY BITMAP EDIT of the attached ORIGINAL zombie walk sheet. Preserve EXACT original eight72x72 poses in one horizontal row, limbs/body proportions, hunched thin silhouette, 58px body height, small head, face/skin/hands/boots and pixel-cluster shading. Do not redesign/redraw a different character. Change only outfit/equipment as described. Same native-pixel rendering and finely clustered1px material highlights/shadows as the existing riot; 13-16colors, mostly dark with few clear accents. Face remains the existing abstract gray/olive visor/skin block with NO NEW eyes/teeth/mouth/nose or other facial detail. No cartoon, no chibi, no grain/noise, no gradients/no smooth painting, no large flat unshaded blobs. Warm cloth browns and neutral metal from original art. Garment silhouette may alter just hat/equipment edges within72x72 logical frame, but underlying body/poses same. Eight full figures, each same original frame positions/scale, all facing RIGHT, no limbs outside owncell. No text, labels, grid or shadow. Transparent background genuinely preserved. Native576x72 horizontal8frame strip if possible. Think finished Aseprite clothing layer paintover, not concept art. ",
+  "head_equipment_policy": {
+    "riot_respirator_allowed": [
+      "riot",
+      "elite",
+      "riot_shield"
+    ],
+    "own_opaque_motorcycle_visor_allowed": [
+      "motorcycle"
+    ],
+    "bare_featureless_face_required": [
+      "soldier",
+      "police",
+      "burned",
+      "sheriff",
+      "cowboy",
+      "priest",
+      "jailer",
+      "firefighter",
+      "butcher",
+      "civil_male_1",
+      "civil_male_2",
+      "civil_male_3",
+      "civil_male_4",
+      "civil_male_5",
+      "civil_female_1",
+      "civil_female_2",
+      "civil_female_3",
+      "civil_female_4",
+      "civil_female_5"
+    ],
+    "source_head_is_authoritative": true,
+    "preserve_original_riot_pixels_only_for_riot_and_elite": true
+  },
+  "face_correction_edits": [
+    {
+      "id": "soldier",
+      "tool": "Built-in image_gen; head-only technical compositing afterwards",
+      "prompt": "Use case: precise-object-edit. This reference image is the EDIT TARGET, an approved eight-pose pixel-art soldier walking sprite strip. Make only ONE local correction repeated on the face of each of its EIGHT figures: REMOVE the entire front respirator/gas-mask face cage, including every silver or grey frame/rim, metal mouthpiece and visor. Under the unchanged military helmet, show a small bare ABSTRACT FLAT OLIVE face block with only TWO warm olive tones (#6f7a5c and #4a5240), one simple shadow. ABSOLUTELY NO eyes, eye sockets, yellow dots, mouth, nose, teeth, eyebrows, grille, visor line, respirator border or new facial details. The face should read as uncovered organic zombie skin, never a mask painted green. Keep the existing helmet shell, helmet silhouette, its padding behind the head, camouflage jacket, webbing, ammunition pouches, pants, boots, hands, body volume, pixel clusters and every eight walking poses EXACTLY as in the reference. Do not redesign or simplify clothing, do not change stance, proportions, texture, colors, transparency, frame positions, frame count or spacing. Keep all existing pixels outside the local face/respirator area unchanged as closely as possible. Preserve the complete same horizontal eight-figure row centered on the same transparent 2172x724 canvas or matching wide aspect. No other rows, no text, no background, no checkerboard, no floor or shadow. This is not a new character drawing: preserve the approved original clothing art.",
+      "source": "docs/templates/zombies/soldier_walk_clothes_source.png",
+      "source_before_sha256": "3f3df825e6187b991d2023ce8458f4096c4526d9f04d055fb149252b724026ae",
+      "source_after_sha256": "23d521c2d366efe45374593d29c9cd1ff1d97ea6cc31c7cebb7da786214cb769",
+      "changed_pixels_outside_face_regions": 0,
+      "face_regions": [
+        {
+          "frame": 0,
+          "bounds": [
+            125,
+            286,
+            179,
+            339
+          ]
+        },
+        {
+          "frame": 1,
+          "bounds": [
+            399,
+            286,
+            453,
+            339
+          ]
+        },
+        {
+          "frame": 2,
+          "bounds": [
+            672,
+            286,
+            726,
+            339
+          ]
+        },
+        {
+          "frame": 3,
+          "bounds": [
+            943,
+            286,
+            997,
+            339
+          ]
+        },
+        {
+          "frame": 4,
+          "bounds": [
+            1211,
+            286,
+            1265,
+            339
+          ]
+        },
+        {
+          "frame": 5,
+          "bounds": [
+            1485,
+            286,
+            1539,
+            339
+          ]
+        },
+        {
+          "frame": 6,
+          "bounds": [
+            1757,
+            286,
+            1811,
+            339
+          ]
+        },
+        {
+          "frame": 7,
+          "bounds": [
+            2027,
+            286,
+            2081,
+            339
+          ]
+        }
+      ]
+    },
+    {
+      "id": "firefighter",
+      "tool": "Built-in image_gen; head-only technical compositing afterwards",
+      "prompt": "Use case: precise-object-edit. This reference image is the EDIT TARGET, an approved eight-pose pixel-art firefighter walking sprite strip. Make only ONE tiny local correction repeated on the exposed face of each of the EIGHT figures: ERASE all existing eye dots, nose, mouth and other facial details so the face is an ABSTRACT FLAT OLIVE/GREY skin block with exactly TWO warm muted tones (#6f7a5c and #4a5240), one simple shadow. No black eye pixels, eye sockets, nose, mouth, teeth or eyebrows. Do not add any mask, face cage, gas-mask rim, transparent visor, silver border, grille or metal respirator. The head must still have the SAME brass fire helmet and its exact brim/back flap, helmet silhouette and scale. Keep all clothing and equipment EXACTLY unchanged: worn brown firefighter coat, cream/ochre reflective sleeve and hem stripes, belt tools, boots, hands, body volume, small pixel clusters and all EIGHT original walking poses. Do not redraw, recolor, simplify or reposition the body, helmet, clothes or limbs. Preserve the complete same horizontal eight-figure row, existing frame spacing and transparency, centered on the same transparent 2172x724 canvas or matching wide aspect. No other rows, no text, no background, no checkerboard, no floor or shadow. Only remove the facial features; preserve the approved clothing art.",
+      "source": "docs/templates/zombies/firefighter_walk_clothes_source.png",
+      "source_before_sha256": "45011e0e526e04f2140977709a349b975a37c2fb0ce00e70dbd41ed1f29b556b",
+      "source_after_sha256": "0af60ec896e4a867fd849164815ccb9f2705e4d6bd14e2c6ae38d69739a1d16c",
+      "changed_pixels_outside_face_regions": 0,
+      "face_regions": [
+        {
+          "frame": 0,
+          "bounds": [
+            131,
+            295,
+            173,
+            341
+          ]
+        },
+        {
+          "frame": 1,
+          "bounds": [
+            404,
+            294,
+            446,
+            340
+          ]
+        },
+        {
+          "frame": 2,
+          "bounds": [
+            675,
+            294,
+            717,
+            340
+          ]
+        },
+        {
+          "frame": 3,
+          "bounds": [
+            947,
+            294,
+            989,
+            340
+          ]
+        },
+        {
+          "frame": 4,
+          "bounds": [
+            1217,
+            294,
+            1259,
+            340
+          ]
+        },
+        {
+          "frame": 5,
+          "bounds": [
+            1490,
+            294,
+            1532,
+            340
+          ]
+        },
+        {
+          "frame": 6,
+          "bounds": [
+            1760,
+            294,
+            1802,
+            340
+          ]
+        },
+        {
+          "frame": 7,
+          "bounds": [
+            2033,
+            294,
+            2075,
+            340
+          ]
+        }
+      ]
+    }
+  ]
+}

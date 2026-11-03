@@ -21,6 +21,8 @@ typedef enum {
     ACTION_POWER,   /* The level-3 power: a grenade, a ricochet shot */
     ACTION_MELEE,   /* A blow with the gun */
     ACTION_BANDAGE, /* Held: stop the bleeding */
+    ACTION_ALMANAC, /* Field guide of encountered zombie types */
+    ACTION_LIGHT,   /* Toggle the hand-held night light */
     ACTION_COUNT
 } Action;
 
