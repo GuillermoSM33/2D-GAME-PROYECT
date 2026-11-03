@@ -89,6 +89,61 @@ def sleeve(shoulder: tuple, hand: tuple) -> dict:
     return out
 
 
+def without_hip_arm(px: dict) -> tuple[dict, tuple]:
+    """A shoot frame's pixels without her far arm (the grey sleeve on her hip
+    and the hand under it), her clothes carried on where it lay. Returns them
+    and where that arm's shoulder is."""
+    # Her arm on the hip: the grey sleeve and the hand under it, left of her gun arm.
+    # Its hand lay on her waist: no skin left below her chest there either.
+    arm = {(x, y) for (x, y), c in px.items()
+           if (x < 32 and y >= 33 and c[:3] in GREY_ARM) or
+           (x < NEAR_FROM_X and y >= 38 and c[:3] in SKIN) or
+           (x < GUN_FROM_X and y >= 49 and c[:3] in SKIN)}
+    greys = sorted((y, x) for (x, y) in arm if px[(x, y)][:3] in GREY_ARM)
+    shoulder = (greys[0][1] + 1, greys[0][0] + 1) if greys else (26, 37)
+    base = dict(px)
+    removed = set(arm)
+    for xy in arm:
+        del base[xy]
+    for (x, y), c in list(base.items()):                  # Its outline, left alone
+        if c[:3] == INK[:3] and not any((x + a, y + b) in base and base[(x + a, y + b)][:3] != INK[:3]
+                                        for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            del base[(x, y)]
+            removed.add((x, y))
+    # Where it lay on her (the hand on her hip): her clothes carry on there,
+    # copied from the nearest pixel on the right in the same row.
+    for (x, y) in sorted(removed, key=lambda xy: -xy[0]):
+        row = [xx for (xx, yy) in base if yy == y]
+        if not row or not min(row) < x < max(row):
+            continue
+        right = next((base[(xx, y)] for xx in range(x + 1, max(row) + 1)
+                      if (xx, y) in base and base[(xx, y)][:3] != INK[:3]), CORSET)
+        base[(x, y)] = right
+    # Her side, under where the arm was: an outline straight from the
+    # shoulder down to the waist, her clothes filled in up to it.
+    rows = sorted({y for (_, y) in arm if y < 50})
+    if rows:
+        def leftmost(y):
+            xs = [x for (x, yy) in base if yy == y and x < NEAR_FROM_X]
+            return min(xs) if xs else None
+        y0, y1 = rows[0] - 1, rows[-1] + 1
+        while y1 < SHOOT_H - 1 and leftmost(y1) is None:
+            y1 += 1
+        top, bottom = leftmost(y0), leftmost(y1)
+        if top is not None and bottom is not None:
+            for y in range(y0 + 1, y1):
+                edge = round(top + (bottom - top) * (y - y0) / (y1 - y0))
+                inner = leftmost(y)
+                if inner is None or inner <= edge:
+                    continue
+                fill = next((base[(xx, y)] for xx in range(inner, NEAR_FROM_X)
+                             if (xx, y) in base and base[(xx, y)][:3] != INK[:3]), CORSET)
+                for x in range(edge + 1, inner):
+                    base[(x, y)] = fill
+                base[(edge, y)] = INK
+    return base, shoulder
+
+
 def make_shoot_dual() -> Image:
     """Each frame of her shoot sheet with her far arm (the grey sleeve on her
     hip) raised: it crosses in front of her and holds a second hand cannon
@@ -105,54 +160,7 @@ def make_shoot_dual() -> Image:
             for (x, y), c in px.items():
                 out.set(ox + x, y, c)
             continue
-        # Her arm on the hip: the grey sleeve and the hand under it, left of her gun arm.
-        # Its hand lay on her waist: no skin left below her chest there either.
-        arm = {(x, y) for (x, y), c in px.items()
-               if (x < 32 and y >= 33 and c[:3] in GREY_ARM) or
-               (x < NEAR_FROM_X and y >= 38 and c[:3] in SKIN) or
-               (x < GUN_FROM_X and y >= 49 and c[:3] in SKIN)}
-        greys = sorted((y, x) for (x, y) in arm if px[(x, y)][:3] in GREY_ARM)
-        shoulder = (greys[0][1] + 1, greys[0][0] + 1) if greys else (26, 37)
-        base = dict(px)
-        removed = set(arm)
-        for xy in arm:
-            del base[xy]
-        for (x, y), c in list(base.items()):                  # Its outline, left alone
-            if c[:3] == INK[:3] and not any((x + a, y + b) in base and base[(x + a, y + b)][:3] != INK[:3]
-                                            for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                del base[(x, y)]
-                removed.add((x, y))
-        # Where it lay on her (the hand on her hip): her clothes carry on there,
-        # copied from the nearest pixel on the right in the same row.
-        for (x, y) in sorted(removed, key=lambda xy: -xy[0]):
-            row = [xx for (xx, yy) in base if yy == y]
-            if not row or not min(row) < x < max(row):
-                continue
-            right = next((base[(xx, y)] for xx in range(x + 1, max(row) + 1)
-                          if (xx, y) in base and base[(xx, y)][:3] != INK[:3]), CORSET)
-            base[(x, y)] = right
-        # Her side, under where the arm was: an outline straight from the
-        # shoulder down to the waist, her clothes filled in up to it.
-        rows = sorted({y for (_, y) in arm if y < 50})
-        if rows:
-            def leftmost(y):
-                xs = [x for (x, yy) in base if yy == y and x < NEAR_FROM_X]
-                return min(xs) if xs else None
-            y0, y1 = rows[0] - 1, rows[-1] + 1
-            while y1 < SHOOT_H - 1 and leftmost(y1) is None:
-                y1 += 1
-            top, bottom = leftmost(y0), leftmost(y1)
-            if top is not None and bottom is not None:
-                for y in range(y0 + 1, y1):
-                    edge = round(top + (bottom - top) * (y - y0) / (y1 - y0))
-                    inner = leftmost(y)
-                    if inner is None or inner <= edge:
-                        continue
-                    fill = next((base[(xx, y)] for xx in range(inner, NEAR_FROM_X)
-                                 if (xx, y) in base and base[(xx, y)][:3] != INK[:3]), CORSET)
-                    for x in range(edge + 1, inner):
-                        base[(x, y)] = fill
-                    base[(edge, y)] = INK
+        base, shoulder = without_hip_arm(px)
         gun_px = px
         glove = [(x, y) for (x, y), c in px.items() if x >= NEAR_FROM_X and c[:3] in GLOVE]
         if glove:

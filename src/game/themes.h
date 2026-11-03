@@ -30,6 +30,7 @@ extern const BackgroundLayer FOG_LAYER;
 typedef struct {
     const char *name; /* Its folder in assets/backgrounds */
     bool fog;         /* Has a fog.png */
+    bool night;       /* After dark: more coffins, and the night ones (coffin.png 2-3) */
     /* How often each prop is picked for a big decoration (0 = never). Grass
      * tufts are scattered on their own and don't use this. */
     int prop_weights[PROP_KIND_COUNT];

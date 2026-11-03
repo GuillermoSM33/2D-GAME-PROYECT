@@ -32,6 +32,8 @@ typedef struct {
     const char *ability_lines[CHARACTER_ABILITY_LINES]; /* Short description, one line each */
     WeaponId weapons[CHARACTER_MAX_WEAPONS];
     int weapon_count;
+    float armor;            /* At level 1... */
+    float armor_per_level;  /* ...and gained each level */
     Power power;
     const char *power_name;  /* Shown on its card: what POWER_LEVEL brings */
     WeaponId power_weapon;   /* POWER_DUAL_PISTOLS: what weapons[0] becomes */
@@ -48,6 +50,9 @@ int character_drops_chests(const CharacterDef *character);
 
 /* The gun in a slot at a level (its power may have changed it). */
 WeaponId character_weapon(const CharacterDef *character, int slot, int level);
+
+/* Its armor at an armor level. */
+float character_armor(const CharacterDef *character, int armor_level);
 
 /* Whether it throws grenades at that level. */
 bool character_throws(const CharacterDef *character, int level);

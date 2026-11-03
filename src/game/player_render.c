@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "engine/assets.h"
+#include "game/hang_render.h"
 
 /* Rows [row0, row1) of one frame of def's sheet, placed as the whole frame
  * would be: pivot on her x, ground row on the baseline. */
@@ -29,7 +30,10 @@ static void draw_rows(SDL_Renderer *renderer, SDL_Texture *sheet, const Animatio
 static void tint(SDL_Texture *sheet, const Player *player)
 {
     bool blink_on = fmodf(player->hurt_time, 2.0f * PLAYER_BLINK_PERIOD) > PLAYER_BLINK_PERIOD;
-    if (!player_alive(player)) {
+    if (player->ghost) { /* Herself, seen by a parched mind: pale and see-through */
+        SDL_SetTextureColorMod(sheet, 190, 205, 255);
+        SDL_SetTextureAlphaMod(sheet, 110);
+    } else if (!player_alive(player) && !player->fainted) { /* Fainted she is drawn as she is */
         SDL_SetTextureColorMod(sheet, 140, 90, 90);
         SDL_SetTextureAlphaMod(sheet, 170);
     } else if (player->hurt_time > 0.0f && blink_on) {
@@ -68,6 +72,100 @@ static void untint(SDL_Texture *sheet)
     SDL_SetTextureAlphaMod(sheet, 255);
 }
 
+/* Wet: now and then a drop falls off her (whole art px, pale blue). */
+static void draw_drips(SDL_Renderer *renderer, const Player *player, float camera_x)
+{
+    if (player->wet <= 0.0f || !player_alive(player))
+        return;
+    const int px = SPRITE_SCALE;
+    double t = SDL_GetTicks() / 1000.0;
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0x9c, 0xcc, 0xe4, (Uint8)lroundf(200.0f * fminf(1.0f, player->wet * 2.0f)));
+    for (int i = 0; i < 4; i++) {
+        /* Each drop falls from her hair, hands or hem down to the ground, on its own beat. */
+        static const int FROM[4][2] = {{-5, 50}, {6, 34}, {-3, 22}, {4, 14}};
+        double phase = fmod(t * 1.3 + i * 0.37, 1.0);
+        int x = (int)lroundf(player->x - camera_x) + FROM[i][0] * px * player->facing;
+        int top = BASELINE - FROM[i][1] * px - (int)lroundf(player->jump.height);
+        int y = top + (int)(phase * FROM[i][1] * px) / px * px;
+        SDL_Rect r = {x / px * px, y, px, 2 * px};
+        SDL_RenderFillRect(renderer, &r);
+    }
+}
+
+/* Drinking or binding a wound: her own sheet for it (<id>/drink, <id>/bandage,
+ * the shoot template). Walking meanwhile, the walk's legs below and it above
+ * (for the bandage, down to her thigh). Returns whether it drew her. */
+static bool draw_care(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin, int gun,
+                      float camera_x)
+{
+    int frame;
+    const AnimationDef *care = player_care_animation(player, &frame);
+    SDL_Texture *sheet = care ? skin_sheet(skin, care->sheet, gun) : NULL;
+    if (sheet == NULL)
+        return false;
+    const AnimationDef *walk_def = player->anim.def;
+    bool walking = (player->state == PLAYER_WALK || player->state == PLAYER_RUN) && walk_def != NULL &&
+                   walk_def->frame_w == PLAYER_WALK_FRAME_W;
+    SDL_Texture *walk = walking ? skin_sheet(skin, walk_def->sheet, gun) : NULL;
+    int split = care->frame_h;
+    if (walk) {
+        int waist = PLAYER_WAIST_ROW + (care->ground_y - walk_def->ground_y);
+        split = player->bandage > 0.0f ? waist + 8 : waist;
+        tint(walk, player);
+        draw_rows(renderer, walk, walk_def, player->anim.frame, PLAYER_WAIST_ROW, walk_def->frame_h, player, camera_x);
+        untint(walk);
+    }
+    tint(sheet, player);
+    draw_rows(renderer, sheet, care, frame, 0, split, player, camera_x);
+    untint(sheet);
+    return true;
+}
+
+/* Hanging in a trap: up in a net bag, kicking, or yanked up by a foot from a
+ * snare's sapling (a quarter turn, then head down: whole turns keep the
+ * pixel art true); a blow at the ropes shows her strike frame. */
+static void draw_caught(SDL_Renderer *renderer, const CharacterSkin *skin, int gun, const Player *player,
+                        float camera_x)
+{
+    const AnimationDef *def = player->anim.def;
+    int frame = player->anim.frame;
+    if (player->catch_shake > 0.0f) {
+        def = player_melee_animation();
+        frame = PLAYER_MELEE_HIT_FRAME;
+    }
+    SDL_Texture *sheet = skin_sheet(skin, def->sheet, gun);
+    if (sheet == NULL)
+        return;
+    bool left = player->facing == FACING_LEFT;
+    bool snare = player->catch_kind == CATCH_SNARE;
+    float t = player->catch_time;
+    float x = player->x - camera_x + (float)(hang_sway(t) * SPRITE_SCALE);
+    float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;
+    float lift = hang_lift(player->catch_kind, t);
+    SDL_Rect src = {frame * def->frame_w, 0, def->frame_w, def->frame_h};
+    SDL_Rect dst = {(int)lroundf(x - anchor_x * SPRITE_SCALE),
+                    BASELINE - def->ground_y * SPRITE_SCALE - (int)lroundf(lift),
+                    def->frame_w * SPRITE_SCALE, def->frame_h * SPRITE_SCALE};
+    int flip = left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    double angle = 0.0;
+    int turn = snare ? hang_turn(t) : 0;
+    if (turn == 1) { /* Swung off her feet, sideways */
+        angle = left ? 90.0 : -90.0;
+        dst.y -= def->frame_h * SPRITE_SCALE / 4;
+    } else if (turn == 2) { /* Head down: her feet where her hat was */
+        flip |= SDL_FLIP_VERTICAL;
+        dst.y = BASELINE - (int)lroundf(lift) - (def->ground_y + 1) * SPRITE_SCALE;
+        float foot_y = (float)(dst.y + (def->frame_h - 1 - def->ground_y) * SPRITE_SCALE);
+        hang_rope(renderer, player->catch_anchor_x - camera_x, player->catch_anchor_y, x, foot_y);
+    }
+    tint(sheet, player);
+    SDL_RenderCopyEx(renderer, sheet, &src, &dst, angle, NULL, (SDL_RendererFlip)flip);
+    untint(sheet);
+    if (!snare)
+        hang_net(renderer, x, (float)BASELINE - lift + 2.0f * SPRITE_SCALE, t);
+}
+
 void player_render(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
                    const WeaponId *guns, int weapon_slot, float camera_x)
 {
@@ -82,8 +180,22 @@ void player_render(SDL_Renderer *renderer, const Player *player, const Character
         sheet = skin_sheet(skin, "shoot", gun);
         frame = PLAYER_SHOOT_RELOAD_FRAME;
     }
+    if (sheet == NULL && player->fainted) { /* No faint art: the standing frame, dimmed */
+        def = NULL;
+        sheet = skin_sheet(skin, "walk", gun);
+        frame = 0;
+    }
     if (sheet == NULL)
         return;
+    if (def == NULL) {
+        static const AnimationDef STAND = {.frame_w = PLAYER_WALK_FRAME_W, .frame_h = PLAYER_WALK_FRAME_H,
+                                           .anchor_x = 19.5f, .ground_y = 61};
+        def = &STAND;
+    }
+    if (player->state == PLAYER_CAUGHT) {
+        draw_caught(renderer, skin, gun, player, camera_x);
+        return;
+    }
 
     const AnimationDef *legs = player->legs.def;
     SDL_Texture *walk = legs ? skin_sheet(skin, legs->sheet, gun) : NULL;
@@ -99,10 +211,14 @@ void player_render(SDL_Renderer *renderer, const Player *player, const Character
         draw_rows(renderer, sheet, def, frame, 0, waist, player, camera_x);
         untint(sheet);
         heal_glow(renderer, player, camera_x);
+        draw_drips(renderer, player, camera_x);
         return;
     }
-    tint(sheet, player);
-    draw_rows(renderer, sheet, def, frame, 0, def->frame_h, player, camera_x);
-    untint(sheet);
+    if (!draw_care(renderer, player, skin, gun, camera_x)) {
+        tint(sheet, player);
+        draw_rows(renderer, sheet, def, frame, 0, def->frame_h, player, camera_x);
+        untint(sheet);
+    }
     heal_glow(renderer, player, camera_x);
+    draw_drips(renderer, player, camera_x);
 }

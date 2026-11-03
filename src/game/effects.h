@@ -31,4 +31,7 @@ int effects_active_count(const Effects *effects);
 /* Sparks of a bullet hitting armor. */
 const AnimationDef *effect_sparks(void);
 
+/* Water thrown up at the feet of a walker in a river or a puddle. */
+const AnimationDef *effect_splash(void);
+
 #endif

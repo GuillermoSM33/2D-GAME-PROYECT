@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "game/themes.h"
+#include "game/weather.h"
 #include "game/zombie.h"
 
 /* What stands along a stage's route, at a share of its length. */
@@ -16,7 +17,15 @@ typedef enum {
     SPOT_CRATES,    /* count loose crates: shoot them open for loot */
     SPOT_BOTTLES,   /* Bottles on a fence: a target for XP */
     SPOT_TRAPS,     /* count bear traps in the dirt */
-    SPOT_COFFINS,   /* count coffins, a riot zombie shut in each: an ambush */
+    SPOT_COFFINS,   /* count coffins, a riot zombie shut in each (more often by night) */
+    SPOT_AMBUSH,    /* count riot zombies walking in from off screen when she gets here */
+    SPOT_RUNNERS,   /* A pack of count runners (fast, frail), asleep like a group */
+    SPOT_WIRE,      /* Barbed wire across the road: cut it (shots, blows) or bleed through */
+    SPOT_NET,       /* A net trap under the leaves */
+    SPOT_SNARE,     /* A snare by a sapling */
+    SPOT_SPIKES,    /* count spike plates */
+    SPOT_RIVER,     /* A river across the road: slow to wade */
+    SPOT_PUDDLES,   /* count puddles */
     SPOT_LAMPS,     /* count oil lamps on posts: shoot one down to set the ground on fire */
     SPOT_REST,      /* A bench and a campfire by it: sit to reload, warm up to heal */
     SPOT_BARRELS,   /* count powder barrels side by side: a shot blows them up */
@@ -45,6 +54,9 @@ typedef struct {
     float length;         /* Window px from her start to the goal */
     const StageSpot *spots; /* In route order */
     int spot_count;
+    Weather weather;        /* Rain, wind, a storm, or clear */
+    bool hot;               /* Heat haze over the road; her blows come slower */
+    bool cold;              /* A cold night: slower blows and steps, slower to dry */
 } StageDef;
 
 extern const StageDef STAGES[];
@@ -56,6 +68,10 @@ int stage_zombie_level(const StageDef *stage, int index);
 /* Charges of dynamite the supply wagon holds: more the longer the road
  * (1 short, 2 medium, 3 very long). */
 int stage_supply_dynamite(const StageDef *stage);
+
+/* Share of the usual XP each of its kills and zombie chests gives (1 for a
+ * stage of STAGE_XP_ZOMBIES zombies or fewer, less with more). */
+float stage_xp_share(const StageDef *stage);
 
 /* Kind of the stage's zombie number index: riot or elite. */
 const ZombieStats *stage_zombie_stats(const StageDef *stage, int index);

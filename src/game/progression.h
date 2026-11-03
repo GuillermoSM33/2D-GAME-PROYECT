@@ -18,6 +18,7 @@ typedef struct {
     int xp;           /* Toward the next level */
     int weapon_level; /* Sets her damage (damage.c) */
     int armor_level;  /* Sets her armor */
+    int gold;         /* From crates and chests, shown in the HUD */
 } Progress;
 
 void progress_init(Progress *progress);

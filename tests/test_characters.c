@@ -32,7 +32,7 @@ static void test_weapons_are_on_par(void)
     /* Each gun its own way, but none much stronger against the riot zombie at
      * any level: within 20% of the revolver's damage per second. */
     for (int level = 1; level <= 6; level++) {
-        Progress p = {level, 0, level, level};
+        Progress p = {level, 0, level, level, 0};
         float base = progress_damage(&p);
         float armor = level_armor(ZOMBIE_RIOT.armor, ZOMBIE_ARMOR_PER_LEVEL, level);
         float revolver = weapon_dps(WEAPON_REVOLVER, base, armor);
@@ -121,6 +121,19 @@ static void test_dual_pistols_are_a_reward(void)
     CHECK(sum / (float)n > 1.1f && sum / (float)n < 1.5f);
 }
 
+static void test_armor_by_character(void)
+{
+    /* The SWAT is the armored one and gains the most each level; the cowgirl
+     * the least (her guns are her strength). Everyone's grows with level. */
+    const CharacterDef *cowgirl = &CHARACTERS[0], *swat = &CHARACTERS[1];
+    for (int level = 1; level <= 10; level++) {
+        CHECK(character_armor(swat, level) > character_armor(cowgirl, level));
+        for (int c = 0; c < CHARACTER_COUNT; c++)
+            CHECK(character_armor(&CHARACTERS[c], level + 1) > character_armor(&CHARACTERS[c], level));
+    }
+    CHECK(swat->armor_per_level > cowgirl->armor_per_level);
+}
+
 static void test_select_wraps_and_confirms(void)
 {
     CharSelect select;
@@ -147,6 +160,7 @@ int main(void)
     RUN(test_weapons_are_on_par);
     RUN(test_guns_kill_about_as_fast);
     RUN(test_dual_pistols_are_a_reward);
+    RUN(test_armor_by_character);
     RUN(test_select_wraps_and_confirms);
     return TEST_EXIT();
 }

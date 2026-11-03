@@ -19,6 +19,8 @@ typedef enum {
     ACTION_USE,     /* Light a charge on a wall */
     ACTION_VAULT,   /* Leap over a low barricade */
     ACTION_POWER,   /* The level-3 power: a grenade, a ricochet shot */
+    ACTION_MELEE,   /* A blow with the gun */
+    ACTION_BANDAGE, /* Held: stop the bleeding */
     ACTION_COUNT
 } Action;
 

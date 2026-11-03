@@ -27,14 +27,16 @@ controles también se ven en el menú, en **Controles**:
 | Clic izquierdo | Disparar (mantenido: ráfagas del rifle) |
 | `R` | Recargar (cuando el cargador no está lleno; tras una derrota, reintentar) |
 | `Q` o clic derecho | Cambiar de arma (el SWAT), en cualquier momento |
-| `E` | Poner dinamita en un muro alto, o sentarse en una banca |
+| `E` | Poner dinamita en un muro alto, sentarse en una banca, o plantar dinamita en el suelo |
+| `V` | Culatazo (un mazazo; cada 1.5 s): empuja y hiere a los zombis, corta alambre, rompe cajas; atrapado, golpea la cuerda |
+| `U` | Si sangra, vendarse (mantener; detiene el sangrado en 1.5 s, caminando a la mitad de velocidad); si no, beber un galón de agua |
 | `N` | Atravesar una barricada baja |
 | `F` o clic central | Poder de nivel 3 (cada 15 s): granada del SWAT, disparo de rebote de la vaquera |
 | `Esc` | Pausa: Continuar, Reiniciar nivel, Volumen, Controles, Salir al menú |
 | `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y volumen) |
 
 Durante el nivel, el HUD muestra la vida, el arma con sus balas (o `RECARGANDO`), la dinamita,
-los zombis vencidos y los metros a la salida. Mientras recarga puede caminar a media velocidad.
+el oro, los zombis vencidos y los metros a la salida. Mientras recarga puede caminar a media velocidad.
 `--capturas DIR` guarda cada pantalla como BMP (menús, una pelea, un muro, la pausa, una
 derrota) para revisar el arte sin jugar.
 
@@ -111,23 +113,45 @@ distinta por tema:
   Mientras un grupo pelea no se puede seguir (`¡ACABA CON ELLOS!`); al vencerlo, `¡ADELANTE! →`.
   Cuando la rodean se forman en fila.
 - **Zombi de élite** (desde 1-3): más blindado, garra más dura, tono rojizo; siempre deja cofre.
-- **Ataúdes** (cementerio, pueblo fantasma): un zombi encerrado que revienta la tapa cuando ella
-  se acerca o le dispara. Emboscada; cuenta en la misión.
-- **Barricadas bajas**: se saltan, se sube uno encima (fuera del alcance de la garra) o se
-  **atraviesan con N**. Los zombis las rompen a zarpazos.
+- **Corredores** (desde 1-2): manadas de zombis verdosos, frágiles y casi el doble de rápidos.
+- **Emboscadas** (`¡EMBOSCADA!`): al llegar a ciertos puntos (casi siempre antes de un muro) entran zombis caminando desde fuera de la pantalla, por detrás y, si
+  el camino está libre, por delante. Hasta vencerlos no se puede seguir, pero queda espacio
+  para moverse (560 px más allá del punto).
+- **Ataúdes** (de día y de noche; de noche hay más: 85 % de los sitios contra 40 %): un zombi encerrado que revienta la tapa cuando ella
+  se acerca o le dispara. Cuenta en la misión. Mientras sigue dentro no se mueve ni se ve.
+- **Barricadas bajas** de cuatro tipos: cajas, sacos de arena, troncos con estacas y valla de
+  acero (aguantan más zarpazos en ese orden; la valla, el doble que las cajas). Se saltan, se
+  sube uno encima (fuera del alcance de la garra) o se **atraviesan con N**. Los zombis las
+  rompen a zarpazos y ella a culatazos.
+- **Alambre de púas**: no detiene, pero si lo cruza sin cortarlo (por debajo de 70 px) la
+  muerde cada 0.8 s: herida, sangrado y cojera. Se corta con 4 balazos o 2 culatazos (o una
+  explosión). Al acercarse, el aviso dice qué hacer.
+- **Red** (bajo las hojas): salta del suelo y se cierra alrededor de quien la pisa, que queda
+  colgando y pataleando; ella sale con 3 culatazos a la cuerda (`V`) mientras los zombis la
+  atacan; un zombi cuelga 4 s y cae herido.
+- **Lazo**: el arbolito doblado se endereza de golpe y la levanta de un pie (un cuarto de vuelta
+  y queda cabeza abajo); sale con 2 culatazos. Un zombi cuelga 5 s.
+- **Placas de púas**: al pisarlas, 0.35 s después salen púas durante 0.8 s y hieren (con
+  sangrado) a quien esté encima; luego se esconden y se rearman. Se evitan saltando.
 - **Muros altos**: una empalizada que cierra el hueco entre las ruinas de una casa o, uno de
   cada dos, la puerta atrancada de un edificio que cruza el camino (iglesia, comisaría,
   herrería, establo; la fachada es decorado y queda tras volar la puerta); no se saltan y
   paran las balas. Se vuelan con **dinamita** (`E`; mecha de 2.5 s,
   hay que alejarse) o con un barril al lado; los zombis tardan mucho en tirarlos. La dinamita
-  sale de cajas, de cajas de madera rotas y de la carreta.
+  sale de cajas, de cajas de madera rotas y de la carreta. Lejos de muros y bancas, `E` la
+  planta en el suelo: estalla como un barril, buena para un grupo que se acerca.
 - **Barriles de pólvora**: un disparo los hace estallar; hieren a los zombis cerca (320 px hasta
   el borde del cuerpo), encienden barriles vecinos y rompen barricadas, muros, cajas y faroles;
   también la lastiman a ella. Dejan fuego en el suelo unos 2 s, que quema a quien lo pise.
-- **Cajas de madera**: 3 balazos (o una explosión) y sueltan botín, el mismo siempre para cada
-  caja: balas para el arma en mano, 20 % de vida, una dinamita u oro (experiencia).
+- **Cajas de suministros**: llevan pintado en una etiqueta lo que tienen (bala, cruz roja,
+  dinamita o moneda). 3 balazos o culatazos (o una explosión) y sueltan su botín: balas para el
+  arma en mano, 20 % de vida (no si las rompe una explosión), una dinamita u oro (que se ve en
+  el HUD y da experiencia). En 1-1 y 1-2 un aviso pide dispararles. El rebote de la vaquera
+  atraviesa la primera caja y sigue a la siguiente.
 - **Botellas en la cerca** (atardecer, pueblo): tiro al blanco; las tres dan experiencia.
-- **Trampas para osos**: atrapan 3 s al zombi que las pisa y lo hieren; si las pisa ella, la muerden.
+- **Trampas para osos**: atrapan 3 s al zombi que las pisa y lo hieren; si las pisa ella, la muerden,
+  sangra 5 s (pierde vida cada segundo aunque tenga armadura) y cojea 4 s; deja un rastro de
+  sangre y el HUD muestra cuánto le queda de cada cosa. Se pueden saltar.
 - **Faroles de aceite** (noche, pueblo): iluminan; derribados de un disparo dejan el suelo
   ardiendo 5 s, que quema a los zombis que pasan (y a ella).
 - **Carreta de provisiones**: una vez por nivel, cargadores llenos, 35 % de vida y dinamita
@@ -140,12 +164,54 @@ distinta por tema:
   aura verde con un `+`. Si se queda sentada un rato, empieza a cabecear. Se levanta al moverse,
   saltar, disparar o recibir un golpe.
 
+**Clima** por nivel: viento en 1-1 y 1-4 (polvo, hojas y alguna planta rodadora), lluvia en
+1-2 y 1-3 (gotas inclinadas que salpican en el camino, el cielo más oscuro) y tormenta en 1-5
+(lluvia con viento y relámpagos).
+
+**Estados** (bajo la vida en el HUD, como íconos pequeños con los segundos que quedan; al
+pasar el mouse sobre uno se abre con su nombre y explicación): sangrado y lentitud de las
+trampas, **rapidez** con el viento a favor y **lentitud** en contra (también a los zombis; el
+viento sopla hacia la derecha), **lentitud** en el río (más contra la corriente), **calor** en 1-1
+(reflejos de calor sobre el camino; el culatazo tarda 2.1 s en volver) y **mal presagio**: antes
+del 38 % de las emboscadas avisa que puede haber una cerca. Algunas trampas (una de cada cuatro)
+tienen un **cartel de cuidado** antes; si es de las que hacen sangrar, el aviso recuerda que `U`
+la venda. Al vendarse su mano enrolla la venda en el muslo, vuelta a vuelta (`bandage.png` de cada
+personaje).
+
+**Agua**: **charcos** (sobre todo con lluvia) que salpican y hacen ondas al pisarlos, y **ríos**
+que cruzan el camino con su corriente animada, poco profundos (el agua a los tobillos, el lecho
+de arena a la vista) y siempre a 25 m o más de cualquier edificio (las casas del fondo tampoco
+quedan sobre ellos): vadearlos va a la mitad de velocidad, para ella y para los zombis, con
+el agua tapándoles los tobillos y salpicando a cada paso. Al salir del río queda **húmeda**
+(gotea) hasta secarse: 8 s con calor, 11 s normal, 15 s con frío y 6 s junto a una fogata.
+
+**Frío** (1-3 y 1-4, de noche): el culatazo tarda más y camina un poco más lento. Junto a una
+fogata hay **calor agradable**: cura poco a poco. Pero con calor (1-1) la fogata no cura: da
+**fatiga**; a los 10 s se mueve, golpea y dispara más lento, a los 15 s le da un **golpe de
+calor** (la vista se nubla y arde) y a los 20 s se desmaya (se tambalea, se le doblan las rodillas y cae de bruces:
+`faint.png`, `tools/make_faint.py`) y el nivel empieza de nuevo. Un **galón de agua**
+(de las cajas con la etiqueta del galón, o uno en la carreta; se guarda en el inventario, junto
+al oro en el HUD) se bebe con `U` cuando no sangra: 1.2 s llevándose el galón a la boca
+(`drink.png` de cada personaje), caminando al 25 % de la velocidad; quita la fatiga y la deja **refrescada**
+20 s, sin los efectos del calor. Mientras está **hidratada** se mueve un poco más rápido.
+
+**Sed**: crece con el tiempo (el doble con calor, menos con frío) y un galón la quita. A los
+40 (unos 40 s con calor) está **sedienta** (boca seca); a los 70, **deshidratada** (algo más
+lenta, empieza a alucinar); a los 100, **alucinación**: zombis falsos, pálidos y parpadeantes,
+entran caminando desde los bordes y se desvanecen al llegar a ella o al dispararles (la bala se
+pierde), y a ratos se ve a sí misma, adelante, mirándola.
+
+**Cuervos**: bandadas picoteando el camino. Se van volando, lejos de ella, si se acerca
+caminando o al oír un disparo (900 px) o una explosión (1800 px). Se les puede disparar (en
+vuelo cruzan la línea de tiro): caen, quedan en el suelo y se desvanecen; una explosión cerca
+también los mata.
+
 Lejos del camino, detrás, se ven casas (saloon, chozas, graneros, casas caídas, tanques de agua), más en el pueblo
 fantasma; son solo fondo. El fuego, la fogata y las explosiones sueltan humo que sube; los faroles, el fuego y la fogata
 iluminan alrededor.
 
-Al vencer a un zombi, cuando su cuerpo se desvanece, deja un **cofre** si el personaje tiene esa
-habilidad (la vaquera; según `chest_every`). El cofre se abre al acercarse (`chest/open.png`, 6
+Al vencer a un zombi, en cuanto cae al suelo, deja un **cofre** si el personaje tiene esa
+habilidad (la vaquera; según `chest_every`), también el último del nivel. El cofre se abre al acercarse (`chest/open.png`, 6
 cuadros) soltando chispas doradas (`sparks.png`: luz por la rendija, estallido de rayos y
 destellos que suben), da su experiencia, se queda abierto un momento y se desvanece. Vencidos
 todos (la **misión**), aparece el **cofre de la misión** en la salida; abrirlo completa el nivel.
@@ -375,6 +441,10 @@ tools/make_terrain.py    Genera el terreno del camino (barricadas, muro, barrile
 tools/make_ui.py         Genera la fuente pixel y el kit de interfaz (tableros, botones, teclas, iconos, armas)
 tools/make_sit.py        Genera las hojas de sentado, de frente (sentarse, descansar, recargar sentada, cabecear)
 tools/make_sun.py        Pinta el sol entero en los cielos de atardecer y pueblo fantasma
+tools/make_terrain.py    (también el cuervo: sprites/crow/crow.png)
+tools/make_care.py       Beber y vendarse de la vaquera (drink.png, bandage.png) a partir de su hoja de disparo
+tools/make_faint.py      El desmayo de la vaquera y el SWAT (faint.png) a partir de su hoja de caminar
+tools/make_melee.py      El culatazo de la vaquera (melee.png) a partir de su hoja de disparo
 tools/make_powers.py     Arte de los poderes de nivel 3: las pistolas duales de la vaquera y la granada
 tools/make_character_base.py  Genera la base (maniquí) de los personajes y sus guías
 tools/check_landscape.py Revisa las capas de un tema de paisaje antes de usarlas

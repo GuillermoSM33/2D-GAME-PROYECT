@@ -1,6 +1,7 @@
 #include <math.h>
 
 #include "config.h"
+#include "game/hallucination.h"
 #include "game/stage_run.h"
 #include "test.h"
 
@@ -24,6 +25,7 @@ static int walk_and_kill(StageRun *run, Player *player, Progress *progress)
             chest_x = run->chests[c].x; /* The gate's is on the way */
     }
     run_place_player(run, player);
+    player->health = player->max_health; /* The route is under test, not her: traps don't end it */
     if (chest_x >= 0.0f) {
         player->x = chest_x;
     } else {
@@ -96,7 +98,8 @@ static void test_group_wakes_and_holds_her(void)
 
     zombie_hit(&run.zombies[0], 1e6f);
     run_update(&run, &player, &progress, FIXED_DT);
-    CHECK(run.defeated == 1 && run.xp_gained == kill_xp(1, 1));
+    CHECK(run.defeated == 1 &&
+          run.xp_gained == (int)lroundf((float)kill_xp(1, 1) * stage_xp_share(run.stage)));
     CHECK(run.group_beaten && run.wall_x == 0.0f && run_fight_left(&run) == 0);
 }
 
@@ -110,8 +113,8 @@ static void test_chest_then_gate_clears(void)
     int chests = play_through(&run, &player, &progress, &clears);
     CHECK(run.phase == RUN_CLEARED && clears == 1);
     CHECK(run.defeated == STAGES[0].zombies);
-    /* Every zombie but the last leaves one, plus the mission's at the gate. */
-    CHECK(chests == STAGES[0].zombies);
+    /* Every zombie leaves one, the last too, plus the mission's at the gate. */
+    CHECK(chests == STAGES[0].zombies + 1);
     CHECK(run.mission_chest >= 0);
     CHECK(progress.level >= 2); /* 1-1 cleared takes her to level 2 */
 }
@@ -308,6 +311,75 @@ static void test_trap_holds_a_zombie(void)
     CHECK(z->x == x); /* Held */
 }
 
+static void test_trap_makes_her_bleed_and_limp(void)
+{
+    /* Her foot in a trap: a bite, then bleeding every BLEED_TICK (through any
+     * armor) for BLEED_TIME, and a limp at SLOW_MULT for SLOW_TIME. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 1, true);
+    for (int k = 0; k < run.zombie_count; k++)
+        run.zombies[k].x = run.goal_x + 1e4f;
+    const Piece *trap = NULL;
+    for (int i = 0; i < run.terrain.count && !trap; i++) {
+        if (run.terrain.items[i].kind == TERRAIN_TRAP)
+            trap = &run.terrain.items[i];
+    }
+    CHECK(trap != NULL);
+    player.x = trap->x;
+    player.armor = 1e6f; /* Bleeding goes through it anyway */
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(player.bleed_time > 0.0f && player.slow_time > 0.0f);
+    int health = player.health;
+    InputState input;
+    input_init(&input);
+    for (int i = 0; i < (int)(BLEED_TIME / FIXED_DT) + 2; i++)
+        player_update(&player, &input, FIXED_DT);
+    CHECK(player.health < health && player.bleed_time == 0.0f && player.slow_time == 0.0f);
+    /* Limping covers less ground. */
+    Player a, b;
+    player_init(&a);
+    player_init(&b);
+    b.slow_time = SLOW_TIME;
+    bool down[ACTION_COUNT] = {0};
+    down[ACTION_RIGHT] = true;
+    input_update(&input, down);
+    for (int i = 0; i < 30; i++) {
+        player_update(&a, &input, FIXED_DT);
+        player_update(&b, &input, FIXED_DT);
+    }
+    CHECK(b.x - PLAYER_START_X < (a.x - PLAYER_START_X) * 0.7f);
+}
+
+static void test_more_coffins_by_night(void)
+{
+    /* Coffin spots shut their zombies in more often after dark. */
+    int day = 0, day_spots = 0, night = 0, night_spots = 0;
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        StageRun run;
+        run_start(&run, s, 0.0f, true);
+        int coffins = 0, places = 0;
+        for (int i = 0; i < run.terrain.count; i++)
+            coffins += run.terrain.items[i].kind == TERRAIN_COFFIN;
+        for (int i = 0; i < STAGES[s].spot_count; i++)
+            places += STAGES[s].spots[i].kind == SPOT_COFFINS ? STAGES[s].spots[i].count : 0;
+        if (STAGES[s].theme->night) {
+            night += coffins;
+            night_spots += places;
+        } else {
+            day += coffins;
+            day_spots += places;
+        }
+        for (int i = 0; i < run.terrain.count; i++) {
+            if (run.terrain.items[i].kind == TERRAIN_COFFIN)
+                CHECK(run.terrain.items[i].variant == (int)STAGES[s].theme->night);
+        }
+    }
+    CHECK(day_spots > 0 && night_spots > 0);
+    CHECK((float)night / (float)night_spots > (float)day / (float)day_spots);
+}
+
 static const Piece *find(const StageRun *run, TerrainKind kind)
 {
     for (int i = 0; i < run->terrain.count; i++) {
@@ -374,10 +446,11 @@ static void test_sit_reloads_each_gun(void)
 
 static void test_campfire_warms(void)
 {
+    /* 1-2: no heat there (in the heat a fire only wears her out). */
     StageRun run;
     Player player;
     Progress progress;
-    setup(&run, &player, &progress, 0, true);
+    setup(&run, &player, &progress, 1, true);
     const Piece *fire = find(&run, TERRAIN_CAMPFIRE);
     CHECK(fire != NULL);
     for (int k = 0; k < run.zombie_count; k++)
@@ -434,6 +507,462 @@ static void test_ricochet_glances_on(void)
     CHECK(first > 0.0f && second > 0.0f);
     CHECK(fabsf(second - first * RICOCHET_LOSS) < 0.6f); /* No armor counted: damage as is */
     CHECK(!bullets.items[0].active);
+}
+
+static void test_ricochet_breaks_through_crates(void)
+{
+    /* The ricochet goes through the first crate on to the next: one hit each. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    Piece *a = terrain_add(&run.terrain, TERRAIN_CRATE, 2000.0f);
+    Piece *b = terrain_add(&run.terrain, TERRAIN_CRATE, 2300.0f);
+    Bullets bullets;
+    bullets_clear(&bullets);
+    Effects effects;
+    effects_clear(&effects);
+    float muzzle = BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE;
+    BulletSpec spec = {30.0f, 1000.0f, 0.0f, 0.0f, 0xffffff, 0.0f, true};
+    bullets_fire(&bullets, 1800.0f, 1800.0f, muzzle, 1, &spec);
+    for (int i = 0; i < 60; i++) {
+        bullets_update(&bullets, FIXED_DT, 1500.0f);
+        run_bullets(&run, &bullets, &effects);
+    }
+    CHECK(a->hits == 1 && b->hits == 1);
+    CHECK(!bullets.items[0].active);
+}
+
+static void test_shut_in_stay_hidden(void)
+{
+    /* A group in the open wakes; its zombie still in a coffin does not (it
+     * would walk about unseen): it waits for its lid. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    run.zombie_count = 2;
+    for (int k = 0; k < 2; k++) {
+        zombie_spawn(&run.zombies[k], &ZOMBIE_RIOT, player.x + 500.0f + (float)k * 100.0f);
+        run.zombies[k].awake = false;
+        run.group_of[k] = 0;
+    }
+    run.zombies[1].hidden = true;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.zombies[0].awake);
+    CHECK(!run.zombies[1].awake && run.zombies[1].hidden);
+}
+
+static void test_ambush_walks_in(void)
+{
+    /* 1-1's ambush at its first wall: unseen until she gets there, then it
+     * walks in from off screen, and she is held where it sprang. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    int k = -1;
+    for (int i = 0; i < run.zombie_count && k < 0; i++)
+        k = run.ambush_x[i] > 0.0f ? i : -1;
+    CHECK(k >= 0);
+    if (k < 0)
+        return;
+    CHECK(run.zombies[k].hidden && !run.zombies[k].awake);
+    for (int i = 0; i < k; i++) /* The groups before are beaten */
+        run.zombies[i].health = 0, run.zombies[i].state = ZOMBIE_DEAD;
+    player.x = run.ambush_x[k] + 1.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    const Zombie *z = &run.zombies[k];
+    CHECK(run.ambushed && z->awake && !z->hidden);
+    CHECK(fabsf(z->x - player.x) >= AMBUSH_BEHIND - 1.0f);
+    CHECK(run.wall_x >= player.x);
+}
+
+static void test_charge_on_the_road(void)
+{
+    /* Away from walls and benches, E plants the charge at her feet: it goes
+     * off like a barrel. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    run.dynamite = 1;
+    CHECK(run_use(&run, &player) && run.dynamite == 0);
+    run.zombie_count = 1;
+    zombie_spawn(&run.zombies[0], &ZOMBIE_RIOT, player.x + 200.0f);
+    run.zombies[0].awake = true;
+    run.group_of[0] = 0;
+    bool blew = false;
+    for (int i = 0; i < (int)((CHARGE_FUSE + 0.2f) / FIXED_DT); i++) {
+        run_update(&run, &player, &progress, FIXED_DT);
+        blew |= run.blasts > 0;
+    }
+    CHECK(blew);
+    CHECK(run.zombies[0].health < run.zombies[0].max_health);
+}
+
+static void test_blow_knocks_back_and_cuts_wire(void)
+{
+    /* Two blows cut the wire in front of her; a zombie in reach is hurt and
+     * knocked back. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    Piece *wire = terrain_add(&run.terrain, TERRAIN_WIRE, player.x + 150.0f);
+    run.zombie_count = 1;
+    zombie_spawn(&run.zombies[0], &ZOMBIE_RIOT, player.x + 120.0f);
+    float before = run.zombies[0].x;
+    run_melee(&run, &player, &progress);
+    CHECK(run.melee_hits == 2 && !wire->spent);
+    CHECK(run.zombies[0].health < run.zombies[0].max_health && run.zombies[0].x > before);
+    run_melee(&run, &player, &progress);
+    CHECK(wire->spent);
+}
+
+static void test_blow_waits_and_hurts_less_than_a_shot(void)
+{
+    /* After a blow she waits MELEE_COOLDOWN before the next; and it hurts
+     * less than a bullet would. */
+    Player player;
+    player_init(&player);
+    InputState in = {0};
+    CHECK(player_melee(&player));
+    float t = 0.0f;
+    while (player.state == PLAYER_MELEE && t < 5.0f) {
+        player_update(&player, &in, FIXED_DT);
+        t += FIXED_DT;
+    }
+    CHECK(fabsf(t - PLAYER_MELEE_FRAMES / PLAYER_MELEE_FPS) < 0.05f);
+    CHECK(!player_melee(&player));
+    for (float w = 0.0f; w < MELEE_COOLDOWN + FIXED_DT; w += FIXED_DT)
+        player_update(&player, &in, FIXED_DT);
+    CHECK(player_melee(&player));
+    CHECK(MELEE_DAMAGE_MULT < 1.0f);
+}
+
+static void test_wire_tears_her(void)
+{
+    /* Walking into uncut wire: a bite, bleeding and a limp; over it in a
+     * high jump, nothing. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    terrain_add(&run.terrain, TERRAIN_WIRE, player.x);
+    player.jump.height = WIRE_TOP + 1.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(!run.wire_bit && player.health == player.max_health);
+    player.jump.height = 0.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.wire_bit && player.health < player.max_health);
+    CHECK(player.bleed_time > 0.0f && player.slow_time > 0.0f);
+}
+
+static void test_barricade_kinds_hold_differently(void)
+{
+    /* Crates go in BARRICADE_STRIKES claws; the steel barrier takes twice. */
+    Terrain t;
+    terrain_clear(&t);
+    Piece *crates = terrain_add(&t, TERRAIN_BARRICADE, 1000.0f);
+    Piece *steel = terrain_add(&t, TERRAIN_BARRICADE, 3000.0f);
+    steel->variant = 3;
+    for (int i = 0; i < BARRICADE_STRIKES; i++) {
+        terrain_claw(&t, 0);
+        terrain_claw(&t, 1);
+    }
+    CHECK(crates->spent && !steel->spent);
+    CHECK(terrain_frame(steel) == 3 * 3 + 1); /* Its kind's cracked frame */
+    for (int i = 0; i < BARRICADE_STRIKES; i++)
+        terrain_claw(&t, 1);
+    CHECK(steel->spent);
+}
+
+static void test_net_hangs_her_till_she_cuts_free(void)
+{
+    /* Stepping on the net: hung up, no walking off; NET_BLOWS blows at the
+     * ropes and she drops. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    terrain_add(&run.terrain, TERRAIN_NET, player.x + 20.0f);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(player.state == PLAYER_CAUGHT && player.catch_kind == CATCH_NET);
+    InputState in = {0};
+    in.down[ACTION_RIGHT] = true;
+    float x = player.x;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.x == x);
+    for (int b = 1; b < NET_BLOWS; b++)
+        CHECK(!player_struggle(&player));
+    CHECK(player_struggle(&player) && player.state != PLAYER_CAUGHT && player.jump.airborne);
+}
+
+static void test_snare_hangs_a_zombie(void)
+{
+    /* A zombie steps in the snare: it hangs a while, then drops and comes on. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    Piece *snare = terrain_add(&run.terrain, TERRAIN_SNARE, player.x + 400.0f);
+    run.zombie_count = 1;
+    zombie_spawn(&run.zombies[0], &ZOMBIE_RIOT, player.x + 410.0f);
+    run.group_of[0] = 0;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(snare->spent && run.zombies[0].catch_kind == CATCH_SNARE);
+    for (int i = 0; i < (int)((SNARE_HOLD + 0.1f) / FIXED_DT); i++)
+        run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.zombies[0].catch_kind == CATCH_NONE && run.zombies[0].caught <= 0.0f);
+}
+
+static void test_spikes_come_up(void)
+{
+    /* She steps on the plate: a moment later the spikes run her through
+     * (bleeding); a jump over the plate clears them. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    terrain_add(&run.terrain, TERRAIN_SPIKES, player.x);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(player.health == player.max_health);
+    for (int i = 0; i < (int)((SPIKES_DELAY + 0.1f) / FIXED_DT); i++)
+        run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(player.health < player.max_health && player.bleed_time > 0.0f);
+}
+
+static void test_wet_dries_by_the_weather(void)
+{
+    /* Out of the river she is wet: dry in DRY_HOT in the heat, DRY_COLD in
+     * the cold, DRY_FIRE by a campfire. */
+    const struct { bool hot, cold, cozy; float time; } cases[] = {
+        {true, false, false, DRY_HOT}, {false, false, false, DRY_MILD},
+        {false, true, false, DRY_COLD}, {false, true, true, DRY_FIRE},
+    };
+    for (int c = 0; c < 4; c++) {
+        Player player;
+        player_init(&player);
+        InputState in = {0};
+        player.wading = true;
+        player_update(&player, &in, FIXED_DT);
+        CHECK(player.wet == 1.0f);
+        player.wading = false;
+        player.hot = cases[c].hot;
+        player.cold = cases[c].cold;
+        player.cozy = cases[c].cozy;
+        CHECK(fabsf(player_dry_time(&player) - cases[c].time) < 1e-4f);
+        for (float t = 0.0f; t < cases[c].time - 0.2f; t += FIXED_DT)
+            player_update(&player, &in, FIXED_DT);
+        CHECK(player.wet > 0.0f);
+        for (float t = 0.0f; t < 0.4f; t += FIXED_DT)
+            player_update(&player, &in, FIXED_DT);
+        CHECK(player.wet == 0.0f);
+    }
+}
+
+static void test_sits_though_still_walking(void)
+{
+    /* Walking up to the bench and pressing E with the way still held: she
+     * sits (only a fresh press gets her up). */
+    Player player;
+    player_init(&player);
+    InputState in = {0};
+    in.down[ACTION_RIGHT] = true;
+    CHECK(player_sit(&player, player.x, 0u));
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.state == PLAYER_SIT);
+    in.pressed[ACTION_RIGHT] = true;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.state != PLAYER_SIT);
+}
+
+static void test_heat_by_the_fire_wears_her_out(void)
+{
+    /* By a fire in the heat: slower after FATIGUE_SLOW, out cold at
+     * FATIGUE_FAINT; away from it, it wears off. */
+    Player player;
+    player_init(&player);
+    player.hot = player.cozy = true;
+    InputState in = {0};
+    for (float t = 0.0f; t < FATIGUE_SLOW + 0.1f; t += FIXED_DT)
+        player_update(&player, &in, FIXED_DT);
+    CHECK(player_alive(&player) && player.fatigue >= FATIGUE_SLOW);
+    in.down[ACTION_RIGHT] = true;
+    float x0 = player.x;
+    player_update(&player, &in, FIXED_DT);
+    float tired = player.x - x0;
+    player.cozy = false;
+    for (int i = 0; i < 400; i++)
+        player_update(&player, &in, FIXED_DT);
+    CHECK(player.fatigue == 0.0f);
+    x0 = player.x;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(fabsf(tired - (player.x - x0) * FATIGUE_PACE) < 0.01f);
+    player.cozy = true;
+    in.down[ACTION_RIGHT] = false;
+    for (float t = 0.0f; t < FATIGUE_FAINT + 0.1f; t += FIXED_DT)
+        player_update(&player, &in, FIXED_DT);
+    CHECK(player.fainted && !player_alive(&player));
+}
+
+static void test_water_thirst_and_visions(void)
+{
+    /* U drinks a jug (not while bleeding: then it binds the wound), slowly
+     * walking; thirst grows to hallucinations, a drink clears it. */
+    Player player;
+    player_init(&player);
+    player.hot = true;
+    player.water = 1;
+    InputState in = {0};
+    for (float t = 0.0f; t < HALLUCINATING / THIRST_HOT + 0.1f; t += FIXED_DT)
+        player_update(&player, &in, FIXED_DT);
+    CHECK(player_thirst_level(&player) == 3);
+    player_bleed(&player, 0.5f);
+    in.pressed[ACTION_BANDAGE] = in.down[ACTION_BANDAGE] = true;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.drink_time == 0.0f && player.bandage > 0.0f); /* The wound first */
+    player.bleed_time = 0.0f;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.drink_time > 0.0f);
+    in.pressed[ACTION_BANDAGE] = in.down[ACTION_BANDAGE] = false;
+    bool drank = false;
+    for (float t = 0.0f; t < DRINK_TIME + 0.1f; t += FIXED_DT) {
+        player_update(&player, &in, FIXED_DT);
+        drank |= player.drank;
+    }
+    CHECK(drank && player.water == 0 && player.thirst < 1.0f && player.refreshed > 0.0f);
+
+    /* A vision walks in and goes at a shot. */
+    Hallucination h;
+    hallucination_clear(&h);
+    for (float t = 0.0f; t < PHANTOM_EVERY; t += FIXED_DT)
+        hallucination_update(&h, true, 2000.0f, 1, 1500.0f, FIXED_DT);
+    int k = -1;
+    for (int i = 0; i < PHANTOMS_MAX; i++)
+        k = h.phantoms[i].active ? i : k;
+    CHECK(k >= 0);
+    Bullets bullets;
+    bullets_clear(&bullets);
+    BulletSpec spec = {30.0f, 1000.0f, 0.0f, 1.0f, 0xffffff, 0.0f, false};
+    float muzzle = BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE;
+    bullets_fire(&bullets, h.phantoms[k].x - 50.0f, h.phantoms[k].x - 50.0f, muzzle, 1, &spec);
+    bullets_update(&bullets, 0.1f, h.phantoms[k].x - 300.0f);
+    CHECK(hallucination_shoot(&h, &bullets) == 1 && h.phantoms[k].fading);
+}
+
+static void test_rivers_clear_of_buildings(void)
+{
+    /* No river runs under a building: 25 m from a wall's ruins or front. */
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        StageRun run;
+        Player player;
+        Progress progress;
+        setup(&run, &player, &progress, s, true);
+        for (int i = 0; i < run.terrain.count; i++) {
+            const Piece *river = &run.terrain.items[i];
+            if (river->kind != TERRAIN_RIVER)
+                continue;
+            for (int j = 0; j < run.terrain.count; j++) {
+                const Piece *wall = &run.terrain.items[j];
+                if (wall->kind != TERRAIN_WALL)
+                    continue;
+                float half = (float)(FACADE_W > WALL_RUINS_W ? FACADE_W : WALL_RUINS_W) * SPRITE_SCALE / 2.0f;
+                float gap = fabsf(river->x - wall->x) - half - terrain_half_width(TERRAIN_RIVER);
+                CHECK(gap >= RIVER_CLEARANCE);
+            }
+        }
+    }
+}
+
+static void test_river_slows_everyone(void)
+{
+    /* Wading a river with its current: she and the zombies go at RIVER_SLOW
+     * times RIVER_WITH of their pace (the wind counts the same in and out of
+     * it); a puddle only ripples. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    terrain_add(&run.terrain, TERRAIN_RIVER, player.x);
+    Piece *puddle = terrain_add(&run.terrain, TERRAIN_PUDDLE, player.x + 2000.0f);
+    InputState in = {0};
+    in.down[ACTION_RIGHT] = true;
+    run_place_player(&run, &player);
+    CHECK(player.wading);
+    float x0 = player.x;
+    player_update(&player, &in, FIXED_DT);
+    float wading = player.x - x0;
+    player.x = puddle->x;
+    run_place_player(&run, &player);
+    CHECK(!player.wading);
+    x0 = player.x;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(fabsf(wading - (player.x - x0) * RIVER_SLOW * RIVER_WITH) < 0.01f);
+    CHECK(player.current_feel == 0 && player.wind_feel == 1); /* 1-1 is windy, blowing her way */
+    CHECK(terrain_splash(&run.terrain, puddle->x) && puddle->ripple > 0.0f);
+
+    run.zombie_count = 1;
+    zombie_spawn(&run.zombies[0], &ZOMBIE_RIOT, player.x - 2000.0f + 100.0f); /* In the river */
+    run.zombies[0].just_spawned = false;
+    run.zombies[0].rouse = 0.0f;
+    run.group_of[0] = 0;
+    float z0 = run.zombies[0].x;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.zombies[0].wading);
+    float pace = RIVER_SLOW * RIVER_WITH * WIND_WITH; /* Walking right to her */
+    CHECK(fabsf(fabsf(run.zombies[0].x - z0) - ZOMBIE_SPEED * pace * FIXED_DT) < 0.01f);
+}
+
+static void test_wind_and_bandage(void)
+{
+    /* Into the wind she is slower than with it; holding U still stops the
+     * bleeding after BANDAGE_TIME. */
+    Player player;
+    player_init(&player);
+    player.wind = 1;
+    InputState in = {0};
+    in.down[ACTION_RIGHT] = true;
+    float x0 = player.x;
+    player_update(&player, &in, FIXED_DT);
+    float with = player.x - x0;
+    in.down[ACTION_RIGHT] = false;
+    in.down[ACTION_LEFT] = true;
+    for (int i = 0; i < 30; i++) /* Turned round and walking */
+        player_update(&player, &in, FIXED_DT);
+    x0 = player.x;
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.wind_feel == -1 && fabsf((x0 - player.x) * WIND_WITH - with * WIND_AGAINST) < 0.01f);
+
+    player_bleed(&player, 1.0f);
+    InputState still = {0};
+    still.down[ACTION_BANDAGE] = true;
+    bool stopped = false;
+    for (float t = 0.0f; t < BANDAGE_TIME + 0.1f; t += FIXED_DT) {
+        player_update(&player, &still, FIXED_DT);
+        stopped |= player.bandaged;
+    }
+    CHECK(stopped && player.bleed_time == 0.0f);
+
+    /* Walking while binding it: at BANDAGE_WALK of her pace. */
+    player_bleed(&player, 1.0f);
+    InputState walk = {0};
+    walk.down[ACTION_LEFT] = true;
+    float x0b = player.x;
+    player_update(&player, &walk, FIXED_DT);
+    float free_step = x0b - player.x;
+    walk.down[ACTION_BANDAGE] = true;
+    x0b = player.x;
+    player_update(&player, &walk, FIXED_DT);
+    CHECK(player.bandage > 0.0f && fabsf((x0b - player.x) - free_step * BANDAGE_WALK) < 0.01f);
 }
 
 static void test_grenade_arcs_and_blows(void)
@@ -495,11 +1024,31 @@ int main(void)
     RUN(test_supply_heals_once);
     RUN(test_barrel_blast);
     RUN(test_ricochet_glances_on);
+    RUN(test_ricochet_breaks_through_crates);
+    RUN(test_shut_in_stay_hidden);
+    RUN(test_ambush_walks_in);
+    RUN(test_charge_on_the_road);
+    RUN(test_blow_knocks_back_and_cuts_wire);
+    RUN(test_blow_waits_and_hurts_less_than_a_shot);
+    RUN(test_wire_tears_her);
+    RUN(test_barricade_kinds_hold_differently);
+    RUN(test_net_hangs_her_till_she_cuts_free);
+    RUN(test_snare_hangs_a_zombie);
+    RUN(test_spikes_come_up);
+    RUN(test_wet_dries_by_the_weather);
+    RUN(test_sits_though_still_walking);
+    RUN(test_heat_by_the_fire_wears_her_out);
+    RUN(test_water_thirst_and_visions);
+    RUN(test_rivers_clear_of_buildings);
+    RUN(test_river_slows_everyone);
+    RUN(test_wind_and_bandage);
     RUN(test_grenade_arcs_and_blows);
     RUN(test_some_walls_are_buildings);
     RUN(test_dynamite_opens_the_wall);
     RUN(test_coffin_ambush);
     RUN(test_trap_holds_a_zombie);
+    RUN(test_trap_makes_her_bleed_and_limp);
+    RUN(test_more_coffins_by_night);
     RUN(test_bench_heals_once_reloads_always);
     RUN(test_sit_reloads_each_gun);
     RUN(test_campfire_warms);

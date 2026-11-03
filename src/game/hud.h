@@ -68,6 +68,9 @@ void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *
                     int zombie_count, const Progress *progress, const StageRun *run,
                     float camera_x, const HudWeapon *weapon);
 
+/* Where the mouse is (window px): the stage's state icons open under it. */
+void hud_set_pointer(int x, int y);
+
 /* Screens drawn over the moving landscape the caller draws first. */
 void hud_draw_title(SDL_Renderer *renderer, const ListMenu *menu);
 void hud_draw_controls(SDL_Renderer *renderer);

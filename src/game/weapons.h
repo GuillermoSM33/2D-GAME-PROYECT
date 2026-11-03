@@ -45,6 +45,9 @@ typedef struct {
     /* The character's sheet sat on a bench with this gun on the lap (its
      * reload there), instead of "sit", or NULL. Same size as sit.png. */
     const char *sit_sheet;
+    /* The character's sheet for a blow with this gun, instead of "melee", or
+     * NULL (tools/make_melee.py). Same frame size as shoot.png. */
+    const char *melee_sheet;
 } WeaponDef;
 
 const WeaponDef *weapon_def(WeaponId id);

@@ -240,7 +240,7 @@ def icon(img: Image, frame: int, rows: list[str], colors: dict) -> None:
 
 
 def make_icons() -> Image:
-    img = Image(12 * 10, 12)
+    img = Image(12 * 22, 12)
     k = INK
     icon(img, 0, [  # Heart
         '............', '.kk....kk...', 'krrk..krrk..', 'krRrkkrrrk..', 'krRrrrrrrk..',
@@ -284,6 +284,54 @@ def make_icons() -> Image:
         '............', '....kkk.....', '...kRRrk....', '...kRrrk....', '...kRrrk....',
         '...kRrrk....', '...kRrrk....', '...kYYyk....', '...kYyyk....', '...kkkkk....',
         '............', '............'], {'k': k, 'R': RED[3], 'r': RED[2], 'Y': BRASS[3], 'y': BRASS[2]})
+    icon(img, 10, [  # Blood drop: bleeding
+        '.....k......', '....krk.....', '....krk.....', '...krrrk....', '...kRrrk....',
+        '..kRrrrrk...', '..kRrrrrk...', '..krrrrrk...', '...krrrk....', '....kkk.....',
+        '............', '............'], {'k': k, 'r': RED[1], 'R': RED[2]})
+    icon(img, 11, [  # Boot and shackle: slowed down
+        '............', '...kkkk.....', '...kbbk.....', '...kbbk.....', '...kbbk.....',
+        '...kbbkkkk..', '...kbbbbbbk.', '...kkkkkkkk.', '..kiik......', '.kik.kik....',
+        '..kiik......', '............'], {'k': k, 'b': WOOD[2], 'i': IRON[3]})
+    icon(img, 12, [  # Gold coin
+        '............', '...kkkkk....', '..kYYYYyk...', '.kYYyyyYyk..', '.kYyYYYyyk..', '.kYyYyyyyk..',
+        '.kYyYyyyyk..', '.kYyyyyyyk..', '..kyyyyyk...', '...kkkkk....', '............',
+        '............'], {'k': k, 'Y': BRASS[3], 'y': BRASS[2]})
+    icon(img, 13, [  # Wind: gusts
+        '............', '.kkkkkk.....', '.wwwwwwk....', '.kkkkkkwk...', '......kwk...', 'kkkkkkkkkk..',
+        'wwwwwwwwwwk.', 'kkkkkkkkkk..', '...kkkkk....', '...wwwwwk...', '...kkkkkk...',
+        '............'], {'k': k, 'w': IRON[4]})
+    icon(img, 14, [  # Current: waves
+        '............', '............', '.kk...kk....', 'kbbk.kbbk.k.', 'b..bkb..bkb.', '.....k...k..',
+        '.kk...kk....', 'kbbk.kbbk.k.', 'b..bkb..bkb.', '.....k...k..', '............',
+        '............'], {'k': k, 'b': rgb(0x6ab0d0)})
+    icon(img, 15, [  # Heat: a blazing sun
+        '.....r......', '..r..r..r...', '...kkkkk....', '..kyyyyyk...', 'rrkyYYYykrr.', '..kyYYYyk...',
+        '..kyyyyyk...', '...kkkkk....', '..r..r..r...', '.....r......', '............',
+        '............'], {'k': k, 'y': BRASS[2], 'Y': BRASS[3], 'r': RED[2]})
+    icon(img, 16, [  # Omen: a crow's eye
+        '............', '..kkkkkkk...', '.kkbbbbbkk..', 'kkbbwwwbbkk.', 'kbbwwrrwbbk.', 'kbbwwrrwbbk.',
+        'kkbbwwwbbkk.', '.kkbbbbbkk..', '..kkkkkkk...', '............', '............',
+        '............'], {'k': k, 'b': rgb(0x22242c), 'w': rgb(0xd8d4c8), 'r': RED[2]})
+    icon(img, 17, [  # Cold: a snowflake
+        '.....k......', '..k.kwk.k...', '.kwkkwkkwk..', '..kwkwkwk...', 'kkkkwwwkkkk.', 'kwwwwiwwwwk.',
+        'kkkkwwwkkkk.', '..kwkwkwk...', '.kwkkwkkwk..', '..k.kwk.k...', '.....k......',
+        '............'], {'k': k, 'w': rgb(0xc8e4f4), 'i': rgb(0xffffff)})
+    icon(img, 18, [  # Wet: drops
+        '...k........', '..kbk.......', '.kbbbk...k..', '.kbwbk..kbk.', '.kbbbk.kbbbk', '..kkk..kbwbk',
+        '.......kbbbk', '...k....kkk.', '..kbk.......', '.kbwbk......', '.kbbbk......',
+        '..kkk.......'], {'k': k, 'b': rgb(0x5aa0c8), 'w': rgb(0xc8e4f4)})
+    icon(img, 19, [  # Cozy: a campfire's flame over logs
+        '.....k......', '....kyk.....', '...kyyk.k...', '..kyoyykok..', '..kyooyooyk.', '.kyoorroook.',
+        '.kyorrrrook.', '..kooroook..', '.kkkkkkkkkk.', 'kwwkwwwkwwk.', '.kkkkkkkkk..',
+        '............'], {'k': k, 'y': BRASS[3], 'o': rgb(0xf08a24), 'r': RED[2], 'w': WOOD[3]})
+    icon(img, 20, [  # Water: a jug
+        '....kkk.....', '...kccck....', '...kkckk....', '..kbbbbbk...', '.kbBBBBBbk..', '.kBwBBBBBk..',
+        '.kBwBBBBBk..', '.kBBBBBBBk..', '.kbBBBBBbk..', '..kbbbbbk...', '...kkkkk....',
+        '............'], {'k': k, 'c': WOOD[3], 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)})
+    icon(img, 21, [  # Refreshed: a drop and a sparkle
+        '........w...', '....k..wWw..', '...kbk..w...', '...kbk......', '..kbBbk.....', '.kbBBBbk....',
+        '.kbBwBbk....', '.kbBwBbk....', '..kbBbk.....', '...kkk......', '............',
+        '............'], {'k': k, 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa), 'W': rgb(0xffffff)})
     return img
 
 

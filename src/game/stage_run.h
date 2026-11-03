@@ -49,6 +49,7 @@ typedef struct {
     int group_of[RUN_MAX_ZOMBIES];   /* Which group each zombie belongs to */
     bool beaten[RUN_MAX_ZOMBIES];     /* Counted as defeated */
     bool chest_done[RUN_MAX_ZOMBIES]; /* Its chest (if any) was placed */
+    float ambush_x[RUN_MAX_ZOMBIES];  /* An ambusher: where she springs it (0 = none) */
     Chest chests[RUN_MAX_CHESTS];
     int mission_chest;               /* Index into chests, -1 until it appears */
     Terrain terrain;
@@ -74,6 +75,14 @@ typedef struct {
     int bottles_hit;   /* Fences cleared of their bottles on this update */
     int coffins_burst; /* Coffins that burst open on this update */
     int traps_sprung;  /* Bear traps that snapped on this update */
+    bool ambushed;     /* An ambush was sprung on this update */
+    bool crate_hint;   /* Show the crate hint now (once a run, first stages only) */
+    bool hinted;       /* The crate hint was shown */
+    int gold_gained;   /* Gold earned on this update */
+    int melee_hits;    /* What her blow hit on this update (zombies and pieces) */
+    bool omen;         /* A bad feeling: an ambush she senses is near (OMEN_CHANCE of them) */
+    bool wire_bit;     /* The wire tore her on this update */
+    float wire_timer;  /* Seconds until the wire bites again */
     float fire_tick;   /* Seconds until the fires burn again */
     float warmth;      /* Seconds by a campfire toward its next heal */
     float heal_carry;  /* Health earned but under a whole point */
@@ -112,8 +121,17 @@ bool run_sit(StageRun *run, Player *player, unsigned reload_guns);
  * like a barrel (blast_x) but without opening walls. */
 void run_throw(StageRun *run, const Player *player);
 
-/* E: lights a charge on the wall she is at, if she carries one. */
+/* E: lights a charge on the wall she is at, if she carries one; away from
+ * walls and benches, plants it on the road at her feet (a barrel's blast
+ * when the fuse ends: step back). */
 bool run_use(StageRun *run, const Player *player);
+
+/* Her blow lands (player.struck): the zombies and pieces within MELEE_REACH
+ * in front of her take it (terrain_melee); zombies are knocked back. */
+void run_melee(StageRun *run, const Player *player, const Progress *progress);
+
+/* Gold in one of this stage's crates. */
+int run_crate_gold(const StageRun *run);
 
 /* Zombies still to beat in the group holding her, or 0. */
 int run_fight_left(const StageRun *run);

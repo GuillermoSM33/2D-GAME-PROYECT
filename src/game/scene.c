@@ -123,6 +123,37 @@ static void draw_props(SDL_Renderer *renderer, const World *world, float camera_
 /* Buildings off the road on a strip of their own, behind the props: a slot
  * every HOUSE_SPACING, filled or not and with which one by a hash of the slot,
  * so the same road always shows the same town. */
+#define SCENE_MAX_RIVERS 8
+static float rivers[SCENE_MAX_RIVERS];
+static int river_count;
+static float river_half;
+
+void scene_set_rivers(const float *xs, int count, float half)
+{
+    river_count = count < SCENE_MAX_RIVERS ? count : SCENE_MAX_RIVERS;
+    for (int i = 0; i < river_count; i++)
+        rivers[i] = xs[i];
+    river_half = half;
+}
+
+/* A house at strip x (house_x) slides by at HOUSE_PARALLAX of the road: it
+ * lines up with a river once, at one camera. If the river is in view then,
+ * the house is never drawn (so none pops in or out). */
+static bool over_a_river(float house_x, float w)
+{
+    float reach = w / 2.0f + river_half + 120.0f;
+    for (int i = 0; i < river_count; i++) {
+        /* Screen gap: (house_x + w/2 - p cam) - (river - cam) = house_x + w/2 - river + (1 - p) cam. */
+        float slide = 1.0f - HOUSE_PARALLAX;
+        float c0 = (rivers[i] - house_x - w / 2.0f - reach) / slide;
+        float c1 = (rivers[i] - house_x - w / 2.0f + reach) / slide;
+        /* The river is in view for cameras from river - VIEW_WIDTH - half to river + half. */
+        if (c1 >= rivers[i] - (float)VIEW_WIDTH - river_half && c0 <= rivers[i] + river_half)
+            return true;
+    }
+    return false;
+}
+
 static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float camera_x)
 {
     if (themed_houses == NULL || theme->house_chance <= 0)
@@ -140,6 +171,8 @@ static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float cam
             continue;
         int variant = (int)((hash >> 8) % HOUSE_FRAMES);
         float jitter = (float)((hash >> 16) % 300u);
+        if (over_a_river((float)slot * HOUSE_SPACING + jitter, (float)w))
+            continue;
         SDL_Rect src = {variant * HOUSE_FRAME_W, 0, HOUSE_FRAME_W, HOUSE_FRAME_H};
         SDL_Rect dst = {(int)lroundf((float)slot * HOUSE_SPACING + jitter - strip),
                         GROUND_ROW * PX - h - 2 * PX, w, h};

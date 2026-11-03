@@ -50,15 +50,22 @@ static const AnimationDef ANIM_ATTACK = {
 static const AnimationDef *const ANIMATIONS[] = {&ANIM_WALK, &ANIM_HURT, &ANIM_DEATH, &ANIM_ATTACK};
 
 const ZombieStats ZOMBIE_COMMON = {
-    .health = 100, .armor = 0.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xffffff,
+    .health = 100, .armor = 0.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xffffff, .speed = 1.0f,
 };
 const ZombieStats ZOMBIE_RIOT = {
-    .health = 100, .armor = 85.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xffffff,
+    .health = 100, .armor = 85.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xffffff, .speed = 1.0f,
 };
 /* About twice as long to put down as a riot zombie, and its claw hurts a
  * third more: one per stage, guarding something. */
 const ZombieStats ZOMBIE_ELITE = {
     .health = 150, .armor = 120.0f, .attack_base = ZOMBIE_ATTACK_BASE * 1.35f, .tint = 0xffa080,
+    .speed = 1.0f,
+};
+/* Half the health and little armor, but it closes in almost twice as fast:
+ * it comes in packs and catches her if she runs. */
+const ZombieStats ZOMBIE_RUNNER = {
+    .health = 55, .armor = 25.0f, .attack_base = ZOMBIE_ATTACK_BASE, .tint = 0xb8f0a0,
+    .speed = 1.8f,
 };
 
 void zombie_spawn(Zombie *zombie, const ZombieStats *stats, float x)
@@ -125,12 +132,14 @@ void zombie_update(Zombie *zombie, float player_x, bool player_alive, float dt)
     if (zombie->caught > 0.0f && zombie->state != ZOMBIE_DEAD) {
         /* In a trap: it writhes on the spot (the recoil's first frames). */
         zombie->caught -= dt;
+        zombie->catch_time += dt;
         zombie->facing = player_x < zombie->x ? -1 : 1;
         animation_play(&zombie->anim, &ANIM_HURT);
         animation_set_frame(&zombie->anim, (int)(zombie->caught * 6.0f) % 2);
         if (zombie->caught > 0.0f)
             return;
         zombie->caught = 0.0f;
+        zombie->catch_kind = CATCH_NONE; /* Dropped out of the net or the snare */
         animation_play(&zombie->anim, &ANIM_WALK);
     }
     if (zombie->rouse > 0.0f && zombie->state != ZOMBIE_DEAD && zombie->state != ZOMBIE_HURT) {
@@ -197,9 +206,14 @@ void zombie_update(Zombie *zombie, float player_x, bool player_alive, float dt)
         return;
     }
     zombie->state = ZOMBIE_WALK;
-    float step = fminf(ZOMBIE_SPEED * dt, fabsf(gap) - ZOMBIE_REACH);
+    float pace = zombie->stats->speed;
+    if (zombie->wind != 0) /* Pushed along, or walking into it */
+        pace *= zombie->facing == zombie->wind ? WIND_WITH : WIND_AGAINST;
+    if (zombie->wading) /* The river flows right */
+        pace *= RIVER_SLOW * (zombie->facing > 0 ? RIVER_WITH : RIVER_AGAINST);
+    float step = fminf(ZOMBIE_SPEED * pace * dt, fabsf(gap) - ZOMBIE_REACH);
     zombie->x += (float)zombie->facing * step;
-    animation_update(&zombie->anim, dt);
+    animation_update(&zombie->anim, dt * pace);
 }
 
 HitResult zombie_hit(Zombie *zombie, float damage)
@@ -257,6 +271,16 @@ bool zombie_overlaps(const Zombie *zombie, float x0, float x1, float y)
     float half = ZOMBIE_HALF_WIDTH * SPRITE_SCALE;
     return fmaxf(x0, x1) >= zombie->x - half && fminf(x0, x1) <= zombie->x + half &&
            y <= BASELINE && y >= BASELINE - ZOMBIE_HEIGHT * SPRITE_SCALE;
+}
+
+const AnimationDef *zombie_walk_animation(void)
+{
+    return &ANIM_WALK;
+}
+
+bool zombie_down(const Zombie *zombie)
+{
+    return !zombie_alive(zombie) && zombie->dead_time >= DEATH_FALL_TIME;
 }
 
 bool zombie_gone(const Zombie *zombie)

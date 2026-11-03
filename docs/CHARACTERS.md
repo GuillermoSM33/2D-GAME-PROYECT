@@ -21,7 +21,11 @@ Al abrir el juego aparece **Elige tu personaje** (←/→ y Enter); luego el men
 ese personaje. **Cada personaje tiene su propio nivel, experiencia y niveles completados.**
 `Esc` regresa: del nivel al menú, del menú a la selección, y de ahí sale del juego.
 
-Los tres comparten controles, cuerpo, vida, armadura y reglas de nivel (ver el
+Cada uno tiene su armadura, que crece con su nivel (`CharacterDef.armor`, `armor_per_level`):
+el SWAT empieza en 34 y gana 6.5 por nivel; la vaquera, 22 y 3.5 (sus armas son su fuerza); el
+Héroe, 25 y 5. Armas, armaduras y vida de jugadores y zombis crecen todas con el nivel.
+
+Los tres comparten controles, cuerpo, vida y reglas de nivel (ver el
 [README](../README.md#niveles-cofres-y-experiencia)). Lo que cambia es su habilidad y sus armas.
 
 ### Habilidades
@@ -41,12 +45,25 @@ Al llegar a nivel 3 (`POWER_LEVEL`) cada personaje gana un poder; el de `F` (o c
 espera 15 s entre usos (`POWER_COOLDOWN`) y su panel, bajo el del arma, dice si está listo.
 
 - **Vaquera:** cambia su cañón por **pistolas duales**, una en cada mano (dos balas por tiro,
-  ×0.62 cada una: unas 1.25 veces más rápida que el cañón, `tests/test_characters.c`). Con `F`
+  ×0.68 cada una: unas 1.35 veces más rápida que el cañón, `tests/test_characters.c`). Con `F`
   dispara un **tiro de rebote**: sus balas doradas pegan al primer zombi y siguen al segundo
   con 45 % menos de daño, o 30 % más si el primero cayó.
 - **SWAT:** con `F` lanza una **granada** (`throw.png`): vuela en arco, rebota en el suelo y en
   los muros y estalla a los 1.5 s como un barril (radio 260 px, ×3 su daño), sin abrir muros.
 - **Héroe:** ninguno todavía.
+
+### Culatazo
+
+Todos golpean con el arma en mano con `V`, un **mazazo** de arriba abajo (7 cuadros a 10 fps con
+la plantilla de disparo): suben el arma por encima de la cabeza y la bajan de golpe al frente,
+con una estela en el cuadro del impacto (el 3). La vaquera (`melee.png`, `tools/make_melee.py`)
+con las dos manos en el revólver, o una pistola en cada mano con las duales (`melee_dual.png`):
+sus mangas grises redibujadas de los hombros a las manos (la del otro brazo cruzando por delante,
+como en su hoja de duales) y las armas giradas en las manos; el SWAT (`melee.png` con el rifle y bayoneta, `melee_shotgun.png`;
+`tools/make_swat.py`) con las dos manos, como sus otras hojas. Alcanza 130 px por delante del
+cuerpo: ×0.6 su daño (menos que un disparo; la mitad de la armadura cuenta) y empuja al zombi
+70 px; corta alambre (2 golpes), rompe cajas y daña barricadas. Después hay que esperar 1.5 s
+(2.1 s con calor). Colgada en una red o un lazo, `V` golpea la cuerda para soltarse.
 
 ### Armas
 

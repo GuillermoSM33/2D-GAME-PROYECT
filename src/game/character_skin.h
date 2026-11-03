@@ -28,6 +28,13 @@ typedef struct {
      * character's sit sheet. */
     SDL_Texture *weapon_sit[WEAPON_COUNT];
     SDL_Texture *throw_sheet; /* Its grenade throw, if it has one */
+    /* Its blow with the gun: per gun (WeaponDef.melee_sheet), else its own
+     * "melee", else NULL (the shoot sheet stands in). */
+    SDL_Texture *weapon_melee[WEAPON_COUNT];
+    SDL_Texture *melee_sheet;
+    SDL_Texture *faint_sheet; /* Out cold from the heat, if it has one */
+    SDL_Texture *drink_sheet; /* A drink of water... */
+    SDL_Texture *bandage_sheet; /* ...and binding a wound, if it has them */
 } CharacterSkin;
 
 void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *character);

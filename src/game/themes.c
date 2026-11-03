@@ -37,6 +37,7 @@ const ThemeDef THEME_ATARDECER = {
 const ThemeDef THEME_CEMENTERIO = {
     .name = "cementerio",
     .fog = true,
+    .night = true,
     .prop_weights = {
         [PROP_TOMBSTONE] = 5, [PROP_DEAD_TREE] = 2, [PROP_FENCE] = 2, [PROP_ROCK] = 2,
         [PROP_SKULL] = 1, [PROP_SIGN] = 1,
@@ -53,6 +54,7 @@ const ThemeDef THEME_CEMENTERIO = {
 const ThemeDef THEME_NOCHE = {
     .name = "noche",
     .fog = true,
+    .night = true,
     .prop_weights = {
         [PROP_CACTUS] = 3, [PROP_ROCK] = 3, [PROP_SKULL] = 3, [PROP_DEAD_TREE] = 2,
         [PROP_FENCE] = 1, [PROP_WAGON_WHEEL] = 1,
@@ -69,6 +71,7 @@ const ThemeDef THEME_NOCHE = {
 const ThemeDef THEME_PUEBLO_FANTASMA = {
     .name = "pueblo_fantasma",
     .fog = true,
+    .night = true,
     .prop_weights = {
         [PROP_SIGN] = 3, [PROP_WAGON_WHEEL] = 3, [PROP_FENCE] = 3, [PROP_ROCK] = 2,
         [PROP_DEAD_TREE] = 1, [PROP_SKULL] = 1, [PROP_TOMBSTONE] = 1,

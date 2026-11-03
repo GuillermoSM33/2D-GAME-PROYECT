@@ -10,6 +10,10 @@
  * theme's colors, and its fog, which drifts with time (seconds). */
 void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, double time);
 
+/* Rivers on the road (world x of their middles, half widths): the houses in
+ * the back are left out wherever one would stand over a river on screen. */
+void scene_set_rivers(const float *xs, int count, float half);
+
 /* Frees the theme's recolored props. */
 void scene_shutdown(void);
 

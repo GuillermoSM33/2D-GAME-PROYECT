@@ -174,7 +174,7 @@ static void draw_tags(SDL_Renderer *renderer, const Player *player, const Zombie
     for (int i = 0; i < zombie_count; i++) {
         const Zombie *zombie = &zombies[i];
         float screen_x = zombie->x - camera_x;
-        if (zombie->stats == NULL || !zombie_alive(zombie) || screen_x < -80.0f ||
+        if (zombie->stats == NULL || !zombie_alive(zombie) || zombie->hidden || screen_x < -80.0f ||
             screen_x > VIEW_WIDTH + 80.0f)
             continue;
         float top = BASELINE - ZOMBIE_HEIGHT * SPRITE_SCALE - 14.0f; /* Its health bar */
@@ -219,6 +219,24 @@ static void draw_road_panel(SDL_Renderer *renderer, const Player *player, const 
     }
 }
 
+/* Under the road panel: her gold. */
+static void draw_gold(SDL_Renderer *renderer, const Player *player, const Progress *progress)
+{
+    char gold[24], water[24];
+    int y = 12 + TOP_H + 4;
+    snprintf(gold, sizeof(gold), "%d", progress->gold);
+    snprintf(water, sizeof(water), "×%d", player->water);
+    int gold_w = ui_text_width(gold, 2), water_w = ui_text_width(water, 2);
+    int w = 14 + 28 + gold_w + 18 + 28 + water_w + 16;
+    ui_panel(renderer, MARGIN, y, w, 40);
+    int x = MARGIN + 14;
+    ui_icon(renderer, ICON_GOLD, x, y + 8, 2);
+    ui_text(renderer, gold, x + 32, y + 12, 2, COLOR_HUD_TITLE, ANCHOR_NW);
+    x += 32 + gold_w + 14; /* Her jugs of water: U drinks one */
+    ui_icon(renderer, ICON_WATER, x, y + 8, 2);
+    ui_text(renderer, water, x + 30, y + 12, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+}
+
 /* Top right: health with its numbers, XP under it, her level badge left of both. */
 static void draw_life_panel(SDL_Renderer *renderer, const Player *player, const Progress *progress)
 {
@@ -238,6 +256,100 @@ static void draw_life_panel(SDL_Renderer *renderer, const Player *player, const 
            COLOR_HUD_XP, 0xb0e090);
     snprintf(str, sizeof(str), "XP %d", progress->xp);
     ui_text(renderer, str, x + 162, 49, 2, COLOR_HUD_XP, ANCHOR_NW);
+}
+
+/* Where the mouse is (hud_set_pointer). */
+static int pointer_x = -1, pointer_y = -1;
+
+/* Under the life panel: what helps or ails her now, each a small icon (and
+ * the seconds left, if it wears off); the mouse over one opens it: a name
+ * and what it means. */
+static void draw_states(SDL_Renderer *renderer, const Player *player, const StageRun *run)
+{
+    if (!player_alive(player))
+        return;
+    char bleed_note[48];
+    if (player->bandage > 0.0f)
+        snprintf(bleed_note, sizeof(bleed_note), "VENDANDO... %d%%",
+                 (int)(100.0f * player->bandage / BANDAGE_TIME));
+    else
+        snprintf(bleed_note, sizeof(bleed_note), "MANTÉN U PARA VENDARTE");
+    const struct {
+        bool on;
+        int icon;
+        const char *name, *note;
+        float time; /* 0: lasts while it lasts */
+        bool good;
+    } states[] = {
+        {player->bleed_time > 0.0f, ICON_BLOOD, "SANGRADO", bleed_note, player->bleed_time, false},
+        {player->slow_time > 0.0f, ICON_SLOW, "LENTITUD", "TE LASTIMASTE LA PIERNA", player->slow_time, false},
+        {player->wind_feel > 0, ICON_WIND, "RAPIDEZ", "EL VIENTO TE EMPUJA", 0.0f, true},
+        {player->wind_feel < 0, ICON_WIND, "LENTITUD", "VAS CONTRA EL VIENTO", 0.0f, false},
+        {player->current_feel < 0, ICON_CURRENT, "LENTITUD", "ESTÁS CONTRA CORRIENTE", 0.0f, false},
+        {player->wading && player->current_feel >= 0, ICON_CURRENT, "LENTITUD", "VADEANDO EL RÍO", 0.0f, false},
+        {player->hot && player->refreshed <= 0.0f, ICON_HEAT, "CALOR",
+         "TARDAS MÁS EN GOLPEAR. BEBE AGUA CON U", 0.0f, false},
+        {player->refreshed > 0.0f, ICON_FRESH, "HIDRATADO", "PARECE QUE PUEDES MOVERTE UN POCO MÁS RÁPIDO",
+         player->refreshed, true},
+        {player_thirst_level(player) == 1, ICON_WATER, "SEDIENTO", "SIENTES LA BOCA SECA", 0.0f, false},
+        {player_thirst_level(player) == 2, ICON_WATER, "DESHIDRATADO", "EMPIEZAS A ALUCINAR", 0.0f, false},
+        {player_thirst_level(player) == 3, ICON_OMEN, "ALUCINACIÓN", "PUEDES VER COSAS DONDE NO LAS HAY", 0.0f,
+         false},
+        {player->cold, ICON_COLD, "FRÍO", "GOLPEAS Y CAMINAS UN POCO MÁS LENTO", 0.0f, false},
+        {player->wet > 0.0f, ICON_WET, "HÚMEDO", "ESTÁS UN POCO MOJADO", player->wet * player_dry_time(player),
+         false},
+        {player->cozy && !player->hot && player_alive(player), ICON_COZY, "CALOR AGRADABLE",
+         "RECUPERAS VIDA POCO A POCO", 0.0f, true},
+        {player->fatigue > 0.0f && player->fatigue < FATIGUE_SLOW, ICON_HEAT, "FATIGA",
+         "PARECE QUE TE DARÁ UN GOLPE DE CALOR", FATIGUE_FAINT - player->fatigue, false},
+        {player->fatigue >= FATIGUE_SLOW && player->fatigue < FATIGUE_STROKE, ICON_HEAT, "FATIGA",
+         "TE MUEVES, GOLPEAS Y DISPARAS MÁS LENTO", FATIGUE_FAINT - player->fatigue, false},
+        {player->fatigue >= FATIGUE_STROKE, ICON_HEAT, "GOLPE DE CALOR", "¡ALÉJATE DEL FUEGO O TE DESMAYARÁS!",
+         FATIGUE_FAINT - player->fatigue, false},
+        {run->omen, ICON_OMEN, "MAL PRESAGIO", "UNA EMBOSCADA PUEDE ESTAR CERCA", 0.0f, false},
+    };
+    /* A row of small icons under the life panel, right to left; the one
+     * under the mouse opens into its panel, under the row. */
+    int size = 40, gap = 4, x = WINDOW_WIDTH - MARGIN - size, y = 12 + TOP_H + 4;
+    int open = -1, open_x = 0;
+    for (int i = 0; i < (int)(sizeof(states) / sizeof(states[0])); i++) {
+        if (!states[i].on)
+            continue;
+        bool hover = pointer_x >= x && pointer_x < x + size && pointer_y >= y && pointer_y < y + size;
+        ui_panel(renderer, x, y, size, size);
+        ui_icon(renderer, states[i].icon, x + 8, y + 6, 2);
+        if (states[i].time > 0.0f) { /* Seconds left, small under the icon */
+            char str[8];
+            snprintf(str, sizeof(str), "%d", (int)ceilf(states[i].time));
+            ui_text(renderer, str, x + size - 5, y + size - 12, 1, COLOR_HUD_PRIMARY, ANCHOR_NE);
+        }
+        ui_bar(renderer, x + 6, y + size - 5, size - 12, 2, 1.0f,
+               states[i].good ? COLOR_HUD_XP : COLOR_HUD_DANGER, states[i].good ? COLOR_HUD_XP : COLOR_HUD_DANGER);
+        if (hover) {
+            open = i;
+            open_x = x;
+        }
+        x -= size + gap;
+    }
+    if (open < 0)
+        return;
+    int w = RIGHT_W, px = open_x + size - w, py = y + size + 4;
+    ui_panel(renderer, px, py, w, 46);
+    ui_icon(renderer, states[open].icon, px + 14, py + 11, 2);
+    ui_text(renderer, states[open].name, px + 46, py + 7, 2,
+            states[open].good ? COLOR_HUD_XP : COLOR_HUD_DANGER, ANCHOR_NW);
+    ui_text(renderer, states[open].note, px + 46, py + 29, 1, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    if (states[open].time > 0.0f) {
+        char str[16];
+        snprintf(str, sizeof(str), "%.1f S", states[open].time);
+        ui_text(renderer, str, px + w - 16, py + 7, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
+    }
+}
+
+void hud_set_pointer(int x, int y)
+{
+    pointer_x = x;
+    pointer_y = y;
 }
 
 /* Top middle: the gun's picture and name, its rounds (or "recargando"), and
@@ -298,10 +410,37 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
     char str[48];
     if (run->phase != RUN_FIGHTING)
         return;
+    if (player->state == PLAYER_CAUGHT) { /* First things first */
+        snprintf(str, sizeof(str), "¡TE ATRAPARON!  GOLPEA LA CUERDA (%d)", player->catch_blows);
+        int w = ui_key_width("V") + 10 + ui_text_width(str, 2);
+        int x = cx - w / 2;
+        x += ui_key(renderer, x, y, "V") + 10;
+        ui_text(renderer, str, x, y + 8, 2, COLOR_HUD_DANGER, ANCHOR_NW);
+        return;
+    }
     int left = run_fight_left(run);
     if (left > 0) {
         snprintf(str, sizeof(str), "¡ACABA CON ELLOS!  QUEDAN %d", left);
         ui_text(renderer, str, cx, y + 8, 2, COLOR_HUD_DANGER, ANCHOR_N);
+        if (run->dynamite > 0 && player->state != PLAYER_SIT) { /* A charge for them */
+            const char *label = "PLANTAR DINAMITA";
+            int w = ui_key_width("E") + 10 + ui_text_width(label, 2);
+            int x = cx - w / 2;
+            x += ui_key(renderer, x, y - 40, "E") + 10;
+            ui_text(renderer, label, x, y - 32, 2, COLOR_HUD_TITLE, ANCHOR_NW);
+        }
+    } else if (terrain_sign_ahead(&run->terrain, player->x, player->facing, SIGN_WARN_RANGE) >= 0) {
+        int kind = terrain_sign_ahead(&run->terrain, player->x, player->facing, SIGN_WARN_RANGE);
+        bool bleeds = kind == TERRAIN_TRAP || kind == TERRAIN_SPIKES || kind == TERRAIN_WIRE;
+        const char *label = bleeds ? "¡CUIDADO! TRAMPA.  SI SANGRAS, MANTÉN U PARA VENDARTE"
+                                   : "¡CUIDADO! TRAMPA ADELANTE";
+        ui_text(renderer, label, cx, y + 8, 2, COLOR_HUD_TITLE, ANCHOR_N);
+    } else if (terrain_wire_ahead(&run->terrain, player->x, player->facing, WIRE_WARN_RANGE)) {
+        const char *label = "ALAMBRE DE PÚAS: DISPARA O DA UN CULATAZO";
+        int w = ui_key_width("V") + 10 + ui_text_width(label, 2);
+        int x = cx - w / 2;
+        x += ui_key(renderer, x, y, "V") + 10;
+        ui_text(renderer, label, x, y + 8, 2, COLOR_HUD_DANGER, ANCHOR_NW);
     } else if (terrain_wall_near(&run->terrain, player->x)) {
         if (run->dynamite > 0) {
             const char *label = "PONER DINAMITA";
@@ -354,14 +493,17 @@ void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *
     draw_tags(renderer, player, zombies, zombie_count, camera_x);
     draw_popups(renderer, camera_x);
     draw_road_panel(renderer, player, run);
+    draw_gold(renderer, player, progress);
     draw_life_panel(renderer, player, progress);
+    draw_states(renderer, player, run);
     draw_weapon_panel(renderer, weapon);
     draw_power_panel(renderer, weapon);
     draw_prompt(renderer, player, run);
 
     if (run->phase == RUN_FAILED) {
         static const char *const hints[] = {"R", "REINTENTAR", "ESC", "PAUSA"};
-        draw_message(renderer, "TE ALCANZÓ EL ZOMBI", COLOR_HUD_DANGER, hints, 2);
+        draw_message(renderer, player->fainted ? "TE DESMAYASTE POR EL CALOR" : "TE ALCANZÓ EL ZOMBI",
+                     COLOR_HUD_DANGER, hints, 2);
     } else if (run->phase == RUN_CLEARED) {
         static const char *const hints[] = {"ENTER", "CONTINUAR"};
         char str[48];
@@ -397,24 +539,25 @@ void hud_draw_controls(SDL_Renderer *renderer)
         const char *keys[3];
         const char *action;
     } rows[] = {
-        {{"A", "D", NULL}, "CAMINAR A LA IZQUIERDA / DERECHA"},
-        {{"←", "→", NULL}, "CAMINAR A LA IZQUIERDA / DERECHA"},
+        {{"A", "D", NULL}, "CAMINAR  (TAMBIÉN ← / →)"},
         {{"SHIFT", NULL, NULL}, "CORRER"},
         {{"ESPACIO", "W", NULL}, "SALTAR  (Y SUBIR A UNA BARRICADA)"},
         {{"N", NULL, NULL}, "ATRAVESAR UNA BARRICADA BAJA"},
         {{"CLIC IZQ", NULL, NULL}, "DISPARAR  (MANTENER: RÁFAGAS)"},
         {{"R", NULL, NULL}, "RECARGAR"},
         {{"Q", "CLIC DER", NULL}, "CAMBIAR DE ARMA  (SWAT)"},
-        {{"E", NULL, NULL}, "DINAMITA EN UN MURO / SENTARSE EN UNA BANCA"},
+        {{"E", NULL, NULL}, "DINAMITA (MURO O SUELO) / SENTARSE"},
         {{"F", "CLIC CENTRAL", NULL}, "PODER (NIVEL 3): GRANADA / DISPARO DE REBOTE"},
+        {{"V", NULL, NULL}, "CULATAZO  (CORTA ALAMBRE, ROMPE CAJAS)"},
+        {{"U", NULL, NULL}, "VENDARSE SI SANGRAS (MANTENER); SI NO, BEBER AGUA"},
         {{"ESC", NULL, NULL}, "PAUSA"},
     };
     int count = (int)(sizeof(rows) / sizeof(rows[0]));
-    int w = 860, h = 56 + count * 37 + 8, x = (WINDOW_WIDTH - w) / 2, y = 6;
+    int w = 860, h = 56 + count * 34 + 8, x = (WINDOW_WIDTH - w) / 2, y = 6;
     ui_panel(renderer, x, y, w, h);
     ui_text(renderer, "CONTROLES", WINDOW_WIDTH / 2, y + 16, 3, COLOR_HUD_TITLE, ANCHOR_N);
     for (int i = 0; i < count; i++) {
-        int ry = y + 54 + i * 37, kx = x + 36;
+        int ry = y + 54 + i * 34, kx = x + 36;
         for (int k = 0; k < 3 && rows[i].keys[k]; k++) {
             if (k > 0)
                 kx += ui_text(renderer, "/", kx + 6, ry + 12, 2, COLOR_HUD_SECONDARY, ANCHOR_NW) + 12;

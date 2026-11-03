@@ -29,15 +29,16 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .smoke_puffs = 10, .smoke_scale = 1.5f, /* A thick cloud */
         .magazine = 8, .magazine_reload = 1.1f, /* 8 shells in the tube */
         .shoot_sheet = "shoot_shotgun", .reload_sheet = "reload_shotgun", .sit_sheet = "sit_shotgun",
+        .melee_sheet = "melee_shotgun",
     },
     [WEAPON_DUAL] = {
         /* Both fire at once, a bullet each a little apart: a bit more than the
          * single cannon, as a level's reward. */
-        .name = "Pistolas duales", .damage_mult = 0.62f, .reload_time = PLAYER_SHOOT_RELOAD_TIME,
+        .name = "Pistolas duales", .damage_mult = 0.68f, .reload_time = PLAYER_SHOOT_RELOAD_TIME,
         .pellets = 2, .pellet_gap = 16.0f, .speed = BULLET_SPEED, .armor_share = 1.0f, .tint = 0xffffff,
         .shot_sound = "player/shot", .reload_sound = "player/reload",
         .smoke_puffs = SMOKE_PUFFS_PER_SHOT + 2, .smoke_scale = 1.2f,
-        .shoot_sheet = "shoot_dual",
+        .shoot_sheet = "shoot_dual", .melee_sheet = "melee_dual",
     },
     [WEAPON_PLASMA] = {
         .name = "Cañón de plasma", .damage_mult = 1.3f, .reload_time = 0.62f,

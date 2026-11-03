@@ -20,6 +20,7 @@ assets/
                          y shoot_<arma> / reload_<arma> si un arma tiene hoja propia
                          (swat/shoot_shotgun, swat/reload, swat/reload_shotgun)
     zombie/              walk, hurt, death, attack
+    crow/                crow (picotea, vuela, cae y queda muerto; tools/make_terrain.py)
     weapons/             bullet (una para todas las armas, teñida por cada una), grenade
     chest/               open, sparks
     effects/             armor_sparks, explosion, heal, glow (efectos que no son de una sola entidad)
@@ -55,6 +56,11 @@ assets/
 | `sprites/weapons/bullet.png` | Dibujado | [SPRITES.md](SPRITES.md) | 4 cuadros de 8 × 6 |
 | `sprites/characters/cowgirl/shoot_dual.png`, `sprites/weapons/grenade.png` | `tools/make_powers.py` | el propio script | shoot_dual como shoot.png; granada 4 × 8 × 8 |
 | `sprites/characters/swat/throw.png` | `tools/make_swat.py` | el propio script | 8 × 81 × 80, plantilla de disparo |
+| `sprites/characters/cowgirl/melee.png`, `melee_dual.png` | `tools/make_melee.py` | su hoja de disparo | 7 × 81 × 80, plantilla de disparo; con las duales, una pistola en cada mano |
+| `sprites/characters/cowgirl/drink.png`, `bandage.png` | `tools/make_care.py` | su hoja de disparo | 6 × 81 × 80, plantilla de disparo: beber del galón; vendarse el muslo (5 vueltas y la venda puesta) |
+| `sprites/characters/swat/drink.png`, `bandage.png` | `tools/make_swat.py` | el propio script | 6 × 81 × 80, igual |
+| `sprites/characters/<id>/faint.png` (cowgirl, swat) | `tools/make_faint.py` | su hoja de caminar | 8 × 80 × 67, pivote en la columna 40, suelo en la fila 61 |
+| `sprites/characters/swat/melee.png`, `melee_shotgun.png` | `tools/make_swat.py` | el propio script | 7 × 81 × 80, plantilla de disparo; una por arma (`WeaponDef.melee_sheet`) |
 | `sprites/zombie/*` (walk, hurt, death, attack) | Dibujado | [ZOMBIE.md](ZOMBIE.md) | 72 × 72 por cuadro |
 | `sprites/chest/open.png` | Dibujado | este documento | 6 cuadros de 72 × 72 |
 | `sprites/effects/armor_sparks.png` | Recortado de `zombie/hurt.png` | [ZOMBIE.md](ZOMBIE.md) | 2 cuadros de 20 × 12 |
@@ -64,7 +70,7 @@ assets/
 | `sprites/props/*` | Dibujado | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/props.c` |
 | `sprites/props/houses.png` | `tools/make_terrain.py`, en los colores de los props (cada tema los recolorea) | el propio script | 9 × 80 × 64 (5 casas y las 4 estructuras); casas de fondo, `HOUSE_*` en `config.h`, `house_chance` por tema |
 | `sprites/characters/{cowgirl,swat}/sit.png`, `swat/sit_shotgun.png` | `tools/make_sit.py`, de frente, en sus colores, con el arma de `ui/weapons.png` (una hoja por arma: `WeaponDef.sit_sheet`) | el propio script | 14 cuadros de 72 × 67, pivote 35.5 |
-| `sprites/terrain/*`, `sprites/effects/{explosion,heal,glow}.png` | `tools/make_terrain.py` | el propio script | barricade 3 × 52 × 20, wall 3 × 44 × 72, wall_ruins 180 × 84, facades 4 × 180 × 128 (iglesia, comisaría, herrería, establo), door 3 × 44 × 64, barrel 26 × 36, bench 76 × 32, campfire 8 × 48 × 44 (4 sola, 4 con olla), supply 2 × 100 × 56, goal 108 × 96; explosión 8 × 72 × 72, heal 12 × 64 × 96 (`config.h`) |
+| `sprites/terrain/*`, `sprites/effects/{explosion,heal,glow}.png` | `tools/make_terrain.py` | el propio script | crow (`sprites/crow/crow.png`) 8 × 16 × 12, sign 22 × 30, river 4 × 120 × 22 (18 filas bajo la línea del suelo) y river_front 4 × 120 × 6 (su superficie sobre los pies), puddle 4 × 36 × 5, splash 5 × 20 × 12, tumbleweed 4 × 14 × 14, barricade 12 × 68 × 26 (4 tipos × entera, rota, destruida), wire 3 × 80 × 22, net 3 × 40 × 30 (puesta, saltando, vacía), snare 3 × 48 × 64 (doblado, enderezándose, derecho), spikes 3 × 32 × 16, net_bag 4 × 44 × 66 (2 de vaivén, 2 cerrándose), crate 11 × 32 × 28 (5 botines —balas, vida, dinamita, oro, agua— × entera y rota, más rota), trap 3 × 32 × 12 (abierta, cerrándose, cerrada), coffin 4 × 28 × 60 (día y noche), blood 4 × 8 × 4, wall 3 × 44 × 72, wall_ruins 180 × 84, facades 4 × 180 × 128 (iglesia, comisaría, herrería, establo), door 3 × 44 × 64, barrel 26 × 36, bench 76 × 32, campfire 8 × 48 × 44 (4 sola, 4 con olla), supply 2 × 100 × 56, goal 108 × 96; explosión 8 × 72 × 72, heal 12 × 64 × 96 (`config.h`) |
 | `backgrounds/<tema>/*` | Dibujado; se revisa con `tools/check_landscape.py`; el sol de atardecer y pueblo fantasma lo pinta `tools/make_sun.py` | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/themes.c` |
 | `sounds/player/*`, `sounds/world/*` | `tools/make_sfx.py` | el propio script | — |
 | `sounds/zombie/*` | Voz grabada, `tools/crush_sfx.py` | [README](../README.md#sonido) | — |

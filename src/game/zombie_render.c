@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "engine/assets.h"
+#include "game/hang_render.h"
 #include "game/health_bar.h"
 
 #define BAR_W 64
@@ -35,13 +36,33 @@ void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
         def->frame_w * SPRITE_SCALE,
         def->frame_h * SPRITE_SCALE,
     };
-    SDL_RendererFlip flip = left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    int flip = left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    double angle = 0.0;
+    bool hanging = zombie->caught > 0.0f && zombie->catch_kind != CATCH_NONE && zombie_alive(zombie);
+    float lift = hanging ? hang_lift(zombie->catch_kind, zombie->catch_time) : 0.0f;
+    if (hanging) { /* Up in a net, or head down from a snare like her */
+        dst.x += hang_sway(zombie->catch_time) * SPRITE_SCALE;
+        dst.y -= (int)lroundf(lift);
+        int turn = zombie->catch_kind == CATCH_SNARE ? hang_turn(zombie->catch_time) : 0;
+        if (turn == 1) /* Yanked off its feet: a quarter turn first */
+            angle = left ? 90.0 : -90.0;
+        if (turn == 2) {
+            flip |= SDL_FLIP_VERTICAL;
+            dst.y = BASELINE - (int)lroundf(lift) - (def->ground_y + 1) * SPRITE_SCALE;
+            hang_rope(renderer, zombie->catch_anchor_x - camera_x, zombie->catch_anchor_y,
+                      (float)(dst.x + (int)lroundf(anchor_x * SPRITE_SCALE)),
+                      (float)(dst.y + (def->frame_h - 1 - def->ground_y) * SPRITE_SCALE));
+        }
+    }
     unsigned tint = zombie->stats ? zombie->stats->tint : 0xffffff;
     SDL_SetTextureColorMod(sheet, (Uint8)(tint >> 16), (Uint8)(tint >> 8), (Uint8)tint);
     SDL_SetTextureAlphaMod(sheet, (Uint8)lroundf(opacity * 255.0f));
-    SDL_RenderCopyEx(renderer, sheet, &src, &dst, 0.0, NULL, flip);
+    SDL_RenderCopyEx(renderer, sheet, &src, &dst, angle, NULL, (SDL_RendererFlip)flip);
     SDL_SetTextureAlphaMod(sheet, 255);
     SDL_SetTextureColorMod(sheet, 255, 255, 255);
+    if (hanging && zombie->catch_kind == CATCH_NET)
+        hang_net(renderer, (float)(dst.x + (int)lroundf(anchor_x * SPRITE_SCALE)),
+                 (float)BASELINE - lift + 2.0f * SPRITE_SCALE, zombie->catch_time);
 
     if (zombie_alive(zombie) && zombie->health < zombie->max_health)
         draw_health_bar(renderer, zombie, camera_x);

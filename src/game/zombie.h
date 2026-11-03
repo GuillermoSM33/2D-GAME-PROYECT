@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "engine/animation.h"
+#include "game/catch.h"
 
 /* What sets one kind of zombie apart from another, at level 1. Its level
  * scales all three the same way as the player's (progression.c). */
@@ -12,11 +13,13 @@ typedef struct {
     float armor;
     float attack_base; /* Claw damage at level 1, before the player's armor */
     unsigned tint;     /* 0xRRGGBB multiplied over its sheets: 0xffffff as drawn */
+    float speed;       /* Times ZOMBIE_SPEED (and its walk animation) */
 } ZombieStats;
 
 extern const ZombieStats ZOMBIE_COMMON; /* Reference for balance; no art yet */
 extern const ZombieStats ZOMBIE_RIOT;   /* Riot gear: same health, 85 armor */
 extern const ZombieStats ZOMBIE_ELITE;  /* Heavier riot gear, harder claw, a rusty red tint */
+extern const ZombieStats ZOMBIE_RUNNER; /* Light gear, frail, fast: a sickly green tint */
 
 typedef enum {
     ZOMBIE_WALK, /* Limping toward the player */
@@ -46,7 +49,12 @@ typedef struct {
     float idle_time; /* Asleep: its breathing, a slow rise and fall */
     float rouse;     /* Just woken: seconds left of jolting and lurching before it walks */
     bool hidden;     /* Shut in a coffin: not drawn, not hit, until it bursts open */
-    float caught;    /* Seconds left held in a bear trap: it struggles in place */
+    float caught;    /* Seconds left held in a trap: it struggles in place */
+    CatchKind catch_kind; /* What holds it up while caught (CATCH_NONE: a bear trap) */
+    bool wading;          /* In a river: slowed (the stage sets it) */
+    int wind;             /* The wind: +1 blowing right, -1 left, 0 (the stage sets it) */
+    float catch_time;     /* Seconds since a hanging trap caught it */
+    float catch_anchor_x, catch_anchor_y; /* A snare: the sapling's tip (world x, view y) */
     int health;
     float wound; /* Damage under a whole health point, kept for the next hit */
     float stagger_time; /* While > 0, hits do not make it recoil again */
@@ -82,6 +90,12 @@ void zombie_update(Zombie *zombie, float player_x, bool player_alive, float dt);
 
 /* Dead and fully faded out: the stage can place a chest or the next one. */
 bool zombie_gone(const Zombie *zombie);
+
+/* Dead and done falling: lying on the ground (it fades later). */
+bool zombie_down(const Zombie *zombie);
+
+/* Its walk, for what looks like one (a hallucination). */
+const AnimationDef *zombie_walk_animation(void);
 
 /* Damage of one claw strike, before the target's armor. */
 float zombie_attack_damage(const Zombie *zombie);

@@ -27,6 +27,7 @@ void progress_init(Progress *progress)
     progress->xp = 0;
     progress->weapon_level = 1;
     progress->armor_level = 1;
+    progress->gold = 0;
 }
 
 int xp_to_next(int level)

@@ -9,6 +9,9 @@
  * gone; a wrecked barricade and an empty wagon stay). */
 void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera_x);
 
+/* A river's surface again, over the feet of whoever wades it: after them. */
+void terrain_render_front(SDL_Renderer *renderer, const Terrain *terrain, float camera_x);
+
 /* Warm light round lamps, burning oil and campfires, added over everything
  * drawn so far and flickering with time. */
 void terrain_render_lights(SDL_Renderer *renderer, const Terrain *terrain, float camera_x, double time);

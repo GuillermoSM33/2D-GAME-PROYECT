@@ -82,9 +82,14 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_shoot[guns[g]] = own_sheet(character, def->shoot_sheet);
             skin->weapon_reload[guns[g]] = own_sheet(character, def->reload_sheet);
             skin->weapon_sit[guns[g]] = own_sheet(character, def->sit_sheet);
+            skin->weapon_melee[guns[g]] = own_sheet(character, def->melee_sheet);
         }
     }
     skin->throw_sheet = own_sheet(character, "throw");
+    skin->melee_sheet = own_sheet(character, "melee");
+    skin->faint_sheet = own_sheet(character, "faint");
+    skin->drink_sheet = own_sheet(character, "drink");
+    skin->bandage_sheet = own_sheet(character, "bandage");
 }
 
 void skin_free(CharacterSkin *skin)
@@ -109,6 +114,21 @@ SDL_Texture *skin_sheet(const CharacterSkin *skin, const char *template_sheet, i
         return known ? skin->weapon_reload[gun] : NULL;
     if (strcmp(file, "throw") == 0)
         return skin->throw_sheet;
+    if (strcmp(file, "faint") == 0)
+        return skin->faint_sheet;
+    if (strcmp(file, "drink") == 0)
+        return skin->drink_sheet;
+    if (strcmp(file, "bandage") == 0)
+        return skin->bandage_sheet;
+    if (strcmp(file, "melee") == 0) {
+        if (known && skin->weapon_melee[gun])
+            return skin->weapon_melee[gun];
+        if (skin->melee_sheet)
+            return skin->melee_sheet;
+        file = "shoot"; /* No blow of its own: its shoot sheet's first frames */
+        if (known && skin->weapon_shoot[gun])
+            return skin->weapon_shoot[gun];
+    }
     for (int s = 0; s < SKIN_SHEETS; s++) {
         if (strcmp(file, SKIN_SHEET_NAMES[s]) == 0)
             return skin->sheets[s];

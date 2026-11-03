@@ -661,6 +661,149 @@ def make_throw(body: Image) -> Image:
     return sheet
 
 
+BAYONET = {(28, 4): '1', (29, 4): '3', (30, 4): '4', (31, 4): '4', (32, 4): '4', (33, 4): '4',
+           (34, 4): '5', (35, 4): '5', (30, 5): '3', (31, 5): '3', (32, 5): '3', (33, 5): '2'}
+
+
+def make_melee(body: Image, gun_def, bayonet: bool) -> Image:
+    """7 frames on the shoot template: a smash with the gun held in both
+    hands, like a mace: raised, up over the helmet with the muzzle back,
+    swinging down, the blow level in front (frame 3, a swoosh along the
+    muzzle's path), the follow-through low, back up, low ready. The rifle
+    has a bayonet fixed."""
+    gun, grip, guard = gun_def
+    if bayonet:
+        gun = {**gun, **BAYONET}
+    sx, sy = SHOOT_SHIFT
+    shoulder = (NEAR_SHOULDER[0] + sx, NEAR_SHOULDER[1] + sy)
+
+    def at(p: tuple) -> tuple:
+        return (p[0] + sx, p[1] + sy)
+
+    aimed = (MUZZLE[0] - (MUZZLE_LOCAL[0] - grip[0]), MUZZLE[1] - (MUZZLE_LOCAL[1] - grip[1]))
+    poses = [  # Grip (from the near shoulder), angle (+ raises the muzzle)
+        ((9, -6), 55),
+        ((4, -13), 105),
+        ((10, -11), 50),
+        ((15, -3), -10),
+        ((14, 3), -40),
+        ((12, 0), -15),
+        ((aimed[0] - 3 - shoulder[0], aimed[1] + 5 - shoulder[1]), -50),
+    ]
+    tip = max(gun, key=lambda p: p[0])
+    sheet = Image(SHOOT_W * 7, SHOOT_H)
+    for i, ((gx, gy), angle) in enumerate(poses):
+        place = (shoulder[0] + gx + 0.5, shoulder[1] + gy + 0.5)
+        layer, to_frame = gun_layer(gun, angle, grip, place)
+        g, h = to_frame(grip), to_frame(guard)
+        near_hand, far_hand = (g[0] - 0.5, g[1] - 0.5), (h[0] - 0.5, h[1] - 0.5)
+        parts = [
+            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
+            (body, sx, sy),
+            layer,
+            hand(far_hand),
+            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+        ]
+        if i in (3, 4):  # The swoosh: the muzzle's path since the last pose
+            trail = Layer()
+            (px0, py0), a0 = poses[i - 1]
+            for k in range(15):
+                t = k / 14
+                ang = a0 + (angle - a0) * t
+                p_at = (shoulder[0] + px0 + (gx - px0) * t + 0.5, shoulder[1] + py0 + (gy - py0) * t + 0.5)
+                a, lx, ly = math.radians(ang), tip[0] + 1 - grip[0], tip[1] - grip[1]
+                x = p_at[0] + lx * math.cos(a) + ly * math.sin(a)
+                y = p_at[1] - lx * math.sin(a) + ly * math.cos(a)
+                shade = SWOOSH_TONES[0] if t > 0.6 else SWOOSH_TONES[1] if t > 0.3 else SWOOSH_TONES[2]
+                for w in range(2 if i == 3 and t > 0.4 else 1):
+                    trail.put(round(x) + w, round(y), shade)
+            parts.append(trail)
+        paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
+    return sheet
+
+
+SWOOSH_TONES = [rgb(0xfff6dc), rgb(0xd8d0c0), rgb(0x9a9488)]
+
+JUG = ['.cc.', 'bccb', 'BBBB', 'BwBB', 'BwBB', 'BBBB', 'bbbb']
+JUG_COLORS = {'c': rgb(0x9a643a), 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)}
+BANDAGE = [rgb(0x9a9488), rgb(0xd8d4c8), rgb(0xf6f2e6)]
+
+
+def jug_layer(at: tuple, tilt: float) -> Layer:
+    """A jug of water held about its middle at `at`, tipped tilt degrees (its
+    mouth toward his lips)."""
+    a = math.radians(tilt)
+    ca, sa = math.cos(a), math.sin(a)
+    lay = Layer()
+    for y in range(int(at[1]) - 6, int(at[1]) + 7):
+        for x in range(int(at[0]) - 6, int(at[0]) + 7):
+            fx, fy = x + 0.5 - at[0], y + 0.5 - at[1]
+            jx, jy = math.floor(fx * ca - fy * sa + 2.0), math.floor(fx * sa + fy * ca + 3.5)
+            if 0 <= jy < len(JUG) and 0 <= jx < 4 and JUG[jy][jx] != '.':
+                lay.put(x, y, JUG_COLORS[JUG[jy][jx]])
+    return lay.outlined()
+
+
+def make_drink(body: Image) -> Image:
+    """6 frames on the shoot template: the gun slung, a jug of water brought
+    up to his lips, tipped, tipped right up, back, lowered."""
+    sx, sy = SHOOT_SHIFT
+
+    def at(p: tuple) -> tuple:
+        return (p[0] + sx, p[1] + sy)
+
+    poses = [((25, 34), 0), ((25, 29), 20), ((26, 25), 65), ((26, 24), 110), ((26, 25), 65), ((25, 32), 10)]
+    sheet = Image(SHOOT_W * 6, SHOOT_H)
+    for i, (near, tilt) in enumerate(poses):
+        near_hand = at(near)
+        parts = [
+            arm(at(FAR_SHOULDER), at((27, 38)), near=False, upper=7.5, fore=8.0),
+            (body, sx, sy),
+            jug_layer((near_hand[0] + 1, near_hand[1] - 1), tilt),
+            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+        ]
+        paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
+    return sheet
+
+
+def make_bandage(body: Image) -> Image:
+    """6 frames on the shoot template: his hand winding a bandage round his
+    near thigh, a turn more each frame (round the back on odd frames); the
+    last, done, blood showing through."""
+    sx, sy = SHOOT_SHIFT
+
+    def at(p: tuple) -> tuple:
+        return (p[0] + sx, p[1] + sy)
+
+    thigh = (35, 42, 48, 54)                          # x0, x1, y0, y1 on the frame
+    hands = [(29, 40), (26, 43), (30, 42), (26, 40), (30, 43), (29, 41)]
+    sheet = Image(SHOOT_W * 6, SHOOT_H)
+    for i, near in enumerate(hands):
+        done = i == 5
+        behind = not done and i % 2 == 1
+        wrap = Layer()
+        x0, x1, y0, y1 = thigh
+        for t in range(min(i + 1, 5)):
+            y = y1 - t * 2
+            for x in range(x0, x1 + 1):
+                wrap.put(x, y + (x - x0) // 4 - 1, BANDAGE[2] if x < x1 - 1 else BANDAGE[1])
+        if done:
+            wrap.put(x0 + 3, y1 - 4, rgb(0x9c3424))
+            wrap.put(x0 + 4, y1 - 4, rgb(0x9c3424))
+        near_arm = arm(at(NEAR_SHOULDER), at(near), near=True, upper=7.5, fore=8.0)
+        parts = [arm(at(FAR_SHOULDER), at((27, 38)), near=False, upper=7.5, fore=8.0), (body, sx, sy)]
+        parts += [near_arm, wrap] if behind else [wrap, near_arm]
+        if not behind and not done:                   # The roll in his hand
+            roll = Layer()
+            hx, hy = at(near)
+            for dx in (2, 3):
+                for dy in (0, 1):
+                    roll.put(hx + dx, hy + dy, BANDAGE[2 - dy])
+            parts.append(roll.outlined())
+        paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
+    return sheet
+
+
 def main() -> int:
     source = load(SOURCE)
     detail_head(source)
@@ -673,6 +816,10 @@ def main() -> int:
         'reload': make_reload(body, 'rifle'),
         'reload_shotgun': make_reload(body, 'shotgun'),
         'throw': make_throw(body),
+        'melee': make_melee(body, rifle(), bayonet=True),
+        'melee_shotgun': make_melee(body, shotgun(), bayonet=False),
+        'drink': make_drink(body),
+        'bandage': make_bandage(body),
     }
     for name, sheet in sheets.items():
         sheet.save(OUT_DIR / f'{name}.png')

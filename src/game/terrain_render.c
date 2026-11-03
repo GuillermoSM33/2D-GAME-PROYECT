@@ -5,8 +5,8 @@
 #include "config.h"
 #include "engine/assets.h"
 
-static void draw(SDL_Renderer *renderer, const char *sheet_name, int frame, int w, int h, float x,
-                 float camera_x)
+static void draw_sunk(SDL_Renderer *renderer, const char *sheet_name, int frame, int w, int h, float x,
+                      float camera_x, int sink)
 {
     SDL_Texture *sheet = assets_texture(sheet_name);
     float left = x - camera_x - (float)(w * SPRITE_SCALE) / 2.0f;
@@ -14,15 +14,52 @@ static void draw(SDL_Renderer *renderer, const char *sheet_name, int frame, int 
         return;
     SDL_Rect src = {frame * w, 0, w, h};
     /* Its last row on the ground line, like the props. */
-    SDL_Rect dst = {(int)lroundf(left), GROUND_ROW * SPRITE_SCALE - h * SPRITE_SCALE, w * SPRITE_SCALE,
+    SDL_Rect dst = {(int)lroundf(left), (GROUND_ROW + sink - h) * SPRITE_SCALE, w * SPRITE_SCALE,
                     h * SPRITE_SCALE};
     SDL_RenderCopy(renderer, sheet, &src, &dst);
 }
 
+/* Its last row on the ground line, like the props. */
+static void draw(SDL_Renderer *renderer, const char *sheet_name, int frame, int w, int h, float x,
+                 float camera_x)
+{
+    draw_sunk(renderer, sheet_name, frame, w, h, x, camera_x, 0);
+}
+
+static bool water(const Piece *p)
+{
+    return p->kind == TERRAIN_RIVER || p->kind == TERRAIN_PUDDLE;
+}
+
+void terrain_render_front(SDL_Renderer *renderer, const Terrain *terrain, float camera_x)
+{
+    SDL_Texture *front = assets_texture("sprites/terrain/river_front");
+    if (front == NULL)
+        return;
+    SDL_SetTextureAlphaMod(front, 210);
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind != TERRAIN_RIVER)
+            continue;
+        /* The surface rows of the river (its rows 2-4), over the ankles in it. */
+        int top = GROUND_ROW + RIVER_SINK - RIVER_FRAME_H + 2;
+        draw_sunk(renderer, "sprites/terrain/river_front", terrain_frame(p), RIVER_FRAME_W, RIVER_FRONT_H,
+                  p->x, camera_x, top + RIVER_FRONT_H - GROUND_ROW);
+    }
+    SDL_SetTextureAlphaMod(front, 255);
+}
+
 void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera_x)
 {
-    for (int i = 0; i < terrain->count; i++) { /* Behind everything: what a wall closes */
+    for (int i = 0; i < terrain->count; i++) { /* Behind everything: what a wall closes, water */
         const Piece *p = &terrain->items[i];
+        if (water(p)) {
+            int w, h, frames;
+            terrain_frame_size(p->kind, &w, &h, &frames);
+            draw_sunk(renderer, terrain_sheet(p->kind), terrain_frame(p), w, h, p->x, camera_x,
+                      terrain_sink(p->kind));
+            continue;
+        }
         if (p->kind != TERRAIN_WALL)
             continue;
         if (p->variant > 0)
@@ -33,8 +70,8 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
     for (int i = 0; i < terrain->count; i++) {
         const Piece *p = &terrain->items[i];
         bool gone = p->spent && (p->kind == TERRAIN_BARREL || p->kind == TERRAIN_DYNAMITE ||
-                                 p->kind == TERRAIN_FIRE);
-        if (gone)
+                                 p->kind == TERRAIN_FIRE || p->kind == TERRAIN_CHARGE);
+        if (gone || water(p))
             continue;
         int w, h, frames;
         terrain_frame_size(p->kind, &w, &h, &frames);
@@ -42,7 +79,7 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
             draw(renderer, terrain_door_sheet(), terrain_frame(p), DOOR_FRAME_W, DOOR_FRAME_H, p->x, camera_x);
         else
             draw(renderer, terrain_sheet(p->kind), terrain_frame(p), w, h, p->x, camera_x);
-        if (p->fuse > 0.0f) { /* The lit charge at its foot, the fuse sparking */
+        if (p->fuse > 0.0f && p->kind != TERRAIN_CHARGE) { /* The lit charge at its foot, sparking */
             int spark = (int)(p->fuse * 10.0f) % 2;
             draw(renderer, terrain_charge_sheet(), spark, CHARGE_FRAME_W, CHARGE_FRAME_H, p->x, camera_x);
         }

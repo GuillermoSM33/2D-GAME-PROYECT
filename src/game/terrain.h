@@ -25,11 +25,19 @@ typedef enum {
     TERRAIN_FIRE,      /* Burning oil where a lamp fell: hurts whoever walks through */
     TERRAIN_BENCH,     /* A bench: E sits her down to reload; the first sit heals a little */
     TERRAIN_CAMPFIRE,  /* A campfire: standing by it heals slowly */
+    TERRAIN_CHARGE,    /* A charge she planted on the road, its fuse burning: a barrel's blast */
+    TERRAIN_WIRE,      /* Barbed wire: no wall, but it tears her up; shots or blows cut it */
+    TERRAIN_NET,       /* A net under the leaves: the first to step on it hangs in it */
+    TERRAIN_SNARE,     /* A snare: the first to step in it hangs by a foot from the sapling */
+    TERRAIN_SPIKES,    /* A spike plate: stepped on, spikes come up (timer: its cycle) */
+    TERRAIN_RIVER,     /* A river across the road: wading it is slow (timer: its current) */
+    TERRAIN_PUDDLE,    /* A puddle: splashes and ripples under feet */
+    TERRAIN_SIGN,      /* A warning sign before a trap (variant: the trap's kind) */
     TERRAIN_KINDS
 } TerrainKind;
 
 /* What a broken crate gives (terrain_loot). */
-typedef enum { LOOT_AMMO, LOOT_HEALTH, LOOT_DYNAMITE, LOOT_GOLD } Loot;
+typedef enum { LOOT_AMMO, LOOT_HEALTH, LOOT_DYNAMITE, LOOT_GOLD, LOOT_WATER } Loot;
 
 #define TERRAIN_EVENTS 8
 
@@ -43,7 +51,8 @@ typedef struct {
     int hits;     /* Crate, bottles, coffin: shots taken */
     float timer;  /* Fire: seconds it still burns; its flicker */
     int zombie;   /* Coffin: the index of the zombie inside (stage_run), or -1 */
-    int variant;  /* Campfire: 1 with a pot hung over it. Wall: 0 a palisade in ruins,
+    float ripple; /* Puddle: seconds left of its rings */
+    int variant;  /* Campfire: 1 with a pot hung over it. Coffin: 1 the night's. Wall: 0 a palisade in ruins,
                    * 1..FACADE_KINDS a building's front (church, sheriff, smithy, stable)
                    * with its door barred */
 } Piece;
@@ -126,6 +135,39 @@ Loot terrain_loot(int stage_index, int index);
 /* Lights a charge on a standing wall within reach of x (WALL_USE_RANGE from
  * its edge). Returns whether it did. */
 bool terrain_light_charge(Terrain *terrain, float x);
+
+/* A charge on the road at x, its fuse lit (TERRAIN_CHARGE). */
+bool terrain_plant_charge(Terrain *terrain, float x);
+
+/* A blow with a gun over x0..x1: crates, bottles, lamps, coffins and wire
+ * take it (wire as WIRE_MELEE_HITS shots), barricades and walls like a
+ * claw. Returns how many pieces it hit. */
+int terrain_melee(Terrain *terrain, float x0, float x1);
+
+/* The uncut wire she stands in (below WIRE_TOP), or -1. */
+int terrain_wire_at(const Terrain *terrain, float x, float height);
+
+/* A spike plate's cycle: seconds left (0 = armed) and whether its spikes
+ * are out now. */
+bool terrain_spikes_out(const Piece *piece);
+
+/* A warning sign ahead within range, the way she faces: the kind of trap
+ * it warns of, or -1. */
+int terrain_sign_ahead(const Terrain *terrain, float x, int dir, float range);
+
+/* In a river at x. */
+bool terrain_river_at(const Terrain *terrain, float x);
+
+/* Feet in water at x (a river or a puddle): true, and a puddle there
+ * ripples. */
+bool terrain_splash(Terrain *terrain, float x);
+
+/* Art rows a kind's sprite goes under the ground line (water lies in the
+ * road, not on it). */
+int terrain_sink(TerrainKind kind);
+
+/* Uncut wire ahead of her within range, the way she faces. */
+bool terrain_wire_ahead(const Terrain *terrain, float x, int dir, float range);
 
 /* Whether there is a standing, unlit wall within reach of x. */
 bool terrain_wall_near(const Terrain *terrain, float x);

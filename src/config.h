@@ -69,6 +69,63 @@
 #define VAULT_REACH 80.0f          /* Window px from where a barricade stops her to vault it */
 #define PLAYER_WAIST_ROW 46        /* Walk-frame row where legs start (reloading while walking) */
 /* Sitting on a bench (sit sheet, tools/make_sit.py): 12 frames of 72 x 67. */
+/* The blow with the gun (V): the melee sheets (tools/make_melee.py). */
+#define PLAYER_MELEE_FRAMES 7
+#define PLAYER_MELEE_FPS 10.0f
+#define PLAYER_MELEE_HIT_FRAME 3  /* The blow lands on this frame */
+#define MELEE_COOLDOWN 1.5f       /* Seconds after the blow ends before the next... */
+#define HEAT_MELEE_MULT 1.4f      /* ...this much longer in the heat (StageDef.hot)... */
+#define COLD_MELEE_MULT 1.3f      /* ...and in the cold (StageDef.cold) */
+#define COLD_PACE 0.94f           /* The cold slows her a little */
+/* Wet from a river: she dries in this many seconds; by a campfire, faster. */
+#define DRY_HOT 8.0f
+#define DRY_MILD 11.0f
+#define DRY_COLD 15.0f
+#define DRY_FIRE 6.0f
+/* By a campfire in the heat: fatigue builds up (it wears off at FATIGUE_EASE
+ * times the pace away from the fire). Past FATIGUE_SLOW she is slower at
+ * everything, past FATIGUE_STROKE a heatstroke blurs the view, at
+ * FATIGUE_FAINT she faints and the stage starts over (FAINT_RESTART later). */
+#define FATIGUE_SLOW 10.0f
+#define FATIGUE_STROKE 15.0f
+#define FATIGUE_FAINT 20.0f
+#define FATIGUE_EASE 2.0f
+#define FATIGUE_PACE 0.8f         /* Her pace, blows and shots once slowed */
+#define FAINT_RESTART 3.0f
+/* A jug of water (from crates and the wagon, kept till drunk): U drinks it
+ * when she isn't bleeding (bleeding, U binds the wound first). Drinking she
+ * walks at DRINK_PACE; after, the heat leaves her alone for REFRESH_TIME. */
+#define DRINK_TIME 1.2f
+#define DRINK_PACE 0.25f
+#define REFRESH_TIME 20.0f
+#define SUPPLY_WATER 1            /* Jugs in the supply wagon */
+#define HYDRATED_PACE 1.08f       /* Hydrated (REFRESH_TIME after a drink): a little quicker */
+/* Thirst grows with time (per second: in the heat, mild, cold; none while
+ * hydrated) and a drink takes it to 0. Past THIRSTY her mouth is dry, past
+ * DEHYDRATED she is slower and her mind starts to go, past HALLUCINATING
+ * she sees things (hallucination.c). */
+#define THIRST_HOT 1.0f
+#define THIRST_MILD 0.5f
+#define THIRST_COLD 0.35f
+#define THIRSTY 40.0f
+#define DEHYDRATED 70.0f
+#define HALLUCINATING 100.0f
+#define DEHYDRATED_PACE 0.92f
+#define PHANTOMS_MAX 4            /* Zombies that aren't there */
+#define PHANTOM_EVERY 5.0f        /* Seconds between them */
+#define PHANTOM_SPEED 70.0f
+#define PHANTOM_REACH 110.0f      /* Window px from her: it was never there */
+#define PHANTOM_FADE 0.4f
+#define DOUBLE_EVERY 9.0f         /* Seconds between sightings of herself... */
+#define DOUBLE_TIME 3.0f          /* ...each this long... */
+#define DOUBLE_GAP 380.0f         /* ...this far ahead of her */
+#define PLAYER_FAINT_FRAMES 8     /* <id>/faint: swaying, knees giving, toppling, lying (make_faint.py) */
+#define PLAYER_FAINT_FRAME_W 80
+#define PLAYER_FAINT_FPS 7.0f
+#define MELEE_REACH 130.0f        /* Window px past her body's front edge */
+#define MELEE_DAMAGE_MULT 0.6f    /* Times her weapon damage (less than a shot)... */
+#define MELEE_ARMOR_SHARE 0.5f    /* ...with half the armor in the way */
+#define MELEE_PUSH 70.0f          /* Window px a zombie is knocked back */
 #define PLAYER_THROW_FRAMES 8      /* The grenade throw, on the shoot template */
 #define PLAYER_THROW_FPS 14.0f
 #define PLAYER_THROW_RELEASE_FRAME 4 /* The grenade leaves the hand */
@@ -225,24 +282,34 @@
 #define PLAYER_KNOCKBACK_SPEED 240.0f
 
 /* Jump arc: peak height in window px and total time in the air. */
-#define PLAYER_JUMP_HEIGHT 96.0f
-#define PLAYER_JUMP_TIME 0.6f
+#define PLAYER_JUMP_HEIGHT 135.0f
+#define PLAYER_JUMP_TIME 0.7f
 
 /* The stage's road (stage_run.c, stages.c): she walks from PLAYER_START_X
  * to a gate StageDef.length ahead, past its zombies' groups and its terrain. */
-#define RUN_MAX_ZOMBIES 16
+#define RUN_MAX_ZOMBIES 24
 #define RUN_MAX_CHESTS 6
+/* XP of a stage's kills and zombie chests is shared out as if it had this
+ * many zombies: more zombies make it harder, not a faster climb. */
+#define STAGE_XP_ZOMBIES 6.0f
 /* A group wakes when even its farthest zombie is this close: they all stand
  * in view first (she sees 870 px ahead), none walks in from off screen. */
 #define ROUTE_WAKE_DISTANCE 820.0f
 #define ROUTE_GROUP_SPACING 150.0f /* Window px between the zombies of a group */
-#define ROUTE_LOCK_MARGIN 160.0f   /* A woken group keeps her from going past its last zombie + this */
+#define ROUTE_LOCK_MARGIN 260.0f   /* A woken group keeps her from going past its last zombie + this */
+/* An ambush (SPOT_AMBUSH): when she reaches its spot, its zombies walk in
+ * from off screen, behind her (she sees 410 px back) and, if the road ahead
+ * is open, ahead too. */
+#define AMBUSH_BEHIND 560.0f
+#define AMBUSH_AHEAD 1000.0f
+#define AMBUSH_SPACING 120.0f      /* Window px between ambushers on one side */
+#define AMBUSH_ROOM 560.0f         /* Window px past the spot she may move while it holds her */
 #define ROUTE_PX_PER_METER 48.0f   /* For the distance to the goal in the HUD */
 #define ROUTE_QUEUE_STEP 40.0f     /* Zombies queue up by her: each a step behind; two still reach */
 #define PLAYER_BODY_HALF_WIDTH 40.0f /* What runs into a barricade: her body, not the frame */
 
 /* Terrain (terrain.c, art from tools/make_terrain.py). */
-#define TERRAIN_MAX 48
+#define TERRAIN_MAX 96
 #define POWER_LEVEL 3             /* Each character's level-3 power: dual pistols, grenades */
 #define GRENADE_SPEED_X 430.0f    /* Window px/s ahead when thrown */
 #define GRENADE_SPEED_Y 560.0f    /* ...and up */
@@ -263,10 +330,11 @@
 #define HOUSE_SCALE 3             /* Smaller than the props: further away */
 #define HOUSE_PARALLAX 0.8f       /* ...and slower */
 #define HOUSE_SPACING 700.0f      /* A slot for a house every this many px of their strip */
-#define BARRICADE_FRAME_W 52
-#define BARRICADE_FRAME_H 20
-#define BARRICADE_TOP 76.0f       /* Window px: above the claw, under her jump's peak */
+#define BARRICADE_FRAME_W 68
+#define BARRICADE_FRAME_H 26
+#define BARRICADE_TOP 100.0f      /* Window px: above the claw, under her jump's peak */
 #define BARRICADE_STRIKES 4       /* Claw strikes that wreck it */
+#define BARRICADE_KINDS 4         /* Crates, sandbags, logs, a steel barrier (Piece.variant) */
 #define BARRICADE_CLAW_GAP 36.0f  /* A zombie clawing it stands this far from its edge */
 #define WALL_FRAME_W 44           /* The tall palisade: her height, no jumping it */
 #define WALL_FRAME_H 72
@@ -305,30 +373,148 @@
 #define SUPPLY_DYNAMITE_LONG 28000.0f   /* ...and than this: 3 */
 #define GOAL_FRAME_W 108
 #define GOAL_FRAME_H 96
-#define CRATE_FRAME_W 18          /* A loose crate: 3 shots to break, loot inside */
-#define CRATE_FRAME_H 16
+#define CRATE_FRAME_W 32          /* A loose crate: 3 shots to break, loot inside (stencilled on it) */
+#define CRATE_FRAME_H 28
 #define CRATE_HITS 3
-#define CRATE_SPACING 84.0f       /* Window px between crates of one spot */
+#define CRATE_SPACING 140.0f      /* Window px between crates of one spot */
 #define TRAP_SPACING 220.0f
+/* Water on the road. A river (terrain/river: its top rows over the ground
+ * line, the rest down to the bottom of the view) slows whoever wades it;
+ * its surface (river_front) is drawn again over their feet. A puddle only
+ * splashes and ripples. */
+#define RIVER_FRAME_W 120
+#define RIVER_FRAME_H 22
+#define RIVER_SINK 18             /* Art rows under the ground line */
+#define RIVER_FRONT_H 3           /* Ankle deep */
+#define RIVER_FPS 8.0f
+#define RIVER_CLEARANCE 1200.0f   /* 25 m at least between a river and a building or ruin */
+#define RIVER_SLOW 0.5f           /* Pace in the water, hers and the zombies'... */
+#define RIVER_WITH 1.2f           /* ...times this going with the current (it flows right)... */
+#define RIVER_AGAINST 0.8f        /* ...or this against it */
+#define WIND_WITH 1.15f           /* Pace with the wind at your back (it blows right)... */
+#define WIND_AGAINST 0.85f        /* ...and into it */
+#define OMEN_CHANCE 38            /* Percent of ambushes she gets a bad feeling about... */
+#define OMEN_RANGE 1800.0f        /* ...this far before it */
+#define BANDAGE_TIME 1.5f         /* Seconds holding U to stop the bleeding... */
+#define BANDAGE_WALK 0.5f         /* ...walking at this pace meanwhile */
+#define PLAYER_CARE_FRAMES 6      /* <id>/drink and <id>/bandage: the shoot template */
+#define BANDAGE_SHOW 2.5f         /* Seconds the done bandage stays on her leg */
+#define SIGN_FRAME_W 22           /* terrain/sign: a warning sign by a trap */
+#define SIGN_FRAME_H 30
+#define SIGN_CHANCE 25            /* Percent of traps with one */
+#define SIGN_GAP 200.0f           /* Window px before the trap */
+#define SIGN_WARN_RANGE 360.0f    /* Its warning shows this far before it */
+#define PUDDLE_FRAME_W 36
+#define PUDDLE_FRAME_H 5
+#define PUDDLE_SINK 4
+#define PUDDLE_SPACING 320.0f
+#define RIPPLE_TIME 0.5f          /* Seconds a puddle's rings spread */
+#define SPLASH_FRAME_W 20         /* effects/splash: 5 frames */
+#define SPLASH_FRAME_H 12
+#define SPLASH_FRAMES 5
+#define SPLASH_FPS 14.0f
+#define SPLASH_EVERY 0.25f        /* Seconds between splashes of a walker in water */
+/* Weather (weather.c). */
+#define WEATHER_DROPS 160
+#define WEATHER_DUST 16
+#define WEATHER_SPLASHES 24
+#define RAIN_SPEED 950.0f         /* View px per second down */
+#define RAIN_SLANT 0.6f           /* Of the wind, sideways */
+#define WIND_SPEED 520.0f
+#define TUMBLE_EVERY 7.0f         /* Seconds between tumbleweeds, about */
+#define TUMBLE_FRAME 14           /* effects/tumbleweed: 4 frames */
+
+/* Crows on the road (crows.c): effects/crow, 6 frames. */
+#define CROW_FRAME_W 16
+#define CROW_FRAME_H 12
+#define CROWS_MAX 48
+#define CROW_FLOCK_EVERY 2600.0f  /* Window px between flocks, about */
+#define CROW_SCARE_RANGE 330.0f   /* She walks this near, they go (standing: 40 %) */
+#define CROW_SHOT_RANGE 900.0f    /* A shot this far away scares them... */
+#define CROW_BLAST_RANGE 1800.0f  /* ...a blast this far */
+#define CROW_FLY_SPEED 240.0f     /* Px per second away, at least */
+#define CROW_CLIMB 260.0f
+#define CROW_FLAP_FPS 14.0f
+#define CROW_GONE_HEIGHT 900.0f
+#define CROW_FALL_GRAVITY 1400.0f /* A dead one drops */
+#define CROW_CORPSE_TIME 4.0f     /* Seconds it lies on the road... */
+#define CROW_FADE_TIME 0.8f       /* ...then fades */
+#define CROW_FRAMES 8
+/* Traps that hang their catch up (CatchKind): a net (a bag up in the air)
+ * and a snare (by one foot, head down, from a sapling). She gets out with
+ * blows (V); a zombie hangs a while and drops. */
+#define NET_FRAME_W 40
+#define NET_FRAME_H 30
+#define NET_BAG_W 44              /* effects/net_bag: 2 sway frames, then 2 closing */
+#define NET_BAG_H 66
+#define NET_LIFT 110.0f           /* Window px her feet go up */
+#define NET_BLOWS 3               /* Blows to cut her way out */
+#define NET_HOLD 4.0f             /* Seconds a zombie hangs in it */
+#define SNARE_FRAME_W 48
+#define SNARE_FRAME_H 64
+#define SNARE_TIP_X 41            /* Art px in its frame: the sprung sapling's tip */
+#define SNARE_TIP_Y 4
+#define SNARE_LIFT 70.0f          /* Window px her head hangs over the ground */
+#define SNARE_BLOWS 2
+#define SNARE_HOLD 5.0f
+#define CATCH_RISE_TIME 0.25f     /* Seconds the trap takes to haul its catch up */
+#define CATCH_SHAKE_TIME 0.2f     /* A blow at the ropes: her strike frame this long */
+#define SPRING_TIME 0.18f         /* Seconds a trap's springing frame shows */
+/* A spike plate: stepped on, its spikes come up a moment later and stay out
+ * a while, then sink back and it can go again. */
+#define SPIKES_FRAME_W 32
+#define SPIKES_FRAME_H 16
+#define SPIKES_DELAY 0.35f        /* Seconds from the step to the spikes */
+#define SPIKES_OUT 0.8f           /* Seconds they stay out */
+#define SPIKES_REARM 1.5f         /* Seconds sunk before it can go again */
+#define SPIKES_TOP 60.0f          /* Window px: higher in a jump, she clears them */
+#define SPIKES_SELF_MULT 1.2f     /* Claws of the stage's zombies on her (plus bleeding) */
+#define SPIKES_DAMAGE_MULT 2.5f   /* Times her weapon damage on a zombie */
+/* Barbed wire across the road: it doesn't stop her, it tears her (bleeding,
+ * limping) while she is in it below WIRE_TOP. Shots or blows cut it. */
+#define WIRE_FRAME_W 80
+#define WIRE_FRAME_H 22
+#define WIRE_HITS 4               /* Shots that cut it */
+#define WIRE_MELEE_HITS 2         /* What one blow counts for */
+#define WIRE_TOP 70.0f            /* Window px over the ground: higher, she clears it */
+#define WIRE_BITE_EVERY 0.8f      /* Seconds between bites while she is in it */
+#define WIRE_SELF_MULT 0.5f       /* Claws of the stage's zombies per bite */
+#define WIRE_WARN_RANGE 420.0f    /* Window px: the prompt tells her what to do */
 #define LAMP_SPACING 320.0f
 #define COFFIN_SPACING 130.0f
+#define CRATE_HINT_RANGE 700.0f   /* Window px: the first crate of the first stages, a hint */
+#define GOLD_CRATE 10              /* Gold in a crate on stage 1-1... */
+#define GOLD_CRATE_PER_STAGE 5     /* ...and this much more each stage after */
+#define GOLD_CHEST 5               /* Gold in a zombie's chest; the mission's: GOLD_MISSION */
+#define GOLD_MISSION 25
 #define LOOT_GOLD_SHARE 0.5f      /* A crate's gold: this share of a chest's XP */
 #define BOTTLES_XP_SHARE 0.4f     /* All three bottles: this share of a chest's XP */
-#define LOOT_AMMO_CHANCE 35       /* Percent of crates: the gun in hand's magazine full */
-#define LOOT_HEALTH_CHANCE 30     /* ...health (LOOT_HEALTH_SHARE of her max) */
-#define LOOT_DYNAMITE_CHANCE 15   /* ...a charge of dynamite; the rest, gold (XP) */
+#define LOOT_AMMO_CHANCE 30       /* Percent of crates: the gun in hand's magazine full */
+#define LOOT_HEALTH_CHANCE 25     /* ...health (LOOT_HEALTH_SHARE of her max) */
+#define LOOT_DYNAMITE_CHANCE 15   /* ...a charge of dynamite... */
+#define LOOT_WATER_CHANCE 15      /* ...a jug of water; the rest, gold (XP) */
 #define LOOT_HEALTH_SHARE 0.2f
 #define BOTTLES_FRAME_W 36        /* Three bottles on a fence rail: frames with 3, 2, 1, 0 left */
 #define BOTTLES_FRAME_H 22
 #define BOTTLE_COUNT 3
-#define TRAP_FRAME_W 20           /* A bear trap: open, shut */
-#define TRAP_FRAME_H 8
-#define TRAP_REACH 44.0f          /* Window px from its center: a foot on it snaps it */
+#define TRAP_FRAME_W 32           /* A bear trap: open, snapping, shut */
+#define TRAP_FRAME_H 12
+#define TRAP_REACH 60.0f          /* Window px from its center: a foot on it snaps it */
 #define TRAP_HOLD 3.0f            /* Seconds a zombie stays caught */
 #define TRAP_DAMAGE_MULT 2.0f     /* Times her weapon damage to a zombie; her: TRAP_SELF_MULT claws */
 #define TRAP_SELF_MULT 1.5f
-#define COFFIN_FRAME_W 20         /* Upright coffin: closed, burst open */
-#define COFFIN_FRAME_H 44
+#define BLEED_TIME 5.0f           /* Stepping in a trap: seconds she bleeds... */
+#define BLEED_TICK 1.0f           /* ...losing health this often... */
+#define BLEED_SHARE 0.2f          /* ...this many claws of the stage's zombies each time (armor won't stop it) */
+#define SLOW_TIME 4.0f            /* ...and seconds she limps */
+#define SLOW_MULT 0.55f           /* Her pace while limping */
+#define BLOOD_DROPS 64            /* Her trail of blood on the road */
+#define BLOOD_EVERY 0.12f         /* Seconds between drops while she bleeds */
+#define BLOOD_LIFE 8.0f           /* Seconds a drop takes to dry away */
+#define COFFIN_FRAME_W 28         /* Upright coffin: shut, burst open; by day, by night */
+#define COFFIN_FRAME_H 60
+#define COFFIN_CHANCE_DAY 40      /* Percent of a coffin spot's zombies in a coffin, by day... */
+#define COFFIN_CHANCE_NIGHT 85    /* ...and by night (ThemeDef.night) */
 #define COFFIN_HITS 2             /* Shots that burst it open early */
 #define COFFIN_RANGE 340.0f       /* Window px: she comes this near, it bursts open */
 #define LAMP_FRAME_W 14           /* Oil lamp on a post: lit, post without its lamp */

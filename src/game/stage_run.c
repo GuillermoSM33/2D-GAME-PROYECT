@@ -20,8 +20,8 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
     for (int c = 0; c < RUN_MAX_CHESTS; c++)
         chest_clear(&run->chests[c]);
 
-    int group = 0, campfires = 0, walls = 0, facades = (int)stage_index;
-    Piece *fire, *wall;
+    int group = 0, campfires = 0, walls = 0, facades = (int)stage_index, barricades = 0;
+    Piece *fire, *wall, *barricade;
     for (int s = 0; s < run->stage->spot_count; s++) {
         const StageSpot *spot = &run->stage->spots[s];
         float x = player_x + spot->at * run->stage->length;
@@ -29,20 +29,37 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         case SPOT_ZOMBIES:
         case SPOT_ELITE:
         case SPOT_COFFINS:
+        case SPOT_AMBUSH:
+        case SPOT_RUNNERS:
             for (int i = 0; i < spot->count && run->zombie_count < RUN_MAX_ZOMBIES; i++) {
                 int k = run->zombie_count++;
                 Zombie *z = &run->zombies[k];
-                float spacing = spot->kind == SPOT_COFFINS ? COFFIN_SPACING : ROUTE_GROUP_SPACING;
+                float spacing = spot->kind == SPOT_COFFINS   ? COFFIN_SPACING
+                                : spot->kind == SPOT_RUNNERS ? ROUTE_GROUP_SPACING * 0.6f
+                                                             : ROUTE_GROUP_SPACING;
                 zombie_spawn(z, stage_zombie_stats(run->stage, k), x + (float)i * spacing);
                 zombie_set_level(z, stage_zombie_level(run->stage, k));
                 z->awake = false;
                 z->just_spawned = false;
                 run->group_of[k] = group;
-                if (spot->kind == SPOT_COFFINS) { /* Shut in, standing behind its lid */
-                    Piece *coffin = terrain_add(&run->terrain, TERRAIN_COFFIN, z->x);
+                if (spot->kind == SPOT_AMBUSH) { /* Off the road until she gets here */
+                    z->x = x + (float)i; /* In route order, all sprung at x */
                     z->hidden = true;
-                    if (coffin)
+                    run->ambush_x[k] = x;
+                    continue;
+                }
+                /* Shut in, standing behind its lid, more often by night; the
+                 * others stand asleep in the open. A fixed roll per zombie. */
+                unsigned roll = ((unsigned)stage_index * 2654435761u) ^ ((unsigned)k * 40503u + 17u);
+                roll = (roll ^ (roll >> 13)) * 0x5bd1e995u;
+                int chance = run->stage->theme->night ? COFFIN_CHANCE_NIGHT : COFFIN_CHANCE_DAY;
+                if (spot->kind == SPOT_COFFINS && (int)((roll >> 8) % 100u) < chance) {
+                    Piece *coffin = terrain_add(&run->terrain, TERRAIN_COFFIN, z->x);
+                    if (coffin) { /* Hidden only with a lid to burst: never unseen in the open */
+                        z->hidden = true;
                         coffin->zombie = k;
+                        coffin->variant = run->stage->theme->night;
+                    }
                 }
             }
             group++;
@@ -68,7 +85,29 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
                 fire->variant = campfires++ % 2 == 0;
             break;
         case SPOT_BARRICADE:
-            terrain_add(&run->terrain, TERRAIN_BARRICADE, x);
+            barricade = terrain_add(&run->terrain, TERRAIN_BARRICADE, x);
+            if (barricade) /* Its kind, in turn along the campaign */
+                barricade->variant = (barricades++ + (int)stage_index) % BARRICADE_KINDS;
+            break;
+        case SPOT_WIRE:
+            terrain_add(&run->terrain, TERRAIN_WIRE, x);
+            break;
+        case SPOT_RIVER:
+            terrain_add(&run->terrain, TERRAIN_RIVER, x);
+            break;
+        case SPOT_PUDDLES:
+            for (int i = 0; i < spot->count; i++)
+                terrain_add(&run->terrain, TERRAIN_PUDDLE, x + (float)i * PUDDLE_SPACING);
+            break;
+        case SPOT_NET:
+            terrain_add(&run->terrain, TERRAIN_NET, x);
+            break;
+        case SPOT_SNARE:
+            terrain_add(&run->terrain, TERRAIN_SNARE, x);
+            break;
+        case SPOT_SPIKES:
+            for (int i = 0; i < spot->count; i++)
+                terrain_add(&run->terrain, TERRAIN_SPIKES, x + (float)i * TRAP_SPACING);
             break;
         case SPOT_WALL:
             if (spot->count > 1) /* A barrel against it: the other way through */
@@ -91,6 +130,23 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         }
     }
     terrain_add(&run->terrain, TERRAIN_GOAL, run->goal_x);
+    /* A few traps have a warning sign before them (it says what kind). */
+    int pieces = run->terrain.count;
+    for (int i = 0; i < pieces; i++) {
+        const Piece *p = &run->terrain.items[i];
+        bool trap = p->kind == TERRAIN_TRAP || p->kind == TERRAIN_SPIKES || p->kind == TERRAIN_NET ||
+                    p->kind == TERRAIN_SNARE || p->kind == TERRAIN_WIRE;
+        unsigned roll = ((unsigned)stage_index * 7919u + (unsigned)i * 104729u) * 2654435761u >> 16;
+        if (!trap || (int)(roll % 100u) >= SIGN_CHANCE)
+            continue;
+        Piece *sign = terrain_add(&run->terrain, TERRAIN_SIGN, p->x - SIGN_GAP);
+        if (sign)
+            sign->variant = (int)p->kind;
+    }
+    for (int i = 0; i < run->terrain.count; i++) { /* What each crate holds, stencilled on it */
+        if (run->terrain.items[i].kind == TERRAIN_CRATE)
+            run->terrain.items[i].variant = (int)terrain_loot(stage_index, i);
+    }
 }
 
 /* The right edge of the group holding her: past its last zombie. */
@@ -98,8 +154,11 @@ static float group_wall(const StageRun *run, int group)
 {
     float wall = 0.0f;
     for (int k = 0; k < run->zombie_count; k++) {
-        if (run->group_of[k] == group)
-            wall = fmaxf(wall, run->zombies[k].x + ROUTE_LOCK_MARGIN);
+        if (run->group_of[k] != group)
+            continue;
+        wall = fmaxf(wall, run->zombies[k].x + ROUTE_LOCK_MARGIN);
+        if (run->ambush_x[k] > 0.0f) /* An ambush holds her round its spot, with room to move */
+            wall = fmaxf(wall, run->ambush_x[k] + AMBUSH_ROOM);
     }
     return wall;
 }
@@ -126,6 +185,11 @@ int run_fight_left(const StageRun *run)
 
 void run_place_player(const StageRun *run, Player *player)
 {
+    player->wading = terrain_river_at(&run->terrain, player->x);
+    player->wind = run->stage->weather == WEATHER_WIND || run->stage->weather == WEATHER_STORM;
+    player->hot = run->stage->hot;
+    player->cold = run->stage->cold;
+    player->cozy = terrain_by_campfire(&run->terrain, player->x);
     float min_x = -1e9f, max_x = 1e9f;
     if (run->wall_x > 0.0f)
         max_x = run->wall_x;
@@ -183,9 +247,51 @@ bool run_sit(StageRun *run, Player *player, unsigned reload_guns)
     return true;
 }
 
+void run_melee(StageRun *run, const Player *player, const Progress *progress)
+{
+    float front = player->x + (float)player->facing * PLAYER_BODY_HALF_WIDTH;
+    float reach = front + (float)player->facing * MELEE_REACH;
+    float lo = fminf(player->x, reach), hi = fmaxf(player->x, reach);
+    for (int k = 0; k < run->zombie_count; k++) {
+        Zombie *z = &run->zombies[k];
+        float half = ZOMBIE_HALF_WIDTH * SPRITE_SCALE;
+        if (!z->awake || z->hidden || !zombie_alive(z) || z->x + half < lo || z->x - half > hi)
+            continue;
+        zombie_hit_through(z, progress_damage(progress) * MELEE_DAMAGE_MULT, MELEE_ARMOR_SHARE);
+        z->x += (float)player->facing * MELEE_PUSH;
+        run->melee_hits++;
+    }
+    run->melee_hits += terrain_melee(&run->terrain, front, reach);
+}
+
+/* Barbed wire: while she is in it, it bites every WIRE_BITE_EVERY (a cut,
+ * bleeding, a limp), pushing her back out the way she came. */
+static void snag_wire(StageRun *run, Player *player, float dt)
+{
+    run->wire_timer = fmaxf(0.0f, run->wire_timer - dt);
+    int i = terrain_wire_at(&run->terrain, player->x, player->jump.height);
+    if (i < 0 || run->wire_timer > 0.0f || !player_alive(player))
+        return;
+    run->wire_timer = WIRE_BITE_EVERY;
+    run->wire_bit = true;
+    float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
+    player_hit(player, claw * WIRE_SELF_MULT, player->facing > 0 ? -1 : 1);
+    player_bleed(player, claw * BLEED_SHARE);
+}
+
+int run_crate_gold(const StageRun *run)
+{
+    return GOLD_CRATE + GOLD_CRATE_PER_STAGE * run->stage_index;
+}
+
 bool run_use(StageRun *run, const Player *player)
 {
-    if (run->dynamite <= 0 || !player_alive(player) || !terrain_light_charge(&run->terrain, player->x))
+    if (run->dynamite <= 0 || !player_alive(player) || player->state == PLAYER_SIT)
+        return false;
+    bool wall = terrain_wall_near(&run->terrain, player->x);
+    if (!wall && terrain_bench_near(&run->terrain, player->x) >= 0)
+        return false; /* E there sits her down */
+    if (wall ? !terrain_light_charge(&run->terrain, player->x) : !terrain_plant_charge(&run->terrain, player->x))
         return false;
     run->dynamite--;
     run->charge_lit = true;
@@ -210,18 +316,19 @@ static void place_chest(StageRun *run, float x, int xp, bool mission)
     }
 }
 
-/* A zombie's body is gone: its chest, if it leaves one. The mission's last
- * zombie leaves none here: the mission's chest waits at the gate. */
+/* A zombie is down: its chest, if it leaves one, where it fell. The last one
+ * leaves its own too; the mission's chest waits at the gate besides. */
 static void zombie_chest(StageRun *run, int k, const Progress *progress)
 {
     run->chest_done[k] = true;
     bool elite = run->zombies[k].stats == &ZOMBIE_ELITE;
-    bool last = k == run->stage->zombies - 1;
-    bool drop = elite || (run->drops_chests && !last && stage_chest_after(run->stage, k));
+    bool drop = elite || (run->drops_chests && stage_chest_after(run->stage, k));
     if (!drop)
         return;
     float share = (float)(k + 1) / (float)run->stage->zombies;
     int xp = chest_xp(progress->level, run->stage->zombie_level, run->stage->complexity, share, false);
+    if (!elite)
+        xp = (int)lroundf((float)xp * stage_xp_share(run->stage));
     place_chest(run, run->zombies[k].x, xp, false);
 }
 
@@ -326,11 +433,37 @@ static void wake_groups(StageRun *run, const Player *player)
         if (farthest - player->x > ROUTE_WAKE_DISTANCE)
             continue;
         for (int j = 0; j < run->zombie_count; j++) {
-            if (run->group_of[j] != group || run->zombies[j].awake)
+            /* Those in a coffin wait for it to burst; ambushers for their spot. */
+            if (run->group_of[j] != group || run->zombies[j].awake || run->zombies[j].hidden)
                 continue;
             zombie_wake(&run->zombies[j]);
             run->elite_woke |= run->zombies[j].stats == &ZOMBIE_ELITE;
         }
+    }
+}
+
+/* She reaches an ambush: its zombies walk in from off screen, one behind
+ * her, the next ahead (if no wall or barricade is between), and so on. */
+static void spring_ambushes(StageRun *run, const Player *player)
+{
+    int behind = 0, ahead = 0;
+    for (int k = 0; k < run->zombie_count; k++) {
+        Zombie *z = &run->zombies[k];
+        if (run->ambush_x[k] <= 0.0f || !z->hidden || player->x < run->ambush_x[k])
+            continue;
+        float front = player->x + AMBUSH_AHEAD + (float)ahead * AMBUSH_SPACING;
+        bool open = !terrain_stops(&run->terrain, player->x, front, 0.0f);
+        if (open && behind > ahead) {
+            z->x = front;
+            ahead++;
+        } else {
+            z->x = player->x - AMBUSH_BEHIND - (float)behind * AMBUSH_SPACING;
+            behind++;
+        }
+        z->hidden = false;
+        zombie_wake(z);
+        z->facing = z->x < player->x ? 1 : -1;
+        run->ambushed = true;
     }
 }
 
@@ -361,6 +494,8 @@ static void move_zombies(StageRun *run, Player *player, Progress *progress, floa
         float target = terrain_zombie_target(&run->terrain, z->x, player->x, &barricade);
         if (z->awake && zombie_alive(z)) /* Each one in line stands a step farther back */
             target += (z->x < target ? -1.0f : 1.0f) * ROUTE_QUEUE_STEP * (float)queue_rank(run, k);
+        z->wading = terrain_river_at(&run->terrain, z->x);
+        z->wind = player->wind;
         zombie_update(z, target, player_alive(player), dt);
         if (z->struck) {
             if (barricade >= 0)
@@ -371,9 +506,10 @@ static void move_zombies(StageRun *run, Player *player, Progress *progress, floa
         if (!zombie_alive(z) && !run->beaten[k]) {
             run->beaten[k] = true;
             run->defeated++;
-            give_xp(run, progress, kill_xp(z->level, progress->level));
+            give_xp(run, progress,
+                    (int)lroundf((float)kill_xp(z->level, progress->level) * stage_xp_share(run->stage)));
         }
-        if (zombie_gone(z) && !run->chest_done[k])
+        if (zombie_down(z) && !run->chest_done[k])
             zombie_chest(run, k, progress);
     }
 }
@@ -415,8 +551,13 @@ static void collect(StageRun *run, Player *player, Progress *progress)
                                                                          : player->max_health;
         } else if (loot == LOOT_DYNAMITE) {
             run->dynamite++;
+        } else if (loot == LOOT_WATER) {
+            player->water++;
         } else if (loot == LOOT_GOLD) {
             give_xp(run, progress, (int)lroundf((float)chest * LOOT_GOLD_SHARE));
+            int gold = run_crate_gold(run);
+            progress->gold += gold;
+            run->gold_gained += gold;
         }
     }
     for (int e = 0; e < ev->bottle_count; e++) {
@@ -447,6 +588,85 @@ static void spring_traps(StageRun *run, Player *player, const Progress *progress
             run->traps_sprung++;
             float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
             player_hit(player, claw * TRAP_SELF_MULT, player->facing > 0 ? -1 : 1);
+            player_bleed(player, claw * BLEED_SHARE);
+        }
+    }
+}
+
+/* Nets and snares hang up the first to step in: a zombie for a while (and
+ * the drop hurts it), her until she cuts free (player_struggle). */
+static void spring_hangers(StageRun *run, Player *player, const Progress *progress)
+{
+    Terrain *t = &run->terrain;
+    for (int i = 0; i < t->count; i++) {
+        Piece *p = &t->items[i];
+        if ((p->kind != TERRAIN_NET && p->kind != TERRAIN_SNARE) || p->spent)
+            continue;
+        CatchKind kind = p->kind == TERRAIN_NET ? CATCH_NET : CATCH_SNARE;
+        /* The sprung sapling's tip, where the rope hangs from. */
+        float tip_x = p->x + (float)(SNARE_TIP_X - SNARE_FRAME_W / 2) * SPRITE_SCALE;
+        float tip_y = (float)(BASELINE - (SNARE_FRAME_H - 1 - SNARE_TIP_Y) * SPRITE_SCALE);
+        for (int k = 0; k < run->zombie_count && !p->spent; k++) {
+            Zombie *z = &run->zombies[k];
+            if (!z->awake || z->hidden || !zombie_alive(z) || z->caught > 0.0f ||
+                fabsf(z->x - p->x) > TRAP_REACH)
+                continue;
+            p->spent = true;
+            run->traps_sprung++;
+            z->x = p->x;
+            z->caught = kind == CATCH_NET ? NET_HOLD : SNARE_HOLD;
+            z->catch_kind = kind;
+            z->catch_time = 0.0f;
+            z->catch_anchor_x = tip_x;
+            z->catch_anchor_y = tip_y;
+            zombie_hit_through(z, progress_damage(progress) * TRAP_DAMAGE_MULT * 0.5f, 0.5f);
+        }
+        if (!p->spent && player->jump.height <= 0.0f && fabsf(player->x - p->x) <= TRAP_REACH) {
+            p->spent = true;
+            run->traps_sprung++;
+            player->x = p->x;
+            player_catch(player, kind, tip_x, tip_y);
+        }
+    }
+}
+
+/* Spike plates: a step sets one off; while its spikes are out, whoever is
+ * on it (and not over it in a jump) is run through, once a cycle. */
+static void spikes(StageRun *run, Player *player, const Progress *progress)
+{
+    Terrain *t = &run->terrain;
+    for (int i = 0; i < t->count; i++) {
+        Piece *p = &t->items[i];
+        if (p->kind != TERRAIN_SPIKES)
+            continue;
+        float half = terrain_half_width(p->kind);
+        bool her = player_alive(player) && player->jump.height < SPIKES_TOP &&
+                   fabsf(player->x - p->x) <= half + PLAYER_BODY_HALF_WIDTH * 0.5f;
+        if (p->timer <= 0.0f) {
+            bool stepped = her && player->jump.height <= 0.0f;
+            for (int k = 0; k < run->zombie_count && !stepped; k++) {
+                const Zombie *z = &run->zombies[k];
+                stepped = z->awake && zombie_alive(z) && z->caught <= 0.0f && fabsf(z->x - p->x) <= half;
+            }
+            if (stepped) {
+                p->timer = SPIKES_DELAY + SPIKES_OUT + SPIKES_REARM;
+                p->hits = 0;
+            }
+            continue;
+        }
+        if (!terrain_spikes_out(p) || p->hits > 0)
+            continue;
+        p->hits = 1; /* Out: they run through whoever is on it, once */
+        run->traps_sprung++;
+        if (her) {
+            float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
+            player_hit(player, claw * SPIKES_SELF_MULT, player->facing > 0 ? -1 : 1);
+            player_bleed(player, claw * BLEED_SHARE);
+        }
+        for (int k = 0; k < run->zombie_count; k++) {
+            Zombie *z = &run->zombies[k];
+            if (z->awake && !z->hidden && zombie_alive(z) && fabsf(z->x - p->x) <= half)
+                zombie_hit_through(z, progress_damage(progress) * SPIKES_DAMAGE_MULT, 0.3f);
         }
     }
 }
@@ -482,6 +702,9 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     run->dynamite_taken = false; /* charge_lit is cleared here too, after main saw it */
     run->charge_lit = false;
     run->loot_count = run->bottles_hit = run->coffins_burst = run->traps_sprung = 0;
+    run->ambushed = run->crate_hint = false;
+    run->gold_gained = run->melee_hits = 0;
+    run->wire_bit = false;
     if (run->phase == RUN_CLEARED || run->phase == RUN_FAILED) {
         terrain_clear_events(&run->terrain);
         return;
@@ -493,17 +716,40 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     }
 
     int holding = run->holding;
+    spring_ambushes(run, player);
+    run->omen = false;
+    for (int k = 0; k < run->zombie_count; k++) { /* Some ambushes she can feel coming */
+        float at = run->ambush_x[k];
+        if (at <= 0.0f || !run->zombies[k].hidden || player->x >= at || at - player->x > OMEN_RANGE)
+            continue;
+        unsigned roll = ((unsigned)(at * 0.37f) * 2654435761u) >> 16;
+        run->omen |= (int)(roll % 100u) < OMEN_CHANCE;
+    }
     wake_groups(run, player);
     terrain_update(&run->terrain, dt);
+    if (!run->hinted && run->stage_index < 2) { /* Nothing else says crates hold things */
+        for (int i = 0; i < run->terrain.count; i++) {
+            const Piece *p = &run->terrain.items[i];
+            if (p->kind == TERRAIN_CRATE && !p->spent && p->x > player->x &&
+                p->x - player->x <= CRATE_HINT_RANGE) {
+                run->hinted = run->crate_hint = true;
+                break;
+            }
+        }
+    }
     blow_up(run, player, progress);
     move_grenades(run, player, progress, dt);
     open_coffins(run, player);
     collect(run, player, progress);
     move_zombies(run, player, progress, dt);
     spring_traps(run, player, progress);
+    spring_hangers(run, player, progress);
+    spikes(run, player, progress);
+    snag_wire(run, player, dt);
     burn(run, player, progress, dt);
     /* By a campfire: CAMPFIRE_HEAL every CAMPFIRE_HEAL_TIME, fractions kept. */
-    if (terrain_by_campfire(&run->terrain, player->x) && player->health < player->max_health) {
+    if (terrain_by_campfire(&run->terrain, player->x) && player->health < player->max_health &&
+        !run->stage->hot) { /* In the heat a fire only wears her out */
         run->warmth += dt;
         if (run->warmth >= CAMPFIRE_HEAL_TIME) {
             run->warmth -= CAMPFIRE_HEAL_TIME;
@@ -530,6 +776,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     if (terrain_take_supply(&run->terrain, player->x)) {
         run->supply_taken = true;
         run->dynamite += stage_supply_dynamite(run->stage);
+        player->water += SUPPLY_WATER;
         int heal = (int)lroundf((float)player->max_health * SUPPLY_HEAL_SHARE);
         player->health = player->health + heal < player->max_health ? player->health + heal
                                                                      : player->max_health;
@@ -551,6 +798,9 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
         if (chest->just_opened) {
             run->opened_x[run->chests_opened++] = chest->x;
             give_xp(run, progress, chest->reward_xp);
+            int gold = c == run->mission_chest ? GOLD_MISSION : GOLD_CHEST;
+            progress->gold += gold;
+            run->gold_gained += gold;
         }
         if (c == run->mission_chest && !chest_present(chest)) {
             run->phase = RUN_CLEARED;

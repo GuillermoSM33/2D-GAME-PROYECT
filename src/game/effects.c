@@ -15,6 +15,18 @@ static const AnimationDef ANIM_SPARKS = {
     .anchor_x = 6.5f, .ground_y = 6,
 };
 
+/* Pivot at its bottom center, on the ground under the feet. */
+static const AnimationDef ANIM_SPLASH = {
+    .sheet = "sprites/effects/splash", .frame_w = SPLASH_FRAME_W, .frame_h = SPLASH_FRAME_H,
+    .first_frame = 0, .frame_count = SPLASH_FRAMES, .fps = SPLASH_FPS, .loop = false,
+    .anchor_x = 10.0f, .ground_y = 11,
+};
+
+const AnimationDef *effect_splash(void)
+{
+    return &ANIM_SPLASH;
+}
+
 void effects_clear(Effects *effects)
 {
     memset(effects, 0, sizeof(*effects));

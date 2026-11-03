@@ -21,6 +21,18 @@ typedef enum {
     ICON_LOCK,
     ICON_CHECK,
     ICON_SHELL,
+    ICON_BLOOD,  /* Bleeding */
+    ICON_SLOW,   /* Limping */
+    ICON_GOLD,   /* A gold coin */
+    ICON_WIND,   /* Gusts */
+    ICON_CURRENT, /* Waves */
+    ICON_HEAT,   /* A blazing sun */
+    ICON_OMEN,   /* A crow's eye */
+    ICON_COLD,   /* A snowflake */
+    ICON_WET,    /* Drops */
+    ICON_COZY,   /* A campfire's flame */
+    ICON_WATER,  /* A jug of water */
+    ICON_FRESH,  /* Refreshed: a drop and a sparkle */
     ICON_COUNT
 } UiIcon;
 
