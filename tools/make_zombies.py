@@ -37,6 +37,13 @@ ORIGINAL_HASHES = {
 SKIN_RGB = {(0x4a, 0x52, 0x40), (0x6f, 0x7a, 0x5c), (0x9a, 0xa3, 0x7e)}
 EYE_RGB = (0xff, 0xf1, 0xa0)
 RIOT_ATTACK_EFFECT_RGB = {(0xfb, 0xaa, 0x38), (0xd0, 0x33, 0x05)}
+OUTLINE = (0x25, 0x20, 0x18, 255)
+# Riot helmet/visor ramp that generated families must not inherit on the face.
+MASK_RGB = {(0xa7, 0xa8, 0xa8), (0x5a, 0x62, 0x72), (0x3c, 0x42, 0x50),
+            (0x2a, 0x2e, 0x38), (0x2c, 0x2c, 0x2c)}
+# Native face pixels kept verbatim: eye and mouth/blood.
+FACE_FEATURE_RGB = {EYE_RGB, (0x90, 0x20, 0x04), (0x6b, 0x33, 0x3a)}
+HAIR_FALLBACK = (0x46, 0x33, 0x22, 255)
 
 # Existing cowgirl/zombie ramps, including matte linen, rusty fabric and
 # charcoal. Original protected colors remain exact; garments use these ramps.
@@ -394,36 +401,78 @@ def remove_face_equipment(identifier: str, sheet: Image, action: str,
     """
     if identifier == 'riot':
         return sheet_from_frames(sheet_frames(sheet))
-    skin = sorted(SKIN_RGB, key=lambda color: sum(color))
+    dark, mid, light = sorted(SKIN_RGB, key=lambda color: sum(color))
     frames = sheet_frames(sheet)
     for index, frame in enumerate(frames):
         original = templates[index] if templates else original_frame(action, index)
         x0, y0, x1, y1 = face_box(original)
-        center = (x0 + x1 - 1) / 2
-        half_width = (x1 - x0) / 2
+        hair = head_color(frame, original, (x0, y0, x1, y1))
+        # The box is padded (3 px back/top, 4 px front/bottom) around the
+        # native skin window; the oval sits inside that padding so the head
+        # keeps a rounded silhouette instead of a flat rectangular panel.
+        cx, cy = (x0 + x1 - 1) / 2 + .5, (y0 + y1 - 1) / 2 + .5
+        rx, ry = max(2., (x1 - x0) / 2 - .5), max(2., (y1 - y0) / 2)
+
+        def inside(x: int, y: int) -> bool:
+            return ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1
+
         for y in range(max(0, y0), min(FRAME, y1)):
-            vertical = (y - y0) / max(1, y1 - y0 - 1)
-            roundness = 0.52 + 0.48 * math.sin(math.pi * vertical)
-            left = center - half_width * roundness
-            right = center + half_width * roundness
             for x in range(max(0, x0), min(FRAME, x1)):
-                old = original.get(x, y)
                 current = frame.get(x, y)
                 if not current[3]:
                     continue
-                if current[:3] == EYE_RGB:
-                    continue
-                if left <= x <= right:
-                    shade = 0 if vertical < .22 or x < center - half_width * .45 else \
-                        2 if vertical > .72 else 1
-                else:
-                    shade = 0
-                frame.set(x, y, (*skin[shade], 255))
-        for y in range(FRAME):
-            for x in range(FRAME):
-                if original.get(x, y)[:3] == EYE_RGB and frame.get(x, y)[3]:
-                    frame.set(x, y, (*EYE_RGB, 255))
+                old = original.get(x, y)
+                edge = any(not frame.get(x + dx, y + dy)[3]
+                           for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+                if old[:3] in FACE_FEATURE_RGB and inside(x, y):
+                    # Native eye and mouth stay exactly as drawn.
+                    frame.set(x, y, old)
+                elif inside(x, y):
+                    if edge or not all(inside(x + dx, y + dy)
+                                       for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                        frame.set(x, y, OUTLINE)
+                    else:
+                        u, v = (x - cx) / rx, (y - cy) / ry
+                        # Lit from the front (the zombies face right) and above.
+                        shade = light if u > .25 and v < .1 else \
+                            dark if u < -.45 or v > .6 else mid
+                        frame.set(x, y, (*shade, 255))
+                elif edge:
+                    frame.set(x, y, OUTLINE)
+                elif current[:3] in MASK_RGB or current[:3] in SKIN_RGB:
+                    # Leftover riot helmet/visor around the oval becomes the
+                    # family's own hair or headwear color.
+                    frame.set(x, y, hair)
+        # Some native frames lose the eye behind the visor glare; keep it
+        # in place every frame so the face does not flicker blank.
+        eyes = [(x, y) for y in range(y0, y1) for x in range(x0, x1)
+                if frame.get(x, y)[:3] == EYE_RGB]
+        if not eyes:
+            ex, ey = x0 + round(.55 * (x1 - x0)), y0 + round(.36 * (y1 - y0))
+            if inside(ex, ey) and frame.get(ex, ey)[3]:
+                frame.set(ex, ey, (*EYE_RGB, 255))
+                eyes = [(ex, ey)]
+        # Sunken socket: brow and under-eye shadow around the eye.
+        for ex, ey in eyes:
+            for sx, sy in ((ex - 1, ey - 1), (ex, ey - 1), (ex + 1, ey - 1), (ex, ey + 1)):
+                if inside(sx, sy) and frame.get(sx, sy)[:3] in (mid, light):
+                    frame.set(sx, sy, (*dark, 255))
     return sheet_from_frames(frames)
+
+
+def head_color(frame: Image, original: Image,
+               box: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    """Most common family headwear/hair color just above and behind the face."""
+    x0, y0, x1, y1 = box
+    counts = Counter()
+    for y in range(max(0, y0 - 6), min(FRAME, y0 + (y1 - y0) // 2)):
+        for x in range(max(0, x0 - 6), min(FRAME, x1)):
+            color = frame.get(x, y)
+            if not color[3] or color[:3] in MASK_RGB or color[:3] in SKIN_RGB or \
+                    color[:3] in (OUTLINE[:3], EYE_RGB) or color == original.get(x, y):
+                continue
+            counts[color] += 1
+    return counts.most_common(1)[0][0] if counts else HAIR_FALLBACK
 
 
 def dropped_shield(original: Image, output: Image, reference: Image) -> None:
