@@ -72,10 +72,11 @@ static void rain_reaches_the_upper_sky(void)
     }
 }
 
-static void wind_is_sparse_and_translucent(void)
+static void wind_is_light_but_visible(void)
 {
     WeatherState weather;
     weather_start(&weather, WEATHER_WIND, 1200.0f);
+    weather.tumbling = false;
     clear();
     read_frame(baseline);
     weather_render(renderer, &weather, 1200.0f);
@@ -86,13 +87,14 @@ static void wind_is_sparse_and_translucent(void)
             continue;
         Uint8 red, green, blue, alpha;
         SDL_GetRGBA(actual[i], surface->format, &red, &green, &blue, &alpha);
-        /* Dust must not become pale opaque streaks or a large screen layer. */
-        CHECK(red < 95 && green < 100 && blue < 110);
+        /* Translucent over the scene, never pale opaque streaks... */
+        CHECK(red < 140 && green < 140 && blue < 140);
         CHECK(alpha == 255);
         changed++;
     }
-    CHECK(changed > 0);
-    CHECK(changed <= 12);
+    /* ...enough to see (whole art pixels), never a screen layer: under 1%. */
+    CHECK(changed >= 200);
+    CHECK(changed <= WINDOW_WIDTH * WINDOW_HEIGHT / 100);
 }
 
 static void renderer_state_is_restored(void)
@@ -208,7 +210,7 @@ int main(void)
     CHECK(renderer != NULL);
     if (renderer != NULL) {
         RUN(rain_reaches_the_upper_sky);
-        RUN(wind_is_sparse_and_translucent);
+        RUN(wind_is_light_but_visible);
         RUN(renderer_state_is_restored);
         RUN(tumbleweed_keeps_its_source_pixels);
         RUN(clear_weather_keeps_the_frame);

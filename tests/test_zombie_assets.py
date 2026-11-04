@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / 'tools'))
 from embed_assets import decode_png_rgba
 from make_sprites import Image
 from make_zombies import (
-    ACTIONS, FRAME, IDS, ORIGINAL_HASHES, PALETTE, SKIN_RGB, bounds,
+    ACTIONS, EYE_RGB, FRAME, IDS, ORIGINAL_HASHES, PALETTE, SKIN_RGB, bounds,
     compose_walk_uniform, export_family, face_box, from_rgba, garment_pixel,
     original_frame, original_path, original_walk_frame, palette_color,
     protected_pixel, sheet_frames, verify_assets, BodyMap, on_face,
@@ -152,10 +152,20 @@ class ZombieClothingTests(unittest.TestCase):
 
     def test_every_family_keeps_the_riot_slash_attack_effect(self):
         riot_effect = {(0xfb, 0xaa, 0x38), (0xd0, 0x33, 0x05)}
-        for identifier in ('soldier', 'police', 'civil_male_1', 'riot_shield', 'elite'):
+        for identifier in ('soldier', 'police', 'civil_male_1', 'elite'):
             export_family(identifier, assets_dir=self.assets)
             frames = sheet_frames(load_sheet(self.assets / 'sprites/zombies' / identifier / 'attack.png'))
             self.assertTrue(any(pixel[:3] in riot_effect for pixel in frames[2].px), identifier)
+
+    def test_shield_zombie_rams_with_its_shield(self):
+        # No claw: the shield goes forward on the hit and comes back.
+        riot_effect = {(0xfb, 0xaa, 0x38), (0xd0, 0x33, 0x05)}
+        export_family('riot_shield', assets_dir=self.assets)
+        frames = sheet_frames(load_sheet(self.assets / 'sprites/zombies/riot_shield/attack.png'))
+        self.assertFalse(any(pixel[:3] in riot_effect for frame in frames for pixel in frame.px))
+        front = [bounds(frame)[2] for frame in frames]
+        self.assertGreater(front[3], front[0] + 4)
+        self.assertLessEqual(abs(front[5] - front[0]), 1)
 
     def test_generated_faces_are_visible_and_not_riot_mask_panels(self):
         mask_colors = {(0xa7, 0xa8, 0xa8), (0x5a, 0x62, 0x72),
@@ -167,7 +177,9 @@ class ZombieClothingTests(unittest.TestCase):
                 x0, y0, x1, y1 = face_box(original_walk_frame(index))
                 face = [frame.get(x, y)[:3] for y in range(y0, y1)
                         for x in range(x0, x1) if frame.get(x, y)[3]]
-                self.assertGreater(sum(color in SKIN_RGB for color in face), 40, identifier)
+                # The riot's own small face, unmasked: skin and a lit eye.
+                self.assertGreater(sum(color in SKIN_RGB for color in face), 20, identifier)
+                self.assertIn(EYE_RGB, face, (identifier, index))
                 self.assertLess(sum(color in mask_colors for color in face), 4, identifier)
 
     def test_dog_keeps_its_own_attack(self):

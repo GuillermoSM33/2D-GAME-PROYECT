@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "game/menu.h"
+#include "game/settings.h"
 #include "test.h"
 
 static InputState press(Action action)
@@ -40,10 +41,48 @@ static void test_moves_and_starts_only_open_stages(void)
     CHECK(menu.selected == STAGE_COUNT - 1); /* Stays at the bottom */
 }
 
+static void test_fullscreen_row_switches_display(void)
+{
+    Volumes volumes;
+    volumes_init(&volumes);
+    ListMenu options;
+    list_menu_init(&options, VOLUME_ROWS);
+    options.selected = VOLUME_FULLSCREEN;
+    CHECK(!volumes.fullscreen); /* Starts in a window */
+    InputState input = press(ACTION_RIGHT);
+    CHECK(volume_menu_update(&options, &volumes, &input) == VOLUME_FULLSCREEN);
+    CHECK(volumes.fullscreen);
+    input = press(ACTION_CONFIRM);
+    CHECK(volume_menu_update(&options, &volumes, &input) == VOLUME_FULLSCREEN);
+    CHECK(!volumes.fullscreen);
+    input = press(ACTION_LEFT);
+    CHECK(volume_menu_update(&options, &volumes, &input) == VOLUME_FULLSCREEN);
+    CHECK(volumes.fullscreen);
+    CHECK(volumes.master == 8 && volumes.player == VOLUME_STEPS); /* Volumes untouched */
+    CHECK(!volume_set(&volumes, VOLUME_FULLSCREEN, 1)); /* Not a volume */
+}
+
+static void test_options_still_reach_back(void)
+{
+    Volumes volumes;
+    volumes_init(&volumes);
+    ListMenu options;
+    list_menu_init(&options, VOLUME_ROWS);
+    options.selected = VOLUME_FULLSCREEN;
+    InputState input = press(ACTION_DOWN);
+    CHECK(volume_menu_update(&options, &volumes, &input) == -1);
+    CHECK(options.selected == VOLUME_BACK);
+    CHECK(!volumes.fullscreen);
+    input = press(ACTION_CONFIRM);
+    CHECK(volume_menu_update(&options, &volumes, &input) == VOLUME_BACK);
+}
+
 int main(void)
 {
     printf("test_menu\n");
     RUN(test_starts_on_furthest_open_stage);
     RUN(test_moves_and_starts_only_open_stages);
+    RUN(test_fullscreen_row_switches_display);
+    RUN(test_options_still_reach_back);
     return TEST_EXIT();
 }

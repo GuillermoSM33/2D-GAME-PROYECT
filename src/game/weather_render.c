@@ -45,20 +45,43 @@ static void draw_rain(SDL_Renderer *renderer, const WeatherState *w, float camer
     }
 }
 
+/* One art pixel in the window (SPRITE_SCALE at VIEW_SCALE): wind bits are
+ * drawn in whole art pixels, so they read as part of the pixel art. */
+#define ART_PX 3
+
+static Uint8 wind_alpha(const WeatherState *w, int alpha)
+{
+    return (Uint8)(w->kind == WEATHER_STORM ? alpha * 5 / 4 : alpha);
+}
+
+/* Light, translucent and few: dust motes and tumbling leaves low along the
+ * road, gust lines fading behind their head higher up. */
 static void draw_wind(SDL_Renderer *renderer, const WeatherState *w, float camera_x)
 {
     for (int i = 0; i < WEATHER_DUST; i++) {
         const WeatherBit *bit = &w->dust[i];
         int x = window_x(bit->x, camera_x);
         int y = window_y(bit->y);
-        if (bit->leaf) {
-            SDL_SetRenderDrawColor(renderer, 0x8a, 0x6a, 0x3a, 55);
-            SDL_Rect leaf = {x, y, 2, 1};
+        if (bit->streak) {
+            int length = 48 + (i * 17) % 60;
+            for (int k = 0; k < length; k += ART_PX * 2) {
+                int alpha = 70 - 70 * k / length;
+                SDL_SetRenderDrawColor(renderer, 0xe8, 0xdc, 0xc4, wind_alpha(w, alpha));
+                SDL_Rect piece = {x - k - ART_PX * 2, y, ART_PX * 2, 2};
+                SDL_RenderFillRect(renderer, &piece);
+            }
+        } else if (bit->leaf) {
+            /* Flat, then edge-on: it turns over as it flies. */
+            bool flat = (int)(bit->x * 0.02f + (float)i) % 2 == 0;
+            SDL_Rect leaf = {x, y, flat ? ART_PX * 2 : ART_PX, flat ? ART_PX : ART_PX * 2};
+            SDL_SetRenderDrawColor(renderer, 0x8a, 0x6a, 0x3a, wind_alpha(w, 170));
             SDL_RenderFillRect(renderer, &leaf);
+            SDL_Rect vein = {x, y + leaf.h - 1, leaf.w, 1};
+            SDL_SetRenderDrawColor(renderer, 0x5c, 0x44, 0x24, wind_alpha(w, 170));
+            SDL_RenderFillRect(renderer, &vein);
         } else {
-            Uint8 alpha = (Uint8)(25 + (i * 7) % 24);
-            SDL_SetRenderDrawColor(renderer, 0xc8, 0xb0, 0x90, alpha);
-            SDL_Rect mote = {x, y, 1, 1};
+            SDL_SetRenderDrawColor(renderer, 0xd8, 0xc8, 0xa8, wind_alpha(w, 60 + (i * 13) % 50));
+            SDL_Rect mote = {x, y, ART_PX, ART_PX};
             SDL_RenderFillRect(renderer, &mote);
         }
     }

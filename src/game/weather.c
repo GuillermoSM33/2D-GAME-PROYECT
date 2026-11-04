@@ -42,10 +42,15 @@ static void new_drop(WeatherState *w, WeatherBit *d, float camera_x, bool anywhe
 
 static void new_dust(WeatherState *w, WeatherBit *d, float camera_x, bool anywhere)
 {
+    float kind = roll(w);
+    d->leaf = kind < WEATHER_LEAF_CHANCE;
+    d->streak = !d->leaf && kind < WEATHER_LEAF_CHANCE + WEATHER_STREAK_CHANCE;
     d->x = anywhere ? camera_x + roll(w) * (float)VIEW_WIDTH : camera_x - 20.0f - roll(w) * 200.0f;
-    d->y = (float)BASELINE - 170.0f + roll(w) * 160.0f; /* Low, along the road: not in her way */
-    d->speed = 0.6f + roll(w) * 0.8f;
-    d->leaf = roll(w) < WEATHER_LEAF_CHANCE;
+    /* Dust and leaves low, along the road (not in her way); gusts across the
+     * open air above it. */
+    d->y = d->streak ? (float)BASELINE - 380.0f + roll(w) * 300.0f
+                     : (float)BASELINE - 170.0f + roll(w) * 160.0f;
+    d->speed = d->streak ? 1.3f + roll(w) * 0.5f : 0.6f + roll(w) * 0.8f;
 }
 
 void weather_start(WeatherState *weather, Weather kind, float camera_x)
@@ -91,8 +96,11 @@ static void blow(WeatherState *w, float camera_x, float dt)
     for (int i = 0; i < WEATHER_DUST; i++) {
         WeatherBit *d = &w->dust[i];
         d->x += wind * d->speed * dt;
-        d->y += sinf(d->x * 0.01f + (float)i) * (d->leaf ? 40.0f : 12.0f) * dt;
-        if (d->x > camera_x + (float)VIEW_WIDTH + 20.0f || d->x < camera_x - 400.0f)
+        if (!d->streak)
+            d->y += sinf(d->x * 0.01f + (float)i) * (d->leaf ? 40.0f : 12.0f) * dt;
+        /* A gust line trails behind its head: it leaves once the tail has. */
+        float past = d->streak ? 160.0f : 20.0f;
+        if (d->x > camera_x + (float)VIEW_WIDTH + past || d->x < camera_x - 400.0f)
             new_dust(w, d, camera_x, false);
     }
     if (!w->tumbling) {

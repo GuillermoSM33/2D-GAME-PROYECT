@@ -71,25 +71,35 @@ static void test_she_stands_on_it_and_falls_when_it_breaks(void)
     CHECK(landed && p.jump.height == 0.0f);
 }
 
-static void test_jump_lands_on_top(void)
+static float peak_of(float lift)
 {
     Jump j;
     jump_reset(&j);
     jump_start(&j);
-    bool landed = false;
-    for (int i = 0; i < 120 && !landed; i++)
-        landed = jump_update_over(&j, FIXED_DT, BARRICADE_TOP);
-    CHECK(landed && j.height == BARRICADE_TOP && !j.airborne);
-    /* And off it again, down to the ground. */
-    jump_start(&j);
-    landed = false;
+    j.lift = lift;
     float peak = 0.0f;
-    for (int i = 0; i < 120 && !landed; i++) {
-        landed = jump_update_over(&j, FIXED_DT, 0.0f);
+    for (int i = 0; i < 200 && j.airborne; i++) {
+        jump_update(&j, FIXED_DT);
         peak = j.height > peak ? j.height : peak;
     }
-    CHECK(landed && j.height == 0.0f);
-    CHECK_NEAR(peak, BARRICADE_TOP + PLAYER_JUMP_HEIGHT, 2.0f);
+    return peak;
+}
+
+static void test_only_a_vault_clears_a_barricade(void)
+{
+    /* Over her head: a jump stays under its top (so it stops her, terrain_bounds),
+     * N's higher arc clears it. */
+    CHECK(peak_of(1.0f) < BARRICADE_TOP - 10.0f);
+    CHECK(peak_of(VAULT_LIFT) > BARRICADE_TOP + 10.0f);
+    Player p;
+    player_init(&p);
+    CHECK(player_vault(&p) && p.jump.lift == VAULT_LIFT);
+    /* The next ordinary jump is ordinary again. */
+    Jump j;
+    jump_reset(&j);
+    j.lift = VAULT_LIFT;
+    jump_start(&j);
+    CHECK(j.lift == 1.0f);
 }
 
 static void test_barrels_chain(void)
@@ -179,6 +189,22 @@ static void test_barrel_by_a_wall_opens_it(void)
     float xs[4];
     CHECK(terrain_explosions(&t, xs, 4) == 1);
     CHECK(!terrain_blocks(&t.items[1]) && terrain_blocks(&t.items[2]));
+}
+
+static void test_grenade_wears_down_walls_and_barricades(void)
+{
+    Terrain t;
+    terrain_clear(&t);
+    Piece *wall = terrain_add(&t, TERRAIN_WALL, 1000.0f);
+    Piece *crates = terrain_add(&t, TERRAIN_BARRICADE, 1400.0f);
+    crates->variant = 0;
+    Piece *far = terrain_add(&t, TERRAIN_BARRICADE, 1000.0f + 2.0f * GRENADE_RADIUS + 400.0f);
+    terrain_grenade(&t, 1200.0f, GRENADE_RADIUS);
+    CHECK(terrain_blocks(wall) && wall->damage == GRENADE_STRUCTURE_STRIKES); /* Holds, damaged */
+    CHECK(!terrain_blocks(crates));                                         /* Wrecked */
+    CHECK(terrain_blocks(far) && far->damage == 0);                           /* Out of reach */
+    terrain_grenade(&t, 1200.0f, GRENADE_RADIUS);
+    CHECK(!terrain_blocks(wall)); /* The second one fells it */
 }
 
 static void test_dynamite_pickup(void)
@@ -316,7 +342,7 @@ int main(void)
     RUN(test_barricade_blocks_below_its_top);
     RUN(test_zombies_claw_through);
     RUN(test_she_stands_on_it_and_falls_when_it_breaks);
-    RUN(test_jump_lands_on_top);
+    RUN(test_only_a_vault_clears_a_barricade);
     RUN(test_barrels_chain);
     RUN(test_supply_once);
     RUN(test_wall_blocks_even_jumping);
@@ -329,5 +355,6 @@ int main(void)
     RUN(test_blast_opens_coffins_and_crates);
     RUN(test_material_impacts_survive_event_clear);
     RUN(test_explosions_preserve_source_kind);
+    RUN(test_grenade_wears_down_walls_and_barricades);
     return TEST_EXIT();
 }

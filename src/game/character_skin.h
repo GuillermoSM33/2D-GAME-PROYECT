@@ -35,6 +35,7 @@ typedef struct {
     SDL_Texture *faint_sheet; /* Out cold from the heat, if it has one */
     SDL_Texture *drink_sheet; /* A drink of water... */
     SDL_Texture *bandage_sheet; /* ...and binding a wound, if it has them */
+    SDL_Texture *plant_sheet;   /* Setting a charge of dynamite */
 } CharacterSkin;
 
 void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *character);

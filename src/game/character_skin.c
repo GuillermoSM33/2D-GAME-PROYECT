@@ -90,6 +90,7 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
     skin->faint_sheet = own_sheet(character, "faint");
     skin->drink_sheet = own_sheet(character, "drink");
     skin->bandage_sheet = own_sheet(character, "bandage");
+    skin->plant_sheet = own_sheet(character, "plant");
 }
 
 void skin_free(CharacterSkin *skin)
@@ -120,6 +121,8 @@ SDL_Texture *skin_sheet(const CharacterSkin *skin, const char *template_sheet, i
         return skin->drink_sheet;
     if (strcmp(file, "bandage") == 0)
         return skin->bandage_sheet;
+    if (strcmp(file, "plant") == 0)
+        return skin->plant_sheet;
     if (strcmp(file, "melee") == 0) {
         if (known && skin->weapon_melee[gun])
             return skin->weapon_melee[gun];

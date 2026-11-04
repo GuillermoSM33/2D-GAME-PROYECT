@@ -107,6 +107,14 @@ typedef struct {
     BlastKind blast_kind[RUN_MAX_BLASTS];
     unsigned sound_events; /* Accumulated until run_take_sound_events, not run_update */
     Grenade grenades[RUN_MAX_GRENADES];
+    /* A storm's lightning: crackling where it will strike, then the bolt. */
+    float bolt_wait;   /* Seconds until the next starts crackling */
+    float bolt_warn;   /* Seconds left of the crackling, > 0 while it does */
+    float bolt_x;      /* Where (world x) */
+    float bolt_show;   /* Seconds left of the bolt drawn */
+    bool bolt_struck;  /* It struck on this update */
+    bool bolt_hit_her; /* ...and caught her */
+    unsigned bolt_seed;
 } StageRun;
 
 /* Drain impacts/traps once after run_update. Includes run_bullets/run_melee

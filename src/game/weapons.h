@@ -24,6 +24,10 @@ typedef struct {
     bool automatic;       /* Holding the trigger keeps firing */
     int magazine;         /* Shots (bursts count as one) before a magazine reload; 0 = never */
     float magazine_reload; /* Seconds that reload takes */
+    /* K: a second fire mode, one bullet per click, with the magazine's bullets
+     * counted one by one (magazine x burst); 0 = the gun has none. */
+    int single_magazine;
+    float single_reload;  /* Seconds between those single shots */
     int pellets;          /* Bullets per shot, stacked vertically */
     float pellet_gap;     /* Window px between pellets */
     float pellet_spread;  /* How fast neighboring pellets part: px apart per px flown */

@@ -4,9 +4,9 @@
 
 static void test_weapon_levels(void)
 {
-    CHECK_NEAR(weapon_damage(1), 20.0f, 1e-4f);
-    CHECK_NEAR(weapon_damage(2), 32.0f, 1e-4f); /* 20 + 20 * 0.6 */
-    CHECK_NEAR(weapon_damage(3), 44.0f, 1e-4f);
+    CHECK_NEAR(weapon_damage(1), 30.0f, 1e-4f);
+    CHECK_NEAR(weapon_damage(2), 48.0f, 1e-4f); /* 30 + 30 * 0.6 */
+    CHECK_NEAR(weapon_damage(3), 66.0f, 1e-4f);
     CHECK_NEAR(weapon_damage(0), weapon_damage(1), 1e-6f);
 }
 

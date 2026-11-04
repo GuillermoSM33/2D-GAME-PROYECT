@@ -58,7 +58,8 @@ void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
     SDL_Rect src = {frame * def->frame_w, 0, def->frame_w, def->frame_h};
     SDL_Rect dst = {
         (int)lroundf(zombie->x - camera_x - anchor_x * SPRITE_SCALE) + zombie_shudder(zombie) * SPRITE_SCALE,
-        BASELINE - def->ground_y * SPRITE_SCALE - zombie_breath(zombie) * SPRITE_SCALE,
+        BASELINE - def->ground_y * SPRITE_SCALE - zombie_breath(zombie) * SPRITE_SCALE +
+            (int)lroundf(zombie->depth * RIVER_DEEP_ROWS) * SPRITE_SCALE, /* Wading deep: sunk */
         def->frame_w * SPRITE_SCALE,
         def->frame_h * SPRITE_SCALE,
     };

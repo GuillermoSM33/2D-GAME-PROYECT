@@ -39,6 +39,7 @@ typedef struct {
     bool landed;     /* This blow has landed */
     float melee_wait; /* Seconds until she can strike again (MELEE_COOLDOWN after a blow) */
     bool wading;          /* In a river: slowed (the stage sets it, run_place_player) */
+    float depth;          /* ...and how deep: 0 ankles .. 1 to the waist (drawn sunk) */
     int wind;             /* The wind: +1 blowing right, -1 left, 0 none (the stage sets it) */
     bool hot;             /* In the heat: her blows come slower (the stage sets it) */
     bool cold;            /* In the cold: slower blows and steps (the stage sets it) */
@@ -57,6 +58,9 @@ typedef struct {
     float bandage;        /* Seconds of holding U toward stopping the bleeding */
     bool bandaged;        /* The bleeding stopped on this update */
     float bandage_shown;  /* Seconds left of the done bandage on her leg */
+    float plant_time;     /* Seconds left of setting a charge (player_plant): she stands to it */
+    bool burned;          /* Lightning burned her: slower, heals slower (player_burn) */
+    bool burn_bandaged;   /* ...its bandage is on: a drink of water ends it */
     CatchKind catch_kind; /* While caught: what holds her */
     int catch_blows;      /* Blows still needed to cut free */
     float catch_time;     /* Seconds since it caught her */
@@ -68,7 +72,7 @@ typedef struct {
     float armor;
     float hurt_time;      /* While > 0, she blinks red */
     float heal_time;      /* While > 0, she glows green (a heal) */
-    float bleed_time;     /* While > 0, she bleeds (a trap): bleed_damage every BLEED_TICK */
+    bool bleeding;        /* A wound (a trap): bleed_damage every BLEED_TICK until bandaged */
     float bleed_tick;
     float bleed_damage;
     float slow_time;      /* While > 0, she limps at SLOW_MULT of her pace */
@@ -134,6 +138,17 @@ float player_dry_time(const Player *player);
 /* While she drinks or binds a wound: its animation and frame, else NULL. */
 const AnimationDef *player_care_animation(const Player *player, int *frame);
 
+/* Burned (lightning): slower and slower to heal until bandaged (U held)
+ * and given water (U). */
+void player_burn(Player *player);
+
+/* Bandaging is wanted: she bleeds, or a burn has no bandage yet. */
+bool player_needs_bandage(const Player *player);
+
+/* E lit a charge: she stands PLANT_TIME setting it, neither walking nor
+ * shooting (a jump cuts it short). */
+void player_plant(Player *player);
+
 /* The blow's animation (its strike frame shows her hitting the ropes). */
 const AnimationDef *player_melee_animation(void);
 
@@ -145,8 +160,8 @@ bool player_vault(Player *player);
  * (-1 or +1). Returns true if it killed her. */
 bool player_hit(Player *player, float damage, int push_dir);
 
-/* A trap's bite: she bleeds damage every BLEED_TICK for BLEED_TIME (armor
- * doesn't stop it) and limps for SLOW_TIME. */
+/* A trap's bite: she bleeds damage every BLEED_TICK (armor doesn't stop it)
+ * until she bandages it, and limps for SLOW_TIME. */
 void player_bleed(Player *player, float damage);
 
 bool player_alive(const Player *player);

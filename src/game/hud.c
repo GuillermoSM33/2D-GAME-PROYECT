@@ -322,7 +322,7 @@ static void draw_gold(SDL_Renderer *renderer, const Player *player, const Progre
     unsigned ink = COLOR_HUD_DANGER;
     if (player->bandage > 0.0f)
         snprintf(title, sizeof(title), "VENDANDO %d%%", (int)(100.0f * player->bandage / BANDAGE_TIME));
-    else if (player->bleed_time > 0.0f) {
+    else if (player->bleeding) {
         snprintf(title, sizeof(title), "SANGRADO");
         snprintf(note, sizeof(note), "MANTÉN U PARA VENDARTE");
     } else if (player->fatigue >= FATIGUE_STROKE) {
@@ -384,10 +384,13 @@ static void draw_states(SDL_Renderer *renderer, const Player *player, const Stag
         bool on;
         int icon;
         const char *name, *note;
-        float time; /* 0: lasts while it lasts */
+        float time; /* 0: lasts while it lasts (bleeding: till bandaged) */
         bool good;
     } states[] = {
-        {player->bleed_time > 0.0f, ICON_BLOOD, "SANGRADO", bleed_note, player->bleed_time, false},
+        {player->bleeding, ICON_BLOOD, "SANGRADO", bleed_note, 0.0f, false},
+        {player->burned, ICON_COZY, "QUEMADURA",
+         player->burn_bandaged ? "BEBE AGUA CON U PARA CURARLA" : "TE CURAS Y CAMINAS MÁS LENTO. MANTÉN U: VÉNDATE",
+         0.0f, false},
         {player->slow_time > 0.0f, ICON_SLOW, "LENTITUD", "TE LASTIMASTE LA PIERNA", player->slow_time, false},
         {player->wind_feel > 0, ICON_WIND, "RAPIDEZ", "EL VIENTO TE EMPUJA", 0.0f, true},
         {player->wind_feel < 0, ICON_WIND, "LENTITUD", "VAS CONTRA EL VIENTO", 0.0f, false},
@@ -706,7 +709,7 @@ static void draw_buttons(SDL_Renderer *renderer, const char *const *labels, int 
 
 void hud_draw_title(SDL_Renderer *renderer, const ListMenu *menu)
 {
-    static const char *const labels[TITLE_ITEMS] = {"JUGAR", "ALMANAQUE", "CONTROLES", "VOLUMEN", "SALIR"};
+    static const char *const labels[TITLE_ITEMS] = {"JUGAR", "ALMANAQUE", "CONTROLES", "OPCIONES", "SALIR"};
     ui_text(renderer, "VAQUERA 2D", WINDOW_WIDTH / 2, 46, 8, COLOR_HUD_TITLE, ANCHOR_N);
     ui_text(renderer, "ZOMBIS EN EL VIEJO OESTE", WINDOW_WIDTH / 2, 142, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
     ui_panel(renderer, WINDOW_WIDTH / 2 - 190, 186, 380, 282);
@@ -723,11 +726,12 @@ void hud_draw_controls(SDL_Renderer *renderer)
     } rows[] = {
         {{"A", "D", NULL}, "CAMINAR  (TAMBIÉN ← / →)"},
         {{"SHIFT", NULL, NULL}, "CORRER"},
-        {{"ESPACIO", "W", NULL}, "SALTAR  (Y SUBIR A UNA BARRICADA)"},
-        {{"N", NULL, NULL}, "ATRAVESAR UNA BARRICADA BAJA"},
+        {{"ESPACIO", "W", NULL}, "SALTAR"},
+        {{"N", NULL, NULL}, "SALTAR UNA BARRICADA  (O RÓMPELA)"},
         {{"CLIC IZQ", NULL, NULL}, "DISPARAR  (MANTENER: RÁFAGAS)"},
         {{"R", NULL, NULL}, "RECARGAR"},
         {{"Q", "CLIC DER", NULL}, "CAMBIAR DE ARMA  (SWAT)"},
+        {{"K", NULL, NULL}, "RIFLE: RÁFAGAS / TIRO A TIRO  (SWAT)"},
         {{"E", NULL, NULL}, "DINAMITA (MURO O SUELO) / SENTARSE"},
         {{"F", "CLIC CENTRAL", NULL}, "PODER (NIVEL 3): GRANADA / DISPARO DE REBOTE"},
         {{"V", NULL, NULL}, "CULATAZO  (CORTA ALAMBRE, ROMPE CAJAS)"},
@@ -760,9 +764,9 @@ void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes
 {
     static const char *const names[] = {"GENERAL", "PERSONAJE", "ZOMBIS"};
     const int values[] = {volumes->master, volumes->player, volumes->zombie};
-    int w = 620, h = 330, x = (WINDOW_WIDTH - w) / 2, y = 90;
+    int w = 620, h = 386, x = (WINDOW_WIDTH - w) / 2, y = 70;
     ui_panel(renderer, x, y, w, h);
-    ui_text(renderer, "VOLUMEN", WINDOW_WIDTH / 2, y + 22, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    ui_text(renderer, "OPCIONES", WINDOW_WIDTH / 2, y + 22, 3, COLOR_HUD_TITLE, ANCHOR_N);
     for (int i = 0; i < 3; i++) {
         int ry = y + 82 + i * 56;
         bool selected = menu->selected == i;
@@ -775,6 +779,17 @@ void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes
         int bar_w = ui_pips(renderer, x + 270, ry - 1, values[i], VOLUME_STEPS);
         add_zone(HUD_ZONE_VOLUME, i, x + 270, ry - 10, bar_w, 50);
     }
+    /* Not a volume: window or full screen, switched with A/D, Enter, a click or F11. */
+    int ry = y + 82 + VOLUME_FULLSCREEN * 56;
+    bool selected = menu->selected == VOLUME_FULLSCREEN;
+    add_zone(HUD_ZONE_ITEM, VOLUME_FULLSCREEN, x + 24, ry - 10, w - 48, 50);
+    if (selected)
+        ui_button(renderer, x + 24, ry - 10, w - 48, 50, "", true, true);
+    ui_text(renderer, "PANTALLA", x + 80, ry + 4, 2, selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY,
+            ANCHOR_NW);
+    ui_text(renderer, volumes->fullscreen ? "COMPLETA" : "VENTANA", x + 270, ry + 4, 2,
+            selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW);
+    ui_key(renderer, x + w - 92, ry - 3, "F11");
     ui_button(renderer, WINDOW_WIDTH / 2 - 110, y + h - 70, 220, 44, "VOLVER",
               menu->selected == VOLUME_BACK, true);
     add_zone(HUD_ZONE_ITEM, VOLUME_BACK, WINDOW_WIDTH / 2 - 110, y + h - 70, 220, 44);
@@ -784,7 +799,7 @@ void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes
 
 void hud_draw_pause(SDL_Renderer *renderer, const ListMenu *menu)
 {
-    static const char *const labels[PAUSE_ITEMS] = {"CONTINUAR", "REINICIAR NIVEL", "ALMANAQUE", "VOLUMEN",
+    static const char *const labels[PAUSE_ITEMS] = {"CONTINUAR", "REINICIAR NIVEL", "ALMANAQUE", "OPCIONES",
                                                     "CONTROLES", "SALIR AL MENÚ"};
     ui_dim(renderer, 150);
     int w = 400, h = 408, x = (WINDOW_WIDTH - w) / 2, y = 28;

@@ -22,6 +22,7 @@
 #define PLAYER_MELEE_SHEET "sprites/characters/cowgirl/melee"
 #define PLAYER_FAINT_SHEET "sprites/characters/cowgirl/faint"
 #define PLAYER_DRINK_SHEET "sprites/characters/cowgirl/drink"
+#define PLAYER_PLANT_SHEET "sprites/characters/cowgirl/plant"
 #define PLAYER_BANDAGE_SHEET "sprites/characters/cowgirl/bandage"
 
 /* Pivots measured on the art: the body spans x 6..32 (walk), 12..38 (jump)
@@ -92,6 +93,11 @@ static const AnimationDef ANIM_FAINT = {
 /* Drinking and binding a wound: frames picked by how far along (player_care_animation). */
 static const AnimationDef ANIM_DRINK = {
     .sheet = PLAYER_DRINK_SHEET, .frame_w = PLAYER_SHOOT_FRAME_W, .frame_h = PLAYER_SHOOT_FRAME_H,
+    .first_frame = 0, .frame_count = PLAYER_CARE_FRAMES, .fps = 0.0f, .loop = false,
+    .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
+};
+static const AnimationDef ANIM_PLANT = {
+    .sheet = PLAYER_PLANT_SHEET, .frame_w = PLAYER_SHOOT_FRAME_W, .frame_h = PLAYER_SHOOT_FRAME_H,
     .first_frame = 0, .frame_count = PLAYER_CARE_FRAMES, .fps = 0.0f, .loop = false,
     .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
 };
@@ -289,6 +295,11 @@ float player_dry_time(const Player *player)
 const AnimationDef *player_care_animation(const Player *player, int *frame)
 {
     int last = PLAYER_CARE_FRAMES - 1;
+    if (player->plant_time > 0.0f) {
+        int f = (int)((1.0f - player->plant_time / PLANT_TIME) * (float)PLAYER_CARE_FRAMES);
+        *frame = f < 0 ? 0 : f > last ? last : f;
+        return &ANIM_PLANT;
+    }
     if (player->drink_time > 0.0f) {
         int f = (int)((1.0f - player->drink_time / DRINK_TIME) * (float)PLAYER_CARE_FRAMES);
         *frame = f < 0 ? 0 : f > last ? last : f;
@@ -305,6 +316,32 @@ const AnimationDef *player_care_animation(const Player *player, int *frame)
     return NULL;
 }
 
+void player_burn(Player *player)
+{
+    if (!player_alive(player))
+        return;
+    player->burned = true;
+    player->burn_bandaged = false;
+}
+
+bool player_needs_bandage(const Player *player)
+{
+    return player->bleeding || (player->burned && !player->burn_bandaged);
+}
+
+void player_plant(Player *player)
+{
+    if (!player_alive(player) || player->jump.airborne)
+        return;
+    player->plant_time = PLANT_TIME;
+    player->drink_time = 0.0f; /* Her hands are on the charge */
+    player->bandage = 0.0f;
+    if (player->state == PLAYER_WALK || player->state == PLAYER_RUN) {
+        player->state = PLAYER_IDLE;
+        animation_play(&player->anim, &ANIM_IDLE);
+    }
+}
+
 const AnimationDef *player_melee_animation(void)
 {
     return &ANIM_MELEE;
@@ -315,6 +352,7 @@ bool player_vault(Player *player)
     if (!player_alive(player) || player->shot.active || !jump_start(&player->jump))
         return false;
     player->vaulting = true;
+    player->jump.lift = VAULT_LIFT; /* Up over its top, which a jump can't reach */
     player->state = PLAYER_JUMP;
     animation_play(&player->anim, &ANIM_JUMP_AIR);
     return true;
@@ -337,8 +375,7 @@ void player_update(Player *player, const InputState *input, float dt)
         player->heal_time = fmaxf(0.0f, player->heal_time - dt);
     if (player->slow_time > 0.0f)
         player->slow_time = fmaxf(0.0f, player->slow_time - dt);
-    if (player->bleed_time > 0.0f && player->state != PLAYER_DEAD) {
-        player->bleed_time = fmaxf(0.0f, player->bleed_time - dt);
+    if (player->bleeding && player->state != PLAYER_DEAD) { /* Until she binds it */
         player->bleed_tick -= dt;
         if (player->bleed_tick <= 0.0f) {
             player->bleed_tick += BLEED_TICK;
@@ -373,6 +410,10 @@ void player_update(Player *player, const InputState *input, float dt)
     }
 
     int dir = input_horizontal(input);
+    if (player->plant_time > 0.0f) { /* Setting a charge: stood to it */
+        player->plant_time = player->jump.airborne ? 0.0f : fmaxf(0.0f, player->plant_time - dt);
+        dir = 0;
+    }
     bool run = input->down[ACTION_RUN];
     float pace = player->slow_time > 0.0f ? SLOW_MULT : 1.0f; /* Limping after a trap */
     player->wind_feel = player->current_feel = 0;
@@ -416,16 +457,18 @@ void player_update(Player *player, const InputState *input, float dt)
             pace *= dir > 0 ? RIVER_WITH : RIVER_AGAINST;
         }
     }
+    if (player->burned)
+        pace *= BURN_PACE;
     /* U held on the ground: binding the wound, walking slower meanwhile. */
     player->bandaged = false;
     player->bandage_shown = fmaxf(0.0f, player->bandage_shown - dt);
-    bool binding = player->bleed_time > 0.0f && input->down[ACTION_BANDAGE] && !player->jump.airborne &&
+    bool binding = player_needs_bandage(player) && input->down[ACTION_BANDAGE] && !player->jump.airborne &&
                    player->state != PLAYER_CAUGHT && player_alive(player);
     player->bandage = binding ? player->bandage + dt : 0.0f;
     if (binding)
         pace *= BANDAGE_WALK;
-    /* U not bleeding: a drink of water, if she has a jug (slow walking meanwhile). */
-    if (player->bleed_time <= 0.0f && input->pressed[ACTION_BANDAGE] && player->water > 0 &&
+    /* U with nothing to bind: a drink of water, if she has a jug (slow walking meanwhile). */
+    if (!player_needs_bandage(player) && input->pressed[ACTION_BANDAGE] && player->water > 0 &&
         player->drink_time <= 0.0f && !player->jump.airborne && player->state != PLAYER_CAUGHT &&
         player->state != PLAYER_SIT && player_alive(player))
         player->drink_time = DRINK_TIME;
@@ -439,10 +482,13 @@ void player_update(Player *player, const InputState *input, float dt)
             player->fatigue = 0.0f;
             player->thirst = 0.0f;
             player->drank = true;
+            if (player->burn_bandaged) /* Bandaged and watered: the burn is seen to */
+                player->burned = player->burn_bandaged = false;
         }
     }
     if (player->bandage >= BANDAGE_TIME) {
-        player->bleed_time = 0.0f;
+        player->bleeding = false;
+        player->burn_bandaged = player->burned;
         player->bandage = 0.0f;
         player->bandaged = true;
         player->bandage_shown = BANDAGE_SHOW;
@@ -504,12 +550,13 @@ void player_update(Player *player, const InputState *input, float dt)
     /* Shooting is done standing on the ground, toward the held direction if
      * any. Jumping cancels it; everything else waits until it ends. An
      * automatic gun keeps firing while the trigger is held. */
-    if (input->pressed[ACTION_RELOAD] && !player->jump.airborne && shot_reload_now(&player->shot)) {
+    bool planting = player->plant_time > 0.0f;
+    if (input->pressed[ACTION_RELOAD] && !player->jump.airborne && !planting && shot_reload_now(&player->shot)) {
         player->state = PLAYER_SHOOT;
         animation_play(&player->anim, &ANIM_RELOAD);
     }
     bool trigger = input->pressed[ACTION_SHOOT] || (player->shot.automatic && input->down[ACTION_SHOOT]);
-    if (trigger && !player->jump.airborne && shot_start(&player->shot)) {
+    if (trigger && !player->jump.airborne && !planting && shot_start(&player->shot)) {
         if (dir != 0)
             player->facing = dir > 0 ? FACING_RIGHT : FACING_LEFT;
         player->state = PLAYER_SHOOT;
@@ -600,7 +647,7 @@ void player_bleed(Player *player, float damage)
 {
     if (!player_alive(player))
         return;
-    player->bleed_time = BLEED_TIME;
+    player->bleeding = true;
     player->bleed_tick = BLEED_TICK;
     player->bleed_damage = damage;
     player->slow_time = SLOW_TIME;

@@ -318,7 +318,7 @@ static void test_trap_holds_a_zombie(void)
 static void test_trap_makes_her_bleed_and_limp(void)
 {
     /* Her foot in a trap: a bite, then bleeding every BLEED_TICK (through any
-     * armor) for BLEED_TIME, and a limp at SLOW_MULT for SLOW_TIME. */
+     * armor) until she bandages it, and a limp at SLOW_MULT for SLOW_TIME. */
     StageRun run;
     Player player;
     Progress progress;
@@ -334,13 +334,20 @@ static void test_trap_makes_her_bleed_and_limp(void)
     player.x = trap->x;
     player.armor = 1e6f; /* Bleeding goes through it anyway */
     run_update(&run, &player, &progress, FIXED_DT);
-    CHECK(player.bleed_time > 0.0f && player.slow_time > 0.0f);
+    CHECK(player.bleeding && player.slow_time > 0.0f);
     int health = player.health;
     InputState input;
     input_init(&input);
-    for (int i = 0; i < (int)(BLEED_TIME / FIXED_DT) + 2; i++)
+    for (int i = 0; i < (int)((SLOW_TIME + 2.0f) / FIXED_DT); i++)
         player_update(&player, &input, FIXED_DT);
-    CHECK(player.health < health && player.bleed_time == 0.0f && player.slow_time == 0.0f);
+    CHECK(player.health < health && player.bleeding && player.slow_time == 0.0f); /* Still open */
+    bool binding[ACTION_COUNT] = {0};
+    binding[ACTION_BANDAGE] = true;
+    for (int i = 0; i < (int)(BANDAGE_TIME / FIXED_DT) + 2; i++) {
+        input_update(&input, binding);
+        player_update(&player, &input, FIXED_DT);
+    }
+    CHECK(!player.bleeding && player.bandage_shown > 0.0f); /* Bound: it stops */
     /* Limping covers less ground. */
     Player a, b;
     player_init(&a);
@@ -665,7 +672,7 @@ static void test_wire_tears_her(void)
     player.jump.height = 0.0f;
     run_update(&run, &player, &progress, FIXED_DT);
     CHECK(run.wire_bit && player.health < player.max_health);
-    CHECK(player.bleed_time > 0.0f && player.slow_time > 0.0f);
+    CHECK(player.bleeding && player.slow_time > 0.0f);
 }
 
 static void test_barricade_kinds_hold_differently(void)
@@ -743,7 +750,7 @@ static void test_spikes_come_up(void)
     CHECK(player.health == player.max_health);
     for (int i = 0; i < (int)((SPIKES_DELAY + 0.1f) / FIXED_DT); i++)
         run_update(&run, &player, &progress, FIXED_DT);
-    CHECK(player.health < player.max_health && player.bleed_time > 0.0f);
+    CHECK(player.health < player.max_health && player.bleeding);
     CHECK(run_take_sound_events(&run) & RUN_SOUND_TRAP_SPIKES);
 }
 
@@ -837,7 +844,7 @@ static void test_water_thirst_and_visions(void)
     in.pressed[ACTION_BANDAGE] = in.down[ACTION_BANDAGE] = true;
     player_update(&player, &in, FIXED_DT);
     CHECK(player.drink_time == 0.0f && player.bandage > 0.0f); /* The wound first */
-    player.bleed_time = 0.0f;
+    player.bleeding = false;
     player_update(&player, &in, FIXED_DT);
     CHECK(player.drink_time > 0.0f);
     in.pressed[ACTION_BANDAGE] = in.down[ACTION_BANDAGE] = false;
@@ -958,7 +965,7 @@ static void test_wind_and_bandage(void)
         player_update(&player, &still, FIXED_DT);
         stopped |= player.bandaged;
     }
-    CHECK(stopped && player.bleed_time == 0.0f);
+    CHECK(stopped && !player.bleeding);
 
     /* Walking while binding it: at BANDAGE_WALK of her pace. */
     player_bleed(&player, 1.0f);
@@ -1089,10 +1096,132 @@ static void test_dog_body_edge_receives_melee_and_blasts(void)
     }
 }
 
+/* A blast hurts her only where its fireball is drawn: past that she is
+ * untouched, even though zombies there would still be caught. */
+static void test_blast_hurts_her_only_inside_the_fireball(void)
+{
+    for (int grenade = 0; grenade < 2; grenade++) {
+        for (int inside = 0; inside < 2; inside++) {
+            StageRun run;
+            Player player;
+            Progress progress;
+            setup(&run, &player, &progress, 0, false);
+            terrain_clear(&run.terrain);
+            run.zombie_count = 0;
+            float gap = PLAYER_BODY_HALF_WIDTH + BLAST_SELF_RADIUS + (inside ? -5.0f : 40.0f);
+            float blast_x = player.x + gap;
+            if (grenade)
+                run.grenades[0] = (Grenade){.active = true, .x = blast_x, .fuse = FIXED_DT / 2};
+            else
+                terrain_add(&run.terrain, TERRAIN_BARREL, blast_x)->blowing = true;
+            run_update(&run, &player, &progress, FIXED_DT);
+            CHECK(run.blasts == 1);
+            CHECK((player.health < player.max_health) == (inside == 1));
+        }
+    }
+}
+
+static void test_traps_leave_room_between_them(void)
+{
+    /* Every stage: no two traps closer than HAZARD_GAP, so she can land
+     * between them and jump the next. */
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        StageRun run;
+        run_start(&run, s, 0.0f, true);
+        for (int i = 0; i < run.terrain.count; i++)
+            for (int j = 0; j < run.terrain.count; j++) {
+                TerrainKind a = run.terrain.items[i].kind, b = run.terrain.items[j].kind;
+                bool ha = a == TERRAIN_TRAP || a == TERRAIN_SPIKES || a == TERRAIN_NET ||
+                          a == TERRAIN_SNARE || a == TERRAIN_WIRE;
+                bool hb = b == TERRAIN_TRAP || b == TERRAIN_SPIKES || b == TERRAIN_NET ||
+                          b == TERRAIN_SNARE || b == TERRAIN_WIRE;
+                if (i != j && ha && hb)
+                    CHECK(fabsf(run.terrain.items[i].x - run.terrain.items[j].x) >= HAZARD_GAP - 0.5f);
+            }
+    }
+}
+
+static void test_lightning_warns_then_strikes_and_burns(void)
+{
+    /* In the storm (1-5) the ground crackles near her, then the bolt comes
+     * down there: standing on it, she is hurt and burned. Clear stages: never. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    for (int i = 0; i < (int)(40.0f / FIXED_DT); i++) {
+        run_update(&run, &player, &progress, FIXED_DT);
+        CHECK(run.bolt_warn == 0.0f && !run.bolt_struck);
+    }
+    setup(&run, &player, &progress, 4, true);
+    terrain_clear(&run.terrain);
+    run.zombie_count = 0;
+    int guard = 0;
+    while (run.bolt_warn <= 0.0f && guard++ < (int)(30.0f / FIXED_DT))
+        run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.bolt_warn > 0.0f && fabsf(run.bolt_x - player.x) <= LIGHTNING_NEAR);
+    player.x = run.bolt_x;
+    int health = player.health;
+    float warned = 0.0f;
+    while (!run.bolt_struck && warned < 3.0f) {
+        run_update(&run, &player, &progress, FIXED_DT);
+        warned += FIXED_DT;
+    }
+    CHECK(run.bolt_struck && run.bolt_hit_her && warned >= LIGHTNING_WARN - 2.0f * FIXED_DT);
+    CHECK(player.health < health && player.burned && !player.burn_bandaged);
+    CHECK(player_needs_bandage(&player));
+}
+
+static void test_a_burn_needs_a_bandage_then_water(void)
+{
+    Player player;
+    player_init(&player);
+    player_burn(&player);
+    player.water = 1;
+    InputState in;
+    input_init(&in);
+    bool down[ACTION_COUNT] = {0};
+    /* Burned she walks slower. */
+    float x = player.x;
+    down[ACTION_RIGHT] = true;
+    for (int i = 0; i < 60; i++) {
+        input_update(&in, down);
+        player_update(&player, &in, FIXED_DT);
+    }
+    float burned_walk = player.x - x;
+    CHECK(burned_walk < PLAYER_WALK_SPEED * 1.0f * 0.9f);
+    down[ACTION_RIGHT] = false;
+    /* A tap of U first: no drink while the burn wants its bandage. */
+    down[ACTION_BANDAGE] = true;
+    input_update(&in, down);
+    player_update(&player, &in, FIXED_DT);
+    CHECK(player.drink_time <= 0.0f && player.bandage > 0.0f);
+    for (int i = 0; i < (int)(BANDAGE_TIME / FIXED_DT) + 2; i++) {
+        input_update(&in, down);
+        player_update(&player, &in, FIXED_DT);
+    }
+    CHECK(player.burned && player.burn_bandaged && !player_needs_bandage(&player));
+    down[ACTION_BANDAGE] = false;
+    input_update(&in, down);
+    player_update(&player, &in, FIXED_DT);
+    down[ACTION_BANDAGE] = true; /* Now U drinks */
+    input_update(&in, down);
+    player_update(&player, &in, FIXED_DT);
+    down[ACTION_BANDAGE] = false;
+    for (int i = 0; i < (int)(DRINK_TIME / FIXED_DT) + 2; i++) {
+        input_update(&in, down);
+        player_update(&player, &in, FIXED_DT);
+    }
+    CHECK(!player.burned && !player.burn_bandaged && player.water == 0);
+}
+
 int main(void)
 {
     printf("test_stage_run\n");
     RUN(test_road_is_laid_out);
+    RUN(test_traps_leave_room_between_them);
+    RUN(test_lightning_warns_then_strikes_and_burns);
+    RUN(test_a_burn_needs_a_bandage_then_water);
     RUN(test_group_wakes_and_holds_her);
     RUN(test_chest_then_gate_clears);
     RUN(test_without_the_ability_elites_and_mission_only);
@@ -1133,5 +1262,6 @@ int main(void)
     RUN(test_dozing_off);
     RUN(test_impacts_accumulate_until_played);
     RUN(test_dog_body_edge_receives_melee_and_blasts);
+    RUN(test_blast_hurts_her_only_inside_the_fireball);
     return TEST_EXIT();
 }

@@ -166,8 +166,27 @@ static void draw_caught(SDL_Renderer *renderer, const CharacterSkin *skin, int g
         hang_net(renderer, x, (float)BASELINE - lift + 2.0f * SPRITE_SCALE, t);
 }
 
+static void render_at(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
+                      const WeaponId *guns, int weapon_slot, float camera_x);
+
 void player_render(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
                    const WeaponId *guns, int weapon_slot, float camera_x)
+{
+    /* Wading the deep river she is drawn sunk in it, whole art px at a time;
+     * its water goes over her after (terrain_render_front). */
+    int sunk = player->state == PLAYER_CAUGHT || player->jump.airborne
+                   ? 0 : (int)lroundf(player->depth * RIVER_DEEP_ROWS);
+    if (sunk == 0) {
+        render_at(renderer, player, skin, guns, weapon_slot, camera_x);
+        return;
+    }
+    Player wading = *player;
+    wading.jump.height -= (float)(sunk * SPRITE_SCALE);
+    render_at(renderer, &wading, skin, guns, weapon_slot, camera_x);
+}
+
+static void render_at(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
+                      const WeaponId *guns, int weapon_slot, float camera_x)
 {
     const AnimationDef *def = player->anim.def;
     if (player->state == PLAYER_SIT && player->sit_gun >= 0)

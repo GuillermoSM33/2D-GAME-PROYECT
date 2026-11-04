@@ -18,6 +18,7 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .name = "Rifle", .damage_mult = 0.53f, .reload_time = 0.35f,
         .burst = 3, .burst_gap = 0.07f, .automatic = true, /* Light rounds, so many of them */
         .magazine = 5, .magazine_reload = 1.2f, /* 5 bursts, then a new magazine */
+        .single_magazine = 15, .single_reload = 0.2f, /* K: the same 15 rounds one at a time */
         .pellets = 1, .speed = 1300.0f, .armor_share = 1.0f, .tint = 0xd8e0ff,
         .shot_sound = "weapons/rifle_shot", .reload_sound = "weapons/rifle_reload",
         .empty_sound = "weapons/rifle_empty", .melee_sound = "weapons/rifle_melee",

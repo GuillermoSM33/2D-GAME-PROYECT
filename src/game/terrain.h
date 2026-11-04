@@ -165,6 +165,10 @@ int terrain_sign_ahead(const Terrain *terrain, float x, int dir, float range);
 /* In a river at x. */
 bool terrain_river_at(const Terrain *terrain, float x);
 
+/* How deep the river is at x: 0 on the banks and dry land, 1 in its deep
+ * middle (to the waist), in between on the slopes. */
+float terrain_river_depth(const Terrain *terrain, float x);
+
 /* Feet in water at x (a river or a puddle): true, and a puddle there
  * ripples. */
 bool terrain_splash(Terrain *terrain, float x);
@@ -230,7 +234,8 @@ const char *terrain_facade_sheet(void);
 const char *terrain_door_sheet(void);
 
 /* A grenade going off at x: barrels close by catch, crates, bottles, lamps
- * and coffins within radius break. Walls and barricades hold. */
+ * and coffins within radius break, walls and barricades take
+ * GRENADE_STRUCTURE_STRIKES claws' worth (two fell a wall). */
 void terrain_grenade(Terrain *terrain, float x, float radius);
 
 /* Whether something moving from x0 to x1 at height (window px over the

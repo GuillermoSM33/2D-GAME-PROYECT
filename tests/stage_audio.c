@@ -247,6 +247,36 @@ static void test_rope_and_supply_cancel_reload_after_stage_events(void)
     CHECK(stops(w->reload_sound) >= 1 && plays("world/supply") == 1);
 }
 
+/* E with dynamite while reloading or firing: the charge goes on the wall (or
+ * the road) all the same, and the reload stops there, unfilled. */
+static void test_dynamite_interrupts_reload_and_shooting(void)
+{
+    for (int on_wall = 0; on_wall < 2; on_wall++) {
+        for (int firing = 0; firing < 2; firing++) {
+            setup_weapon(WEAPON_SHOTGUN);
+            const WeaponDef *w = weapon_def(WEAPON_SHOTGUN);
+            Piece *wall = NULL;
+            if (on_wall)
+                wall = terrain_add(&game.run.terrain, TERRAIN_WALL, game.player.x +
+                                   terrain_half_width(TERRAIN_WALL) + PLAYER_BODY_HALF_WIDTH);
+            game.run.dynamite = 1;
+            game.player.shot.rounds = firing ? w->magazine : 1;
+            press(firing ? ACTION_SHOOT : ACTION_RELOAD);
+            CHECK(game.player.shot.active);
+            clear_cues();
+            press(ACTION_USE);
+            CHECK(game.run.dynamite == 0 && plays("world/fuse") == 1);
+            if (wall)
+                CHECK(wall->fuse > 0.0f);
+            CHECK(!game.player.shot.active && !shot_reloading(&game.player.shot));
+            if (!firing) {
+                CHECK(game.player.shot.rounds == 1); /* Cut short: never filled */
+                CHECK(stops(w->reload_sound) >= 1);
+            }
+        }
+    }
+}
+
 static void sit_until_reload_starts(void)
 {
     game.player.shot.rounds = 1;
@@ -258,6 +288,52 @@ static void sit_until_reload_starts(void)
         idle();
     CHECK(plays("weapons/rifle_reload") == 1);
     CHECK(game.player.sit_gun == 0 && game.player.shot.rounds == 1);
+}
+
+static void test_planting_takes_her_hands_for_a_moment(void)
+{
+    /* E on the road: she stands PLANT_TIME setting the charge, neither
+     * walking nor shooting, then goes on. */
+    setup_weapon(WEAPON_REVOLVER);
+    game.run.dynamite = 1;
+    press(ACTION_USE);
+    CHECK(game.player.plant_time > 0.0f && game.run.dynamite == 0);
+    int frame;
+    CHECK(player_care_animation(&game.player, &frame) != NULL && frame == 0);
+    float x = game.player.x;
+    InputState input = {0};
+    input.down[ACTION_RIGHT] = input.down[ACTION_SHOOT] = input.pressed[ACTION_SHOOT] = true;
+    step(&input);
+    CHECK(game.player.x == x && !game.player.shot.active);
+    int ticks = 1;
+    while (game.player.plant_time > 0.0f && ticks < 200) {
+        step(&input);
+        ticks++;
+    }
+    CHECK_NEAR((float)(ticks + 1) * FIXED_DT, PLANT_TIME, FIXED_DT * 2.0f);
+    input.pressed[ACTION_SHOOT] = true;
+    step(&input);
+    CHECK(game.player.shot.active || game.player.x != x);
+}
+
+static void test_footsteps_are_quiet_and_uneven(void)
+{
+    /* Walking: steps under the rest of the sounds, the two feet apart. */
+    setup_weapon(WEAPON_REVOLVER);
+    InputState input = {0};
+    input.down[ACTION_RIGHT] = true;
+    for (int i = 0; i < 120; i++)
+        step(&input);
+    float lo = 1.0f, hi = 0.0f;
+    int steps = 0;
+    for (int i = 0; i < cue_count; i++) {
+        if (cues[i].kind != CUE_PLAY || cues[i].name == NULL || strcmp(cues[i].name, "world/footstep") != 0)
+            continue;
+        steps++;
+        lo = fminf(lo, cues[i].gain);
+        hi = fmaxf(hi, cues[i].gain);
+    }
+    CHECK(steps >= 4 && hi <= FOOTSTEP_GAIN + 1e-4f && lo < hi);
 }
 
 static void test_bench_latch_aligns_with_completion_and_swap_keeps_it(void)
@@ -285,9 +361,44 @@ static void test_bench_latch_aligns_with_completion_and_swap_keeps_it(void)
     CHECK(stops("weapons/rifle_reload") == 1 && plays("world/stand") == 1);
 }
 
+static int bullets_from_one_click(void)
+{
+    int fired = 0;
+    InputState input = {0};
+    input.pressed[ACTION_SHOOT] = input.down[ACTION_SHOOT] = true;
+    step(&input);
+    fired += bullets_active_count(&game.bullets);
+    for (int i = 0; i < 40; i++)
+        idle();
+    return bullets_active_count(&game.bullets) > fired ? bullets_active_count(&game.bullets) : fired;
+}
+
+static void test_rifle_fire_mode_toggles_on_k_keeping_its_rounds(void)
+{
+    /* K: three-round bursts from 5 into single shots from 15 and back; the
+     * rounds left carry over, and the shotgun has no such mode. */
+    setup_weapon(WEAPON_RIFLE);
+    CHECK(game.player.shot.magazine == 5 && game.player.shot.burst == 3);
+    game.player.shot.rounds = 4;
+    press(ACTION_FIRE_MODE);
+    CHECK(game.single_fire && game.player.shot.magazine == 15);
+    CHECK(game.player.shot.burst == 1 && !game.player.shot.automatic);
+    CHECK(game.player.shot.rounds == 12 && plays("weapons/switch") == 1);
+    bullets_clear(&game.bullets);
+    CHECK(bullets_from_one_click() == 1 && game.player.shot.rounds == 11);
+    press(ACTION_FIRE_MODE);
+    CHECK(!game.single_fire && game.player.shot.magazine == 5 && game.player.shot.rounds == 3);
+    bullets_clear(&game.bullets);
+    CHECK(bullets_from_one_click() == 3);
+
+    setup_weapon(WEAPON_SHOTGUN);
+    press(ACTION_FIRE_MODE);
+    CHECK(!game.single_fire && game.player.shot.magazine == weapon_def(WEAPON_SHOTGUN)->magazine);
+}
+
 static void start_bleeding(void)
 {
-    game.player.bleed_time = 10.0f;
+    game.player.bleeding = true;
     game.player.bleed_tick = 10.0f; /* Test wrapping, separately from blood loss. */
 }
 
@@ -306,7 +417,7 @@ static void test_bandage_starts_once_and_stops_only_when_cancelled(void)
     const InputState holding = {.down = {[ACTION_BANDAGE] = true}};
     for (int guard = 0; guard < 180 && !game.player.bandaged; guard++)
         step(&holding);
-    CHECK(game.player.bandaged && game.player.bleed_time == 0.0f);
+    CHECK(game.player.bandaged && !game.player.bleeding);
     CHECK(plays("player/bandage") == 1 && stops("player/bandage") == 0);
     CHECK(plays("player/drink") == 0);
 }
@@ -430,7 +541,11 @@ int main(void)
     RUN(test_drink_starts_with_action_and_never_replays_at_completion);
     RUN(test_melee_swing_precedes_hit_and_does_not_duplicate);
     RUN(test_rope_and_supply_cancel_reload_after_stage_events);
+    RUN(test_dynamite_interrupts_reload_and_shooting);
+    RUN(test_planting_takes_her_hands_for_a_moment);
     RUN(test_bench_latch_aligns_with_completion_and_swap_keeps_it);
+    RUN(test_footsteps_are_quiet_and_uneven);
+    RUN(test_rifle_fire_mode_toggles_on_k_keeping_its_rounds);
     RUN(test_bandage_starts_once_and_stops_only_when_cancelled);
     RUN(test_player_volume_preview_uses_player_group);
     RUN(test_field_guide_request_and_light_preserve_stage_state);

@@ -23,11 +23,11 @@ static int shots_to_kill(const ZombieStats *stats, int level)
 
 static void test_armor_takes_more_shots(void)
 {
-    CHECK(shots_to_kill(&ZOMBIE_COMMON, 1) == 5);
-    CHECK(shots_to_kill(&ZOMBIE_RIOT, 1) == 10);
-    CHECK(shots_to_kill(&ZOMBIE_COMMON, 2) == 4);
-    CHECK(shots_to_kill(&ZOMBIE_RIOT, 2) == 6);
-    CHECK(shots_to_kill(&ZOMBIE_RIOT, 3) == 5);
+    CHECK(shots_to_kill(&ZOMBIE_COMMON, 1) == 4);
+    CHECK(shots_to_kill(&ZOMBIE_RIOT, 1) == 7);
+    CHECK(shots_to_kill(&ZOMBIE_COMMON, 2) == 3);
+    CHECK(shots_to_kill(&ZOMBIE_RIOT, 2) == 4);
+    CHECK(shots_to_kill(&ZOMBIE_RIOT, 3) == 3);
 }
 
 static void test_walks_to_player_and_waits(void)

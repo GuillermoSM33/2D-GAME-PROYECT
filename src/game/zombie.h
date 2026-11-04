@@ -104,6 +104,7 @@ typedef struct {
     float caught;    /* Seconds left held in a trap: it struggles in place */
     CatchKind catch_kind; /* What holds it up while caught (CATCH_NONE: a bear trap) */
     bool wading;          /* In a river: slowed (the stage sets it) */
+    float depth;          /* ...and how deep, 0 .. 1 (drawn sunk to the waist) */
     int wind;             /* The wind: +1 blowing right, -1 left, 0 (the stage sets it) */
     float catch_time;     /* Seconds since a hanging trap caught it */
     float catch_anchor_x, catch_anchor_y; /* A snare: the sapling's tip (world x, view y) */

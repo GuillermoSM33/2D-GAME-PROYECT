@@ -20,6 +20,7 @@ bool jump_start(Jump *jump)
     jump->airborne = true;
     jump->time = 0.0f;
     jump->base = jump->height; /* From the ground or from what she stands on */
+    jump->lift = 1.0f;
     return true;
 }
 
@@ -31,6 +32,7 @@ void jump_fall(Jump *jump)
     jump->airborne = true;
     jump->time = PLAYER_JUMP_TIME / 2.0f;
     jump->base = jump->height - PLAYER_JUMP_HEIGHT;
+    jump->lift = 1.0f;
 }
 
 bool jump_update_over(Jump *jump, float dt, float floor)
@@ -39,7 +41,8 @@ bool jump_update_over(Jump *jump, float dt, float floor)
         return false;
     jump->time += dt;
     float t = jump->time;
-    jump->height = jump->base + JUMP_VELOCITY * t - 0.5f * JUMP_GRAVITY * t * t;
+    float lift = jump->lift > 0.0f ? jump->lift : 1.0f;
+    jump->height = jump->base + lift * (JUMP_VELOCITY * t - 0.5f * JUMP_GRAVITY * t * t);
     bool falling = t >= PLAYER_JUMP_TIME / 2.0f;
     if (falling && jump->height <= floor) {
         jump_reset(jump);

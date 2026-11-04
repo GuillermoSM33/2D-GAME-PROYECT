@@ -390,6 +390,81 @@ def equipped_walk(identifier: str, source: Path) -> Image:
     return sheet_from_frames(result)
 
 
+def native_eye(original: Image, box: tuple[int, int, int, int]) -> tuple[int, int] | None:
+    """The riot's eye on an upright head, from its own eye or its mouth.
+
+    Only the head's upper half counts: hurt and death frames scatter
+    eye-yellow glints over the chest, inside the box's lower edge."""
+    x0, y0, x1, y1 = box
+    eyes = [(x, y) for y in range(y0, y0 + (y1 - y0) // 2) for x in range(x0, x1)
+            if original.get(x, y)[3] and original.get(x, y)[:3] == EYE_RGB]
+    if eyes:
+        return max(eyes, key=lambda point: (point[0], -point[1]))
+    mouth = [(x, y) for y in range(y0, y1) for x in range(x0, x1)
+             if original.get(x, y)[3] and original.get(x, y)[:3] == (0x90, 0x20, 0x04)]
+    if mouth:
+        # The riot's mouth sits five rows under the eye, ending beneath it.
+        mouth_y = min(y for x, y in mouth)
+        return max(x for x, y in mouth if y == mouth_y), mouth_y - 5
+    return None
+
+
+def unmask_face(frame: Image, original: Image, box: tuple[int, int, int, int],
+                eye: tuple[int, int], hair: tuple[int, int, int, int]) -> None:
+    """The riot's own small, sunken face without its visor: native skin, eye
+    and mouth stay exactly as drawn, visor tints between them become dark
+    skin, a one-pixel ring around the face and the visor's front bar are the
+    outline (where the grey visor was) and the rest of the helmet takes the
+    family's hair color."""
+    dark = min(SKIN_RGB, key=sum)
+    ex, ey = eye
+    native = {(x, y) for y in range(ey - 4, ey + 9) for x in range(ex - 4, ex + 4)
+              if original.get(x, y)[3] and (original.get(x, y)[:3] in SKIN_RGB or
+                                            original.get(x, y)[:3] in FACE_FEATURE_RGB)}
+    spans = {}
+    for x, y in native:
+        low, high = spans.get(y, (x, x))
+        spans[y] = (min(low, x), max(high, x))
+    window = {(x, y) for y, (low, high) in spans.items() for x in range(low, high + 1)}
+    x0, y0, x1, y1 = box
+    for y in range(max(0, y0), min(FRAME, y1)):
+        for x in range(max(0, x0), min(FRAME, x1)):
+            current = frame.get(x, y)
+            if not current[3]:
+                continue
+            old = original.get(x, y)
+            if (x, y) in window:
+                if (x, y) in native or old[:3] == OUTLINE[:3]:
+                    frame.set(x, y, old)
+                else:
+                    frame.set(x, y, (*dark, 255))
+            elif current[:3] in MASK_RGB or current[:3] in SKIN_RGB or current[:3] in FACE_FEATURE_RGB:
+                ring = any((x + dx, y + dy) in window for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+                # The visor's front bar, ahead of the face, is a dark border
+                # too; hair there read as a hood pulled over the face.
+                front = y in spans and x > spans[y][1]
+                if front and current[:3] in SKIN_RGB and not ring:
+                    continue  # The raised claw reaching past the face
+                frame.set(x, y, OUTLINE if ring or front else hair)
+    # Some native frames lose the eye behind the visor glare; keep it lit
+    # every frame so the face does not flicker blank.
+    if eye in window:
+        frame.set(ex, ey, (*EYE_RGB, 255))
+
+
+def clear_stray_glints(frame: Image, box: tuple[int, int, int, int]) -> None:
+    """The shared running master leaves eye-yellow glints around the head
+    (on the swinging claw); each takes the color around it."""
+    x0, y0, x1, y1 = box
+    for y in range(max(0, y0 - 4), min(FRAME, y1 + 4)):
+        for x in range(max(0, x0 - 4), min(FRAME, x1 + 4)):
+            if x0 <= x < x1 and y0 <= y < y1 or frame.get(x, y)[:3] != EYE_RGB or not frame.get(x, y)[3]:
+                continue
+            around = Counter(frame.get(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                             if frame.get(x + dx, y + dy)[3] and frame.get(x + dx, y + dy)[:3] != EYE_RGB)
+            frame.set(x, y, around.most_common(1)[0][0] if around else OUTLINE)
+
+
 def remove_face_equipment(identifier: str, sheet: Image, action: str,
                           templates: list[Image] | None = None) -> Image:
     """Replace inherited riot face equipment with a rounded visible face.
@@ -407,6 +482,15 @@ def remove_face_equipment(identifier: str, sheet: Image, action: str,
         original = templates[index] if templates else original_frame(action, index)
         x0, y0, x1, y1 = face_box(original)
         hair = head_color(frame, original, (x0, y0, x1, y1))
+        # An upright head shows the riot's own face, unmasked around its eye;
+        # a falling or lying one (death from frame 2 on) the shaded oval below.
+        eye = native_eye(original, (x0, y0, x1, y1))
+        if not (action == 'death' and index >= 2):
+            unmask_face(frame, original, (x0, y0, x1, y1), eye or (x1 - 6, y0 + 6), hair)
+            if action == 'run':
+                clear_stray_glints(frame, (x0, y0, x1, y1))
+            continue
+        # A fallen head: a shaded oval keeps it a head at any angle.
         # The box is padded (3 px back/top, 4 px front/bottom) around the
         # native skin window; the oval sits inside that padding so the head
         # keeps a rounded silhouette instead of a flat rectangular panel.
@@ -540,6 +624,13 @@ def transfer_pose(identifier: str, walk: Image, action: str,
                     old_color = old.get(x, y)
                     if on_face(old, x, y) or old_color[:3] in SKIN_RGB or old_color[:3] == EYE_RGB:
                         continue
+                    # Running bends the body far from the walk it is mapped
+                    # from: hair, hats and robes keep to its silhouette (one
+                    # pixel of give) instead of jutting ahead of the face or
+                    # under the feet.
+                    if action == 'run' and not old_color[3] and not any(
+                            old.get(x + dx, y + dy)[3] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                        continue
                     if .17 < v < .31 and u > .45:
                         continue
                     color = reference.get(sx, sy)
@@ -551,16 +642,39 @@ def transfer_pose(identifier: str, walk: Image, action: str,
     return sheet_from_frames(frames)
 
 
+def leg_split(frame: Image) -> int:
+    """The column between the two legs: the middle of the widest empty run
+    across the lower legs, so spreading them never cuts one in two."""
+    filled = [any(frame.get(x, y)[3] for y in range(58, 68)) for x in range(FRAME)]
+    best, start = (0, 28), None
+    for x in range(FRAME + 1):
+        empty = x < FRAME and not filled[x]
+        if empty and start is None:
+            start = x
+        elif not empty and start is not None:
+            inside = start > 0 and x < FRAME and any(filled[:start]) and any(filled[x:])
+            if inside and x - start > best[0]:
+                best = (x - start, (start + x) // 2)
+            start = None
+    return best[1]
+
+
 def native_motion(frame: Image, *, dx: int = 0, breath: int = 0, stride: int = 0) -> Image:
     out = Image(FRAME, FRAME)
+    split = leg_split(frame) if stride else 28
     for y in range(FRAME):
         upper = max(0.0, min(1.0, (55 - y) / 24.0))
         shift_y = int(round(breath * upper))
         shift_x = int(round(dx * upper))
         for x in range(FRAME):
             leg = int(round(stride * max(0.0, min(1.0, (y - 44) / 18.0))))
-            if x < 28:
+            if x < split:
                 leg = -leg
+            # Each leg moves away from the gap between them; what would come
+            # from the other side of it stays empty instead of repeating a
+            # sliver of the other leg as a stray stroke.
+            if leg and (x < split) != (x - leg < split):
+                continue
             out.set(x, y, frame.get(x - shift_x - leg, y - shift_y))
     return out
 
@@ -579,6 +693,98 @@ def running_from_walk(walk: Image) -> Image:
         airborne(native_motion(walking[(i + 2) % 8], dx=2, stride=2),
                  (0, 1, 2, 0, 0, 1, 2, 0)[i]) for i in range(8)
     ])
+
+
+def shield_edge(frame: Image) -> int | None:
+    """The shield's near (left) edge: the first column from x 30 where a
+    solid slab at least 7 px wide runs down rows 36-50."""
+    for x in range(30, FRAME - 8):
+        if all(frame.get(x + dx, y)[3] for y in range(36, 51) for dx in range(7)):
+            return x
+    return None
+
+
+def split_shield(frame: Image) -> tuple[Image, Image, int] | None:
+    """The body and the shield of one riot_shield frame, apart."""
+    edge = shield_edge(frame)
+    if edge is None:
+        return None
+    body, shield = Image(FRAME, FRAME), Image(FRAME, FRAME)
+    for y in range(FRAME):
+        for x in range(FRAME):
+            color = frame.get(x, y)
+            if not color[3]:
+                continue
+            on_shield = x >= edge - 1 and 28 <= y <= 59
+            (shield if on_shield else body).set(x, y, color)
+    return body, shield, edge
+
+
+SLEEVE = [PALETTE[PALETTE_HEX.index(0x1f3256)], PALETTE[PALETTE_HEX.index(0x2e4a7a)]]
+SKIN = [PALETTE[PALETTE_HEX.index(c)] for c in (0x4a5240, 0x6f7a5c, 0x9aa37e)]
+
+
+def grip(frame: Image, edge: int, grip_y: int = 43) -> None:
+    """Its near arm reaching across to the shield and the hand closed on the
+    shield's edge, so it is held, not floating."""
+    for x in range(edge - 11, edge - 1):              # Forearm across the body
+        frame.set(x, grip_y - 1, OUTLINE)
+        frame.set(x, grip_y, SLEEVE[1])
+        frame.set(x, grip_y + 1, SLEEVE[0])
+        frame.set(x, grip_y + 2, OUTLINE)
+    for dy, color in enumerate((SKIN[2], SKIN[1], SKIN[0])):   # The fist on the edge
+        for dx in range(3):
+            frame.set(edge - 2 + dx, grip_y + dy - 1, color)
+    for dy in range(-2, 3):
+        frame.set(edge - 3, grip_y + dy, OUTLINE)
+    for dx in range(-2, 2):
+        frame.set(edge + dx, grip_y - 3, OUTLINE)
+        frame.set(edge + dx, grip_y + 3, OUTLINE)
+
+
+def grip_shield(sheet: Image) -> Image:
+    frames = []
+    for frame in sheet_frames(sheet):
+        parts = split_shield(frame)
+        if parts:
+            grip(frame, parts[2])
+        frames.append(frame)
+    return sheet_from_frames(frames)
+
+
+def shield_bash(walk: Image) -> Image:
+    """The shield zombie's attack: braced behind the shield, drawn back, then
+    rammed forward with its weight (frames 2-3, the hit, dust and a flash
+    off the shield's face), and back. Body and shield from walk frame 0."""
+    base = sheet_frames(walk)[0]
+    body, shield, edge = split_shield(base)
+    poses = [(0, -1, 0), (-1, -3, 0), (2, 5, -1), (3, 7, -1), (1, 3, 0), (0, 0, 0)]
+    light = PALETTE[PALETTE_HEX.index(0xd6c8a7)]
+    flash = PALETTE[PALETTE_HEX.index(0xfedca3)]
+    frames = []
+    for index, (body_dx, shield_dx, shield_dy) in enumerate(poses):
+        out = Image(FRAME, FRAME)
+        for y in range(FRAME):
+            for x in range(FRAME):
+                color = body.get(x, y)
+                if color[3] and 0 <= x + body_dx < FRAME:
+                    out.set(x + body_dx, y, color)
+        front = 0
+        for y in range(FRAME):
+            for x in range(FRAME):
+                color = shield.get(x, y)
+                if color[3] and 0 <= x + shield_dx < FRAME:
+                    out.set(x + shield_dx, y + shield_dy, color)
+                    front = max(front, x + shield_dx)
+        grip(out, edge + shield_dx, 43 + shield_dy)
+        if index in (2, 3):                            # The hit: a flash, dust thrown off
+            for y in range(32, 56, 3):
+                out.set(front + 1, y + shield_dy, flash)
+                out.set(front + 2 + (y // 3) % 2, y + shield_dy - 1, light)
+            for dx in range(1, 6, 2):
+                out.set(front - dx * 2, 60 + dx % 3, light)
+        frames.append(out)
+    return sheet_from_frames(frames)
 
 
 def derived_actions(base: dict[str, Image], *, dog: bool = False) -> dict[str, Image]:
@@ -910,7 +1116,11 @@ def export_family(identifier: str, *, source_dir: Path | None = None,
             base[action] = remove_face_equipment(identifier, transfer_pose(identifier, walk, action), action)
     base['run'] = family_run(identifier, base['walk'], source_dir)
     derived_actions(base, dog=identifier == 'dog')
-    if identifier not in ('riot', 'dog'):
+    if identifier == 'riot_shield':                    # Held by its edge; a ram, not a claw
+        base['attack'] = shield_bash(base['walk'])
+        for action in ('walk', 'idle'):
+            base[action] = grip_shield(base[action])
+    elif identifier not in ('riot', 'dog'):
         base['attack'] = add_shared_attack_effect(base['attack'])
     paths = {}
     for action in ACTIONS:

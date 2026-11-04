@@ -16,7 +16,7 @@ const CharacterDef CHARACTERS[] = {
     {
         .id = "swat", .name = "El SWAT",
         .ability = ABILITY_WEAPON_SWAP, .ability_name = "Arsenal",
-        .ability_lines = {"Lleva rifle y escopeta.", "Q o clic derecho: cambiar."},
+        .ability_lines = {"Lleva rifle y escopeta.", "Q: cambiar · K: modo rifle."},
         .weapons = {WEAPON_RIFLE, WEAPON_SHOTGUN}, .weapon_count = 2,
         .armor = 34.0f, .armor_per_level = 6.5f, /* Plates and a helmet */
         .power = POWER_GRENADES, .power_name = "Nv 3: granada F",

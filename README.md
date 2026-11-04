@@ -14,28 +14,39 @@ por nivel. Hacia la izquierda se usa el mismo arte espejado.
 ./dist/Vaquera2D
 ```
 
-El juego abre en el **menú principal** (Jugar, Almanaque, Controles, Volumen, Salir), todo en pixel art
-sobre el paisaje del primer nivel. **Volumen** tiene tres barras: General (todo), Personaje (lo
-que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus voces). Los
-controles también se ven en el menú, en **Controles**:
+El juego abre en el **menú principal** (Jugar, Almanaque, Controles, Opciones, Salir), todo en pixel art
+sobre el paisaje del primer nivel. **Opciones** tiene tres barras de volumen: General (todo), Personaje (lo
+que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus voces), y la fila
+**Pantalla** (Ventana o Completa). Los controles también se ven en el menú, en **Controles**:
 
 | Tecla | Acción |
 | --- | --- |
 | `A` / `D` (o `←` / `→`) | Caminar |
 | `Shift` + movimiento | Correr |
-| `Espacio`, `W` o `↑` | Saltar (y subirse a una barricada baja) |
+| `Espacio`, `W` o `↑` | Saltar |
 | Clic izquierdo | Disparar (mantenido: ráfagas del rifle) |
 | `R` | Recargar (cuando el cargador no está lleno; tras una derrota, reintentar) |
 | `Q` o clic derecho | Cambiar de arma (el SWAT), en cualquier momento |
 | `E` | Poner dinamita en un muro alto, sentarse en una banca, o plantar dinamita en el suelo |
 | `V` | Culatazo (un mazazo; cada 1.5 s): empuja y hiere a los zombis, corta alambre, rompe cajas; atrapado, golpea la cuerda |
 | `U` | Si sangra, vendarse (mantener; detiene el sangrado en 1.5 s, caminando a la mitad de velocidad); si no, beber un galón de agua |
-| `N` | Atravesar una barricada baja |
+| `N` | Saltar una barricada (son más altas que el salto normal; también se pueden romper) |
+| `K` | SWAT: rifle en ráfagas o tiro a tiro (15 balas) |
 | `F` o clic central | Poder de nivel 3 (cada 15 s): granada del SWAT, disparo de rebote de la vaquera |
 | `B` | Abrir el almanaque durante la partida, también mientras está pausada |
 | `L` | Encender o apagar la linterna durante el nivel; ilumina hacia donde mira en los temas nocturnos |
-| `Esc` | Pausa: Continuar, Reiniciar nivel, Almanaque, Volumen, Controles, Salir al menú |
-| `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y volumen) |
+| `Esc` | Pausa: Continuar, Reiniciar nivel, Almanaque, Opciones, Controles, Salir al menú |
+| `F11` | Pantalla completa o ventana, en cualquier momento |
+| `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y opciones) |
+
+**Pantalla:** la ventana abre al 85 % del área útil del monitor y se puede agrandar o
+maximizar; el juego se escala sin suavizado y conserva su forma (con franjas si el monitor
+tiene otra proporción). La pantalla completa usa la resolución del escritorio, sin cambiar
+el modo de video, y se recuerda entre partidas en `~/.local/share/Vaquera2D/Vaquera2D/`
+(Linux) o `%APPDATA%\Vaquera2D\Vaquera2D\` (Windows).
+
+**Pausa automática:** si la ventana pierde el foco durante un nivel (clic fuera de ella,
+`Alt+Tab`, minimizarla), el nivel se pausa como con `Esc`.
 
 Durante el nivel, el HUD distribuye la misión y los suministros a la izquierda, vida y
 experiencia a la derecha, y el arma, las balas y el poder en sus paneles propios. La
@@ -494,6 +505,7 @@ tools/make_sit.py        Genera las hojas de sentado, de frente (sentarse, desca
 tools/make_sun.py        Pinta el sol entero en los cielos de atardecer y pueblo fantasma
 tools/make_terrain.py    (también el cuervo: sprites/crow/crow.png)
 tools/make_care.py       Beber y vendarse de la vaquera (drink.png, bandage.png) a partir de su hoja de disparo
+tools/make_plant.py      Plantar dinamita (plant.png) de la vaquera y del SWAT, 0.45 s
 tools/make_faint.py      El desmayo de la vaquera y el SWAT (faint.png) a partir de su hoja de caminar
 tools/make_melee.py      El culatazo de la vaquera (melee.png) a partir de su hoja de disparo
 tools/make_powers.py     Arte de los poderes de nivel 3: las pistolas duales de la vaquera y la granada

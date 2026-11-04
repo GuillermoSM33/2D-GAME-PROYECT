@@ -42,7 +42,8 @@ static void test_gap_rewards_challenge(void)
 
 static void test_equal_levels_stay_balanced(void)
 {
-    /* Same level on both sides: the fight lasts about the same at any level. */
+    /* Same level on both sides: the fight lasts about the same at any level,
+     * about 7 shots to put down a riot zombie. */
     for (int level = 1; level <= 10; level++) {
         float to_kill = (float)level_health(ZOMBIE_RIOT.health, level) /
                         (float)damage_after_armor(weapon_damage(level),
@@ -50,7 +51,7 @@ static void test_equal_levels_stay_balanced(void)
         float to_die = (float)level_health(PLAYER_HEALTH, level) /
                        (float)damage_after_armor(damage_at_level(ZOMBIE_ATTACK_BASE, level),
                                                  level_armor(PLAYER_ARMOR, PLAYER_ARMOR_PER_LEVEL, level));
-        CHECK(ceilf(to_kill) >= 9 && ceilf(to_kill) <= 14);
+        CHECK(ceilf(to_kill) >= 6 && ceilf(to_kill) <= 10);
         CHECK(ceilf(to_die) >= 8 && ceilf(to_die) <= 12);
     }
 }
@@ -82,13 +83,13 @@ static void test_campaign_is_winnable_not_trivial(void)
                                                              progress_armor(&p)));
             if (s == 0) { /* The original tutorial's balance remains intact. */
                 CHECK(stats == &ZOMBIE_RIOT);
-                CHECK(shots >= 6 && shots <= 16);
+                CHECK(shots >= 4 && shots <= 11);
                 CHECK(claws >= 6 && claws <= 14);
             } else if (stats->runner) { /* Faster approach trades away health, not equipment. */
-                CHECK(shots >= 1 && shots <= 16);
+                CHECK(shots >= 1 && shots <= 11);
                 CHECK(claws >= 5 && claws <= 22);
             } else {
-                CHECK(shots >= (elite ? 8 : 3) && shots <= (elite ? 26 : 20));
+                CHECK(shots >= (elite ? 5 : 2) && shots <= (elite ? 18 : 14));
                 CHECK(claws >= (elite ? 4 : 5) && claws <= 22);
             }
             float share = stage_xp_share(stage);

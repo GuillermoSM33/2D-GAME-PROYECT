@@ -66,17 +66,19 @@ SMOKE = [rgb(0x4a4444), rgb(0x6a6262), rgb(0x8a8282)]
 
 
 class Frame:
-    """Draws into one frame of a sheet (offset ox), clipped to its width."""
+    """Draws into one frame of a sheet (offset ox), clipped to its width; oy
+    moves the drawing down (so y may go negative above it)."""
 
-    def __init__(self, img: Image, ox: int, w: int) -> None:
-        self.img, self.ox, self.w = img, ox, w
+    def __init__(self, img: Image, ox: int, w: int, oy: int = 0) -> None:
+        self.img, self.ox, self.w, self.oy = img, ox, w, oy
 
     def px(self, x: int, y: int, c) -> None:
         if 0 <= x < self.w:
-            self.img.set(self.ox + x, y, c)
+            self.img.set(self.ox + x, y + self.oy, c)
 
     def get(self, x: int, y: int):
-        return self.img.get(self.ox + x, y) if 0 <= x < self.w else (0, 0, 0, 0)
+        inside = 0 <= x < self.w and 0 <= y + self.oy < self.img.height
+        return self.img.get(self.ox + x, y + self.oy) if inside else (0, 0, 0, 0)
 
     def fill(self, x0: int, y0: int, x1: int, y1: int, c) -> None:
         for y in range(y0, y1 + 1):
@@ -96,11 +98,12 @@ class Frame:
                 self.px(x, y, c)
 
     def outline(self) -> None:
-        solid = {(x, y) for y in range(self.img.height) for x in range(self.w) if self.get(x, y)[3]}
+        rows = range(-self.oy, self.img.height - self.oy)
+        solid = {(x, y) for y in rows for x in range(self.w) if self.get(x, y)[3]}
         for x, y in solid:
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 nx, ny = x + dx, y + dy
-                if 0 <= nx < self.w and 0 <= ny < self.img.height and (nx, ny) not in solid:
+                if 0 <= nx < self.w and ny in rows and (nx, ny) not in solid:
                     self.px(nx, ny, OUTLINE)
 
 
@@ -169,24 +172,33 @@ def sandbag(f: Frame, x0: int, y0: int, w: int, h: int) -> None:
 
 
 def make_barricade() -> Image:
-    """The low barricades, long and up to her waist, low enough to jump onto
-    (their top is BARRICADE_TOP). Four kinds (Piece.variant), three frames
-    each (whole, cracked, wrecked): crates and sandbags, a sandbag wall, logs
-    lashed between sharpened stakes, a steel crowd barrier."""
-    w, h = 68, 26
+    """The barricades, long and over her head: too high to jump (their top is
+    BARRICADE_TOP), she gets over with a vault (N) or breaks them. Four kinds
+    (Piece.variant), three frames each (whole, cracked, wrecked): crates and
+    sandbags, a sandbag wall, logs lashed between sharpened stakes, a steel
+    crowd barrier. Each is drawn on its 26-row base, RAISE rows lower, and
+    built up above it (negative y)."""
+    w, h = 68, 26 + RAISE
     img = Image(w * 12, h)
     for kind in range(4):
         for state in range(3):
-            f = Frame(img, (kind * 3 + state) * w, w)
+            f = Frame(img, (kind * 3 + state) * w, w, RAISE)
             (barricade_crates, barricade_sandbags, barricade_logs, barricade_fence)[kind](f, state)
             f.outline()
     return img
 
 
+RAISE = 18  # Rows the barricades grew by (BARRICADE_FRAME_H 44)
+
+
 def barricade_crates(f: Frame, state: int) -> None:
-    """Crates on sandbags, a post, a plank nailed across."""
+    """Crates on sandbags, two more piled on top, a post, a plank nailed across."""
     if state < 2:
         cracked = state == 1
+        crate(f, 6, -9, 24, 11, seed=17)                 # The pile on top
+        crate(f, 30, -10, 26, 12, seed=23, cracked=cracked)
+        crate(f, 16, -17, 26, 9, seed=29)
+        sandbag(f, 44, -16, 12, 7)
         sandbag(f, 0, 18, 11, 8)                          # Sandbags at the feet
         sandbag(f, 56, 18, 12, 8)
         sandbag(f, 3, 12, 10, 7)
@@ -194,7 +206,7 @@ def barricade_crates(f: Frame, state: int) -> None:
         crate(f, 8, 10, 25, 16, seed=3, cracked=cracked)
         crate(f, 33, 10, 25, 16, seed=11)
         crate(f, 18, 1, 28, 10, seed=7, cracked=cracked)  # Top crate: the step she stands on
-        f.box(46, 4, 49, 10, WOOD)                       # A post sticking up
+        f.box(46, -14, 49, 10, WOOD)                     # A post sticking up
         if state == 0:                                   # A plank nailed across
             f.box(5, 16, 62, 18, WOOD[1:])
             grain(f, 5, 16, 62, 18, WOOD, 5)
@@ -227,14 +239,15 @@ def barricade_sandbags(f: Frame, state: int) -> None:
         for x in range(0, 68, 2):
             f.px(x, 25, SAND[1 + x % 2])
         return
-    courses = ((19, 0, 5), (13, 4, 5), (7, 8, 4), (1, 13, 3))  # (y, x start, sacks)
+    courses = ((19, 0, 5), (13, 4, 5), (7, 1, 5), (1, 4, 5), (-5, 8, 4), (-11, 8, 4),
+               (-17, 15, 3))                                # (y, x start, sacks)
     for row, (y0, x0, n) in enumerate(courses):
         for i in range(n):
-            if state == 1 and row == 3 and i == 1:
+            if state == 1 and row == 6 and i == 1:
                 continue                                 # A sack shot out of the top
             sandbag(f, x0 + i * 14 - (row % 2), y0, 14, 7)
     if state == 1:                                       # Holes leaking sand
-        for x, y in ((20, 15), (44, 21), (33, 9)):
+        for x, y in ((20, 15), (44, 21), (33, 9), (25, -3), (47, -9)):
             f.px(x, y, OUTLINE)
             f.px(x, y + 1, SAND[3])
             f.px(x, y + 2, SAND[2])
@@ -247,10 +260,10 @@ def barricade_logs(f: Frame, state: int) -> None:
             log(f, x0, y0, x1, 5)
         f.box(22, 14, 25, 19, WOOD)
         return
-    for i, y in enumerate((18, 12, 6)):                  # Logs, the top one shorter
-        log(f, 2 + i * 2, y, 64 - i * 4, 6)
+    for i, y in enumerate((18, 12, 6, 0, -6, -12)):      # Logs, narrowing up
+        log(f, 2 + i * 2, y, 64 - i * 2, 6)
     for x in (6, 24, 44, 60):                            # Stakes, sharpened
-        top = 0 if x != 44 or state == 0 else 5
+        top = -17 if x != 44 or state == 0 else -10
         for y in range(top + 3, 26):
             f.px(x, y, WOOD[3])
             f.px(x + 1, y, WOOD[2])
@@ -258,11 +271,12 @@ def barricade_logs(f: Frame, state: int) -> None:
         f.px(x + 1, top, WOOD[4])
         f.fill(x, top + 1, x + 2, top + 2, WOOD[3])
         f.px(x + 1, top + 1, WOOD[4])
-        f.fill(x - 1, 9, x + 3, 9, ROPE[0])              # Lashed with rope
-        f.fill(x - 1, 15, x + 3, 15, ROPE[1])
+        for y in (-9, 3, 15):                            # Lashed with rope
+            f.fill(x - 1, y, x + 3, y, ROPE[0])
+            f.fill(x - 1, y + 1, x + 3, y + 1, ROPE[1])
     if state == 1:                                       # A split along the top log
         for x in range(12, 40):
-            f.px(x, 8 + (x // 5) % 2, OUTLINE)
+            f.px(x, -10 + (x // 5) % 2, OUTLINE)
 
 
 def log(f: Frame, x0: int, y0: int, x1: int, h: int) -> None:
@@ -295,21 +309,28 @@ def barricade_fence(f: Frame, state: int) -> None:
     bend = 4 if state == 1 else 0
     for x in range(4, 64):                               # Top and bottom tubes
         sag = bend if 28 <= x <= 40 else bend // 2 if 22 <= x <= 46 else 0
-        f.px(x, 2 + sag, IRON[4])
-        f.px(x, 3 + sag, IRON[2])
+        f.px(x, -16 + sag, IRON[4])
+        f.px(x, -15 + sag, IRON[2])
+        f.px(x, 1, IRON[3])                              # A rail half way
+        f.px(x, 2, IRON[1])
         f.px(x, 18, IRON[3])
         f.px(x, 19, IRON[1])
-    for y in range(4, 18):                               # Rounded ends
+    for y in range(-14, 18):                             # Rounded ends
         f.px(2, y, IRON[4])
         f.px(3, y, IRON[2])
         f.px(64, y, IRON[3])
         f.px(65, y, IRON[1])
-    f.px(3, 2, IRON[4]); f.px(2, 3, IRON[4]); f.px(64, 2, IRON[3]); f.px(65, 3, IRON[3])
+    f.px(3, -16, IRON[4]); f.px(2, -15, IRON[4]); f.px(64, -16, IRON[3]); f.px(65, -15, IRON[3])
     for x in range(8, 62, 4):                            # Bars
         sag = bend if 28 <= x <= 40 else bend // 2 if 22 <= x <= 46 else 0
-        for y in range(4 + sag, 18):
-            f.px(x, y, IRON[3])
-    f.fill(1, 6, 1, 8, IRON[2])                          # Hooks to the next one
+        for y in range(-14 + sag, 18):
+            if y not in (1, 2):
+                f.px(x, y, IRON[3])
+    for i in range(0, 14):                               # Wire coiled along the top
+        for x in range(4 + i * 4, 8 + i * 4):
+            if x < 64:
+                f.px(x, -18 + (x + i) % 3, IRON[2] if x % 2 else IRON[4])
+    f.fill(1, -8, 1, -6, IRON[2])                        # Hooks to the next one
     f.fill(66, 12, 66, 14, IRON[2])
     for x0, d in ((10, -1), (58, 1)):                    # Slanted feet
         for i in range(7):
@@ -787,7 +808,7 @@ def make_crate() -> Image:
     """A loose supply crate with what it holds stencilled on a label: for each
     loot (ammo, health, dynamite, gold, water: the order of Loot in
     terrain.h) whole and split by a shot; then broken open (boards and straw)."""
-    w, h = 32, 28
+    w, h = 32, 36
     img = Image(w * 11, h)
     marks = {
         0: ['...yy...', '..yYYy..', '..yYYy..', '..yYYy..', '..yYYy..', '..rrrr..',
@@ -804,10 +825,19 @@ def make_crate() -> Image:
     colors = {'y': BRASS[1], 'Y': BRASS[3], 'r': RED[2], 'R': RED[3], 'f': IRON[1],
               'c': WOOD[3], 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)}
     for frame in range(11):
-        f = Frame(img, frame * w, w)
+        f = Frame(img, frame * w, w, h - 28)              # Drawn on its old 28 rows, grown up
         if frame < 10:
             loot, cracked = frame // 2, frame % 2 == 1
-            crate(f, 1, 3, 30, 25, seed=23 + loot)
+            crate(f, 1, -5, 30, 33, seed=23 + loot)
+            for y in (-2, 24):                            # Iron straps round it
+                f.fill(1, y, 30, y, IRON[2])
+                for x in (2, 15, 29):
+                    f.px(x, y, IRON[4])
+            for y in (4, 5, 6):                           # Rope handles at the sides
+                f.px(0, y, ROPE[0])
+                f.px(31, y, ROPE[1])
+            f.fill(4, -4, 8, -4, BONE[1])                 # A stencilled lot number
+            f.fill(24, 26, 27, 26, BONE[1])
             f.fill(10, 8, 21, 19, BONE[2])                # The label, nailed on
             f.fill(10, 19, 21, 19, BONE[1])
             f.fill(21, 8, 21, 19, BONE[1])
@@ -817,11 +847,11 @@ def make_crate() -> Image:
                 for col, ch in enumerate(line):
                     if ch in colors:
                         f.px(12 + col, 10 + row, colors[ch])
-            f.px(3, 4, BRASS[3])                          # A glint on the top corner
-            f.px(4, 4, BRASS[2])
+            f.px(3, -4, BRASS[3])                         # A glint on the top corner
+            f.px(4, -4, BRASS[2])
             if cracked:                                   # A split through boards and label
                 x = 16
-                for y in range(4, 27):
+                for y in range(-4, 27):
                     f.px(x, y, OUTLINE)
                     if y % 3 == 0:
                         x += 1 if y % 6 == 0 else -1
@@ -848,20 +878,17 @@ def make_net() -> Image:
     leaves = [rgb(0x5a3e22), rgb(0x7e5a30), rgb(0xa07a3e)]
     for frame in range(3):
         f = Frame(img, frame * w, w)
-        for i in range(16):                              # Leaves
-            x, y = (i * 7) % 38 + 1, 28 + (i * 3) % 2
+        for i in range(34):                              # Leaves, thick over it
+            x, y = (i * 7) % 38 + 1, 27 + (i * 5) % 3
             if frame == 1 and i % 3 == 0:
                 y -= 6 + i % 7                           # Thrown up
             f.px(x, y, leaves[i % 3])
             f.px(x + 1, y, leaves[(i + 1) % 3])
         if frame == 0:
-            for x in range(2, 38):                       # The mesh peeking out
-                for y in range(26, 29):
-                    if (x + y) % 3 == 0:
-                        f.px(x, y, ROPE[1])
-            for y in range(0, 27):                       # Its rope going up
-                f.px(36, y, ROPE[0])
-                f.px(37, y, ROPE[1])
+            for x in range(4, 36, 9):                    # A cord or two peeking out
+                f.px(x, 29, ROPE[0])
+            for y in range(0, 27):                       # Its rope going up, a dark vine
+                f.px(36 + (y // 9) % 2, y, WOOD[1])
         elif frame == 1:                                 # The net whipping up, closing
             for y in range(2, 28):
                 half = 2 + (y - 2) * 14 // 26
@@ -897,14 +924,19 @@ def make_net_bag() -> Image:
     return img
 
 
+SNARE_RAISE = 20  # Rows the sapling grew by (SNARE_FRAME_H 84): she hangs higher
+
+
 def make_snare() -> Image:
     """A snare: a sapling bent down to a trigger peg, its noose open on the
     ground; sprung, the sapling stands up (the rope to the foot is drawn by
     the game, from the tip)."""
-    w, h = 48, 64
+    w, h = 48, 64 + SNARE_RAISE
     img = Image(w * 3, h)
+    leaf = [rgb(0x3e5a28), rgb(0x4a6a30), rgb(0x5e7e3a)]
+    litter = [rgb(0x5a3e22), rgb(0x7e5a30), rgb(0xa07a3e)]
     for frame in range(3):
-        f = Frame(img, frame * w, w)
+        f = Frame(img, frame * w, w, SNARE_RAISE)
         for y in range(40, 64):                          # The trunk
             f.px(41, y, WOOD[2])
             f.px(42, y, WOOD[1])
@@ -914,31 +946,37 @@ def make_snare() -> Image:
                 y = 40 - int(14 * (1 - ((i - 15) / 15) ** 2))
                 f.px(x, y, WOOD[3])
                 f.px(x, y + 1, WOOD[1])
-            for y in range(40, 61):                      # Line down to the peg
-                f.px(12, y, ROPE[0])
-            f.box(10, 58, 13, 63, WOOD)                  # The trigger peg
-            for a in range(0, 360, 20):                  # The noose on the ground
-                import math
+                if i % 3 == 0:                           # Leafy: it reads as a bush
+                    for dx, dy in ((0, -1), (1, -2), (-1, -1), (0, -2)):
+                        f.px(x + dx, y + dy, leaf[(i + dx) % 3])
+            for y in range(40, 61):                      # Line down to the peg, a dark vine
+                if y % 3:
+                    f.px(12, y, WOOD[1])
+            f.box(10, 60, 13, 63, WOOD[:3])              # The trigger peg, pushed in low
+            for a in range(0, 360, 30):                  # The noose, under the litter
                 x = 22 + round(7 * math.cos(math.radians(a)))
-                y = 61 + round(2 * math.sin(math.radians(a)))
-                f.px(x, y, ROPE[1])
-            for x in range(13, 16):
-                f.px(x, 60, ROPE[0])
+                y = 62 + round(1 * math.sin(math.radians(a)))
+                if a % 90:
+                    f.px(x, y, ROPE[0])
+            for i in range(22):                          # Dead leaves strewn over it
+                x, y = 9 + (i * 5) % 26, 61 + (i * 7) % 3
+                f.px(x, y, litter[i % 3])
+                f.px(x + 1, y, litter[(i + 1) % 3])
         elif frame == 1:                                 # Springing: whipping up
-            for i in range(26):
+            for i in range(40 + SNARE_RAISE // 2):
                 x = 41 - i // 2
                 y = 40 - i
                 f.px(x, y, WOOD[3])
                 f.px(x + 1, y, WOOD[1])
-            for x, y in ((28, 12), (30, 9), (26, 16)):
+            for x, y in ((26, -2), (28, -6), (23, 4), (31, 2)):
                 f.px(x, y, rgb(0x4a6a30))                # Leaves shaken off
             f.box(10, 59, 13, 63, WOOD)                  # The peg jerked loose
         else:                                            # Sprung upright, swaying
-            for y in range(2, 40):
+            for y in range(2 - SNARE_RAISE, 40):
                 x = 41 - (40 - y) // 14
                 f.px(x, y, WOOD[3])
                 f.px(x + 1, y, WOOD[1])
-            for x, y in ((36, 8), (37, 9), (44, 14), (45, 13), (35, 20)):
+            for x, y in ((36, -12), (37, -11), (42, -4), (43, -5), (35, 2), (38, 10), (44, 18)):
                 f.px(x, y, rgb(0x4a6a30))                # A few leaves
             f.box(10, 61, 13, 63, WOOD)                  # The peg, pulled out
         for x, y in ((38, 63), (40, 62), (44, 63), (46, 63)):
@@ -968,6 +1006,46 @@ def make_spikes() -> Image:
             if frame == 2 and x % 8 == 3:
                 f.px(x, 1, RED[2])
                 f.px(x, 2, RED[1])
+        f.outline()
+    return img
+
+
+BAT_FRAMES = [
+    ['................', '.m............m.', '.mM..........Mm.', '..mMM......MMm..',
+     '...mMM.^^.MMm...', '....mMBBHHMm....', '......BBHe......', '......BB........',
+     '.......f........', '................'],                         # Wings up
+    ['................', '................', '................', '.......^^.......',
+     'mMMMMMBBHHMMMMMm', '.mMMMMBBHeMMMMm.', '..m.m.BB..m.m...', '.......f........',
+     '................', '................'],                         # Level
+    ['................', '................', '.......^^.......', '......BBHH......',
+     '....MMBBHeMM....', '...MMMBB..MMM...', '..mMM..f...MMm..', '.mM..........Mm.',
+     '.m............m.', '................'],                         # Down
+    ['................', '................', '................', '........^^......',
+     '.....MMBBHH.....', '....mMMBBHe.....', '.....mMBB.......', '.......f........',
+     '................', '................'],                         # Folded in
+    ['................', '................', '....m......m....', '.....MBBBBM.....',
+     '......BBBBr.....', '.....fHHe.......', '......^^........', '................',
+     '................', '................'],                         # Shot, tumbling
+    ['................', '................', '................', '................',
+     '................', '................', '................', '...mMMBBBBHH^...',
+     '..mMMMMBBBBre...', '.......r........'],                         # Dead on the road
+]
+
+
+def make_bat() -> Image:
+    """A bat, side on, facing right: a wingbeat (wings up, level, down,
+    folded in), shot and tumbling, dead on the road. Dark fur, membranes a
+    shade lighter with darker tips, pricked ears, a pale glint of an eye."""
+    w, h = 16, 10
+    img = Image(w * 6, h)
+    colors = {'B': rgb(0x2c2430), 'H': rgb(0x18141a), '^': rgb(0x18141a), 'f': rgb(0x18141a),
+              'M': rgb(0x564658), 'm': rgb(0x3a2e3c), 'e': rgb(0xe0d8b0), 'r': rgb(0x8a1e1e)}
+    for frame, rows in enumerate(BAT_FRAMES):
+        f = Frame(img, frame * w, w)
+        for y, row in enumerate(rows):
+            for x, ch in enumerate(row):
+                if ch in colors:
+                    f.px(x, y, colors[ch])
         f.outline()
     return img
 
@@ -1038,13 +1116,28 @@ MUD = [rgb(0x3a2a1c), rgb(0x54402a), rgb(0x6e5638)]
 
 
 def make_river() -> Image:
-    """A shallow river across the road: ankle deep, its sandy bed and pebbles
-    showing through the water, from its muddy banks down to the bottom of
-    the view (its top rows just over the ground line). 4 frames: ripples and
-    glints drift right a quarter of their spacing each frame, so it loops."""
-    w, h = 120, 22
+    """A river across the road, wide and flowing right: muddy banks sloping
+    to a deep middle (RIVER_DEEP_SHARE of it, dark: waist deep), its sandy
+    bed and pebbles showing through where it is shallow, from just over the
+    ground line down to the bottom of the view. 4 frames: ripples, foam
+    streaks and glints drift right a quarter of their spacing each frame, so
+    it loops and the current shows."""
+    w, h = 200, 22
+    return river_frames(w, h)
+
+
+def river_depth(x: int, w: int) -> float:
+    """0 at the water's edge (5 px in) to 1 in the deep middle, like
+    terrain_river_depth (RIVER_DEEP_SHARE 0.55)."""
+    wet = w / 2 - 5
+    from_bank = wet - abs(x + 0.5 - w / 2)
+    return max(0.0, min(1.0, from_bank / (wet * 0.45)))
+
+
+def river_frames(w: int, h: int) -> Image:
     img = Image(w * 4, h)
     bed = [rgb(0x5e7a72), rgb(0x749088), rgb(0x8aa69a), rgb(0xa2bcaa)]   # Sand through water
+    deep = [rgb(0x183040), rgb(0x1f3e52), rgb(0x285068), rgb(0x3a6a82)]
     for frame in range(4):
         f = Frame(img, frame * w, w)
         for y in range(2, h):
@@ -1056,56 +1149,73 @@ def make_river() -> Image:
                 if y <= 3:                               # The surface, level with her ankles
                     f.px(x, y, WATER[4] if y == 2 and (x + frame) % 6 else WATER[3])
                     continue
-                c = bed[1 + ((x * 7 + y * 13) % 5 == 0)] if y < 12 else bed[0 + ((x * 5 + y * 3) % 4 == 0)]
-                f.px(x, y, c)
-        for i in range(0, w, 7):                         # Pebbles on the bed
+                d = river_depth(x, w)
+                shallow = bed[1 + ((x * 7 + y * 13) % 5 == 0)] if y < 12 else bed[0 + ((x * 5 + y * 3) % 4 == 0)]
+                dark = deep[2 - (y > 9) - (y > 15) + ((x * 5 + y * 7) % 9 == 0)]
+                # The bed drops away: past a row set by the depth, deep water
+                f.px(x, y, dark if y > 4 + int((1 - d) * 16) else shallow)
+        for i in range(0, w, 7):                         # Pebbles on the shallow bed
             x, y = (i * 13) % (w - 10) + 5, 6 + (i * 5) % 14
-            f.px(x, y, MUD[1])
-            f.px(x + 1, y, bed[0])
-        for y in range(5, h, 4):                         # Ripples drifting with the current
-            for i in range(0, w, 18):
+            if river_depth(x, w) < 0.6:
+                f.px(x, y, MUD[1])
+                f.px(x + 1, y, bed[0])
+        for y in range(5, h, 3):                         # Ripples drifting with the current
+            for i in range(0, w, 14):
                 x0 = (i + frame * 4 + y * 7) % w
-                for k in range(4):
+                for k in range(5 if river_depth(x0, w) > 0.5 else 3):
                     x = (x0 + k) % w
                     if min(x, w - 1 - x) >= 5:
-                        f.px(x, y, bed[3] if k % 2 else WATER[4])
+                        f.px(x, y, deep[3] if river_depth(x, w) > 0.5 and k % 2 else bed[3] if k % 2 else WATER[4])
+        for i in range(0, w, 23):                        # Foam streaks on the surface, swept right
+            x0 = (i * 3 + frame * 6) % w
+            for k in range(7):
+                x = (x0 + k) % w
+                if min(x, w - 1 - x) >= 6:
+                    f.px(x, 3, WATER[5] if k < 4 else WATER[4])
     return img
+
+
 def make_river_front() -> Image:
-    """The river's surface drawn again over the feet of whoever wades it:
-    ankle deep, with foam, looping like the river."""
-    w, h = 120, 3
+    """The river drawn again over whoever wades it: its rows from the surface
+    down (rows 2 to 2 + RIVER_FRONT_H), so a body sunk in the deep middle is
+    under water to the waist, its feet just covered on the shallow sides."""
+    w, h = 200, 17
+    river = river_frames(w, 22)
     img = Image(w * 4, h)
     for frame in range(4):
-        f = Frame(img, frame * w, w)
-        for x in range(5, w - 5):
-            f.px(x, 0, WATER[5] if (x + frame * 2) % 5 == 0 else WATER[4])
-            if (x * 3 + frame * 3) % 4:
-                f.px(x, 1, WATER[3])
-            if (x + frame) % 3 == 0:
-                f.px(x, 2, WATER[3])
+        for y in range(h):
+            for x in range(w):
+                img.set(frame * w + x, y, river.get(frame * w + x, y + 2))
     return img
+
+
 def make_puddle() -> Image:
-    """A puddle on the road: still (two shimmer frames), then rings spreading
-    when someone steps in (two frames)."""
-    w, h = 36, 5
+    """A wide puddle on the road: still (two shimmer frames), then rings
+    spreading when someone steps in (two frames)."""
+    w, h = 64, 6
+    cx = w // 2
     img = Image(w * 4, h)
     for frame in range(4):
         f = Frame(img, frame * w, w)
         for y in range(h):
-            half = [12, 16, 17, 16, 12][y]
-            for x in range(18 - half, 18 + half):
-                edge = x in (18 - half, 18 + half - 1)
+            half = [20, 27, 30, 31, 28, 22][y]
+            wobble = (y * 3) % 4 - 1                     # Uneven edges
+            for x in range(cx - half + wobble, cx + half - wobble):
+                edge = x in (cx - half + wobble, cx + half - wobble - 1)
                 f.px(x, y, MUD[1] if edge else WATER[2] if y > 1 else WATER[3])
-        if frame < 2:                                     # Shimmer: a glint sliding along
-            for x in (10 + frame * 5, 22 + frame * 3):
+            if 2 <= y <= 4:                              # Mud and sky reflected in it
+                for x in range(cx - half + 6, cx + half - 6, 9):
+                    f.px(x, y, WATER[1])
+        if frame < 2:                                     # Shimmer: glints sliding along
+            for x in (14 + frame * 5, 30 + frame * 3, 44 + frame * 4):
                 f.px(x, 1, WATER[5])
                 f.px(x + 1, 1, WATER[4])
         else:                                             # Rings
-            r = 4 if frame == 2 else 9
-            for x in range(18 - r, 18 + r + 1):
-                f.px(x, 1 if abs(x - 18) > r - 2 else 0, WATER[4])
-                if abs(x - 18) >= r - 1:
-                    f.px(x, 3, WATER[4])
+            r = 6 if frame == 2 else 14
+            for x in range(cx - r, cx + r + 1):
+                f.px(x, 1 if abs(x - cx) > r - 2 else 0, WATER[4])
+                if abs(x - cx) >= r - 1:
+                    f.px(x, 4, WATER[4])
     return img
 
 
@@ -1220,27 +1330,62 @@ def make_wire() -> Image:
 
 
 def make_bottles() -> Image:
-    """A fence rail with three bottles on it: 3, 2, 1 and 0 left (shards)."""
-    w, h = 36, 22
+    """A saloon table out on the road with three bottles on it: a tall wine
+    bottle, a squat whisky and a corked one, a shot glass and cards beside
+    them; 3, 2, 1 and 0 left (shards and a spreading stain)."""
+    w, h = 40, 40
     img = Image(w * 4, h)
+    top = 22                                              # The tabletop's upper row
+    shapes = [(7, 'wine'), (17, 'whisky'), (27, 'cork')]
     for frame in range(4):
         f = Frame(img, frame * w, w)
-        for x0 in (2, 31):                                # Posts
-            f.box(x0, 9, x0 + 2, 21, GREY_WOOD)
-        f.box(0, 9, 35, 11, GREY_WOOD)                    # Rail
-        for x in range(1, 35, 5):
-            f.px(x, 10, GREY_WOOD[0])
-        for b, x0 in enumerate((8, 16, 24)):
-            if b < frame:                                 # Shot: shards on the rail
-                f.px(x0 + 1, 8, GLASS[2] if b % 2 else AMBER[2])
-                f.px(x0 + 3, 8, GLASS[1] if b % 2 else AMBER[1])
+        for x0 in (4, 33):                                # Turned legs, splayed a little
+            f.box(x0, top + 3, x0 + 2, h - 1, WOOD)
+            f.px(x0 + 1, top + 8, WOOD[4])
+            f.px(x0 + 1, top + 12, WOOD[4])
+        f.box(6, h - 8, 33, h - 7, WOOD[:4])               # Stretcher between them
+        f.box(0, top, w - 1, top + 2, WOOD[1:])            # Tabletop, its lit edge
+        grain(f, 0, top, w - 1, top + 2, WOOD, 41)
+        f.box(2, top + 3, w - 3, top + 5, WOOD[:3])        # Apron under it
+        for x in (8, 20, 31):
+            f.px(x, top + 4, BRASS[2])                     # Nail heads
+        for i in range(5):                                 # Playing cards, fanned
+            f.fill(1 + i * 2, top - 1, 2 + i * 2, top - 1, BONE[3] if i % 2 else BONE[2])
+        f.px(3, top - 1, RED[3])
+        f.fill(35, top - 3, 37, top - 1, GLASS[2])         # A shot glass
+        f.px(36, top - 2, AMBER[2])
+        for b, (x0, kind) in enumerate(shapes):
+            ramp = AMBER if kind != 'whisky' else GLASS
+            if b < frame:                                  # Shot: shards and a stain
+                for dx, dy in ((0, 0), (2, -1), (4, 0), (5, -1)):
+                    f.px(x0 + dx, top - 1 + dy, ramp[2] if dx % 4 == 0 else ramp[1])
+                f.fill(x0 - 1, top, x0 + 5, top, ramp[0])
                 continue
-            ramp = GLASS if b % 2 else AMBER
-            f.fill(x0 + 1, 0, x0 + 2, 2, ramp[1])         # Neck
-            f.px(x0 + 1, 0, ramp[2])
-            for y in range(3, 9):
-                for x in range(x0, x0 + 4):
-                    f.px(x, y, ramp[2] if x == x0 + 1 and y < 7 else ramp[1] if x < x0 + 3 else ramp[0])
+            if kind == 'wine':                             # Tall and slim, long neck
+                body, neck = range(top - 12, top), range(top - 17, top - 12)
+                x_body, x_neck = (x0, x0 + 3), (x0 + 1, x0 + 2)
+            elif kind == 'whisky':                         # Squat and square, short neck
+                body, neck = range(top - 9, top), range(top - 12, top - 9)
+                x_body, x_neck = (x0 - 1, x0 + 4), (x0 + 1, x0 + 2)
+            else:                                          # Round shouldered, a cork in it
+                body, neck = range(top - 10, top), range(top - 14, top - 10)
+                x_body, x_neck = (x0, x0 + 3), (x0 + 1, x0 + 2)
+            for y in neck:
+                for x in range(x_neck[0], x_neck[1] + 1):
+                    f.px(x, y, ramp[2] if x == x_neck[0] else ramp[1])
+            for y in body:
+                for x in range(x_body[0], x_body[1] + 1):
+                    c = ramp[0] if x == x_body[1] else ramp[1]
+                    if x == x_body[0] + 1 and y < body[-1] - 2:
+                        c = ramp[2]                        # The shine down its side
+                    f.px(x, y, c)
+            label = body[len(body) // 2]
+            f.fill(x_body[0], label, x_body[1], label + 2, BONE[2])
+            f.px(x_body[0] + 1, label + 1, RED[2])
+            if kind == 'cork':
+                f.fill(x_neck[0], neck[0] - 2, x_neck[1], neck[0] - 1, WOOD[3])
+            else:
+                f.fill(x_neck[0], neck[0] - 1, x_neck[1], neck[0] - 1, ramp[0])
         f.outline()
     return img
 
@@ -1302,15 +1447,17 @@ def make_coffin() -> Image:
     night shut, night burst). Day: sun-bleached boards, brass handles, a
     white cross. Night: dark wood gone green with moss, iron bands, and a
     sickly glow through the cracks and the eyes of what is inside."""
-    w, h = 28, 60
+    w, h = 32, 68
     img = Image(w * 4, h)
     day = [rgb(0x5c4430), rgb(0x86684a), rgb(0xa8885e), rgb(0xc8a878)]
     night = [rgb(0x1c1418), rgb(0x2e2228), rgb(0x44323a), rgb(0x5a4450)]
     moss = [rgb(0x2a4026), rgb(0x46663a)]
     glow = [rgb(0x5a9a4a), rgb(0xa8f088)]
 
+    cx = w // 2
+
     def half_at(y: int) -> int:
-        return 7 + min(y, 14) * 6 // 14 if y < 16 else 13 - (y - 16) * 6 // 44
+        return 8 + min(y, 16) * 7 // 16 if y < 18 else 15 - (y - 18) * 7 // 50
 
     for frame in range(4):
         f = Frame(img, frame * w, w)
@@ -1318,60 +1465,72 @@ def make_coffin() -> Image:
         burst = frame % 2 == 1
         for y in range(h):                                 # The hexagon outline of a coffin
             half = half_at(y)
-            for x in range(14 - half, 14 + half):
-                c = ramp[3] if x < 14 - half + 2 else ramp[2] if x < 14 else ramp[1]
-                if (x - (14 - half)) % 5 == 4:
+            for x in range(cx - half, cx + half):
+                c = ramp[3] if x < cx - half + 2 else ramp[2] if x < cx else ramp[1]
+                if (x - (cx - half)) % 5 == 4:
                     c = ramp[0]                            # Board seams
                 f.px(x, y, c)
         if not burst:
             if frame == 0:
-                f.fill(9, 12, 18, 13, BONE[2])            # White cross
-                f.fill(13, 6, 14, 30, BONE[2])
-                for y in (20, 40):                         # Brass handles
-                    f.fill(14 - half_at(y), y, 15 - half_at(y), y + 2, BRASS[2])
-                    f.fill(12 + half_at(y), y, 13 + half_at(y), y + 2, BRASS[1])
+                f.fill(cx - 5, 14, cx + 4, 15, BONE[2])    # White cross
+                f.fill(cx - 1, 7, cx, 34, BONE[2])
+                for y in (22, 46):                         # Brass handles
+                    f.fill(cx - half_at(y), y, cx + 1 - half_at(y), y + 2, BRASS[2])
+                    f.fill(cx - 2 + half_at(y), y, cx - 1 + half_at(y), y + 2, BRASS[1])
             else:
-                for y in (10, 30, 50):                     # Iron bands
+                for y in (11, 34, 57):                     # Iron bands
                     half = half_at(y)
-                    f.fill(14 - half, y, 13 + half, y + 1, IRON[2])
-                for (x, y) in ((8, 18), (9, 19), (18, 44), (19, 45), (10, 52), (17, 25)):
+                    f.fill(cx - half, y, cx - 1 + half, y + 1, IRON[2])
+                    f.px(cx - half + 1, y, IRON[4])
+                for (x, y) in ((9, 20), (10, 21), (21, 50), (22, 51), (11, 60), (20, 28), (12, 41)):
                     f.px(x, y, moss[1] if (x + y) % 2 else moss[0])
-                for y in range(20, 44):                    # A crack, glowing
-                    f.px(14 + (y // 5) % 2, y, glow[0])
-                f.px(12, 16, glow[1])                      # Eyes in the dark gap
-                f.px(16, 16, glow[1])
+                for y in range(22, 50):                    # A crack, glowing
+                    f.px(cx + (y // 5) % 2, y, glow[0])
+                f.px(cx - 2, 18, glow[1])                  # Eyes in the dark gap
+                f.px(cx + 2, 18, glow[1])
         else:
             for y in range(4, h - 4):                      # Burst open: dark inside, splinters
                 half = half_at(y) - 3
-                for x in range(14 - half, 14 + half):
+                for x in range(cx - half, cx + half):
                     f.px(x, y, OUTLINE if (x + y) % 7 else ramp[0])
             for i in range(7):
-                f.px(23 + i % 3, 8 + i * 7, ramp[3])
-                f.px(3 + i % 2, 12 + i * 6, ramp[2])
+                f.px(27 + i % 3, 9 + i * 8, ramp[3])
+                f.px(3 + i % 2, 13 + i * 7, ramp[2])
             if frame == 3:
-                for y in range(10, 50, 9):                 # Its glow spilling out
-                    f.px(14, y, glow[0])
+                for y in range(11, 57, 9):                 # Its glow spilling out
+                    f.px(cx, y, glow[0])
         f.outline()
     return img
 
 
 def make_lamp() -> Image:
-    """An oil lamp hung on a post: lit; then the post alone, its hook bare."""
-    w, h = 14, 56
+    """An oil lamp hung high on a post braced with a stay: lit; then the post
+    alone, its hook bare. The lamp keeps its rows at the top of the frame (the
+    light, lighting.c, sits LAMP_FRAME_H - 8 rows up)."""
+    w, h = 14, 76
     img = Image(w * 2, h)
     for frame in range(2):
         f = Frame(img, frame * w, w)
-        f.box(3, 6, 5, 55, GREY_WOOD)                       # Post
+        f.box(3, 6, 5, h - 1, GREY_WOOD)                    # Post
+        for y in range(20, h - 4, 9):
+            f.px(4, y, GREY_WOOD[0])                        # Cracks in the old wood
         f.fill(5, 7, 10, 8, GREY_WOOD[2])                   # Arm
+        for i in range(6):                                  # The stay under it
+            f.px(5 + i, 14 - i, GREY_WOOD[1])
+        f.fill(2, h - 6, 6, h - 1, GREY_WOOD[1])            # Foot, stones round it
+        f.px(1, h - 1, IRON[2]); f.px(7, h - 1, IRON[3])
         f.px(10, 9, IRON[3])                                # Hook
         if frame == 0:
-            f.fill(8, 10, 12, 10, IRON[2])                  # Lamp cap
-            for y in range(11, 18):
+            f.fill(9, 9, 11, 10, IRON[2])                   # Lamp cap and ring
+            f.px(10, 8, IRON[3])
+            for y in range(11, 19):
                 for x in range(8, 13):
                     edge = x in (8, 12)
                     f.px(x, y, IRON[1] if edge else LAMP[1] if y > 12 else LAMP[2])
-            f.px(10, 14, LAMP[0])
-            f.fill(8, 18, 12, 18, IRON[2])
+            f.px(10, 15, LAMP[0])
+            f.fill(9, 13, 11, 13, LAMP[2])                  # The flame's bright core
+            f.fill(8, 19, 12, 20, IRON[2])                  # Its oil font
+            f.px(9, 19, IRON[3])
         f.outline()
     return img
 
@@ -1393,30 +1552,61 @@ def make_fire() -> Image:
 
 
 def make_bench() -> Image:
-    """A park bench to rest on, seen from the front: a backrest of three
-    slats on two posts, a seat of planks at a sitting character's lap
-    (10 rows above the ground), sturdy legs braced by a stretcher."""
-    w, h = 76, 32
-    img = Image(w, h)
-    f = Frame(img, 0, w)
+    """A bench to rest on, seen from the front, its seat at a sitting
+    character's lap (10 rows above the ground), a tall backrest and arms:
+    frame 0 of wood (slats on posts, braced legs), frame 1 of wrought iron
+    (scrolled ends, a lattice back, wooden seat slats)."""
+    w, h = 76, 44
+    img = Image(w * 2, h)
     seat = h - 10
-    for x in (7, w - 10):
-        f.box(x, 0, x + 2, seat, WOOD)                       # Backrest posts
-    for y0 in (1, 7, 13):                                    # Backrest slats
-        f.box(1, y0, w - 2, y0 + 4, WOOD[1:])
-        grain(f, 1, y0, w - 2, y0 + 4, WOOD, 31 + y0)
-    for x in (8, w - 9):
-        for y0 in (2, 8, 14):
-            f.px(x, y0 + 2, IRON[4])                         # Bolts
-    f.box(0, seat, w - 1, seat + 3, WOOD[1:])                # Seat planks, their front edge
-    grain(f, 0, seat, w - 1, seat + 2, WOOD, 77)
-    f.fill(1, seat + 3, w - 2, seat + 3, WOOD[0])
-    f.box(8, seat + 6, w - 9, seat + 7, WOOD[:4])            # Stretcher
-    for x0 in (3, w - 9):                                    # Legs, iron-shod
-        f.box(x0, seat + 4, x0 + 5, h - 1, WOOD)
-        f.fill(x0, h - 2, x0 + 5, h - 1, IRON[2])
-        f.px(x0 + 1, h - 2, IRON[3])
-    f.outline()
+    for frame in range(2):
+        f = Frame(img, frame * w, w)
+        if frame == 0:
+            for x in (7, w - 10):
+                f.box(x, 0, x + 2, seat, WOOD)              # Backrest posts, capped
+                f.fill(x - 1, 0, x + 3, 1, WOOD[4])
+            for y0 in (3, 10, 17, 24):                      # Backrest slats
+                f.box(1, y0, w - 2, y0 + 4, WOOD[1:])
+                grain(f, 1, y0, w - 2, y0 + 4, WOOD, 31 + y0)
+            for x in (8, w - 9):
+                for y0 in (3, 10, 17, 24):
+                    f.px(x, y0 + 2, IRON[4])                # Bolts
+            for x0 in (0, w - 5):                           # Arms
+                f.box(x0, seat - 7, x0 + 4, seat - 5, WOOD[1:])
+                f.box(x0 + 1, seat - 5, x0 + 3, seat, WOOD[:4])
+            f.box(0, seat, w - 1, seat + 3, WOOD[1:])       # Seat planks, their front edge
+            grain(f, 0, seat, w - 1, seat + 2, WOOD, 77)
+            f.fill(1, seat + 3, w - 2, seat + 3, WOOD[0])
+            f.box(8, seat + 6, w - 9, seat + 7, WOOD[:4])   # Stretcher
+            for x0 in (3, w - 9):                           # Legs, iron-shod
+                f.box(x0, seat + 4, x0 + 5, h - 1, WOOD)
+                f.fill(x0, h - 2, x0 + 5, h - 1, IRON[2])
+                f.px(x0 + 1, h - 2, IRON[3])
+        else:
+            iron = IRON[1:]
+            for x0 in (2, w - 6):                           # Cast ends: post, scroll, foot
+                f.box(x0, 2, x0 + 3, h - 1, iron)
+                for a in range(0, 360, 30):                 # A scroll for the arm
+                    x = x0 + 2 + round(3 * math.cos(math.radians(a)))
+                    y = seat - 8 + round(3 * math.sin(math.radians(a)))
+                    f.px(x, y, IRON[3])
+                f.fill(x0 - 1, h - 2, x0 + 4, h - 1, IRON[2])
+            for y in (2, 26):                               # Top and bottom rails of the back
+                f.box(4, y, w - 5, y + 1, iron)
+            for y in range(4, 26):                          # Lattice: crossing diagonals
+                for x in range(6, w - 6):
+                    if (x + y) % 6 == 0 or (x - y) % 6 == 0:
+                        f.px(x, y, IRON[3] if (x + y) % 6 == 0 else IRON[2])
+            for x in range(9, w - 8, 12):                   # Rosettes where they cross
+                f.fill(x, 14, x + 1, 15, IRON[4])
+            for y0 in (seat, seat + 2):                     # Seat slats of wood on iron
+                f.box(0, y0, w - 1, y0 + 1, WOOD[1:])
+            f.fill(1, seat + 4, w - 2, seat + 4, IRON[1])
+            for x in range(10, w - 10, 6):                  # Apron curls under the seat
+                f.px(x, seat + 5, IRON[3])
+                f.px(x + 1, seat + 6, IRON[3])
+                f.px(x + 2, seat + 5, IRON[3])
+        f.outline()
     return img
 
 
@@ -1425,20 +1615,20 @@ def make_campfire() -> Image:
     embers, tall flames with sparks. Frames 0-3 the fire alone; 4-7 the same
     with a cooking rig over it: two forked sticks, a pole across and a pot
     hanging from it on a wire, steaming."""
-    w, h = 48, 44
+    w, h = 48, 56
     img = Image(w * 8, h)
     stone = [rgb(0x3a3838), rgb(0x5a5654), rgb(0x807a74), rgb(0x9c968e)]
     ember = [rgb(0x7a2a10), rgb(0xd0581a), rgb(0xffa040)]
     pot = [rgb(0x18181c), rgb(0x2c2c32), rgb(0x46464e), rgb(0x6a6a74)]
     for frame in range(8):
-        f = Frame(img, frame * w, w)
+        f = Frame(img, frame * w, w, h - 44)                # Drawn on its old 44 rows, flames grown up
         rig = frame >= 4
-        base = h - 8
+        base = 44 - 8
         cx = w // 2
         state = 4211 + (frame % 4) * 977
         for x in range(cx - 12, cx + 12):                   # Flames
             state = (state * 1103515245 + 12345) & 0x7FFFFFFF
-            tall = 13 + (state >> 16) % 12 - abs(x - cx)
+            tall = 20 + (state >> 16) % 16 - abs(x - cx) * 3 // 2
             if rig:
                 tall = min(tall, 17)                        # Licking the pot's bottom
             tall = max(2, tall)
@@ -1449,7 +1639,7 @@ def make_campfire() -> Image:
         for i in range(4):                                  # Sparks rising
             state = (state * 1103515245 + 12345) & 0x7FFFFFFF
             sx = cx - 9 + (state >> 16) % 19
-            sy = 1 + ((state >> 8) % 10) + frame % 4
+            sy = (-10 if not rig else 1) + ((state >> 8) % 10) + frame % 4
             f.px(sx, sy, FLAME['Y'] if i % 2 else FLAME['o'])
         for (x0, y0, x1, y1) in ((7, base, 36, base - 6), (41, base, 12, base - 6)):
             n = max(abs(x1 - x0), abs(y1 - y0))             # Logs crossed in the fire
@@ -1463,10 +1653,17 @@ def make_campfire() -> Image:
         for x in range(10, w - 10):                         # Embers in the bed
             f.px(x, base + 1, ember[(x + frame) % 3])
             f.px(x, base + 2, ember[0])
-        for i, sx in enumerate(range(3, w - 2, 6)):         # Ring of stones, uneven
-            top = h - 6 + (i % 2)
-            f.box(sx - 2, top, sx + 3, h - 1, stone[:3])
+        for i, sx in enumerate(range(3, w - 2, 6)):         # Ring of stones, uneven, two deep
+            top = 44 - 8 + (i % 2)
+            f.box(sx - 2, top, sx + 3, 44 - 4, stone[:3])
             f.px(sx - 1, top + 1, stone[3])
+        for i, sx in enumerate(range(0, w, 7)):
+            top = 44 - 5 + (i % 2)
+            f.box(sx, top, sx + 5, 44 - 1, stone[1:])
+            f.px(sx + 1, top + 1, stone[3])
+        for y0, x0 in ((44 - 3, 0), (44 - 5, 1)):            # Firewood stacked at the side
+            f.box(x0, y0, x0 + 5, y0 + 1, WOOD[1:4])
+            f.px(x0 + 5, y0, BONE[1])
         if rig:
             for px0 in (3, w - 5):                          # Forked sticks driven in
                 f.box(px0, 6, px0 + 1, h - 3, WOOD[1:4])
@@ -1824,7 +2021,7 @@ def make_houses() -> Image:
     f.outline()
     return img
 
-# --- Town structures: church, sheriff's office, blacksmith, stable -------------
+# --- Town structures: church, sheriff's office, blacksmith, stable, bank -------
 # Drawn at any size with a doorway where asked, in a palette: the background's
 # (the props' colors, so themes recolor them) or the road's (their own colors:
 # a wall that is a building's front with its door barred, blown to get through).
@@ -2032,7 +2229,38 @@ def stable(f: Frame, w: int, h: int, door: tuple, pal: dict) -> None:
     f.fill(tx + 1, b - 3, min(w - 2, tx + dw // 2) - 1, b - 3, pal['metal'][1])
 
 
-STRUCTURES = [church, sheriff, blacksmith, stable]
+def bank(f: Frame, w: int, h: int, door: tuple, pal: dict) -> None:
+    """The bank: a stone front with a cornice and a pediment, two columns
+    either side of the door, a gilded coin on the sign, tall barred windows
+    and stone steps."""
+    b = h - 1
+    dx, dy, dw, dh = door
+    cx = dx + dw / 2
+    body_top = max(14, dy - h // 4)
+    s_stone(f, 2, body_top, w - 3, b, pal['stone'])
+    s_roof(f, cx, max(2, body_top - h // 7), w * 0.3, body_top - 3, pal['stone'])   # Pediment
+    f.fill(1, body_top - 3, w - 2, body_top - 1, pal['stone'][4])   # Cornice
+    f.fill(1, body_top - 1, w - 2, body_top - 1, pal['stone'][1])
+    r = max(2, dw // 5)                                      # The gilded coin in the pediment
+    for yy in range(-r, r + 1):
+        for xx in range(-r, r + 1):
+            if xx * xx + yy * yy <= r * r:
+                f.px(int(cx) + xx, body_top - 4 - r + yy, pal['brass'][1] if xx < 0 else pal['brass'][0])
+    cw = max(3, dw // 6)                                     # Columns by the door
+    for x0 in (dx - 6 - cw, dx + dw + 5):
+        f.fill(x0 - 1, body_top + 1, x0 + cw, body_top + 2, pal['stone'][4])
+        for x in range(x0, x0 + cw):
+            f.fill(x, body_top + 3, x, b - 2, pal['stone'][4 if x == x0 else 3 if x < x0 + cw - 1 else 1])
+        f.fill(x0 - 1, b - 2, x0 + cw, b - 1, pal['stone'][2])
+    ww = max(5, w // 10)
+    for x0 in (int(w * 0.08), int(w * 0.92) - ww):
+        s_window(f, x0, body_top + 4, ww, max(6, (b - body_top) // 2), pal, x0 < cx, bars=True, arch=True)
+    s_doorway(f, door, pal)
+    for i in range(3):                                       # Stone steps
+        f.fill(dx - 4 - i * 3, b - i, dx + dw + 3 + i * 3, b - i, pal['stone'][4 - i % 2])
+
+
+STRUCTURES = [church, sheriff, blacksmith, stable, bank]
 
 # A wall that is a building's front: the road runs through its door.
 FACADE_W, FACADE_H = 180, 128
@@ -2040,7 +2268,7 @@ DOOR_W, DOOR_H = 44, 64
 
 
 def make_facades() -> Image:
-    """The fronts of the four structures (4 frames of 180 x 128), their
+    """The fronts of the five structures (5 frames of 180 x 128), their
     doorway over the road in the middle, DOOR_W x DOOR_H on the ground."""
     img = Image(FACADE_W * len(STRUCTURES), FACADE_H)
     door = ((FACADE_W - DOOR_W) // 2, FACADE_H - DOOR_H, DOOR_W, DOOR_H)
@@ -2091,7 +2319,7 @@ def make_door() -> Image:
 
 
 def make_town_houses() -> Image:
-    """The four structures far off, for the background strip (80 x 64,
+    """The five structures far off, for the background strip (80 x 64,
     props' colors), appended to the houses."""
     img = Image(80 * len(STRUCTURES), 64)
     for i, draw in enumerate(STRUCTURES):
@@ -2100,6 +2328,106 @@ def make_town_houses() -> Image:
         f.outline()
     return img
 
+
+
+# --- Off-road only: more houses for the background strip -----------------------
+
+def general_store(f: Frame, w: int, h: int, pal: dict) -> None:
+    """A two-storey store: a false front with its sign, an awning over the
+    shop window, an upstairs with two windows, barrels by the door."""
+    b = h - 1
+    s_planks(f, 8, 6, w - 9, b, pal['wood'], 121)
+    s_planks(f, int(w * 0.62), 6, w - 9, b, pal['wood'], 122, shade=1)
+    f.fill(6, 2, w - 7, 6, pal['wood'][4])                   # False front, its sign
+    f.fill(18, 3, w - 19, 5, pal['wood'][1])
+    for x in range(20, w - 20, 4):
+        f.fill(x, 4, x + 1, 4, pal['wood'][5])
+    for x0 in (16, w - 26):                                  # Upstairs windows
+        s_window(f, x0, 12, 9, 10, pal, x0 < w // 2)
+    f.fill(4, 28, w - 5, 31, pal['wood'][5])                 # Awning, striped
+    for x in range(4, w - 4, 4):
+        f.fill(x, 32, x + 1, 33, pal['paint'][3])
+    s_window(f, 12, 38, 22, 14, pal, True)                   # Shop window
+    f.fill(46, 38, 57, b, pal['wood'][4])                    # Door
+    f.fill(48, 40, 55, 50, pal['hole'])
+    for x0 in (60, 67):                                      # Barrels
+        f.box(x0, b - 7, x0 + 5, b, pal['wood'][1:5])
+        f.fill(x0, b - 5, x0 + 5, b - 5, pal['metal'][1])
+    f.fill(0, b - 1, w - 1, b, pal['wood'][2])               # Boardwalk
+
+
+def adobe(f: Frame, w: int, h: int, pal: dict) -> None:
+    """A low adobe house: thick rounded walls, a flat roof with the beam
+    ends sticking out, a small deep window, a ladder to the roof and a
+    string of chilies by the door."""
+    b = h - 1
+    top = 26
+    for y in range(top, b + 1):                              # Walls, corners rounded
+        inset = 2 if y == top else 1 if y == top + 1 else 0
+        for x in range(10 + inset, w - 10 - inset):
+            c = pal['paint'][3] if x < w * 0.66 else pal['paint'][1]
+            if (x * 5 + y * 3) % 23 == 0:
+                c = pal['paint'][2]
+            f.px(x, y, c)
+    f.fill(12, top - 3, w - 13, top - 1, pal['paint'][2])    # Parapet
+    for x in range(16, w - 14, 8):                           # Beam ends
+        f.fill(x, top + 3, x + 2, top + 4, pal['wood'][1])
+    f.fill(26, 38, 37, b, pal['wood'][3])                    # Door, chilies by it
+    f.fill(28, 40, 35, 52, pal['wood'][1])
+    for y in range(36, 48, 2):
+        f.px(40, y, pal['glow'][0])
+    s_window(f, 50, 38, 8, 7, pal, True)
+    for y in range(top - 10, b, 3):                          # Ladder to the roof
+        f.fill(64, y, 69, y, pal['wood'][4])
+    f.fill(64, top - 10, 64, b, pal['wood'][2])
+    f.fill(69, top - 10, 69, b, pal['wood'][2])
+
+
+def fallen_silo(f: Frame, w: int, h: int, pal: dict) -> None:
+    """A grain silo fallen over: the tin drum lying on its side, ribbed and
+    rusted, its dome cap rolled off beside it, the stub of its base and a
+    spill of grain."""
+    b = h - 1
+    m = pal['metal']
+    f.fill(4, b - 10, 13, b, m[1])                           # The stub still standing
+    for x in range(4, 14, 3):
+        f.fill(x, b - 10, x, b, m[0])
+    for x in range(4, 14):
+        if x % 3:
+            f.px(x, b - 11 + (x * 7) % 3, m[2])              # Its torn top edge
+    cy, r = b - 13, 13                                       # The drum, lying down
+    for x in range(16, w - 14):
+        for y in range(cy - r, cy + r + 1):
+            d = abs(y - cy) / r
+            c = m[2] if y < cy - r // 2 else m[1] if y < cy + r // 2 else m[0]
+            if (x - 16) % 6 == 0:
+                c = m[0]                                     # Ribs
+            if d > 0.92:
+                c = m[0]
+            if (x * 3 + y * 5) % 17 == 0:
+                c = pal['wood'][2]                           # Rust
+            f.px(x, y, c)
+    for y in range(cy - r + 3, cy + r - 2):                  # The open end, dark inside
+        half = int((r * r - (y - cy) ** 2) ** 0.5 * 0.35)
+        f.fill(w - 14, y, w - 14 + half, y, pal['hole'])
+    for i in range(10):                                      # Its dome cap, rolled off
+        for x in range(w - 11 + i // 3, w - 2 - i // 3):
+            f.px(x, b - i, m[2] if i > 6 else m[1])
+    for x in range(14, 40):                                  # Spilled grain
+        f.px(x, b, pal['glow'][0] if x % 2 else pal['paint'][3])
+        if 20 < x < 34:
+            f.px(x, b - 1, pal['glow'][0])
+
+
+def make_more_houses() -> Image:
+    """The background-only houses (80 x 64, props' colors), appended last."""
+    draws = [general_store, adobe, fallen_silo]
+    img = Image(80 * len(draws), 64)
+    for i, draw in enumerate(draws):
+        f = Frame(img, i * 80, 80)
+        draw(f, 80, 64, BG_PAL)
+        f.outline()
+    return img
 
 
 def join(a: Image, b: Image) -> Image:
@@ -2139,7 +2467,7 @@ def main() -> int:
         'sprites/terrain/barrel.png': make_barrel(),
         'sprites/terrain/wall.png': make_wall(),
         'sprites/terrain/wall_ruins.png': make_wall_ruins(),
-        'sprites/props/houses.png': join(make_houses(), make_town_houses()),
+        'sprites/props/houses.png': join(join(make_houses(), make_town_houses()), make_more_houses()),
         'sprites/terrain/facades.png': make_facades(),
         'sprites/terrain/door.png': make_door(),
         'sprites/terrain/dynamite.png': make_dynamite(),
@@ -2151,6 +2479,7 @@ def main() -> int:
         'sprites/terrain/spikes.png': make_spikes(),
         'sprites/effects/net_bag.png': make_net_bag(),
         'sprites/crow/crow.png': make_crow(),
+        'sprites/bat/bat.png': make_bat(),
         'sprites/terrain/river.png': make_river(),
         'sprites/terrain/river_front.png': make_river_front(),
         'sprites/terrain/puddle.png': make_puddle(),

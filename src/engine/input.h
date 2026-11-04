@@ -23,6 +23,7 @@ typedef enum {
     ACTION_BANDAGE, /* Held: stop the bleeding */
     ACTION_ALMANAC, /* Field guide of encountered zombie types */
     ACTION_LIGHT,   /* Toggle the hand-held night light */
+    ACTION_FIRE_MODE, /* Bursts or single shots (the SWAT's rifle) */
     ACTION_COUNT
 } Action;
 

@@ -20,7 +20,8 @@ typedef enum {
 typedef struct {
     float x, y;  /* World x, view y (negative y also covers the sky above the view) */
     float speed; /* Its own pace, times the weather's */
-    bool leaf;   /* Wind: a leaf (bigger, fluttering) instead of dust */
+    bool leaf;   /* Wind: a leaf (bigger, fluttering) instead of dust... */
+    bool streak; /* ...or a gust line, faster and straight */
 } WeatherBit;
 
 typedef struct {

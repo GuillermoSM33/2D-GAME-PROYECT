@@ -7,6 +7,7 @@ void volumes_init(Volumes *volumes)
     volumes->master = 8;
     volumes->player = VOLUME_STEPS;
     volumes->zombie = VOLUME_STEPS;
+    volumes->fullscreen = false;
 }
 
 void list_menu_init(ListMenu *menu, int count)
@@ -41,10 +42,16 @@ int volume_menu_update(ListMenu *menu, Volumes *volumes, const InputState *input
     int chosen = list_menu_update(menu, input);
     if (chosen == VOLUME_BACK)
         return VOLUME_BACK;
+    int step = (input->pressed[ACTION_RIGHT] ? 1 : 0) - (input->pressed[ACTION_LEFT] ? 1 : 0);
+    if (menu->selected == VOLUME_FULLSCREEN) {
+        if (chosen != VOLUME_FULLSCREEN && step == 0)
+            return -1;
+        volumes->fullscreen = !volumes->fullscreen;
+        return VOLUME_FULLSCREEN;
+    }
     int *volume = volume_of(volumes, menu->selected);
     if (volume == NULL)
         return -1;
-    int step = (input->pressed[ACTION_RIGHT] ? 1 : 0) - (input->pressed[ACTION_LEFT] ? 1 : 0);
     int next = *volume + step;
     if (step == 0 || next < 0 || next > VOLUME_STEPS)
         return -1;

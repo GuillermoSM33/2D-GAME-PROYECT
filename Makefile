@@ -25,9 +25,9 @@ CORE_SRC := src/engine/input.c src/engine/animation.c src/game/movement.c src/ga
             src/game/camera.c src/game/world.c src/game/props.c src/game/themes.c src/game/smoke.c \
             src/game/progression.c src/game/stages.c src/game/chest.c src/game/stage_run.c \
             src/game/menu.c src/game/weapons.c src/game/characters.c src/game/char_select.c \
-            src/game/terrain.c src/game/settings.c src/game/crows.c src/game/weather.c \
+            src/game/terrain.c src/game/settings.c src/game/crows.c src/game/bats.c src/game/weather.c \
             src/game/hallucination.c src/game/almanac.c src/game/lighting.c
-APP_SRC  := src/main.c src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c src/engine/pixfont.c \
+APP_SRC  := src/main.c src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c src/engine/pixfont.c src/engine/prefs.c \
             src/game/controls.c src/game/scene.c src/game/hud.c src/game/player_render.c \
             src/game/bullet_render.c src/game/zombie_render.c src/game/effects_render.c \
             src/game/health_bar.c src/game/smoke_render.c src/game/chest_render.c \

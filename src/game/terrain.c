@@ -23,7 +23,7 @@ static const struct {
     [TERRAIN_COFFIN] = {"sprites/terrain/coffin", COFFIN_FRAME_W, COFFIN_FRAME_H, 4, 0},
     [TERRAIN_LAMP] = {"sprites/terrain/lamp", LAMP_FRAME_W, LAMP_FRAME_H, 2, 0},
     [TERRAIN_FIRE] = {"sprites/terrain/fire", FIRE_FRAME_W, FIRE_FRAME_H, 4, 0},
-    [TERRAIN_BENCH] = {"sprites/terrain/bench", BENCH_FRAME_W, BENCH_FRAME_H, 1, 0},
+    [TERRAIN_BENCH] = {"sprites/terrain/bench", BENCH_FRAME_W, BENCH_FRAME_H, 2, 0},
     [TERRAIN_CAMPFIRE] = {"sprites/terrain/campfire", CAMPFIRE_FRAME_W, CAMPFIRE_FRAME_H,
                           2 * CAMPFIRE_FRAMES, 0},
     [TERRAIN_CHARGE] = {"sprites/terrain/charge", CHARGE_FRAME_W, CHARGE_FRAME_H, 2, 0},
@@ -454,6 +454,22 @@ bool terrain_river_at(const Terrain *terrain, float x)
     return false;
 }
 
+float terrain_river_depth(const Terrain *terrain, float x)
+{
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind != TERRAIN_RIVER)
+            continue;
+        float wet = terrain_half_width(p->kind) - 5 * SPRITE_SCALE;
+        float from_bank = wet - fabsf(x - p->x); /* 0 at the water's edge */
+        if (from_bank <= 0.0f)
+            continue;
+        float slope = wet * (1.0f - RIVER_DEEP_SHARE);
+        return fminf(1.0f, from_bank / slope);
+    }
+    return 0.0f;
+}
+
 bool terrain_splash(Terrain *terrain, float x)
 {
     bool wet = terrain_river_at(terrain, x);
@@ -643,6 +659,8 @@ int terrain_frame(const Piece *piece)
         if (piece->timer > SPIKES_OUT + SPIKES_REARM)
             return 1;
         return terrain_spikes_out(piece) ? 2 : 0;
+    case TERRAIN_BENCH: /* variant 1: wrought iron */
+        return piece->variant;
     case TERRAIN_COFFIN: /* variant 1: the night's */
         return piece->variant * 2 + (piece->spent ? 1 : 0);
     case TERRAIN_SUPPLY:
@@ -706,6 +724,13 @@ void terrain_grenade(Terrain *terrain, float x, float radius)
             p->blowing = true;
         else if (breakable(p) && gap <= radius + terrain_half_width(p->kind))
             strike(terrain, i, true);
+        else if (terrain_blocks(p) && gap <= radius + terrain_half_width(p->kind)) {
+            /* Not blown apart like by a barrel: it takes a share of claws. */
+            p->damage += GRENADE_STRUCTURE_STRIKES;
+            p->spent = p->damage >= strikes(p);
+            if (p->spent)
+                p->fuse = 0.0f;
+        }
     }
 }
 

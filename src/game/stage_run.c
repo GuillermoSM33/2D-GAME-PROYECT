@@ -21,6 +21,34 @@ static HitResult hit_zombie(StageRun *run, Zombie *zombie, float damage, float a
     return result;
 }
 
+static bool is_hazard(TerrainKind kind)
+{
+    return kind == TERRAIN_TRAP || kind == TERRAIN_SPIKES || kind == TERRAIN_NET ||
+           kind == TERRAIN_SNARE || kind == TERRAIN_WIRE;
+}
+
+/* Traps from neighboring spots can come out almost on top of each other: each
+ * is pushed ahead until it is HAZARD_GAP past the one before it. */
+static void space_hazards(Terrain *terrain)
+{
+    int order[TERRAIN_MAX], n = 0;
+    for (int i = 0; i < terrain->count; i++) {
+        if (!is_hazard(terrain->items[i].kind))
+            continue;
+        int j = n++; /* In road order */
+        while (j > 0 && terrain->items[order[j - 1]].x > terrain->items[i].x) {
+            order[j] = order[j - 1];
+            j--;
+        }
+        order[j] = i;
+    }
+    for (int k = 1; k < n; k++) {
+        float floor_x = terrain->items[order[k - 1]].x + HAZARD_GAP;
+        if (terrain->items[order[k]].x < floor_x)
+            terrain->items[order[k]].x = floor_x;
+    }
+}
+
 void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests)
 {
     memset(run, 0, sizeof(*run));
@@ -29,6 +57,8 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
     run->stage = &STAGES[stage_index];
     run->mission_chest = -1;
     run->holding = -1;
+    run->bolt_seed = (unsigned)stage_index * 2246822519u + 1u;
+    run->bolt_wait = LIGHTNING_EVERY_MIN; /* A little while before the first */
     run->start_x = player_x;
     run->goal_x = player_x + run->stage->length;
     terrain_clear(&run->terrain);
@@ -36,7 +66,7 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         chest_clear(&run->chests[c]);
 
     int group = 0, campfires = 0, walls = 0, facades = (int)stage_index, barricades = 0;
-    Piece *fire, *wall, *barricade;
+    Piece *fire, *wall, *barricade, *bench;
     for (int s = 0; s < run->stage->spot_count; s++) {
         const StageSpot *spot = &run->stage->spots[s];
         float x = player_x + spot->at * run->stage->length;
@@ -94,7 +124,9 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
             terrain_add(&run->terrain, TERRAIN_BOTTLES, x);
             break;
         case SPOT_REST:
-            terrain_add(&run->terrain, TERRAIN_BENCH, x);
+            bench = terrain_add(&run->terrain, TERRAIN_BENCH, x);
+            if (bench) /* Wood and wrought iron, in turn */
+                bench->variant = (campfires + (int)stage_index) % 2;
             fire = terrain_add(&run->terrain, TERRAIN_CAMPFIRE, x + REST_GAP);
             if (fire) /* Every other one has a pot hung over it */
                 fire->variant = campfires++ % 2 == 0;
@@ -145,6 +177,7 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         }
     }
     terrain_add(&run->terrain, TERRAIN_GOAL, run->goal_x);
+    space_hazards(&run->terrain);
     /* A few traps have a warning sign before them (it says what kind). */
     int pieces = run->terrain.count;
     for (int i = 0; i < pieces; i++) {
@@ -201,6 +234,7 @@ int run_fight_left(const StageRun *run)
 void run_place_player(const StageRun *run, Player *player)
 {
     player->wading = terrain_river_at(&run->terrain, player->x);
+    player->depth = terrain_river_depth(&run->terrain, player->x);
     player->wind = run->stage->weather == WEATHER_WIND || run->stage->weather == WEATHER_STORM;
     player->hot = run->stage->hot;
     player->cold = run->stage->cold;
@@ -241,8 +275,53 @@ bool run_vault(StageRun *run, Player *player)
     return player_vault(player);
 }
 
+static float bolt_roll(StageRun *run)
+{
+    run->bolt_seed = run->bolt_seed * 1103515245u + 12345u;
+    return (float)((run->bolt_seed >> 16) % 1000u) / 999.0f;
+}
+
+/* A storm: now and then the ground crackles near her, then the bolt comes
+ * down there, hurting what is close (zombies and her) and burning her. */
+static void lightning(StageRun *run, Player *player, const Progress *progress, float dt)
+{
+    if (run->stage->weather != WEATHER_STORM)
+        return;
+    if (run->bolt_warn > 0.0f) {
+        run->bolt_warn -= dt;
+        if (run->bolt_warn > 0.0f)
+            return;
+        run->bolt_warn = 0.0f;
+        run->bolt_struck = true;
+        run->bolt_show = LIGHTNING_SHOW;
+        float x = run->bolt_x;
+        float damage = progress_damage(progress) * LIGHTNING_DAMAGE_MULT;
+        for (int k = 0; k < run->zombie_count; k++) {
+            Zombie *z = &run->zombies[k];
+            if (z->awake && !z->hidden && zombie_alive(z) &&
+                fabsf(z->x - x) - zombie_body_half_width(z) <= LIGHTNING_RADIUS)
+                hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
+        }
+        if (fabsf(player->x - x) - PLAYER_BODY_HALF_WIDTH <= LIGHTNING_RADIUS && player_alive(player)) {
+            float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
+            player_hit(player, claw * LIGHTNING_SELF_MULT, player->x < x ? -1 : 1);
+            player_burn(player);
+            run->bolt_hit_her = true;
+        }
+        run->bolt_wait = LIGHTNING_EVERY_MIN + bolt_roll(run) * (LIGHTNING_EVERY_MAX - LIGHTNING_EVERY_MIN);
+        return;
+    }
+    run->bolt_wait -= dt;
+    if (run->bolt_wait > 0.0f)
+        return;
+    run->bolt_x = player->x + (bolt_roll(run) * 2.0f - 1.0f) * LIGHTNING_NEAR;
+    run->bolt_warn = LIGHTNING_WARN;
+}
+
 static void heal(StageRun *run, Player *player, int points)
 {
+    if (player->burned) /* A burn heals slowly */
+        points = (int)ceilf((float)points * BURN_HEAL_MULT);
     int room = player->max_health - player->health;
     points = points < room ? points : room;
     if (points <= 0)
@@ -367,7 +446,7 @@ static void blow_up(StageRun *run, Player *player, const Progress *progress)
             if (z->awake && fabsf(z->x - xs[b]) - zombie_body_half_width(z) <= BARREL_RADIUS)
                 hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
         }
-        if (fabsf(player->x - xs[b]) - PLAYER_BODY_HALF_WIDTH <= BARREL_RADIUS) {
+        if (fabsf(player->x - xs[b]) - PLAYER_BODY_HALF_WIDTH <= BLAST_SELF_RADIUS) {
             float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
             player_hit(player, claw * BARREL_SELF_MULT, player->x < xs[b] ? -1 : 1);
         }
@@ -405,7 +484,7 @@ static void grenade_blast(StageRun *run, Player *player, const Progress *progres
             fabsf(z->x - x) - zombie_body_half_width(z) <= GRENADE_RADIUS)
             hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
     }
-    if (fabsf(player->x - x) - PLAYER_BODY_HALF_WIDTH <= GRENADE_RADIUS) {
+    if (fabsf(player->x - x) - PLAYER_BODY_HALF_WIDTH <= BLAST_SELF_RADIUS) {
         float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
         player_hit(player, claw * GRENADE_SELF_MULT, player->x < x ? -1 : 1);
     }
@@ -519,6 +598,7 @@ static void move_zombies(StageRun *run, Player *player, Progress *progress, floa
         if (z->awake && zombie_alive(z)) /* Each one in line stands a step farther back */
             target += (z->x < target ? -1.0f : 1.0f) * ROUTE_QUEUE_STEP * (float)queue_rank(run, k);
         z->wading = terrain_river_at(&run->terrain, z->x);
+        z->depth = terrain_river_depth(&run->terrain, z->x);
         z->wind = player->wind;
         zombie_update(z, target, player_alive(player), dt);
         if (z->struck) {
@@ -570,7 +650,8 @@ static void collect(StageRun *run, Player *player, Progress *progress)
         run->loot[run->loot_count] = loot;
         run->loot_x[run->loot_count++] = run->terrain.items[ev->crates[e]].x;
         if (loot == LOOT_HEALTH) {
-            int heal = (int)lroundf((float)player->max_health * LOOT_HEALTH_SHARE);
+            int heal = (int)lroundf((float)player->max_health * LOOT_HEALTH_SHARE *
+                                    (player->burned ? BURN_HEAL_MULT : 1.0f));
             player->health = player->health + heal < player->max_health ? player->health + heal
                                                                          : player->max_health;
         } else if (loot == LOOT_DYNAMITE) {
@@ -734,6 +815,8 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     run->ambushed = run->crate_hint = false;
     run->gold_gained = run->melee_hits = 0;
     run->wire_bit = false;
+    run->bolt_struck = run->bolt_hit_her = false;
+    run->bolt_show = fmaxf(0.0f, run->bolt_show - dt);
     if (run->phase == RUN_CLEARED || run->phase == RUN_FAILED) {
         terrain_clear_events(&run->terrain);
         return;
@@ -755,6 +838,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
         run->omen |= (int)(roll % 100u) < OMEN_CHANCE;
     }
     wake_groups(run, player);
+    lightning(run, player, progress, dt);
     terrain_update(&run->terrain, dt);
     if (!run->hinted && run->stage_index < 2) { /* Nothing else says crates hold things */
         for (int i = 0; i < run->terrain.count; i++) {
@@ -782,7 +866,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
         run->warmth += dt;
         if (run->warmth >= CAMPFIRE_HEAL_TIME) {
             run->warmth -= CAMPFIRE_HEAL_TIME;
-            run->heal_carry += CAMPFIRE_HEAL;
+            run->heal_carry += CAMPFIRE_HEAL * (player->burned ? BURN_HEAL_MULT : 1.0f);
             int whole = (int)run->heal_carry;
             run->heal_carry -= (float)whole;
             heal(run, player, whole);

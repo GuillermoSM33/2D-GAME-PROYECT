@@ -12,6 +12,7 @@ typedef struct {
     float time;   /* Seconds since takeoff */
     float height; /* Window px above the ground; on a barricade, its top while standing */
     float base;   /* Height the arc started from */
+    float lift;   /* The arc's height times this (a vault's is higher); 0 = 1 */
 } Jump;
 
 void jump_reset(Jump *jump);
