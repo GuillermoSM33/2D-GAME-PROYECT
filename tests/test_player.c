@@ -400,6 +400,36 @@ static void test_death_mid_shot_holsters(void)
     CHECK(player.anim.frame == 0); /* Standing frame, no shot frames */
 }
 
+static void test_flashlight_lens_follows_the_gun(void)
+{
+    Player player;
+    player_init(&player);
+    float dx, dy, tilt;
+    /* Her own clipped flashlight rises with the kick... */
+    player.light_rows = 29.0f;
+    player.state = PLAYER_SHOOT;
+    player.anim.frame = 5;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK(dy < 0.0f && tilt < 0.0f);
+    /* ...not when the other gun fired... */
+    player.shot.other_gun = true;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK(dy == 0.0f && tilt == 0.0f);
+    player.shot.other_gun = false;
+    /* ...and a beam without its own art only tilts. */
+    player.light_rows = 0.0f;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK(dy == 0.0f && tilt < 0.0f);
+    /* In a blow it goes with the gun, if there is art for it. */
+    player.state = PLAYER_MELEE;
+    player.anim.frame = 1;
+    CHECK(!player_light_ready(&player));
+    player.light_swings = true;
+    CHECK(player_light_ready(&player));
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK(dy < 0.0f && tilt < 0.0f);
+}
+
 int main(void)
 {
     printf("test_player\n");
@@ -425,5 +455,6 @@ int main(void)
     RUN(test_hit_pushes_and_blinks);
     RUN(test_dead_ignores_input);
     RUN(test_death_mid_shot_holsters);
+    RUN(test_flashlight_lens_follows_the_gun);
     return TEST_EXIT();
 }

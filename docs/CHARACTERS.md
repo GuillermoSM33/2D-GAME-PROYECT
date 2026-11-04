@@ -44,8 +44,9 @@ Los tres comparten controles, cuerpo, vida y reglas de nivel (ver el
 Al llegar a nivel 3 (`POWER_LEVEL`) cada personaje gana un poder; el de `F` (o clic central)
 espera 15 s entre usos (`POWER_COOLDOWN`) y su panel, bajo el del arma, dice si está listo.
 
-- **Vaquera:** cambia su cañón por **pistolas duales**, una en cada mano (dos balas por tiro,
-  ×0.68 cada una: unas 1.35 veces más rápida que el cañón, `tests/test_characters.c`). Con `F`
+- **Vaquera:** cambia su cañón por **pistolas duales**, una en cada mano: se turnan (una
+  bala cada 0.4 s, ×1.09, manteniendo el clic siguen; más o menos 1.2 veces más rápida que el cañón,
+  `tests/test_characters.c`). Con `F`
   dispara un **tiro de rebote**: sus balas doradas pegan al primer zombi y siguen al segundo
   con 45 % menos de daño, o 30 % más si el primero cayó.
 - **SWAT:** con `F` lanza una **granada** (`throw.png`): vuela en arco, rebota en el suelo y en
@@ -56,10 +57,10 @@ espera 15 s entre usos (`POWER_COOLDOWN`) y su panel, bajo el del arma, dice si 
 
 Todos golpean con el arma en mano con `V`, un **mazazo** de arriba abajo (7 cuadros a 10 fps con
 la plantilla de disparo): suben el arma por encima de la cabeza y la bajan de golpe al frente,
-con una estela en el cuadro del impacto (el 3). La vaquera (`melee.png`, `tools/make_melee.py`)
-con las dos manos en el revólver, o una pistola en cada mano con las duales (`melee_dual.png`):
-sus mangas grises redibujadas de los hombros a las manos (la del otro brazo cruzando por delante,
-como en su hoja de duales) y las armas giradas en las manos; el SWAT (`melee.png` con el rifle y bayoneta, `melee_shotgun.png`;
+con una estela en el cuadro del impacto (el 3). La vaquera (`melee.png`, `tools/make_flashlight.py`)
+con el cañón en la mano, la otra en la cadera; con las duales (`melee_dual.png`, `tools/make_flashlight.py`)
+golpea con una pistola y la otra queda junto a su pierna. Con la linterna puesta (`melee_lit.png`,
+`melee_dual_lit.png`) la lleva en el arma y el haz acompaña el golpe; el SWAT (`melee.png` con el rifle y bayoneta, `melee_shotgun.png`;
 `tools/make_swat.py`) con las dos manos, como sus otras hojas. Alcanza 130 px por delante del
 cuerpo: ×0.6 su daño (menos que un disparo; la mitad de la armadura cuenta) y empuja al zombi
 70 px; corta alambre (2 golpes), rompe cajas y daña barricadas. Después hay que esperar 1.5 s

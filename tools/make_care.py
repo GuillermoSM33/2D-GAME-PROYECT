@@ -6,8 +6,8 @@ Usage: tools/make_care.py
 Writes (6 frames of 81 x 80 each, the shoot template, like her reload):
   assets/sprites/characters/cowgirl/drink.png    The jug up to her lips: low,
       coming up, tipped to her lips, tipped right up, tipping back, lowered.
-  assets/sprites/characters/cowgirl/bandage.png  Her hand winding a bandage
-      round her thigh, a turn more each frame; the last, done, blood showing.
+  assets/sprites/characters/cowgirl/bandage.png  Her arm bent to her thigh,
+      winding a bandage round it, a turn more each frame; the last, blood showing.
 
 Her body is her aim frame without the gun arm (tools/make_melee.py's
 body_without_arm; the gun is holstered); the arm is her slim grey sleeve
@@ -17,25 +17,28 @@ library.
 """
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_melee import AIM, HOLSTER, LOW, SHOULDER, frame, body_without_arm, sleeve, turn  # noqa: E402
-from make_powers import INK, load  # noqa: E402
+from make_powers import INK, SLEEVE, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 81, 80
-GLOVE = [rgb(0x999a9c), rgb(0x696867)]
+GLOVE = [rgb(0x684833), rgb(0x463322)]           # The same as on her gun hand
 JUG_COLORS = {'c': rgb(0x9a643a), 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)}
 JUG = ['.cc.', 'bccb', 'BBBB', 'BwBB', 'BwBB', 'BBBB', 'bbbb']
-BANDAGE = [rgb(0x9a9488), rgb(0xd8d4c8), rgb(0xf6f2e6)]
+BANDAGE = [rgb(0xb8ac94), rgb(0xe6dcc0), rgb(0xf4ecd8)]
 # Drinking: her hand (frame px) and the jug's tilt (degrees, its mouth toward her lips).
-DRINK = [((46, 40), 0), ((45, 35), 20), ((42, 31), 65), ((41, 30), 110), ((42, 31), 65), ((45, 38), 10)]
+DRINK = [((46, 41), 0), ((45, 37), 25), ((44, 34), 75), ((43, 33), 110), ((44, 34), 75), ((45, 39), 10)]
 # Binding: her hand going round her thigh (in front, behind, in front...).
-BIND = [(40, 47), (37, 50), (41, 49), (37, 47), (41, 50), (40, 48)]
-THIGH = (34, 39, 47, 52)          # x0, x1, y0, y1 of her near thigh
+BIND = [(40, 51), (39, 52), (41, 52), (39, 52), (40, 52), (40, 52)]
+ARM_TOP = (38, 38)
+BONE = 7.5                        # Upper arm and forearm, the same as on her other poses
+THIGH = (35, 41, 52, 56)          # x0, x1, y0, y1 round her near thigh
 
 
 def jug() -> dict:
@@ -56,35 +59,72 @@ def hand(at: tuple) -> dict:
     return {(at[0] + i, at[1] + j): GLOVE[j] for i in (0, 1) for j in (0, 1)}
 
 
-def wraps(turns: int, done: bool) -> dict:
-    """The bandage round her thigh: turns slanted strips, outlined."""
+def bent_to(top: tuple, at: tuple, under: bool = False) -> dict:
+    """Her arm from the shoulder to the hand, bones of one length whatever the reach: the
+    elbow goes out to her front or, with the hand up, down under it."""
+    d = math.hypot(at[0] - top[0], at[1] - top[1])
+    out = math.sqrt(max(0.0, BONE * BONE - d * d / 4.0))
+    mx, my = (top[0] + at[0]) / 2, (top[1] + at[1]) / 2
+    return bent_arm(top, (round(mx), round(my + out)) if under else (round(mx + out), round(my)), at, 0.3)
+
+
+def arm(at: tuple) -> dict:
+    """Her arm hanging from the shoulder, reaching down to her thigh."""
+    return bent_to(ARM_TOP, at)
+
+
+def bent_arm(top: tuple, elbow: tuple, at: tuple, thick: float = 0.0) -> dict:
+    """An arm from top through the elbow to the hand at at: as slim as the one on
+    her hip, narrowing to the wrist, outlined."""
+    def limb(a: tuple, b: tuple, r0: float, r1: float) -> dict:
+        n = max(abs(b[0] - a[0]), abs(b[1] - a[1]), 1)
+        out = {}
+        for t in range(n * 2 + 1):
+            k = t / (n * 2)
+            cx, cy = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
+            r = r0 + (r1 - r0) * k
+            for y in range(int(cy - 3), int(cy + 4)):
+                for x in range(int(cx - 3), int(cx + 4)):
+                    d = x + 0.5 - cx
+                    if d * d + (y + 0.5 - cy) ** 2 <= r * r:
+                        out[(x, y)] = SLEEVE[0] if d < -0.4 else SLEEVE[1] if d < 0.5 else SLEEVE[2]
+        return out
+
+    px = limb(top, elbow, 1.7 + thick, 1.5 + thick)
+    px.update(limb(elbow, at, 1.5 + thick, 1.1 + thick))
+    edged = dict(px)
+    for (x, y) in px:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + dx, y + dy) not in px:
+                edged[(x + dx, y + dy)] = INK
+    return edged
+
+
+def wraps(body: dict, turns: int, done: bool) -> dict:
+    """The bandage round her thigh, turn on turn upward: linen-coloured, only on
+    the leg itself so it follows its shape; the last, a spot of blood through it."""
     x0, x1, y0, y1 = THIGH
     out = {}
-    for t in range(turns):
-        y = y1 - t * 2
+    for y in range(y1 - min(turns, y1 - y0 + 1) + 1, y1 + 1):
         for x in range(x0, x1 + 1):
-            out[(x, y + (x - x0) // 4 - 1)] = BANDAGE[2] if x < x1 - 2 else BANDAGE[1]
+            if (x, y) in body:
+                out[(x, y)] = BANDAGE[0] if (x + y) % 5 == 0 else BANDAGE[1]
     if done:
-        out[(x0 + 4, y1 - 4)] = rgb(0x9c3424)
-        out[(x0 + 5, y1 - 4)] = rgb(0x9c3424)
-        out[(x0 + 4, y1 - 3)] = rgb(0x74231a)
-    edged = dict(out)
-    for (x, y) in out:
-        for dx, dy in ((0, 1), (0, -1)):
-            if (x, y + dy) not in out and (x, y + dy) not in edged:
-                edged[(x, y + dy)] = BANDAGE[0]
-    return edged
+        for at, c in (((38, 53), rgb(0x9c3424)), ((39, 53), rgb(0x9c3424)), ((38, 54), rgb(0x74231a))):
+            if at in out:
+                out[at] = c
+    return out
 
 
 def make_drink(body: dict) -> Image:
     img = Image(W * len(DRINK), H)
     for f, (at, tilt) in enumerate(DRINK):
         px = dict(body)
-        px.update(sleeve(SHOULDER, at))
+        px.update(bent_to(SHOULDER, at, under=True))
         px.update(turn(jug(), (1.5, 3.5), tilt, (at[0] + 0.5, at[1] - 1.5)))  # Held about its middle
         px.update(hand(at))
         if f == 3:                                       # A drop or two at her lips
-            for x, y in ((38, 33), (39, 35)):
+            for x, y in ((39, 34), (40, 36)):
                 px[(x, y)] = JUG_COLORS['w']
         for (x, y), c in px.items():
             if 0 <= x < W and 0 <= y < H:
@@ -95,17 +135,14 @@ def make_drink(body: dict) -> Image:
 def make_bandage(body: dict) -> Image:
     img = Image(W * len(BIND), H)
     for f, at in enumerate(BIND):
-        px = dict(body)
+        px = {p: c for p, c in body.items()                # Without the stray specks round her
+              if any((p[0] + dx, p[1] + dy) in body for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))}
         done = f == len(BIND) - 1
-        behind = not done and f % 2 == 1                 # Round the back of her leg
-        if behind:
-            px.update(sleeve(SHOULDER, at))
-        px.update(wraps(min(f + 1, 5), done))
-        if not behind:
-            px.update(sleeve(SHOULDER, at))
-            if not done:                                 # The roll in her hand
-                px.update({(at[0] + 2 + i, at[1] + j): BANDAGE[2 - j] for i in (0, 1) for j in (0, 1)})
-            px.update(hand(at))
+        px.update(wraps(px, f + 2, done))
+        px.update(arm(at))                               # Always in front: going round, the roll a bit lower
+        if not done:                                     # The roll in her hand
+            px.update({(at[0] - 1 + i, at[1] + 1 + j): BANDAGE[2 - j] for i in (0, 1, 2) for j in (0, 1)})
+        px.update(hand(at))
         for (x, y), c in px.items():
             if 0 <= x < W and 0 <= y < H:
                 img.set(f * W + x, y, c)

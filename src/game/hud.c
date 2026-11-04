@@ -8,6 +8,7 @@
 #include "config.h"
 #include "engine/assets.h"
 #include "engine/pixfont.h"
+#include "game/hang_render.h"
 #include "game/terrain.h"
 #include "game/ui.h"
 #include "game/weapons.h"
@@ -245,7 +246,9 @@ static int draw_badge(SDL_Renderer *renderer, int cx, int tip_y, int level, Badg
 static void draw_tags(SDL_Renderer *renderer, const Player *player, const Zombie *zombies,
                       int zombie_count, float camera_x)
 {
-    float head = BASELINE - PLAYER_HEAD_HEIGHT * SPRITE_SCALE - player->jump.height;
+    float head = BASELINE - (PLAYER_HEAD_HEIGHT - player_sunk_rows(player)) * SPRITE_SCALE - player->jump.height;
+    if (player->state == PLAYER_CAUGHT && player->catch_kind != CATCH_NONE) /* Over what hangs */
+        head = BASELINE - hang_top(player->catch_kind, player->catch_time);
     draw_badge(renderer, view_x(player->x - camera_x), view_y(head) - TAG_GAP, player->level,
                BADGE_PLAYER, false);
     for (int i = 0; i < zombie_count; i++) {
@@ -254,7 +257,10 @@ static void draw_tags(SDL_Renderer *renderer, const Player *player, const Zombie
         if (zombie->stats == NULL || !zombie_alive(zombie) || zombie->hidden || screen_x < -80.0f ||
             screen_x > VIEW_WIDTH + 80.0f)
             continue;
-        float top = BASELINE - zombie_body_height(zombie) - 14.0f; /* Its health bar */
+        float top = BASELINE - zombie_body_height(zombie) - 14.0f + /* Its health bar */
+                    lroundf(zombie->depth * RIVER_DEEP_ROWS) * SPRITE_SCALE; /* Sunk with it, wading */
+        if (zombie->caught > 0.0f && zombie->catch_kind != CATCH_NONE)
+            top = fminf(top, BASELINE - hang_top(zombie->catch_kind, zombie->catch_time));
         draw_badge(renderer, view_x(screen_x), view_y(top) - TAG_GAP, zombie->level, BADGE_ZOMBIE, false);
     }
 }
@@ -721,40 +727,46 @@ void hud_draw_title(SDL_Renderer *renderer, const ListMenu *menu)
 void hud_draw_controls(SDL_Renderer *renderer)
 {
     static const struct {
-        const char *keys[3];
+        const char *keys[2];
         const char *action;
+        const char *note;
     } rows[] = {
-        {{"A", "D", NULL}, "CAMINAR  (TAMBIÉN ← / →)"},
-        {{"SHIFT", NULL, NULL}, "CORRER"},
-        {{"ESPACIO", "W", NULL}, "SALTAR"},
-        {{"N", NULL, NULL}, "SALTAR UNA BARRICADA  (O RÓMPELA)"},
-        {{"CLIC IZQ", NULL, NULL}, "DISPARAR  (MANTENER: RÁFAGAS)"},
-        {{"R", NULL, NULL}, "RECARGAR"},
-        {{"Q", "CLIC DER", NULL}, "CAMBIAR DE ARMA  (SWAT)"},
-        {{"K", NULL, NULL}, "RIFLE: RÁFAGAS / TIRO A TIRO  (SWAT)"},
-        {{"E", NULL, NULL}, "DINAMITA (MURO O SUELO) / SENTARSE"},
-        {{"F", "CLIC CENTRAL", NULL}, "PODER (NIVEL 3): GRANADA / DISPARO DE REBOTE"},
-        {{"V", NULL, NULL}, "CULATAZO  (CORTA ALAMBRE, ROMPE CAJAS)"},
-        {{"U", NULL, NULL}, "MANTÉN: VENDARSE · PULSA: BEBER"},
-        {{"ESC", NULL, NULL}, "PAUSA"},
+        {{"A", "D"}, "CAMINAR", "TAMBIÉN ← / →"},
+        {{"SHIFT", NULL}, "CORRER", NULL},
+        {{"ESPACIO", "W"}, "SALTAR", NULL},
+        {{"N", NULL}, "CRUZAR BARRICADA", "O RÓMPELA"},
+        {{"CLIC IZQ", NULL}, "DISPARAR", "MANTENER: RÁFAGAS"},
+        {{"R", NULL}, "RECARGAR", NULL},
+        {{"Q", "CLIC DER"}, "CAMBIAR DE ARMA", "SWAT · VAQUERA: DUALES"},
+        {{"K", NULL}, "MODO DEL RIFLE", "RÁFAGAS O TIRO A TIRO (SWAT)"},
+        {{"E", NULL}, "DINAMITA / SENTAR", "EN UN MURO O EN EL SUELO"},
+        {{"F", "RUEDA"}, "PODER", "NIVEL 3: GRANADA O REBOTE"},
+        {{"V", NULL}, "CULATAZO", "CORTA ALAMBRE, ROMPE CAJAS"},
+        {{"U", NULL}, "VENDAR / BEBER", "MANTÉN: VENDAR · PULSA: BEBER"},
+        {{"L", NULL}, "LINTERNA", NULL},
+        {{"B", NULL}, "ALMANAQUE", NULL},
+        {{"ESC", NULL}, "PAUSA", NULL},
     };
+    enum { LEFT_ROWS = 8, PITCH = 48, KEYS_W = 186 };
     int count = (int)(sizeof(rows) / sizeof(rows[0]));
-    int w = 860, h = 56 + count * 34 + 8, x = (WINDOW_WIDTH - w) / 2, y = 6;
+    int w = 900, h = 52 + LEFT_ROWS * PITCH + 8, x = (WINDOW_WIDTH - w) / 2, y = 12;
     ui_panel(renderer, x, y, w, h);
-    ui_text(renderer, "CONTROLES", WINDOW_WIDTH / 2, y + 16, 3, COLOR_HUD_TITLE, ANCHOR_N);
-    ui_key(renderer, x + 32, y + 10, "B");
-    ui_text(renderer, "ALMANAQUE", x + 78, y + 25, 1, COLOR_HUD_PRIMARY, ANCHOR_NW);
-    ui_key(renderer, x + w - 182, y + 10, "L");
-    ui_text(renderer, "LINTERNA", x + w - 136, y + 25, 1, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    ui_text(renderer, "CONTROLES", WINDOW_WIDTH / 2, y + 12, 3, COLOR_HUD_TITLE, ANCHOR_N);
     for (int i = 0; i < count; i++) {
-        int ry = y + 54 + i * 34, kx = x + 36;
-        for (int k = 0; k < 3 && rows[i].keys[k]; k++) {
+        bool left = i < LEFT_ROWS;
+        int ry = y + 52 + (left ? i : i - LEFT_ROWS) * PITCH;
+        int column = left ? x + 28 : x + w / 2 + 12;
+        int kx = column;
+        for (int k = 0; k < 2 && rows[i].keys[k]; k++) {
             if (k > 0)
                 kx += ui_text(renderer, "/", kx + 6, ry + 12, 2, COLOR_HUD_SECONDARY, ANCHOR_NW) + 12;
             kx += ui_key(renderer, kx, ry, rows[i].keys[k]);
         }
-        hud_text_fit(renderer, rows[i].action, x + 330, ry + 12, w - 350, 2,
+        int tx = column + KEYS_W, room = w / 2 - 28 - KEYS_W - 8;
+        hud_text_fit(renderer, rows[i].action, tx, rows[i].note ? ry + 1 : ry + 10, room, 2,
                      COLOR_HUD_PRIMARY, ANCHOR_NW);
+        if (rows[i].note)
+            hud_text_fit(renderer, rows[i].note, tx, ry + 25, room, 1, COLOR_HUD_SECONDARY, ANCHOR_NW);
     }
     static const char *const hints[] = {"ESC", "VOLVER"};
     draw_hints(renderer, hints, 1, y + h + 8);
@@ -836,7 +848,7 @@ void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Pro
         snprintf(str, sizeof(str), "%d ZOMBIS%s", stage->zombies, stage->boss_bonus ? " + JEFE" : "");
         ui_icon(renderer, ICON_SKULL, x + 184, y + 14, 2);
         ui_text(renderer, str, x + 214, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
-        snprintf(str, sizeof(str), "%d M", (int)(stage->length / ROUTE_PX_PER_METER));
+        snprintf(str, sizeof(str), "%d M", (int)(run_road_length(i) / ROUTE_PX_PER_METER));
         ui_icon(renderer, ICON_FLAG, x + 384, y + 14, 2);
         ui_text(renderer, str, x + 414, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
         if (record->cleared[i])

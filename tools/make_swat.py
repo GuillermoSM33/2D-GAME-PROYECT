@@ -345,10 +345,23 @@ def rect(t: dict, x0: int, y0: int, x1: int, y1: int, c: str) -> None:
             t[(x, y)] = c
 
 
+BAYONET = {(28, 4): '1', (29, 4): '3', (30, 4): '4', (31, 4): '4', (32, 4): '4', (33, 4): '4',
+           (34, 4): '5', (35, 4): '5', (30, 5): '3', (31, 5): '3', (32, 5): '3', (33, 5): '2'}
+
+
+def mounted_light(t: dict) -> None:
+    """The flashlight fixed under the barrel of both his guns, off: lit by
+    light_lens. Its lens is at LENS_LOCAL."""
+    rect(t, 22, 5, 26, 6, '1')
+    rect(t, 22, 5, 25, 5, '2')
+    t[(24, 6)] = '3'                  # The switch
+    t[(26, 5)] = t[(26, 6)] = '4'
+
+
 def rifle(magazine: bool = True) -> tuple[dict, tuple, tuple]:
-    """Short rifle, folded stock, small optic. Pixels (METAL keys), grip and
-    handguard, in gun coordinates (x along the barrel); without the magazine
-    while it is being changed."""
+    """Short rifle, folded stock, small optic, its flashlight and bayonet fixed.
+    Pixels (METAL keys), grip and handguard, in gun coordinates (x along the
+    barrel); without the magazine while it is being changed."""
     t: dict = {}
     rect(t, 0, 2, 4, 3, '1')          # Folded stock
     rect(t, 0, 4, 1, 5, '1')
@@ -371,6 +384,8 @@ def rifle(magazine: bool = True) -> tuple[dict, tuple, tuple]:
     for x in (7, 8, 9):               # Highlight stroke
         t[(x, 1)] = '4'
     t[(10, 1)] = '5'
+    mounted_light(t)
+    t.update(BAYONET)
     return t, (7.5, 6.5), (20.0, 4.5)
 
 
@@ -397,6 +412,7 @@ def shotgun(pump_back: int = 0) -> tuple[dict, tuple, tuple]:
     for x in (7, 8, 9):
         t[(x, 2)] = '4'
     t[(16, 2)] = t[(17, 2)] = '5'
+    mounted_light(t)
     return t, (5.5, 6.5), (18.0 - pump_back, 5.0)
 
 
@@ -661,19 +677,14 @@ def make_throw(body: Image) -> Image:
     return sheet
 
 
-BAYONET = {(28, 4): '1', (29, 4): '3', (30, 4): '4', (31, 4): '4', (32, 4): '4', (33, 4): '4',
-           (34, 4): '5', (35, 4): '5', (30, 5): '3', (31, 5): '3', (32, 5): '3', (33, 5): '2'}
 
 
-def make_melee(body: Image, gun_def, bayonet: bool) -> Image:
+def make_melee(body: Image, gun_def) -> Image:
     """7 frames on the shoot template: a smash with the gun held in both
     hands, like a mace: raised, up over the helmet with the muzzle back,
     swinging down, the blow level in front (frame 3, a swoosh along the
-    muzzle's path), the follow-through low, back up, low ready. The rifle
-    has a bayonet fixed."""
+    muzzle's path), the follow-through low, back up, low ready."""
     gun, grip, guard = gun_def
-    if bayonet:
-        gun = {**gun, **BAYONET}
     sx, sy = SHOOT_SHIFT
     shoulder = (NEAR_SHOULDER[0] + sx, NEAR_SHOULDER[1] + sy)
 
@@ -723,6 +734,61 @@ def make_melee(body: Image, gun_def, bayonet: bool) -> Image:
 
 
 SWOOSH_TONES = [rgb(0xfff6dc), rgb(0xd8d0c0), rgb(0x9a9488)]
+
+LENS_ON = [rgb(0xfff6dc), rgb(0xffd98a)]
+
+
+def make_light(body: Image, gun_def) -> Image:
+    """16 frames on the shoot template: turning on the flashlight of the gun he
+    carries. He brings it up, level, his far hand slides along to the switch and
+    thumbs it, the lens lights, the hand goes back; the last frame is held while
+    it stays on. Played backwards to turn it off."""
+    gun, grip, guard = gun_def
+    aimed = (MUZZLE[0] - (MUZZLE_LOCAL[0] - grip[0]), MUZZLE[1] - (MUZZLE_LOCAL[1] - grip[1]))
+    switch = (24.0, 7.0)
+    # Eased in-betweens: up to level by frame 8, the hand to the switch by 12,
+    # the lens lit at 13, the hand back by the end.
+    def ease(a: float, b: float, t: float) -> float:
+        t = max(0.0, min(1.0, t))
+        return a + (b - a) * t * t * (3.0 - 2.0 * t)
+
+    poses = []
+    for i in range(16):
+        up = i / 8.0
+        reach = (i - 8) / 4.0 if i <= 12 else 1.0 - (i - 13) / 2.0
+        poses.append((round(ease(-30.0, 0.0, up)), (round(ease(-2.0, 0.0, up)), round(ease(3.0, 0.0, up))),
+                      (ease(guard[0], switch[0], reach), ease(guard[1], switch[1], reach))))
+    sx, sy = SHOOT_SHIFT
+    sheet = Image(SHOOT_W * len(poses), SHOOT_H)
+
+    def at(p: tuple) -> tuple:
+        return (p[0] + sx, p[1] + sy)
+
+    for i, (angle, (gx, gy), far) in enumerate(poses):
+        if angle:
+            layer, to_frame = gun_layer(gun, angle, grip, (aimed[0] + gx + 0.5, aimed[1] + gy + 0.5))
+            g = to_frame(grip)
+        else:
+            layer, to_frame = gun_layer(gun, 0, grip, (aimed[0] + gx, aimed[1] + gy))
+            g = (aimed[0] + gx, aimed[1] + gy)
+        h = to_frame(far)
+        near_hand, far_hand = (g[0] - 0.5, g[1] - 0.5), (h[0] - 0.5, h[1] - 0.5)
+        parts = [
+            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
+            (body, sx, sy),
+            layer,
+            hand(far_hand),
+            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+        ]
+        if i >= 13:                                    # The lens lit
+            lens = Layer()
+            for y, c in ((5, LENS_ON[0]), (6, LENS_ON[1])):
+                p = to_frame((26.0, float(y)))
+                lens.put(round(p[0]), round(p[1]), c)
+            parts.append(lens)
+        paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
+    return sheet
+
 
 JUG = ['.cc.', 'bccb', 'BBBB', 'BwBB', 'BwBB', 'BBBB', 'bbbb']
 JUG_COLORS = {'c': rgb(0x9a643a), 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)}
@@ -816,8 +882,10 @@ def main() -> int:
         'reload': make_reload(body, 'rifle'),
         'reload_shotgun': make_reload(body, 'shotgun'),
         'throw': make_throw(body),
-        'melee': make_melee(body, rifle(), bayonet=True),
-        'melee_shotgun': make_melee(body, shotgun(), bayonet=False),
+        'melee': make_melee(body, rifle()),
+        'melee_shotgun': make_melee(body, shotgun()),
+        'light': make_light(body, rifle()),
+        'light_shotgun': make_light(body, shotgun()),
         'drink': make_drink(body),
         'bandage': make_bandage(body),
     }

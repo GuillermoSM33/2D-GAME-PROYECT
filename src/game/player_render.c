@@ -124,15 +124,16 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
 
 /* Hanging in a trap: up in a net bag, kicking, or yanked up by a foot from a
  * snare's sapling (a quarter turn, then head down: whole turns keep the
- * pixel art true); a blow at the ropes shows her strike frame. */
+ * pixel art true); a blow at the ropes plays her strike. */
 static void draw_caught(SDL_Renderer *renderer, const CharacterSkin *skin, int gun, const Player *player,
                         float camera_x)
 {
     const AnimationDef *def = player->anim.def;
     int frame = player->anim.frame;
     if (player->catch_shake > 0.0f) {
-        def = player_melee_animation();
-        frame = PLAYER_MELEE_HIT_FRAME;
+        def = player_melee_animation(); /* The whole swing, not one frame popping in */
+        frame = (int)((1.0f - player->catch_shake / CATCH_SHAKE_TIME) * (float)PLAYER_MELEE_FRAMES);
+        frame = frame < PLAYER_MELEE_FRAMES ? frame : PLAYER_MELEE_FRAMES - 1;
     }
     SDL_Texture *sheet = skin_sheet(skin, def->sheet, gun);
     if (sheet == NULL)
@@ -163,7 +164,8 @@ static void draw_caught(SDL_Renderer *renderer, const CharacterSkin *skin, int g
     SDL_RenderCopyEx(renderer, sheet, &src, &dst, angle, NULL, (SDL_RendererFlip)flip);
     untint(sheet);
     if (!snare)
-        hang_net(renderer, x, (float)BASELINE - lift + 2.0f * SPRITE_SCALE, t);
+        hang_net(renderer, player->catch_anchor_x - camera_x, player->catch_anchor_y, x,
+                 (float)BASELINE - lift + 2.0f * SPRITE_SCALE, t);
 }
 
 static void render_at(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
@@ -174,8 +176,7 @@ void player_render(SDL_Renderer *renderer, const Player *player, const Character
 {
     /* Wading the deep river she is drawn sunk in it, whole art px at a time;
      * its water goes over her after (terrain_render_front). */
-    int sunk = player->state == PLAYER_CAUGHT || player->jump.airborne
-                   ? 0 : (int)lroundf(player->depth * RIVER_DEEP_ROWS);
+    int sunk = player_sunk_rows(player);
     if (sunk == 0) {
         render_at(renderer, player, skin, guns, weapon_slot, camera_x);
         return;
@@ -215,6 +216,59 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         draw_caught(renderer, skin, gun, player, camera_x);
         return;
     }
+    /* A blow with the flashlight on its gun. */
+    if (player->state == PLAYER_MELEE && player->light_on && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_melee_lit[gun])
+        sheet = skin->weapon_melee_lit[gun];
+    /* Two guns take turns; with the flashlight on, its own sheets: it stays up, lit,
+     * and the other works beside it. */
+    bool lit_duals = false;
+    if (player->state == PLAYER_SHOOT && gun >= 0 && gun < WEAPON_COUNT && !shot_reloading(&player->shot)) {
+        bool other = player->shot.other_gun && skin->weapon_shoot_other[gun];
+        SDL_Texture *lit = other ? skin->weapon_shoot_other_lit[gun] : skin->weapon_shoot_lit[gun];
+        if (player->light_on && lit) {
+            sheet = lit;
+            lit_duals = true;
+        } else if (other) {
+            sheet = skin->weapon_shoot_other[gun];
+        }
+    }
+    /* Its gun is up already with the light on: no drawing it or putting it away. */
+    if (player->state == PLAYER_SHOOT && player->light_on && !lit_duals && player_light_progress(player) >= 1.0f &&
+        !shot_reloading(&player->shot) && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_light[gun])
+        frame = player_lit_shoot_frame(frame);
+
+    /* The flashlight up: her gun held level with it, on legs that go on walking. */
+    int light_frame = 0;
+    const AnimationDef *light = player_light_animation(player, &light_frame);
+    SDL_Texture *light_sheet = light ? skin_sheet(skin, light->sheet, gun) : NULL;
+    if (light_sheet) {
+        bool walking = player->state != PLAYER_IDLE && def->frame_w == PLAYER_WALK_FRAME_W;
+        SDL_Texture *light_walk = light_frame == PLAYER_LIGHT_FRAMES - 1 && gun >= 0 && gun < WEAPON_COUNT
+                                      ? skin->weapon_light_walk[gun] : NULL;
+        if (light_walk && (walking || player->state == PLAYER_IDLE)) {
+            /* All on: its torso rocking with its legs, or stood there, breathing. */
+            int shown = walking ? frame : PLAYER_WALK_FRAMES + player_light_breath(player);
+            tint(light_walk, player);
+            draw_rows(renderer, light_walk, light, shown, 0, light->frame_h, player, camera_x);
+            untint(light_walk);
+            heal_glow(renderer, player, camera_x);
+            draw_drips(renderer, player, camera_x);
+            return;
+        }
+        int split = light->frame_h;
+        if (walking) {
+            split = PLAYER_WAIST_ROW + (light->ground_y - def->ground_y);
+            tint(sheet, player);
+            draw_rows(renderer, sheet, def, frame, PLAYER_WAIST_ROW, def->frame_h, player, camera_x);
+            untint(sheet);
+        }
+        tint(light_sheet, player);
+        draw_rows(renderer, light_sheet, light, light_frame, 0, split, player, camera_x);
+        untint(light_sheet);
+        heal_glow(renderer, player, camera_x);
+        draw_drips(renderer, player, camera_x);
+        return;
+    }
 
     const AnimationDef *legs = player->legs.def;
     SDL_Texture *walk = legs ? skin_sheet(skin, legs->sheet, gun) : NULL;
@@ -237,6 +291,9 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         tint(sheet, player);
         draw_rows(renderer, sheet, def, frame, 0, def->frame_h, player, camera_x);
         untint(sheet);
+        if (player->light_on && !lit_duals && player->state == PLAYER_SHOOT && skin->flashlight_sheet &&
+            player_light_progress(player) >= PLAYER_LIGHT_CLICK && frame < PLAYER_SHOOT_FRAMES)
+            draw_rows(renderer, skin->flashlight_sheet, def, frame, 0, def->frame_h, player, camera_x);
     }
     heal_glow(renderer, player, camera_x);
     draw_drips(renderer, player, camera_x);

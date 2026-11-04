@@ -720,34 +720,24 @@ def split_shield(frame: Image) -> tuple[Image, Image, int] | None:
     return body, shield, edge
 
 
-SLEEVE = [PALETTE[PALETTE_HEX.index(0x1f3256)], PALETTE[PALETTE_HEX.index(0x2e4a7a)]]
-SKIN = [PALETTE[PALETTE_HEX.index(c)] for c in (0x4a5240, 0x6f7a5c, 0x9aa37e)]
-
-
-def grip(frame: Image, edge: int, grip_y: int = 43) -> None:
-    """Its near arm reaching across to the shield and the hand closed on the
-    shield's edge, so it is held, not floating."""
-    for x in range(edge - 11, edge - 1):              # Forearm across the body
-        frame.set(x, grip_y - 1, OUTLINE)
-        frame.set(x, grip_y, SLEEVE[1])
-        frame.set(x, grip_y + 1, SLEEVE[0])
-        frame.set(x, grip_y + 2, OUTLINE)
-    for dy, color in enumerate((SKIN[2], SKIN[1], SKIN[0])):   # The fist on the edge
-        for dx in range(3):
-            frame.set(edge - 2 + dx, grip_y + dy - 1, color)
-    for dy in range(-2, 3):
-        frame.set(edge - 3, grip_y + dy, OUTLINE)
-    for dx in range(-2, 2):
-        frame.set(edge + dx, grip_y - 3, OUTLINE)
-        frame.set(edge + dx, grip_y + 3, OUTLINE)
-
-
-def grip_shield(sheet: Image) -> Image:
+def hand_off_shield(sheet: Image) -> Image:
+    """The source draws its near hand on the shield's face, as if through it: it
+    holds the shield from behind, so that patch (and its dark edge) is plain
+    shield."""
     frames = []
     for frame in sheet_frames(sheet):
-        parts = split_shield(frame)
-        if parts:
-            grip(frame, parts[2])
+        edge = shield_edge(frame)
+        if edge is not None:
+            area = [(x, y) for y in range(34, 60) for x in range(edge, FRAME) if frame.get(x, y)[3]]
+            green = {p for p in area if frame.get(*p)[1] > frame.get(*p)[0] + 6 and frame.get(*p)[1] > frame.get(*p)[2] + 6}
+            rest = Counter(frame.get(*p) for p in area if p not in green and frame.get(*p)[:3] != OUTLINE[:3])
+            if green and rest:
+                face = rest.most_common(1)[0][0]
+                around = {(x + a, y + b) for x, y in green for a in (-1, 0, 1) for b in (-1, 0, 1)}
+                inside = {(x, y) for x, y in around
+                          if frame.get(x, y)[3] and frame.get(x - 2, y)[3] and frame.get(x + 2, y)[3] and x >= edge + 1}
+                for x, y in green | inside:
+                    frame.set(x, y, face)
         frames.append(frame)
     return sheet_from_frames(frames)
 
@@ -776,7 +766,6 @@ def shield_bash(walk: Image) -> Image:
                 if color[3] and 0 <= x + shield_dx < FRAME:
                     out.set(x + shield_dx, y + shield_dy, color)
                     front = max(front, x + shield_dx)
-        grip(out, edge + shield_dx, 43 + shield_dy)
         if index in (2, 3):                            # The hit: a flash, dust thrown off
             for y in range(32, 56, 3):
                 out.set(front + 1, y + shield_dy, flash)
@@ -1116,10 +1105,10 @@ def export_family(identifier: str, *, source_dir: Path | None = None,
             base[action] = remove_face_equipment(identifier, transfer_pose(identifier, walk, action), action)
     base['run'] = family_run(identifier, base['walk'], source_dir)
     derived_actions(base, dog=identifier == 'dog')
-    if identifier == 'riot_shield':                    # Held by its edge; a ram, not a claw
+    if identifier == 'riot_shield':                    # A ram with the shield, not a claw
         base['attack'] = shield_bash(base['walk'])
-        for action in ('walk', 'idle'):
-            base[action] = grip_shield(base[action])
+        for action in base:
+            base[action] = hand_off_shield(base[action])
     elif identifier not in ('riot', 'dog'):
         base['attack'] = add_shared_attack_effect(base['attack'])
     paths = {}

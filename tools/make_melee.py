@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-"""Make the cowgirl's melee sheets: a smash with the gun (V), overhead and
+"""The cowgirl's melee poses and arm (tools/make_flashlight.py draws the sheets): a smash with the gun (V), overhead and
 down like a mace (like the SWAT's), drawn from her own shoot sheet.
-
-Usage: tools/make_melee.py
-
-Writes (7 frames of 81 x 80, the shoot template's frame size):
-  assets/sprites/characters/cowgirl/melee.png       Her hand cannon, in one hand
-  assets/sprites/characters/cowgirl/melee_dual.png  The dual pistols, one in each hand
 
 Frames: 0 the gun coming up; 1 raised over her head, the muzzle back; 2
 swinging down; 3 the smash, level in front of her with a swoosh (the hit
@@ -15,11 +9,8 @@ lands here: PLAYER_MELEE_HIT_FRAME); 4 the follow-through, down; 5 back up;
 the gun arm (what differs from her other poses, her clothes carried on where
 it lay); the arm is her grey sleeve drawn again, as slim as on her art, from the
 shoulder to the hand, and the gun with its glove is turned about
-the hand in whole pixels, so nothing stretches or breaks off. With one gun
-her other hand stays on her hip; with the duals that arm (off her hip:
-without_hip_arm) swings across her front under her gun arm, a shade
-darker, its gun just behind and under the first, never over the near one. The SWAT's sheets come from
-tools/make_swat.py. Uses only the standard library.
+the hand in whole pixels, so nothing stretches or breaks off. Her other hand
+stays on her hip. The SWAT's sheets come from tools/make_swat.py. Uses only the standard library.
 """
 from __future__ import annotations
 
@@ -28,7 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_powers import INK, SLEEVE, load, without_hip_arm  # noqa: E402
+from make_powers import INK, SLEEVE, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,15 +28,40 @@ AIM, LOW, HOLSTER = 3, 0, 7      # Shoot-sheet frames used
 ARM_ROWS = range(29, 43)         # Where her gun arm and gun are on the aim frame...
 ARM_FROM_X = 36                  # ...from this column on
 GUN_FROM_X = 46                  # The gun with its glove
+WALK_SHIFT = (12, 7)             # A walk-frame point on the shoot template
+WALK_CHIN_ROW = 23               # A walk row across her face, to find her middle
+WALK_CHEST_ROWS = (28, 34)       # Walk rows from the choker to the lace
+WALK_CHEST_HALF = 8              # Art columns each side of her neck
+WALK_BODY_ROWS = (33, 41)        # Walk rows of her torso
+ELBOW_AT = (44, 38)              # Where her glove starts, on the aim frame
 HAND = (48, 35)                  # The glove's middle, on the aim frame: the gun turns about it
 SHOULDER = (39, 36)
+LACE_COLORS = {(0xec, 0xe6, 0xd6), (0xbc, 0xb6, 0xa6)}
 WAIST = 44                       # Above it she leans into the blow
 SWOOSH = [rgb(0xfff6dc), rgb(0xd8d0c0), rgb(0x9a9488)]
 # Per frame: hand (from the shoulder), gun angle (degrees, + raises the
 # muzzle), lean. Like the SWAT's: overhead and down.
 POSES = [((7, -5), 55, 0), ((3, -11), 105, -1), ((8, -9), 50, 0), ((12, -2), -10, 1),
          ((11, 3), -40, 1), ((10, 0), -15, 0), None]
-BEHIND = (-2, 3)                 # With the duals, her far hand: a little behind and under the first
+
+
+UPPER_ARM = 10.4                  # Shoulder to where the glove starts, whatever the pose: no stretching
+
+
+def _steady(pose: tuple) -> tuple:
+    """A pose with its hand moved along the arm so the sleeve keeps its length."""
+    if pose is None:
+        return None
+    (hx, hy), angle, lean = pose
+    a = math.radians(angle)
+    ex, ey = ELBOW_AT[0] - HAND[0], ELBOW_AT[1] - HAND[1]
+    rx, ry = ex * math.cos(a) + ey * math.sin(a), -ex * math.sin(a) + ey * math.cos(a)
+    ux, uy = hx + rx, hy + ry
+    d = max(math.hypot(ux, uy), 1.0)
+    return ((round(ux * UPPER_ARM / d - rx), round(uy * UPPER_ARM / d - ry)), angle, lean)
+
+
+POSES = [_steady(p) for p in POSES]
 
 
 def sleeve(shoulder: tuple, hand: tuple) -> dict:
@@ -80,11 +96,6 @@ def sleeve(shoulder: tuple, hand: tuple) -> dict:
     return out
 
 
-def dim(c: tuple) -> tuple:
-    """A shade darker: what is farther from us."""
-    return tuple(round(v * 0.8) for v in c[:3]) + (255,) if c[:3] != INK[:3] else c
-
-
 def frame(sheet: Image, f: int) -> dict:
     out = {}
     for y in range(H):
@@ -92,6 +103,39 @@ def frame(sheet: Image, f: int) -> dict:
             c = sheet.get(f * W + x, y)
             if c[3]:
                 out[(x, y)] = c
+    return out
+
+
+# Shoot-frame rows of her waist and the last column of her side on each. Her art only
+# has the thin middle of it, its sides always under her arms; with the arm away it
+# has to meet her hips. What else was there is the rest of that arm's hand.
+WAIST_SIDE = {41: 41, 42: 41, 43: 40, 44: 39, 45: 39, 46: 39, 47: 40}
+BELT_SIDE = {48: 40, 49: 41, 50: 41}  # ...and her belt's, as wide as her hips: a V into them, no step
+WAIST_FROM = 36                   # Column her corset is drawn out from
+CORSET_FILL = [rgb(0x2c363c), rgb(0x242c32)]
+BELT_FILL = {48: rgb(0x6c4626), 49: rgb(0x4a2e18), 50: rgb(0x4a2e18)}
+
+
+def fuller_waist(body: dict) -> dict:
+    out = dict(body)
+    for y, edge in WAIST_SIDE.items():
+        for x in range(WAIST_FROM, edge + 8):
+            if x > edge + 1:
+                out.pop((x, y), None)
+            elif x == edge + 1:
+                out[(x, y)] = INK
+            else:
+                c = out.get((x, y))
+                if c is None or c[:3] not in LACE_COLORS:
+                    out[(x, y)] = CORSET_FILL[x >= edge - 1]
+    for y, edge in BELT_SIDE.items():
+        for x in range(WAIST_FROM + 2, edge + 8):
+            if x > edge + 1:
+                out.pop((x, y), None)
+            elif x == edge + 1:
+                out[(x, y)] = INK
+            elif (x, y) not in out or out[(x, y)][:3] == INK[:3]:
+                out[(x, y)] = BELT_FILL[y]
     return out
 
 
@@ -112,7 +156,51 @@ def body_without_arm(aim: dict, low: dict, rest: dict) -> dict:
                 fill = c
             elif c is None and fill is not None:
                 body[(x, y)] = fill
-    return body
+    # Her side, under where the arm lay, was never drawn: from her standing pose.
+    walk = load(ROOT / 'assets/sprites/characters/cowgirl/walk.png')
+    grey = {tuple(c[:3]) for c in SLEEVE}
+    added = []
+    for y in range(WALK_BODY_ROWS[0], WALK_BODY_ROWS[1] + 1):
+        for x in range(42):
+            c = walk.get(x, y)
+            at = (x + WALK_SHIFT[0], y + WALK_SHIFT[1])
+            if c[3] and at not in body and c[:3] != INK[:3] and c[:3] not in grey and at[0] >= ARM_FROM_X - 4 and at[0] <= ARM_FROM_X + 8:
+                body[at] = c
+                added.append(at)
+    for x, y in added:
+        for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + a, y + b) not in body:
+                body[(x + a, y + b)] = INK
+    # Her neckline, whole, the same as standing: choker, skin, shoulders and lace.
+    # What she had here lost parts with the arm.
+    skin = [x for y in range(WALK_CHIN_ROW, WALK_CHIN_ROW + 1) for x in range(42)
+            if walk.get(x, y)[3] and walk.get(x, y)[:3] == (0xfe, 0xdc, 0xa3)]
+    neck = sum(skin) // len(skin)
+    for y in range(WALK_CHEST_ROWS[0], WALK_CHEST_ROWS[1] + 1):
+        for x in range(neck - WALK_CHEST_HALF, neck + WALK_CHEST_HALF + 1):
+            c = walk.get(x, y)
+            if c[3]:
+                body[(x + WALK_SHIFT[0], y + WALK_SHIFT[1])] = c
+    body = fuller_waist(body)
+    return {p: c for p, c in body.items()                  # No loose speck left where the arm was
+            if any((p[0] + a, p[1] + b) in body for a in (-1, 0, 1) for b in (-1, 0, 1) if a or b)}
+
+
+def no_holes(px: dict) -> dict:
+    """Pixels the turning left out, inside a shape: a gap with something on at
+    least three sides takes the colour most of them have."""
+    out = dict(px)
+    for _ in range(2):
+        xs = [x for x, _y in out]
+        ys = [y for _x, y in out]
+        for y in range(min(ys), max(ys) + 1):
+            for x in range(min(xs), max(xs) + 1):
+                if (x, y) in out:
+                    continue
+                around = [out[n] for n in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)) if n in out]
+                if len(around) >= 3:
+                    out[(x, y)] = max(around, key=around.count)
+    return out
 
 
 def turn(pixels: dict, pivot: tuple, angle: float, at: tuple) -> dict:
@@ -158,52 +246,31 @@ def swoosh(out: dict, gun: dict, before: tuple, now: tuple, heavy: bool) -> None
                 out[(x + k, y)] = shade
 
 
-def make(shoot: Image, dual: bool, holster: dict) -> Image:
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    body = body_without_arm(aim, low, rest)
-    if dual:  # Her other arm leaves her hip for its gun
-        body, far_shoulder = without_hip_arm(body)
-    gun = {p: c for p, c in aim.items() if p[0] >= GUN_FROM_X and p[1] in range(26, 42)}
-    img = Image(W * len(POSES), H)
-    for f, pose in enumerate(POSES):
-        if pose is None:
-            pixels = holster
-        else:
-            (hx, hy), angle, lean = pose
-            hand = (SHOULDER[0] + hx, SHOULDER[1] + hy)
-            a = math.radians(angle)
-            # Back to front: her; with the duals her other arm across her front,
-            # a shade darker, its gun just behind and under the first; over
-            # them her gun arm and its gun. With one gun her other hand stays
-            # on her hip.
-            pixels = dict(body)
-            if dual:
-                far = (hand[0] + BEHIND[0], hand[1] + BEHIND[1])
-                pixels.update({p: dim(c) for p, c in sleeve(far_shoulder, far).items()})
-                pixels.update({p: dim(c) for p, c in turn(gun, HAND, angle, far).items()})
-            pixels.update(sleeve(SHOULDER, hand))
-            pixels.update(turn(gun, HAND, angle, hand))
-            if f in (3, 4):
-                swoosh(pixels, gun, POSES[f - 1], pose, heavy=f == 3)
-            pixels = {(x + (lean if y < WAIST else 0), y): c for (x, y), c in pixels.items()}
-        for (x, y), c in pixels.items():
-            if 0 <= x < W and 0 <= y < H:
-                img.set(f * W + x, y, c)
-    return img
+BARREL_CUT = (54, 57)             # Columns taken out of the base art's barrel: a pistol, not as long as her leg
 
 
-def main() -> int:
-    # Both from her one-gun sheet: with the duals the second gun is drawn
-    # again in her far hand, under the first, as on shoot_dual.
-    for dst, dual in (('melee', False), ('melee_dual', True)):
-        shoot = load(ROOT / 'assets/sprites/characters/cowgirl/shoot.png')
-        own = load(ROOT / f'assets/sprites/characters/cowgirl/{"shoot_dual" if dual else "shoot"}.png')
-        img = make(shoot, dual, frame(own, HOLSTER))  # Back to rest as on its shoot sheet
-        path = ROOT / f'assets/sprites/characters/cowgirl/{dst}.png'
-        img.save(path)
-        print(f'make_melee: {path.relative_to(ROOT).as_posix()} ({img.width} x {img.height})')
-    return 0
+def shorter_gun(px: dict) -> dict:
+    """The gun off her aim frame with its barrel cut down."""
+    a, b = BARREL_CUT
+    return {(x if x < a else x - (b - a), y): c for (x, y), c in px.items() if not a <= x < b}
 
 
-if __name__ == '__main__':
-    sys.exit(main())
+def gun_with_glove(aim: dict, body: dict) -> dict:
+    """The gun with her glove on it, whole, as on her aim frame."""
+    skin = {(0xfe, 0xdc, 0xa3), (0xd9, 0x9a, 0x5b), (0x89, 0x41, 0x1f), (0x8a, 0x43, 0x22)}
+    return shorter_gun({p: c for p, c in aim.items() if p[0] >= ELBOW_AT[0] and p[1] in range(26, 44) and body.get(p) != c and c[:3] not in skin})
+
+
+def striking_arm(pixels: dict, gun: dict, f: int) -> None:
+    """Over her, on pose f: her gun arm and its gun, and the arc of the blow."""
+    pose = POSES[f]
+    (hx, hy), angle, _ = pose
+    hand = (SHOULDER[0] + hx, SHOULDER[1] + hy)
+    a = math.radians(angle)
+    # The sleeve up to where that glove begins, so they join.
+    ex, ey = ELBOW_AT[0] - HAND[0], ELBOW_AT[1] - HAND[1]
+    elbow = (hand[0] + ex * math.cos(a) + ey * math.sin(a), hand[1] - ex * math.sin(a) + ey * math.cos(a))
+    pixels.update(sleeve(SHOULDER, (round(elbow[0]), round(elbow[1]))))
+    pixels.update(turn(gun, HAND, angle, hand))
+    if f in (3, 4):
+        swoosh(pixels, gun, POSES[f - 1], pose, heavy=f == 3)

@@ -6,39 +6,41 @@
 #include "config.h"
 #include "game/bullet.h"
 
-/* Bats at night: now and then one, or a few, flit across the view from one
- * side to the other, rising and dipping. They don't attack; a bullet or a
- * blast kills one: it drops, lies on the road and fades. No SDL. */
+/* Bats at night, like the crows: small colonies along the road, each flitting
+ * over its spot through her line of fire. They don't attack and fly off when
+ * she walks up to them or at a blast, away from her and up out of the view. A
+ * bullet or a blast kills one: it drops, lies on the road and fades. No SDL. */
 typedef struct {
     float x;      /* World px */
+    float home;   /* The spot it flits over */
     float height; /* Window px over the ground */
     float base;   /* The height it flits about */
     float vx, vy; /* Px per second; vy up (only falling) */
     int facing;   /* -1 left, +1 right */
     bool alive;   /* In flight */
+    bool fleeing; /* Flying off, up out of the view */
     bool dead;    /* Shot: falling, then lying on the road */
     float dead_time;
-    float time;   /* Seconds since it came */
+    float time;   /* Seconds it has been flitting */
 } Bat;
 
 typedef struct {
     Bat items[BATS_MAX];
-    float wait;     /* Seconds until the next ones come */
-    unsigned seed;
-    int killed;     /* Killed on the last update or shot/blast call */
 } Bats;
 
-/* No bats yet; the first come a while in. Same every time for a stage. */
-void bats_start(Bats *bats, int stage_index);
+/* Colonies along the road from start_x to start_x + length, the same for a
+ * stage every time; none by day. */
+void bats_start(Bats *bats, int stage_index, float start_x, float length, bool night);
 
-/* At night more come every so often from a side of the view (view_left ..
- * + VIEW_WIDTH); each flits across and is gone past the other side. */
-void bats_update(Bats *bats, bool night, float view_left, float dt);
+/* She is at player_x: close enough, they go. */
+void bats_update(Bats *bats, float player_x, float dt);
 
-/* Bullets against them: a hit kills it and the bullet is spent. Returns the hits. */
+/* Bullets against them: a hit kills it, the bullet is spent and the others
+ * near it fly off. Returns the hits. */
 int bats_shoot(Bats *bats, Bullets *bullets);
 
-/* A blast at x: bats within radius (and low enough) die. Returns the kills. */
+/* A blast at x: bats within radius (and low enough) die, the rest take off.
+ * Returns the kills. */
 int bats_blast(Bats *bats, float x, float radius);
 
 /* Its frame in sprites/bat/bat: 0-3 the wingbeat, 4 falling, 5 lying dead. */

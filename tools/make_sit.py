@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+from rework_cowgirl import BARE_WIDTH, CHOKER, LACE, LACE_SMILE  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 72, 67          # Frame
@@ -45,6 +46,7 @@ WALK_PIVOT = 19.5      # Walk frame's pivot (its body's middle)
 WAIST = 44             # Walk-frame rows 0..WAIST are the cowgirl's upper half
 DROP = 6               # Rows the upper half sinks when sat
 LAP = WAIST + DROP + 1  # First row of the legs (the lap and knees)
+LAP_RISE = 6           # Rows the lap reaches up behind the torso
 FEET = 59              # Last row of the boots (the walk's)
 WEAPON_W, WEAPON_H = 36, 14
 
@@ -107,12 +109,12 @@ COWGIRL_FACE = 22              # First column right of her face's middle
 # Below, her corset is made symmetric about the pivot from her right side
 # (its brown and gold); her arms are drawn on it from COWGIRL_ARM_ROWS, the
 # left one (column 0 the outer edge, at COWGIRL_ARM_OUTER columns from the
-# middle) and its mirror, coming out of her bare shoulders, as wide as them.
+# middle) and its mirror, coming out of her shoulders, as wide as them.
 COWGIRL_BODY_ROWS = (31, WAIST)
 COWGIRL_BODY = 20              # First column right of the pivot (19.5)
-COWGIRL_ARM_ROWS = [           # Her walk rows 29.. (the bare shoulder down to the hand)
-    "..okko.",
-    ".olkkko",
+COWGIRL_ARM_ROWS = [           # Her walk rows 29..: the sleeve down to the wrist, her glove
+    "..omno.",
+    ".ommnno",
     ".ommnno",
     "omnnnpo",
     "omnnnpo",
@@ -120,21 +122,24 @@ COWGIRL_ARM_ROWS = [           # Her walk rows 29.. (the bare shoulder down to t
     ".omnnpo",
     ".onnppo",
     ".oppppo",
-    ".olkko.",
-    ".olkko.",
-    "..olkko",
-    "..olkko",
-    "..olkko",
-    "..okkko",
+    ".omnno.",
+    ".omnno.",
+    "..omnno",
+    "..omnno",
+    "..oggGo",
+    "..ogGGo",
     "...ooo.",
 ]
 COWGIRL_ARM_TOP = 29
 COWGIRL_ARM_OUTER = 12
 COWGIRL_ARM_COLORS = {
-    'o': rgb(0x252018), 'm': rgb(0xa7a8a8), 'n': rgb(0x868689), 'p': rgb(0x505050),
-    'k': rgb(0xfedca3), 'l': rgb(0xd99a5b),
+    'o': rgb(0x252018), 'm': rgb(0x6c7a84), 'n': rgb(0x505c66), 'p': rgb(0x38424a),
+    'g': rgb(0x684833), 'G': rgb(0x463322),
 }
 COWGIRL_HEAD_ROWS = 30         # Walk rows up to here nod with the head
+COWGIRL_WAIST_SKIN = 36        # From this walk row on, skin on her body is that hand
+COWGIRL_SKIN = {(0xfe, 0xdc, 0xa3), (0xd9, 0x9a, 0x5b), (0x89, 0x41, 0x1f), (0x8a, 0x43, 0x22)}
+COWGIRL_CORSET = rgb(0x2c363c)
 
 SWAT_COLORS = {
     'o': rgb(0x140e0e),
@@ -152,10 +157,10 @@ SWAT_COLORS = {
 # (sheet, weapons.png frame, kind of reload).
 CHARS = {
     'cowgirl': {
-        'trousers': [rgb(0x2c2c2c), rgb(0x3a3a3a), rgb(0x4e4e4e)],
+        'trousers': [rgb(0x322e2c), rgb(0x48423e), rgb(0x5e5650)],
         'boots': [rgb(0x463322), rgb(0x684833), rgb(0x8a6448)],
         'ink': rgb(0x252018),
-        'hand': rgb(0xfedca3),
+        'hand': rgb(0x684833),
         'slim': 2,
         'guns': [('sit', 0, 'revolver')],
     },
@@ -236,11 +241,25 @@ def leg(trousers: list, boots: list, knee_lift: int, slim: int) -> dict:
     return px
 
 
+def lap(char: dict, knee_lift: int) -> dict:
+    """Her hips and the tops of her thighs, whole: rising under the torso so no
+    breath or stoop parts them, and closing the gap between the knees."""
+    trousers, slim = char['trousers'], char['slim']
+    px: dict = {}
+    for y in range(LAP - LAP_RISE - knee_lift, LAP + 3 - knee_lift):
+        for x in range(CX - 8 + slim, CX + 8 - slim):
+            crease = x in (CX - 1, CX) and y >= LAP - knee_lift
+            px[(x, y)] = trousers[0] if crease else trousers[1]
+    return px
+
+
 def legs(img: Image, ox: int, char: dict, knee_lift: int) -> None:
     left = outlined(leg(char['trousers'], char['boots'], knee_lift, char['slim']), char['ink'])
     for (x, y), c in left.items():
         put(img, ox, x, y, c)
         put(img, ox, 2 * CX - 1 - x, y, c)
+    for (x, y), c in lap(char, knee_lift).items():
+        put(img, ox, x, y, c)
 
 
 def upper(img: Image, ox: int, half: list, colors: dict, bottom: int, head_rows: int,
@@ -284,7 +303,9 @@ def cowgirl_upper(img: Image, ox: int, walk: Image, dy: int, nod: int, arm: tupl
         elif body0 <= y <= body1:
             for d in range(42 - COWGIRL_BODY):
                 c = walk.get(COWGIRL_BODY + d, y)
-                if c[3] and c[:3] not in ((0xa7, 0xa8, 0xa8), (0x86, 0x86, 0x89)):
+                if c[3] and y >= COWGIRL_WAIST_SKIN and c[:3] in COWGIRL_SKIN:
+                    c = COWGIRL_CORSET  # Her hand off the hip: not mirrored down her middle
+                if c[3] and c[:3] not in ((0x6c, 0x7a, 0x84), (0x50, 0x5c, 0x66), (0x38, 0x42, 0x4a)):
                     put(img, ox, CX - 1 - d, ry, c)
                     put(img, ox, CX + d, ry, c)
         else:
@@ -335,6 +356,9 @@ RELOAD_STEPS = {
 }
 
 
+REVOLVER_REACH = 8     # Art columns right of her middle that the gun on her lap reaches
+
+
 def reload_step(img: Image, ox: int, weapons: Image, char: dict, gun: int, kind: str, step: int) -> None:
     plan = RELOAD_STEPS[kind][step]
     ink, hand = char['ink'], char['hand']
@@ -355,6 +379,8 @@ def reload_step(img: Image, ox: int, weapons: Image, char: dict, gun: int, kind:
             for xy in mag:
                 del pixels[xy]
     for (x, y), c in pixels.items():
+        if kind == 'revolver' and abs(gx + x - CX) > REVOLVER_REACH:
+            continue                                         # It lies between her two hands, held
         put(img, ox, gx + x, gy + y, c)
     if plan.get('mag') == 'pulled':
         for (x, y), c in mag.items():
@@ -418,6 +444,68 @@ def zs(img: Image, ox: int, count: int, ink: tuple) -> None:
             put(img, ox, x0 + x, y0 + y, white)
 
 
+def tidy_cowgirl(img: Image, ox: int, dy: int, nod: int = 0) -> None:
+    """What mirroring her walk leaves wrong from the front: one buckle in the
+    middle of the belt, not two; her shoulders under their sleeves; no loose specks."""
+    brass = {(0xb8, 0x90, 0x3a), (0xec, 0xc8, 0x68)}
+    rows = [y for y in range(H) for x in range(W) if img.get(ox + x, y)[:3] in brass and img.get(ox + x, y)[3]]
+    if rows:
+        top, bottom = min(rows), max(rows)
+        for y in range(top, bottom + 1):
+            for x in range(W):
+                if img.get(ox + x, y)[3] and img.get(ox + x, y)[:3] in brass or (y == top + 1 and abs(x + 0.5 - CX) < 3):
+                    img.set(ox + x, y, rgb(0x4a2e18))
+            for x in (CX - 2, CX - 1, CX, CX + 1):
+                img.set(ox + x, y, rgb(0xecc868) if y == top else rgb(0xb8903a))
+        img.set(ox + CX - 1, top + 1, rgb(0x4a2e18))
+        img.set(ox + CX, top + 1, rgb(0x4a2e18))
+    for y in range(H):
+        for x in range(W):
+            c = img.get(ox + x, y)
+            if c[3] and y <= 40 + dy + nod and abs(x + 0.5 - CX) >= 8 and c[:3] in COWGIRL_SKIN:
+                img.set(ox + x, y, rgb(0x6c7a84))
+    neckline_front(img, ox, nod)
+    for y in range(1, H - 1):                            # Outline left floating beside her sleeves
+        for x in range(1, W - 1):
+            c = img.get(ox + x, y)
+            if c[3] and c[:3] == (0x25, 0x20, 0x18) and not any(img.get(ox + x + a, y + b)[3]
+                                                                for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                img.set(ox + x, y, (0, 0, 0, 0))
+    for y in range(1, H - 1):
+        for x in range(1, W - 1):
+            if img.get(ox + x, y)[3] and not any(img.get(ox + x + a, y + b)[3] for a in (-1, 0, 1)
+                                                 for b in (-1, 0, 1) if a or b):
+                img.set(ox + x, y, (0, 0, 0, 0))
+
+
+def neckline_front(img: Image, ox: int, nod: int) -> None:
+    """Her neckline seen from the front, the same as standing: the scoop of skin and
+    the lace curving up to both shoulders. Dozing, her head comes down over the top
+    of it and the rest stays where it is."""
+    chokers = [y for y in range(H) if img.get(ox + CX, y)[3] and img.get(ox + CX, y)[:3] == CHOKER[:3]]
+    if not chokers:
+        return
+    choker = chokers[0] - nod
+    for d, offset in enumerate(LACE_SMILE):
+        lace_y = choker + offset
+        for y in range(choker + 1 + nod, choker + max(LACE_SMILE) + 2):
+            bare = BARE_WIDTH.get(y - choker, 0)
+            if y < lace_y:
+                c = (rgb(0xd99a5b) if d == bare or y == lace_y - 1 else rgb(0xfedca3)) if d <= bare else \
+                    rgb(0x6c7a84) if d <= bare + 1 else rgb(0x505c66)
+            elif y == lace_y:
+                c = LACE[0]
+            elif y == lace_y + 1 and d % 2 == 0:
+                c = LACE[1]
+            else:
+                c = COWGIRL_CORSET
+            for x in (CX - 1 - d, CX + d):
+                if img.get(ox + x, y)[3]:
+                    img.set(ox + x, y, c)
+    for x in (CX - 1, CX):
+        img.set(ox + x, choker + 1 + nod, rgb(0xb8903a)) # The pendant
+
+
 def make_sit(name: str, gun: int, kind: str) -> Image:
     char = CHARS[name]
     weapons = load(ROOT / 'assets/sprites/ui/weapons.png')
@@ -438,6 +526,8 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
             cowgirl_upper(out, ox, walk, dy, nod, arm)
         if reloading:
             reload_step(out, ox, weapons, char, gun, kind, f - 4)
+        if name == 'cowgirl':
+            tidy_cowgirl(out, ox, dy, nod)
         if f >= 12:
             zs(out, ox, 1 if f == 12 else 2, char['ink'])
     return out

@@ -36,11 +36,19 @@ void hang_rope(SDL_Renderer *renderer, float x0, float y0, float x1, float y1)
     }
 }
 
-void hang_net(SDL_Renderer *renderer, float x, float bottom_y, float t)
+float hang_top(CatchKind kind, float t)
+{
+    float lift = hang_lift(kind, t);
+    if (kind == CATCH_NET)
+        return lift - 2.0f * SPRITE_SCALE + NET_BAG_H * SPRITE_SCALE;
+    return kind == CATCH_SNARE ? lift + PLAYER_WALK_FRAME_H * SPRITE_SCALE : 0.0f;
+}
+
+void hang_net(SDL_Renderer *renderer, float anchor_x, float anchor_y, float x, float bottom_y, float t)
 {
     SDL_Texture *bag = assets_texture("sprites/effects/net_bag");
     float top = bottom_y - NET_BAG_H * SPRITE_SCALE;
-    hang_rope(renderer, x, 0.0f, x, top);
+    hang_rope(renderer, anchor_x, anchor_y, x, top);
     if (bag == NULL)
         return;
     /* Just sprung, its mouth still closing; then swaying. */

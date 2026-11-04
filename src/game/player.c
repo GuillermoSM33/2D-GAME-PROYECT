@@ -23,7 +23,10 @@
 #define PLAYER_FAINT_SHEET "sprites/characters/cowgirl/faint"
 #define PLAYER_DRINK_SHEET "sprites/characters/cowgirl/drink"
 #define PLAYER_PLANT_SHEET "sprites/characters/cowgirl/plant"
+#define PLAYER_SWAP_SHEET "sprites/characters/cowgirl/swap"
+#define PLAYER_SWAP_LIT_SHEET "sprites/characters/cowgirl/swap_lit"
 #define PLAYER_BANDAGE_SHEET "sprites/characters/cowgirl/bandage"
+#define PLAYER_LIGHT_SHEET "sprites/characters/cowgirl/light"
 
 /* Pivots measured on the art: the body spans x 6..32 (walk), 12..38 (jump)
  * and 18..44 (shoot); the boots end on rows 59, 67 and 66, two rows above
@@ -94,6 +97,16 @@ static const AnimationDef ANIM_FAINT = {
 static const AnimationDef ANIM_DRINK = {
     .sheet = PLAYER_DRINK_SHEET, .frame_w = PLAYER_SHOOT_FRAME_W, .frame_h = PLAYER_SHOOT_FRAME_H,
     .first_frame = 0, .frame_count = PLAYER_CARE_FRAMES, .fps = 0.0f, .loop = false,
+    .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
+};
+static const AnimationDef ANIM_SWAP = {
+    .sheet = PLAYER_SWAP_SHEET, .frame_w = PLAYER_SHOOT_FRAME_W, .frame_h = PLAYER_SHOOT_FRAME_H,
+    .first_frame = 0, .frame_count = PLAYER_SWAP_FRAMES, .fps = 0.0f, .loop = false,
+    .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
+};
+static const AnimationDef ANIM_SWAP_LIT = {
+    .sheet = PLAYER_SWAP_LIT_SHEET, .frame_w = PLAYER_SHOOT_FRAME_W, .frame_h = PLAYER_SHOOT_FRAME_H,
+    .first_frame = 0, .frame_count = PLAYER_SWAP_FRAMES, .fps = 0.0f, .loop = false,
     .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
 };
 static const AnimationDef ANIM_PLANT = {
@@ -237,6 +250,7 @@ bool player_throw(Player *player)
 bool player_melee(Player *player)
 {
     if (!player_alive(player) || player->shot.active || player->jump.airborne || player->melee_wait > 0.0f ||
+        player->swap_time > 0.0f ||
         player->state == PLAYER_THROW || player->state == PLAYER_MELEE || player->state == PLAYER_SIT ||
         player->state == PLAYER_CAUGHT)
         return false;
@@ -295,6 +309,12 @@ float player_dry_time(const Player *player)
 const AnimationDef *player_care_animation(const Player *player, int *frame)
 {
     int last = PLAYER_CARE_FRAMES - 1;
+    if (player->swap_time > 0.0f) {
+        int f = (int)((1.0f - player->swap_time / PLAYER_SWAP_TIME) * (float)PLAYER_SWAP_FRAMES);
+        f = f < 0 ? 0 : f >= PLAYER_SWAP_FRAMES ? PLAYER_SWAP_FRAMES - 1 : f;
+        *frame = player->swap_back ? PLAYER_SWAP_FRAMES - 1 - f : f;
+        return player->light_on ? &ANIM_SWAP_LIT : &ANIM_SWAP; /* With the flashlight on its gun */
+    }
     if (player->plant_time > 0.0f) {
         int f = (int)((1.0f - player->plant_time / PLANT_TIME) * (float)PLAYER_CARE_FRAMES);
         *frame = f < 0 ? 0 : f > last ? last : f;
@@ -329,6 +349,16 @@ bool player_needs_bandage(const Player *player)
     return player->bleeding || (player->burned && !player->burn_bandaged);
 }
 
+void player_swap(Player *player, bool back)
+{
+    if (!player_alive(player) || player->jump.airborne)
+        return;
+    player->swap_time = PLAYER_SWAP_TIME;
+    player->swap_back = back;
+    player->drink_time = 0.0f; /* Her hands are on the pistol */
+    player->bandage = 0.0f;
+}
+
 void player_plant(Player *player)
 {
     if (!player_alive(player) || player->jump.airborne)
@@ -340,6 +370,109 @@ void player_plant(Player *player)
         player->state = PLAYER_IDLE;
         animation_play(&player->anim, &ANIM_IDLE);
     }
+}
+
+static const AnimationDef ANIM_LIGHT = {
+    .sheet = PLAYER_LIGHT_SHEET, .frame_w = PLAYER_SHOOT_FRAME_W, .frame_h = PLAYER_SHOOT_FRAME_H,
+    .first_frame = 0, .frame_count = PLAYER_LIGHT_FRAMES, .fps = 0.0f, .loop = false,
+    .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
+};
+
+bool player_light_ready(const Player *player)
+{
+    int frame;
+    if (player_alive(player) && player->swap_time > 0.0f)
+        return true; /* The other hand is busy: this gun keeps shining */
+    if (!player_alive(player) || player_care_animation(player, &frame))
+        return false;
+    switch (player->state) {
+    case PLAYER_IDLE:
+    case PLAYER_WALK:
+    case PLAYER_RUN:
+        return !player->reload_walk && !player->jump.airborne;
+    case PLAYER_SHOOT:
+        return !shot_reloading(&player->shot);
+    case PLAYER_MELEE:
+        return player->light_swings;
+    default:
+        return false;
+    }
+}
+
+int player_lit_shoot_frame(int frame)
+{
+    /* It settles on the aim from a hair high, kicks and comes back the same way. */
+    return frame < PLAYER_SHOOT_AIM_FRAME - 1 ? PLAYER_SHOOT_FRAMES - 2
+           : frame < PLAYER_SHOOT_AIM_FRAME   ? PLAYER_SHOOT_AIM_FRAME
+           : frame == PLAYER_SHOOT_FRAMES - 1 ? PLAYER_SHOOT_FRAMES - 2 : frame;
+}
+
+void player_light_kick(const Player *player, float *dx, float *dy, float *tilt)
+{
+    /* The lens on each sheet, as tools/make_flashlight.py draws and prints it. */
+    static const float BLOW[PLAYER_MELEE_FRAMES][3] = {{-6.0f, -16.0f, -.6f}, {-22.0f, -26.0f, -.6f}, {-5.5f, -20.5f, -.6f},
+                                                       {0.0f, -1.0f, .18f}, {-4.5f, 10.5f, .6f}, {-1.0f, 3.5f, .27f}, {0.0f, 0.0f, 0.0f}};
+    *dx = *dy = *tilt = 0.0f;
+    int frame = player->anim.frame;
+    if (player->state == PLAYER_MELEE) {
+        if (player->light_swings && frame >= 0 && frame < PLAYER_MELEE_FRAMES) {
+            *dx = BLOW[frame][0];
+            *dy = BLOW[frame][1];
+            *tilt = BLOW[frame][2];
+        }
+        return;
+    }
+    if (player->state != PLAYER_SHOOT || player->shot.other_gun)
+        return; /* The other gun's shot doesn't move this one */
+    if (player->light_rows <= 0.0f) { /* A beam only: it kicks up */
+        *tilt = frame == 5 ? -.07f : frame == 6 ? -.025f : 0.0f;
+        return;
+    }
+    /* The same arm on all its sheets: it kicks and comes back. */
+    if (!player->shot.piston)
+        frame = player_lit_shoot_frame(frame);
+    if (frame == 5) { *dy = -4.0f; *tilt = -.2f; }
+    if (frame == 6) { *dy = -1.0f; *tilt = -.05f; }
+}
+
+float player_light_progress(const Player *player)
+{
+    return player->light_since / (player->light_time > 0.0f ? player->light_time : 1.0f);
+}
+
+int player_light_breath(const Player *player)
+{
+    return (int)(player->light_since * PLAYER_LIGHT_BREATH_FPS) % PLAYER_LIGHT_BREATHS;
+}
+
+int player_light_sway(const Player *player)
+{
+    /* As tools/make_flashlight.py draws them: BREATH and STRIDE. */
+    static const int BREATH[PLAYER_LIGHT_BREATHS] = {0, -1, -1, 0};
+    static const int STRIDE[PLAYER_WALK_FRAMES] = {0, 0, 1, 0, 0, 0, 1, 0};
+    if (player->state == PLAYER_IDLE)
+        return BREATH[player_light_breath(player)];
+    if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && player->anim.frame < PLAYER_WALK_FRAMES)
+        return STRIDE[player->anim.frame];
+    return 0;
+}
+
+const AnimationDef *player_light_animation(const Player *player, int *frame)
+{
+    bool on_foot = player->state == PLAYER_IDLE || player->state == PLAYER_WALK || player->state == PLAYER_RUN;
+    if (!on_foot || player->jump.airborne || !player_light_ready(player))
+        return NULL;
+    float shown;
+    if (player->light_on) {
+        shown = player_light_progress(player);
+    } else {
+        shown = 1.0f - player_light_progress(player) / PLAYER_LIGHT_OFF;
+        if (shown <= 0.0f)
+            return NULL;
+    }
+    int f = (int)(shown * (float)PLAYER_LIGHT_FRAMES);
+    *frame = f < PLAYER_LIGHT_FRAMES ? f : PLAYER_LIGHT_FRAMES - 1;
+    return &ANIM_LIGHT;
 }
 
 const AnimationDef *player_melee_animation(void)
@@ -410,6 +543,7 @@ void player_update(Player *player, const InputState *input, float dt)
     }
 
     int dir = input_horizontal(input);
+    player->swap_time = player->jump.airborne ? 0.0f : fmaxf(0.0f, player->swap_time - dt);
     if (player->plant_time > 0.0f) { /* Setting a charge: stood to it */
         player->plant_time = player->jump.airborne ? 0.0f : fmaxf(0.0f, player->plant_time - dt);
         dir = 0;
@@ -550,11 +684,12 @@ void player_update(Player *player, const InputState *input, float dt)
     /* Shooting is done standing on the ground, toward the held direction if
      * any. Jumping cancels it; everything else waits until it ends. An
      * automatic gun keeps firing while the trigger is held. */
-    bool planting = player->plant_time > 0.0f;
+    bool planting = player->plant_time > 0.0f || player->swap_time > 0.0f;
     if (input->pressed[ACTION_RELOAD] && !player->jump.airborne && !planting && shot_reload_now(&player->shot)) {
         player->state = PLAYER_SHOOT;
         animation_play(&player->anim, &ANIM_RELOAD);
     }
+    shot_trigger(&player->shot, input->pressed[ACTION_SHOOT], input->down[ACTION_SHOOT]);
     bool trigger = input->pressed[ACTION_SHOOT] || (player->shot.automatic && input->down[ACTION_SHOOT]);
     if (trigger && !player->jump.airborne && !planting && shot_start(&player->shot)) {
         if (dir != 0)
@@ -566,6 +701,9 @@ void player_update(Player *player, const InputState *input, float dt)
         shot_cancel(&player->shot);
     if (player->shot.active) {
         player->shot_fired = shot_update(&player->shot, weary ? dt * FATIGUE_PACE : dt);
+        /* Firing on with the trigger held: each new turn can face a new way. */
+        if (player->shot.piston && player->shot.active && !player->shot.fired && dir != 0)
+            player->facing = dir > 0 ? FACING_RIGHT : FACING_LEFT;
         if (shot_reloading(&player->shot)) {
             /* A magazine going in: she can walk while it does, slowly (no
              * running). Standing still shows the reload itself. */
@@ -714,10 +852,16 @@ const char *player_state_name(PlayerState state)
     return "?";
 }
 
+int player_sunk_rows(const Player *player)
+{
+    return player->state == PLAYER_CAUGHT || player->jump.airborne
+               ? 0 : (int)lroundf(player->depth * RIVER_DEEP_ROWS);
+}
+
 void player_muzzle(const Player *player, float *x, float *y)
 {
     *x = player->x + (float)player->facing * PLAYER_MUZZLE_DX * SPRITE_SCALE;
-    *y = BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE - player->jump.height;
+    *y = BASELINE - (PLAYER_MUZZLE_DY - (float)player_sunk_rows(player)) * SPRITE_SCALE - player->jump.height;
 }
 
 bool player_reload_animation(const AnimationDef *def)

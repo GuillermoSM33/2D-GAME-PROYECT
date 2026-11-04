@@ -168,7 +168,7 @@ class Audit:
         flat = [name for names in builders.values() for name in names]
         duplicates = [name for name, count in Counter(flat).items() if count != 1]
         self.check(not duplicates, f'overlapping generator outputs: {duplicates}')
-        self.check(len(flat) == 60, f'expected 60 new/reworked effects, found {len(flat)}')
+        self.check(len(flat) == 74, f'expected 74 new/reworked effects, found {len(flat)}')
         self.check(not set(flat) & originals, 'a generator would overwrite a protected original')
         for name in sorted(flat):
             self.wav(name)

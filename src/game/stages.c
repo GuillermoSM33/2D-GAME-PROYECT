@@ -14,7 +14,7 @@
 /* Routes, about 12-20 views long, each with its own things on the road:
  * the sunset ones bottles on fences to shoot and crates, 1-2 bear traps in
  * a group's path; the graveyard coffins that burst open (an ambush) and
- * traps; the night oil lamps over the zombies' way, to shoot down into a
+ * traps; the night oil lamps over the zombies' way, to knock down into a
  * fire; the ghost town all of it. Each teaches one thing more: 1-1 a low
  * barricade, a box of dynamite before the first wall, a wall with a barrel
  * against it; 1-3 the first elite; 1-4 the wagon's charges carried past two

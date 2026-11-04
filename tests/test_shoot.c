@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "config.h"
 #include "game/shoot.h"
 #include "test.h"
@@ -230,6 +232,81 @@ static void test_cut_reload_resumes_and_keeps_rounds(void)
     CHECK(shot.magazine == 0); /* The revolver never runs dry */
 }
 
+static void piston_guns(Shot *shot)
+{
+    shot_reset(shot);
+    shot_set_reload(shot, 0.19f);
+    shot_set_burst(shot, 1, 0.0f, true);
+    shot_set_piston(shot, true);
+}
+
+/* Steps until the next bullet; the trigger held or not. */
+static bool next_bullet(Shot *shot, bool held, float seconds)
+{
+    for (float t = 0.0f; t < seconds && shot->active; t += FIXED_DT) {
+        shot_trigger(shot, false, held);
+        if (shot_update(shot, FIXED_DT))
+            return true;
+    }
+    return false;
+}
+
+static void test_held_trigger_alternates_the_guns(void)
+{
+    Shot shot;
+    piston_guns(&shot);
+    CHECK(shot_start(&shot) && !shot.other_gun);
+    for (int n = 0; n < 6; n++) {
+        CHECK(next_bullet(&shot, true, 1.0f));
+        CHECK(shot.active);
+        CHECK(shot.other_gun == (n % 2 == 1)); /* Never the same gun twice */
+        CHECK(shot_frame(&shot) == PLAYER_SHOOT_FIRE_FRAME);
+    }
+}
+
+static void test_turn_plays_whole_between_shots(void)
+{
+    /* Each gun has come down before the other fires: all 8 frames between bullets. */
+    Shot shot;
+    piston_guns(&shot);
+    shot_start(&shot);
+    CHECK(next_bullet(&shot, true, 1.0f));
+    bool seen[PLAYER_SHOOT_FRAMES] = {false};
+    float took = 0.0f;
+    for (; took < 1.0f; took += FIXED_DT) {
+        shot_trigger(&shot, false, true);
+        if (shot_update(&shot, FIXED_DT))
+            break;
+        seen[shot_frame(&shot)] = true;
+    }
+    CHECK(seen[PLAYER_SHOOT_FRAMES - 1] && seen[0]);
+    CHECK(fabsf(took - PLAYER_SHOOT_FRAMES / PLAYER_PISTON_FPS) < 2.0f * FIXED_DT);
+}
+
+static void test_clicks_during_a_turn_are_kept_and_alternate(void)
+{
+    Shot shot;
+    piston_guns(&shot);
+    shot_start(&shot);
+    CHECK(next_bullet(&shot, false, 1.0f) && !shot.other_gun);
+    CHECK(!shot_start(&shot));
+    shot_trigger(&shot, true, false); /* Clicked during the recoil */
+    CHECK(next_bullet(&shot, false, 1.0f) && shot.other_gun);
+    /* No more clicks: the last turn ends and they rest; the next is the other gun. */
+    while (shot.active)
+        shot_update(&shot, FIXED_DT);
+    CHECK(shot_start(&shot) && !shot.other_gun);
+}
+
+static void test_released_trigger_stops_after_its_turn(void)
+{
+    Shot shot;
+    piston_guns(&shot);
+    shot_start(&shot);
+    CHECK(next_bullet(&shot, true, 1.0f));
+    CHECK(!next_bullet(&shot, false, 2.0f) && !shot.active);
+}
+
 int main(void)
 {
     printf("test_shoot\n");
@@ -245,5 +322,9 @@ int main(void)
     RUN(test_magazine_runs_dry_and_reloads);
     RUN(test_burst_counts_as_one_shot);
     RUN(test_cut_reload_resumes_and_keeps_rounds);
+    RUN(test_held_trigger_alternates_the_guns);
+    RUN(test_turn_plays_whole_between_shots);
+    RUN(test_clicks_during_a_turn_are_kept_and_alternate);
+    RUN(test_released_trigger_stops_after_its_turn);
     return TEST_EXIT();
 }

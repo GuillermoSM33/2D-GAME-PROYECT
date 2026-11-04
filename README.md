@@ -24,7 +24,7 @@ que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus 
 | `A` / `D` (o `←` / `→`) | Caminar |
 | `Shift` + movimiento | Correr |
 | `Espacio`, `W` o `↑` | Saltar |
-| Clic izquierdo | Disparar (mantenido: ráfagas del rifle) |
+| Clic izquierdo | Disparar (mantenido: ráfagas del rifle, las duales siguen turnándose) |
 | `R` | Recargar (cuando el cargador no está lleno; tras una derrota, reintentar) |
 | `Q` o clic derecho | Cambiar de arma (el SWAT), en cualquier momento |
 | `E` | Poner dinamita en un muro alto, sentarse en una banca, o plantar dinamita en el suelo |
@@ -34,7 +34,7 @@ que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus 
 | `K` | SWAT: rifle en ráfagas o tiro a tiro (15 balas) |
 | `F` o clic central | Poder de nivel 3 (cada 15 s): granada del SWAT, disparo de rebote de la vaquera |
 | `B` | Abrir el almanaque durante la partida, también mientras está pausada |
-| `L` | Encender o apagar la linterna durante el nivel; ilumina hacia donde mira en los temas nocturnos |
+| `L` | Encender o apagar la linterna durante el nivel; ilumina hacia donde mira; empieza encendida de noche y de día se ve más tenue |
 | `Esc` | Pausa: Continuar, Reiniciar nivel, Almanaque, Opciones, Controles, Salir al menú |
 | `F11` | Pantalla completa o ventana, en cualquier momento |
 | `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y opciones) |
@@ -53,7 +53,7 @@ experiencia a la derecha, y el arma, las balas y el poder en sus paneles propios
 recarga muestra su progreso; los estados llevan iconos y explicación al pasar el mouse.
 Los números y nombres ajustan su escala al espacio del panel para conservar la lectura.
 Mientras recarga puede caminar a media velocidad.
-`--capturas DIR` guarda 29 pantallas como BMP para revisar el arte sin jugar: menús,
+`--capturas DIR` guarda 31 pantallas como BMP para revisar el arte sin jugar: menús,
 combate, obstáculos, pausa, derrota, clima, farol, linterna y destello de explosión,
 además de las siete páginas completas del catálogo (`23_catalogo_01` a `23_catalogo_07`).
 
@@ -169,10 +169,12 @@ distinta por tema:
 - **Alambre de púas**: no detiene, pero si lo cruza sin cortarlo (por debajo de 70 px) la
   muerde cada 0.8 s: herida, sangrado y cojera. Se corta con 4 balazos o 2 culatazos (o una
   explosión). Al acercarse, el aviso dice qué hacer.
-- **Red** (bajo las hojas): salta del suelo y se cierra alrededor de quien la pisa, que queda
-  colgando y pataleando; ella sale con 3 culatazos a la cuerda (`V`) mientras los zombis la
+- **Red** (bajo las hojas, al pie de un árbol seco): salta del suelo y se cierra alrededor de quien
+  la pisa, que queda colgando de la rama y pataleando; ella sale con 3 culatazos a la cuerda (`V`) mientras los zombis la
   atacan; un zombi cuelga 4 s y cae herido.
-- **Lazo**: el arbolito doblado se endereza de golpe y la levanta de un pie (un cuarto de vuelta
+- Por el camino hay árboles secos y arbustos que son solo paisaje, idénticos a los de estas dos
+  trampas: de lejos no se sabe cuál es cuál.
+- **Lazo** (oculto en un arbusto): el arbolito doblado se endereza de golpe y la levanta de un pie (un cuarto de vuelta
   y queda cabeza abajo); sale con 2 culatazos. Un zombi cuelga 5 s.
 - **Placas de púas**: al pisarlas, 0.35 s después salen púas durante 0.8 s y hieren (con
   sangrado) a quien esté encima; luego se esconden y se rearman. Se evitan saltando.
@@ -195,7 +197,8 @@ distinta por tema:
 - **Trampas para osos**: atrapan 3 s al zombi que las pisa y lo hieren; si las pisa ella, la muerden,
   sangra 5 s (pierde vida cada segundo aunque tenga armadura) y cojea 4 s; deja un rastro de
   sangre y el HUD muestra cuánto le queda de cada cosa. Se pueden saltar.
-- **Faroles de aceite** (noche, pueblo): iluminan; derribados de un disparo dejan el suelo
+- **Faroles de aceite** (noche, pueblo): iluminan; la bala pasa bajo el vidrio, así que se derriban
+  con un culatazo o una explosión, y dejan el suelo
   ardiendo 5 s, que quema a los zombis que pasan (y a ella).
 - **Carreta de provisiones**: una vez por nivel, cargadores llenos, 35 % de vida y dinamita
   según el largo del nivel (1 corto, 2 medio, 3 muy largo).
@@ -259,8 +262,10 @@ Los faroles iluminan desde su altura, las llamas desde el suelo y las explosione
 producen un destello que se apaga. La luz alcanza el terreno y proyecta sombras hacia
 el lado opuesto de cada fuente; los muros y barricadas bloquean su paso.
 
-En los temas nocturnos, la **linterna** parte de la mano y abre un haz hacia donde mira
-el personaje. `L` alterna su encendido; empieza encendida al iniciar un nivel. Las
+La **linterna** va en el arma y abre un haz hacia donde mira
+el personaje: la vaquera la saca del cinturón y la engancha a la pistola; el SWAT enciende la
+que traen su rifle y su escopeta. `L` alterna su encendido (parpadea al prender; con las manos
+ocupadas, como al recargar o dar un culatazo, no alumbra); empieza encendida solo en los temas nocturnos. Las
 fuentes cálidas tienen una intensidad que varía suavemente. Esta iluminación modifica
 la presentación del mundo, sin cambiar daño, colisiones ni visibilidad de la interfaz.
 
@@ -503,11 +508,14 @@ tools/make_terrain.py    Genera el terreno del camino (barricadas, muro, barrile
 tools/make_ui.py         Genera la fuente pixel y el kit de interfaz (tableros, botones, teclas, iconos, armas)
 tools/make_sit.py        Genera las hojas de sentado, de frente (sentarse, descansar, recargar sentada, cabecear)
 tools/make_sun.py        Pinta el sol entero en los cielos de atardecer y pueblo fantasma
+tools/rebuild_cowgirl.py Regenera todas las hojas de la vaquera en orden (empieza por rework_cowgirl y termina en finish_cowgirl)
+tools/finish_cowgirl.py  Cierra el contorno de la vaquera y tapa los huecos de un pixel en todas sus hojas
+tools/make_flashlight.py La linterna de la vaquera: engancharla a la pistola (light.png, light_dual.png) y sobre shoot (flashlight.png); también los turnos de las duales (shoot_dual*.png)
 tools/make_terrain.py    (también el cuervo: sprites/crow/crow.png)
 tools/make_care.py       Beber y vendarse de la vaquera (drink.png, bandage.png) a partir de su hoja de disparo
 tools/make_plant.py      Plantar dinamita (plant.png) de la vaquera y del SWAT, 0.45 s
 tools/make_faint.py      El desmayo de la vaquera y el SWAT (faint.png) a partir de su hoja de caminar
-tools/make_melee.py      El culatazo de la vaquera (melee.png) a partir de su hoja de disparo
+tools/make_melee.py      Las poses del culatazo de la vaquera (las hojas las dibuja make_flashlight.py)
 tools/make_powers.py     Arte de los poderes de nivel 3: las pistolas duales de la vaquera y la granada
 tools/make_zombies.py    Compone prendas editadas sobre el cuerpo nativo y exporta las siete hojas por familia
 tools/make_character_base.py  Genera la base (maniquí) de los personajes y sus guías

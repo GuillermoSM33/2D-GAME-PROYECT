@@ -9,7 +9,7 @@ archivos legacy de `world/`, `player/shot` y `player/reload`. Estos dos últimos
 son exclusivos del cañón de mano de la vaquera. Los únicos anteriores
 reemplazados son `player/drink`, `crow/caw` y `crow/death`.
 
-Los 60 efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
+Los 74 efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
 conservan las colas suaves sin añadir hiss. No se reexportan los originales.
 
 ## Fuentes y montaje

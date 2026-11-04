@@ -19,10 +19,11 @@ static void add_light(Lighting *lighting, WorldLight light, float camera_x)
 }
 
 void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *effects,
-                    const Player *player, bool night, bool flashlight, float camera_x, double time)
+                    const Player *player, bool night, float flashlight, float camera_x, double time)
 {
     memset(lighting, 0, sizeof(*lighting));
     lighting->night = night;
+    lighting->time = time;
     if (terrain) {
         for (int i = 0; i < terrain->count; i++) {
             const Piece *piece = &terrain->items[i];
@@ -71,15 +72,37 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
             add_light(lighting, light, camera_x);
         }
     }
-    if (night && flashlight && player && player_alive(player)) {
-        WorldLight light = {.kind = LIGHT_FLASHLIGHT, .radius = 610.0f, .strength = .88f,
-                            .direction = player->facing};
-        /* A small hand-held light sits alongside the weapon, not at the
-         * character's feet or behind the head. */
-        light.x = player->x + player->facing * 48.0f;
-        light.y = BASELINE - player->jump.height - 130.0f;
+    if (flashlight > 0.0f && player && player_light_ready(player)) {
+        /* It sways a little in the hand, and more with each step. */
+        /* A shot kicks the gun up, and a blow swings it: the lens and the beam go too. */
+        float kick_x, kick_y, kick;
+        player_light_kick(player, &kick_x, &kick_y, &kick);
+        float hum = .97f + .03f * (float)sin(time * 9.0);
+        WorldLight light = {.kind = LIGHT_FLASHLIGHT, .radius = 760.0f, .strength = .95f * flashlight * hum,
+                            .direction = player->facing,
+                            .tilt = .012f * (float)sin(time * 1.6) + kick}; /* Level, along the barrel */
+        /* From the lens on her gun. */
+        light.x = player->x + (float)player->facing * (PLAYER_LIGHT_DX + kick_x) * SPRITE_SCALE;
+        light.y = BASELINE - player->jump.height -
+                  ((player->light_rows > 0.0f ? player->light_rows : PLAYER_LIGHT_DY) -
+                   (float)(player_sunk_rows(player) + player_light_sway(player)) - kick_y) * SPRITE_SCALE;
         add_light(lighting, light, camera_x);
     }
+}
+
+float lighting_flashlight_power(bool on, float since)
+{
+    if (!on)
+        return clamp01(1.0f - since / .1f);
+    if (since < 0.0f) /* Its clip or switch not reached yet */
+        return 0.0f;
+    static const struct { float until, power; } STUTTER[] = {
+        {.05f, .85f}, {.11f, .1f}, {.17f, .7f}, {.23f, .2f}, {.3f, .8f},
+    };
+    for (size_t i = 0; i < sizeof(STUTTER) / sizeof(STUTTER[0]); i++)
+        if (since < STUTTER[i].until)
+            return STUTTER[i].power;
+    return 1.0f;
 }
 
 /* Segment against the interior of an opaque structure. Samples on the
@@ -121,12 +144,13 @@ float lighting_strength_at(const Lighting *lighting, const WorldLight *light, fl
         return 0.0f;
     float angular = 1.0f;
     if (light->kind == LIGHT_FLASHLIGHT) {
-        float forward = dx * light->direction * .958f + dy * .287f;
-        float sideways = fabsf(dy * .958f - dx * light->direction * .287f);
+        float c = cosf(light->tilt), s = sinf(light->tilt);
+        float forward = dx * light->direction * c + dy * s;
+        float sideways = fabsf(dy * c - dx * light->direction * s);
         if (forward <= 0.0f)
             return 0.0f;
-        angular = clamp01(1.0f - sideways / (14.0f + forward * .43f));
-        angular *= angular;
+        angular = clamp01(1.0f - sideways / (14.0f + forward * .3f));
+        angular = sqrtf(angular); /* Even across the cone, soft only at its edge */
     }
     if (blocked(lighting, light->x, light->y, x, y))
         return 0.0f;
@@ -138,7 +162,7 @@ unsigned lighting_color_at(const Lighting *lighting, float x, float y)
 {
     if (!lighting || !lighting->night)
         return 0xffffff;
-    float r = .67f, g = .66f, b = .73f;
+    float r = .58f, g = .57f, b = .67f;
     for (int i = 0; i < lighting->count; i++) {
         const WorldLight *light = &lighting->lights[i];
         float strength = lighting_strength_at(lighting, light, x, y);

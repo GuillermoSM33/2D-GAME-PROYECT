@@ -15,6 +15,7 @@ typedef struct {
     LightKind kind;
     float x, y, radius, strength;
     int direction; /* A flashlight points with its owner; point lights use 0. */
+    float tilt;    /* Its beam, radians below level (a hair: it sways in the hand) */
 } WorldLight;
 
 typedef struct {
@@ -25,6 +26,7 @@ typedef struct {
     WorldLight lights[LIGHTING_MAX];
     int count;
     bool night;
+    double time;
     LightBlock blocks[LIGHTING_MAX];
     int block_count;
 } Lighting;
@@ -36,7 +38,12 @@ typedef struct {
 /* Collect visible, live sources at their actual height. No renderer, RNG,
  * audio or game-state mutation: lighting is purely presentation. */
 void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *effects,
-                    const Player *player, bool night, bool flashlight, float camera_x, double time);
+                    const Player *player, bool night, float flashlight, float camera_x, double time);
+
+/* How bright the flashlight is (0..1). On, since is seconds after it clicked on
+ * (below 0: not yet): it stutters a moment before it holds. Off, seconds since
+ * the switch was flipped: it dies quickly. */
+float lighting_flashlight_power(bool on, float since);
 
 float lighting_strength_at(const Lighting *lighting, const WorldLight *light, float x, float y);
 unsigned lighting_color_at(const Lighting *lighting, float x, float y);

@@ -62,7 +62,10 @@ static void test_road_is_laid_out(void)
         Progress progress;
         setup(&run, &player, &progress, s, true);
         CHECK(run.zombie_count == STAGES[s].zombies);
-        CHECK_NEAR(run.goal_x, player.x + STAGES[s].length, 1e-3f);
+        /* Its length, and a little more where the road made room */
+        CHECK(run.goal_x >= player.x + STAGES[s].length && run.goal_x <= player.x + STAGES[s].length * 1.35f);
+        CHECK_NEAR(run.goal_x - player.x, run_road_length(s), 1e-2f);
+        CHECK(player.x + run_road_length(s) < WORLD_WIDTH - VIEW_WIDTH);
         CHECK_NEAR(terrain_goal_x(&run.terrain), run.goal_x, 1e-3f);
         for (int k = 0; k < run.zombie_count; k++) {
             const Zombie *z = &run.zombies[k];
@@ -565,6 +568,186 @@ static void test_shut_in_stay_hidden(void)
     CHECK(!run.zombies[1].awake && run.zombies[1].hidden);
 }
 
+static void test_a_bullet_wakes_a_sleeping_group(void)
+{
+    /* Too far to wake by walking up, but in range of her gun: the bullet hits
+     * one, and all its group gets up; the next group sleeps on. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    Effects effects;
+    effects_clear(&effects);
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    int k = -1;
+    for (int i = 0; i + 1 < run.zombie_count && k < 0; i++)
+        k = run.group_of[i] == run.group_of[i + 1] && run.ambush_x[i] <= 0.0f ? i : -1;
+    CHECK(k >= 0);
+    if (k < 0)
+        return;
+    Zombie *z = &run.zombies[k];
+    float health = z->health;
+    CHECK(!z->awake && !run.zombies[k + 1].awake && z->x - player.x > ROUTE_WAKE_DISTANCE);
+    Bullets bullets;
+    bullets_clear(&bullets);
+    float chest = (float)BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE;
+    bullets_spawn(&bullets, z->x - 40.0f, z->x - 20.0f, chest, 1);
+    bullets_update(&bullets, FIXED_DT, z->x - 500.0f);
+    CHECK(run_bullets(&run, &bullets, &effects) == 1);
+    CHECK(z->health < health && bullets_active_count(&bullets) == 0);
+    CHECK(z->awake && run.zombies[k + 1].awake);
+    for (int i = 0; i < run.zombie_count; i++)
+        if (run.group_of[i] != run.group_of[k])
+            CHECK(!run.zombies[i].awake);
+    /* And one killed by that first shot still counts. */
+    int before = run.defeated;
+    z->health = 1.0f;
+    bullets_clear(&bullets);
+    bullets_spawn(&bullets, z->x - 40.0f, z->x - 20.0f, chest, 1);
+    bullets_update(&bullets, FIXED_DT, z->x - 500.0f);
+    run_bullets(&run, &bullets, &effects);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(!zombie_alive(z) && run.defeated == before + 1);
+}
+
+static void test_a_blast_wakes_a_sleeping_group(void)
+{
+    /* A barrel going up beside a sleeping group: it hurts them and they wake. */
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    int k = -1;
+    for (int i = 0; i + 1 < run.zombie_count && k < 0; i++)
+        k = run.group_of[i] == run.group_of[i + 1] && run.ambush_x[i] <= 0.0f ? i : -1;
+    CHECK(k >= 0);
+    if (k < 0)
+        return;
+    for (int i = 0; i < k; i++)
+        run.zombies[i].health = 0, run.zombies[i].state = ZOMBIE_DEAD;
+    Zombie *z = &run.zombies[k];
+    float health = z->health;
+    CHECK(z->x - player.x > ROUTE_WAKE_DISTANCE && !z->awake);
+    Piece *barrel = terrain_add(&run.terrain, TERRAIN_BARREL, z->x);
+    barrel->blowing = true;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(z->awake && run.zombies[k + 1].awake && z->health < health);
+}
+
+static void test_scenery_looks_like_traps_but_is_harmless(void)
+{
+    /* Trees and shrubs on every stage, drawn from the traps' own sheets. */
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        StageRun run;
+        Player player;
+        Progress progress;
+        setup(&run, &player, &progress, stage, true);
+        int decoys = 0;
+        for (int i = 0; i < run.terrain.count; i++) {
+            const Piece *p = &run.terrain.items[i];
+            if (p->kind != TERRAIN_DEAD_TREE && p->kind != TERRAIN_SHRUB)
+                continue;
+            decoys++;
+            TerrainKind trap = p->kind == TERRAIN_DEAD_TREE ? TERRAIN_NET : TERRAIN_SNARE;
+            CHECK(terrain_sheet(p->kind) == terrain_sheet(trap) && terrain_frame(p) == 0);
+        }
+        CHECK(decoys >= 3 && run.terrain.count < TERRAIN_MAX);
+    }
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    run.zombie_count = 0;
+    terrain_add(&run.terrain, TERRAIN_DEAD_TREE, player.x);
+    terrain_add(&run.terrain, TERRAIN_SHRUB, player.x + 30.0f);
+    run_update(&run, &player, &progress, FIXED_DT);
+    run_place_player(&run, &player);
+    CHECK(player.state != PLAYER_CAUGHT && player.max_x > player.x + 500.0f);
+}
+
+static void test_traps_keep_clear_of_big_things(void)
+{
+    /* No wire up against the wagon, nor any trap against a wall or a bench. */
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        StageRun run;
+        Player player;
+        Progress progress;
+        setup(&run, &player, &progress, stage, true);
+        const Terrain *t = &run.terrain;
+        for (int a = 0; a < t->count; a++) {
+            TerrainKind ka = t->items[a].kind;
+            if (ka != TERRAIN_WIRE && ka != TERRAIN_TRAP && ka != TERRAIN_SPIKES && ka != TERRAIN_NET && ka != TERRAIN_SNARE)
+                continue;
+            for (int b = 0; b < t->count; b++) {
+                TerrainKind kb = t->items[b].kind;
+                if (kb != TERRAIN_SUPPLY && kb != TERRAIN_BENCH && kb != TERRAIN_WALL && kb != TERRAIN_BARRICADE)
+                    continue;
+                CHECK(fabsf(t->items[a].x - t->items[b].x) >= terrain_half_width(ka) + terrain_half_width(kb) + HAZARD_ROOM - 1.0f);
+            }
+            CHECK(t->items[a].x < run.goal_x - terrain_half_width(ka));
+        }
+    }
+}
+
+static void test_no_zombie_starts_on_a_trap(void)
+{
+    /* Nor a sign on its trap. */
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        StageRun run;
+        Player player;
+        Progress progress;
+        setup(&run, &player, &progress, stage, true);
+        for (int a = 0; a < run.terrain.count; a++) {
+            const Piece *sign = &run.terrain.items[a];
+            if (sign->kind != TERRAIN_SIGN)
+                continue;
+            for (int b = 0; b < run.terrain.count; b++) {
+                const Piece *trap = &run.terrain.items[b];
+                if ((int)trap->kind == sign->variant)
+                    CHECK(fabsf(trap->x - sign->x) >= terrain_half_width(trap->kind) + terrain_half_width(TERRAIN_SIGN));
+            }
+        }
+        for (int a = 0; a < run.terrain.count; a++) {
+            TerrainKind kind = run.terrain.items[a].kind;
+            if (kind != TERRAIN_WIRE && kind != TERRAIN_TRAP && kind != TERRAIN_SPIKES && kind != TERRAIN_NET && kind != TERRAIN_SNARE)
+                continue;
+            for (int k = 0; k < run.zombie_count; k++)
+                if (run.ambush_x[k] <= 0.0f)
+                    CHECK(fabsf(run.zombies[k].x - run.terrain.items[a].x) >=
+                          terrain_half_width(kind) + zombie_body_half_width(&run.zombies[k]));
+        }
+    }
+}
+
+static void test_wire_bites_zombies_too(void)
+{
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    run.zombie_count = 2;
+    Zombie *in = &run.zombies[0], *out = &run.zombies[1];
+    float x = player.x + 700.0f;
+    zombie_spawn(in, &ZOMBIE_RIOT, x);
+    zombie_spawn(out, &ZOMBIE_RIOT, x + 900.0f);
+    float a = in->health + in->armor, b = out->health + out->armor;
+    terrain_add(&run.terrain, TERRAIN_WIRE, x);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(in->health + in->armor < a && out->health + out->armor == b);
+    float once = in->health + in->armor; /* Not every tick: every so often */
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(in->health + in->armor == once);
+    in->x = x;
+    for (float t = 0.0f; t < WIRE_BITE_EVERY + 0.1f; t += FIXED_DT) {
+        in->x = x;
+        run_update(&run, &player, &progress, FIXED_DT);
+    }
+    CHECK(in->health + in->armor < once);
+}
+
 static void test_ambush_walks_in(void)
 {
     /* 1-1's ambush at its first wall: unseen until she gets there, then it
@@ -588,6 +771,51 @@ static void test_ambush_walks_in(void)
     CHECK(run.ambushed && z->awake && !z->hidden);
     CHECK(fabsf(z->x - player.x) >= AMBUSH_BEHIND - 1.0f);
     CHECK(run.wall_x >= player.x);
+}
+
+static void test_ambush_lets_her_reach_the_wall_ahead(void)
+{
+    /* Every ambush before a wall, on every stage: while it holds her she can
+     * walk up to the wall and light a charge on it, and blowing it neither
+     * throws her back nor lets her past before the ambush is beaten. */
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        int checked = 0;
+        for (int k = 0; k < RUN_MAX_ZOMBIES; k++) {
+            StageRun run;
+            Player player;
+            Progress progress;
+            setup(&run, &player, &progress, stage, true);
+            if (k >= run.zombie_count)
+                break;
+            if (run.ambush_x[k] <= 0.0f || (k > 0 && run.group_of[k - 1] == run.group_of[k]))
+                continue;
+            Piece *wall = NULL;
+            for (int i = 0; i < run.terrain.count; i++) {
+                Piece *p = &run.terrain.items[i];
+                if (p->kind == TERRAIN_WALL && p->x > run.ambush_x[k] && (wall == NULL || p->x < wall->x))
+                    wall = p;
+            }
+            CHECK(wall != NULL);
+            if (wall == NULL)
+                continue;
+            for (int i = 0; i < k; i++) /* The groups before are beaten */
+                run.zombies[i].health = 0, run.zombies[i].state = ZOMBIE_DEAD;
+            player.x = run.ambush_x[k] + 1.0f;
+            run_update(&run, &player, &progress, FIXED_DT);
+            CHECK(run.ambushed && run.wall_x > 0.0f);
+            run_place_player(&run, &player);
+            player.x = player.max_x; /* As far as she may go */
+            CHECK(terrain_wall_near(&run.terrain, player.x));
+            float at_the_wall = player.x;
+            wall->spent = true;
+            run_update(&run, &player, &progress, FIXED_DT);
+            run_place_player(&run, &player);
+            CHECK(run.wall_x > 0.0f && player.max_x >= at_the_wall && player.max_x <= wall->x + 1.0f);
+            checked++;
+        }
+        /* 1-1 to 1-5 all have an ambush */
+        CHECK(checked > 0);
+    }
 }
 
 static void test_charge_on_the_road(void)
@@ -1159,7 +1387,9 @@ static void test_lightning_warns_then_strikes_and_burns(void)
     int guard = 0;
     while (run.bolt_warn <= 0.0f && guard++ < (int)(30.0f / FIXED_DT))
         run_update(&run, &player, &progress, FIXED_DT);
-    CHECK(run.bolt_warn > 0.0f && fabsf(run.bolt_x - player.x) <= LIGHTNING_NEAR);
+    CHECK(run.bolt_warn > 0.0f && fabsf(run.bolt_x - player.x) <= LIGHTNING_NEAR &&
+          fabsf(run.bolt_x - player.x) >= LIGHTNING_FAR);
+    CHECK(LIGHTNING_FAR - LIGHTNING_RADIUS - PLAYER_BODY_HALF_WIDTH > 0.0f); /* Standing still, it misses her */
     player.x = run.bolt_x;
     int health = player.health;
     float warned = 0.0f;
@@ -1233,7 +1463,14 @@ int main(void)
     RUN(test_ricochet_glances_on);
     RUN(test_ricochet_breaks_through_crates);
     RUN(test_shut_in_stay_hidden);
+    RUN(test_a_bullet_wakes_a_sleeping_group);
+    RUN(test_a_blast_wakes_a_sleeping_group);
+    RUN(test_scenery_looks_like_traps_but_is_harmless);
+    RUN(test_traps_keep_clear_of_big_things);
+    RUN(test_wire_bites_zombies_too);
+    RUN(test_no_zombie_starts_on_a_trap);
     RUN(test_ambush_walks_in);
+    RUN(test_ambush_lets_her_reach_the_wall_ahead);
     RUN(test_charge_on_the_road);
     RUN(test_blow_knocks_back_and_cuts_wire);
     RUN(test_blow_waits_and_hurts_less_than_a_shot);

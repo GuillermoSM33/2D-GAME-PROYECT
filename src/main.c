@@ -154,11 +154,25 @@ static int verify_characters(void)
             snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id,
                      def->melee_sheet ? def->melee_sheet : "melee");
             failures += !verify_image(name, PLAYER_MELEE_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+            if (def->light_sheet) {
+                snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->light_sheet);
+                failures += !verify_image(name, PLAYER_LIGHT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+                snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->light_walk_sheet);
+                failures += !verify_image(name, (PLAYER_WALK_FRAMES + PLAYER_LIGHT_BREATHS) * PLAYER_SHOOT_FRAME_W, shoot->height);
+            }
         }
         {
             char name[96]; /* Its faint (tools/make_faint.py), its drink and bandage */
             snprintf(name, sizeof(name), "sprites/characters/%s/faint", CHARACTERS[c].id);
             failures += !verify_image(name, PLAYER_FAINT_FRAMES * PLAYER_FAINT_FRAME_W, PLAYER_WALK_FRAME_H);
+            if (CHARACTERS[c].power == POWER_DUAL_PISTOLS) { /* Its second pistol, out and away */
+                snprintf(name, sizeof(name), "sprites/characters/%s/swap", CHARACTERS[c].id);
+                failures += !verify_image(name, PLAYER_SWAP_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+                snprintf(name, sizeof(name), "sprites/characters/%s/shoot_dual_b", CHARACTERS[c].id);
+                failures += !verify_image(name, PLAYER_SHOOT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+                snprintf(name, sizeof(name), "sprites/characters/%s/swap_lit", CHARACTERS[c].id);
+                failures += !verify_image(name, PLAYER_SWAP_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+            }
             const char *care[] = {"drink", "bandage", "plant"};
             for (int k = 0; k < 3; k++) {
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, care[k]);
@@ -312,7 +326,14 @@ static int verify_assets(void)
                            "sounds/world/hit_wire", "sounds/world/hit_sand", "sounds/world/wire",
                            "sounds/world/rope", "sounds/world/trap_escape", "sounds/world/ambush",
                            "sounds/world/grenade_explosion", "sounds/world/dynamite_explosion",
-                           "sounds/world/footstep", "sounds/world/run_step", "sounds/world/sit",
+                           "sounds/world/footstep", "sounds/world/footstep_2", "sounds/world/footstep_3",
+                           "sounds/world/footstep_4", "sounds/world/run_step", "sounds/world/run_step_2",
+                           "sounds/world/run_step_3", "sounds/world/run_step_4",
+                           "sounds/world/footstep_water", "sounds/world/footstep_water_2",
+                           "sounds/world/footstep_water_3", "sounds/world/footstep_water_4",
+                           "sounds/world/run_step_water", "sounds/world/run_step_water_2",
+                           "sounds/world/run_step_water_3", "sounds/world/run_step_water_4",
+                           "sounds/world/sit",
                            "sounds/world/stand", "sounds/world/chest", "sounds/world/level_up",
                            "sounds/world/victory", "sounds/weather/wind", "sounds/weather/rain",
                            "sounds/weather/thunder", "sounds/ui/move", "sounds/ui/confirm",
@@ -498,6 +519,18 @@ static void play_sound(const char *name)
         audio_play_in(name, SOUND_PLAYER);
 }
 
+/* Which take a step uses: walking or running, on dry ground or in water. */
+static const char *footstep_sound(bool running, bool water, unsigned step)
+{
+    static const char *const TAKES[2][2][4] = {
+        {{"world/footstep", "world/footstep_2", "world/footstep_3", "world/footstep_4"},
+         {"world/footstep_water", "world/footstep_water_2", "world/footstep_water_3", "world/footstep_water_4"}},
+        {{"world/run_step", "world/run_step_2", "world/run_step_3", "world/run_step_4"},
+         {"world/run_step_water", "world/run_step_water_2", "world/run_step_water_3", "world/run_step_water_4"}},
+    };
+    return TAKES[running][water][step % 4];
+}
+
 /* The options screen, while open. Returns false once it is left. A changed
  * volume plays a sample of what it controls. */
 static bool volume_step(const InputState *input)
@@ -608,6 +641,7 @@ typedef struct {
     int weapon_slot; /* Which of the character's guns is in hand */
     bool single_fire; /* K: guns with a single mode fire one round per click */
     WeaponId guns[CHARACTER_MAX_WEAPONS]; /* Its guns at its level (a power may change one) */
+    bool duals_out;  /* Its power's second pistol in hand (Q takes it out and away) */
     float power_cooldown; /* Seconds until F works again */
     bool ricochet_armed;  /* The next shot's bullets glance on to a second target */
     int rounds[CHARACTER_MAX_WEAPONS]; /* Shots left in each gun's magazine while put away */
@@ -621,12 +655,12 @@ typedef struct {
     float prev_zombie_x[RUN_MAX_ZOMBIES]; /* Before the last step, to draw in between */
     float smoke_timer; /* Seconds until fires puff smoke again */
     Crows crows;
-    Bats bats; /* At night */
+    Bats bats; /* At night, along the road */
     float faint_timer; /* Seconds since she fainted: the stage starts over at FAINT_RESTART */
     WeatherState weather;
     Hallucination visions; /* What her thirst makes her see */
     float splash_timer; /* Seconds until the walkers in water splash again */
-    float footstep_distance; /* Actual ground travel, so blocked feet stay quiet */
+    int footstep_phase;       /* Half of the walk cycle her feet are on, -1 when not walking */
     unsigned footstep_count;  /* Steps taken: left and right feet sound apart */
     float thunder_wait; /* Delay between lightning and its thunder; -1 = none */
     /* Her trail of blood while she bleeds: drops on the road drying away. */
@@ -641,6 +675,7 @@ typedef struct {
     PauseView pause_view;
     bool request_almanac;
     bool flashlight;
+    float flashlight_since; /* Seconds since its switch was flipped */
 } StagePlay;
 
 static const WeaponDef *weapon_in_hand(const StagePlay *play)
@@ -654,6 +689,8 @@ static bool set_guns(StagePlay *play, int level)
     WeaponId before = play->guns[play->weapon_slot];
     for (int w = 0; w < play->character->weapon_count; w++)
         play->guns[w] = character_weapon(play->character, w, level);
+    if (play->character->power == POWER_DUAL_PISTOLS)
+        play->guns[0] = play->duals_out ? play->character->power_weapon : play->character->weapons[0];
     return play->guns[play->weapon_slot] != before;
 }
 
@@ -668,6 +705,7 @@ static void equip_weapon(StagePlay *play)
 {
     const WeaponDef *w = weapon_in_hand(play);
     Shot *shot = &play->player.shot;
+    shot_set_piston(shot, w->piston);
     if (single_fire(play)) {
         shot_set_reload(shot, w->single_reload);
         shot_set_burst(shot, 1, 0.0f, false);
@@ -712,6 +750,7 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     play->single_fire = false;
     play->power_cooldown = 0.0f;
     play->ricochet_armed = false;
+    play->duals_out = progress->level >= POWER_LEVEL;
     for (int d = 0; d < BLOOD_DROPS; d++)
         play->blood_age[d] = BLOOD_LIFE; /* None yet */
     play->blood_next = 0;
@@ -720,7 +759,8 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     play->progress_at_start = *progress;
     play->paused = false;
     play->request_almanac = false;
-    play->flashlight = true;
+    play->flashlight = STAGES[index].theme->night; /* On by night; L works by day too */
+    play->flashlight_since = 10.0f; /* Already on, no stutter */
     almanac_encounter_start(&play->encounter);
     player_init(&play->player);
     player_set_stats(&play->player, progress->level, progress_max_health(progress),
@@ -734,8 +774,8 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     hud_clear_popups();
     world_init(&play->world, STAGES[index].theme);
     run_start(&play->run, index, play->player.x, character_drops_chests(character));
-    crows_start(&play->crows, index, play->player.x, play->run.stage->length);
-    bats_start(&play->bats, index);
+    crows_start(&play->crows, index, play->player.x, play->run.goal_x - play->player.x);
+    bats_start(&play->bats, index, play->player.x, play->run.goal_x - play->player.x, play->run.stage->theme->night);
     weather_start(&play->weather, play->run.stage->weather, camera_left(play->player.x));
     float river_xs[8];
     int rivers = 0;
@@ -745,7 +785,7 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     }
     scene_set_rivers(river_xs, rivers, terrain_half_width(TERRAIN_RIVER));
     play->splash_timer = 0.0f;
-    play->footstep_distance = 0.0f;
+    play->footstep_phase = -1;
     play->thunder_wait = -1.0f;
     play->faint_timer = 0.0f;
     hallucination_clear(&play->visions);
@@ -777,6 +817,10 @@ static void fire_weapon(StagePlay *play, const Progress *progress)
     const Player *player = &play->player;
     float mx, my;
     player_muzzle(player, &mx, &my);
+    if (player->shot.other_gun && w->shoot_other_sheet) { /* Her far gun is nearer and lower than the near one */
+        mx -= (float)player->facing * PLAYER_FAR_GUN_BACK * SPRITE_SCALE;
+        my += (play->flashlight && w->shoot_other_lit_sheet ? PLAYER_LIT_FAR_GUN_ROWS : PLAYER_FAR_GUN_ROWS) * SPRITE_SCALE;
+    }
     BulletSpec spec = {progress_damage(progress) * w->damage_mult, w->speed, w->range,
                        w->armor_share, w->tint, 0.0f, false};
     if (play->ricochet_armed) { /* F: these glance on to a second target */
@@ -861,6 +905,31 @@ static void swap_weapon(StagePlay *play)
     play_sound("weapons/switch");
     const WeaponDef *w = weapon_in_hand(play);
     hud_popup(w->name, COLOR_HUD_PRIMARY, play->player.x,
+              BASELINE - PLAYER_HEAD_HEIGHT * SPRITE_SCALE - BADGE_H * BADGE_SCALE - 34, false);
+}
+
+static bool can_swap_duals(const StagePlay *play, const Progress *progress)
+{
+    return play->character->power == POWER_DUAL_PISTOLS && (DUALS_FROM_ANY_LEVEL || progress->level >= POWER_LEVEL);
+}
+
+/* Q with the duals in reach: the second pistol out of the belt, or back in it. */
+static void swap_duals(StagePlay *play, const Progress *progress)
+{
+    Player *player = &play->player;
+    if (!can_swap_duals(play, progress) || !player_alive(player) || player->jump.airborne ||
+        player->state == PLAYER_SIT || player->state == PLAYER_CAUGHT || player->swap_time > 0.0f)
+        return;
+    const WeaponDef *before = weapon_in_hand(play);
+    audio_stop(before->cycle_sound);
+    if (player->shot.active)
+        shot_cancel(&player->shot);
+    play->duals_out = !play->duals_out;
+    set_guns(play, progress->level);
+    equip_weapon(play);
+    player_swap(player, !play->duals_out);
+    play_sound("weapons/switch");
+    hud_popup(weapon_in_hand(play)->name, COLOR_HUD_PRIMARY, player->x,
               BASELINE - PLAYER_HEAD_HEIGHT * SPRITE_SCALE - BADGE_H * BADGE_SCALE - 34, false);
 }
 
@@ -994,8 +1063,10 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
     }
     if (input->pressed[ACTION_LIGHT]) {
         play->flashlight = !play->flashlight;
+        play->flashlight_since = 0.0f;
         audio_play("ui/confirm");
     }
+    play->flashlight_since += FIXED_DT;
     almanac_observe(&profile->almanac, &play->encounter, play->run.zombies,
                     play->run.zombie_count, camera_left(player->x), VIEW_WIDTH);
     bool cleared = play->run.phase == RUN_CLEARED;
@@ -1023,8 +1094,10 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
     float previous_sit_reload = player->sit_gun_time;
     float previous_drink = player->drink_time;
     float previous_bandage = player->bandage;
-    if (input->pressed[ACTION_SWAP])
+    if (input->pressed[ACTION_SWAP]) {
         swap_weapon(play);
+        swap_duals(play, progress);
+    }
     if (input->pressed[ACTION_FIRE_MODE])
         toggle_fire_mode(play);
     /* E: a charge on the wall she is at; a seat on the bench there; else a
@@ -1117,8 +1190,10 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         play_sound("world/level_up");
         player_set_stats(player, progress->level, progress_max_health(progress),
                          character_armor(play->character, progress->armor_level), false);
+        if (progress->level - run->levels_gained < POWER_LEVEL && progress->level >= POWER_LEVEL)
+            play->duals_out = true; /* Its power's gun, from now on */
         if (set_guns(play, progress->level))
-            equip_weapon(play); /* Its power's gun, from now on */
+            equip_weapon(play);
         if (progress->level - run->levels_gained < POWER_LEVEL && progress->level >= POWER_LEVEL &&
             play->character->power_name) {
             int above = BASELINE - PLAYER_HEAD_HEIGHT * SPRITE_SCALE - BADGE_H * BADGE_SCALE - 110;
@@ -1143,7 +1218,7 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
     bool moving = player->state == PLAYER_WALK || player->state == PLAYER_RUN ||
                   player->state == PLAYER_JUMP;
     crows_update(&play->crows, player->x, moving, FIXED_DT);
-    bats_update(&play->bats, play->run.stage->theme->night, camera_left(player->x), FIXED_DT);
+    bats_update(&play->bats, player->x, FIXED_DT);
     if (play->crows.took_off > 0)
         play_sound("crow/caw");
     if (run->bolt_struck) { /* Right overhead: light and thunder at once */
@@ -1268,24 +1343,31 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         }
         if (was_airborne && !player->jump.airborne && player->state != PLAYER_CAUGHT)
             play_sound("player/land");
-        if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && !player->jump.airborne) {
-            play->footstep_distance += fabsf(player->x - previous_x);
-            float stride = player->state == PLAYER_RUN ? 68.0f : 48.0f;
-            if (play->footstep_distance >= stride) {
+        /* While reloading on the move, her legs are the ones walking. */
+        const Animation *feet = player->reload_walk ? &player->legs : &player->anim;
+        if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && !player->jump.airborne &&
+            feet->def != NULL && feet->def->frame_w == PLAYER_WALK_FRAME_W) {
+            /* A foot lands on frames 0 and 4 of the walk, so the steps keep
+             * time with the legs whatever slows them (a river, the wind). */
+            int phase = (feet->frame - feet->def->first_frame) / (PLAYER_WALK_FRAMES / 2);
+            if (play->footstep_phase >= 0 && phase != play->footstep_phase && player->x != previous_x) {
                 /* Under everything else, and never twice the same: one foot
                  * lands a little harder than the other, and now and then a
-                 * step is lighter, as on uneven dirt. */
-                play->footstep_distance = fmodf(play->footstep_distance, stride);
+                 * step is lighter, as on uneven dirt. Feet stuck against
+                 * something stay quiet. */
+                bool running = player->state == PLAYER_RUN;
                 play->footstep_count++;
-                float gain = player->state == PLAYER_RUN ? FOOTSTEP_RUN_GAIN : FOOTSTEP_GAIN;
+                float gain = running ? FOOTSTEP_RUN_GAIN : FOOTSTEP_GAIN;
                 gain *= play->footstep_count % 2 ? 1.0f : 0.8f;
                 if (play->footstep_count % 5 == 3)
                     gain *= 0.75f;
-                audio_play_in_gain(player->state == PLAYER_RUN ? "world/run_step" : "world/footstep",
+                audio_play_in_gain(footstep_sound(running, terrain_water_at(&run->terrain, player->x),
+                                                  play->footstep_count),
                                    SOUND_PLAYER, gain);
             }
+            play->footstep_phase = phase;
         } else {
-            play->footstep_distance = 0.0f;
+            play->footstep_phase = -1;
         }
     }
     if (run->healed > 0) { /* A green aura and a + off her head */
@@ -1529,7 +1611,7 @@ static void draw_lightning(SDL_Renderer *renderer, const StageRun *run, float ca
     }
 }
 
-/* The bats: flitting across, or shot down. */
+/* The bats: flitting, flying off, or shot down. */
 static void draw_bats(SDL_Renderer *renderer, const Bats *bats, float camera_x)
 {
     SDL_Texture *sheet = assets_texture("sprites/bat/bat");
@@ -1574,6 +1656,11 @@ static void draw_stage(Platform *platform, StagePlay *play, const CharacterSkin 
                        float prev_jump)
 {
     Player player_view = play->player;
+    player_view.light_on = play->flashlight;
+    player_view.light_since = play->flashlight_since;
+    player_view.light_time = weapon_in_hand(play)->light_time;
+    player_view.light_rows = weapon_in_hand(play)->light_rows;
+    player_view.light_swings = weapon_in_hand(play)->melee_lit_sheet != NULL;
     player_view.x = interpolate(prev_player_x, play->player.x, alpha);
     player_view.jump.height = interpolate(prev_jump, play->player.jump.height, alpha);
     static Zombie zombie_view[RUN_MAX_ZOMBIES];
@@ -1588,7 +1675,11 @@ static void draw_stage(Platform *platform, StagePlay *play, const CharacterSkin 
     world_stream(&play->world, camera_x);
     begin_view(platform->renderer, play->world.theme);
     bool separated_light = false;
-    if (play->world.theme->night) {
+    float flashlight_time = weapon_in_hand(play)->light_time > 0.0f ? weapon_in_hand(play)->light_time : 1.0f;
+    float flashlight = lighting_flashlight_power(play->flashlight, play->flashlight
+                                                     ? play->flashlight_since - flashlight_time * PLAYER_LIGHT_CLICK
+                                                     : play->flashlight_since);
+    if (play->world.theme->night || flashlight > 0.0f) { /* What it lights apart from the far land */
         scene_draw_distant(platform->renderer, &play->world, camera_x);
         separated_light = scene_begin_foreground(platform->renderer);
         scene_draw_near(platform->renderer, &play->world, camera_x, platform_time());
@@ -1628,7 +1719,7 @@ static void draw_stage(Platform *platform, StagePlay *play, const CharacterSkin 
     smoke_render(platform->renderer, &play->smoke, camera_x);
     Lighting lighting;
     lighting_build(&lighting, &play->run.terrain, &play->effects, &player_view,
-                    play->world.theme->night, play->flashlight, camera_x, platform_time());
+                    play->world.theme->night, flashlight, camera_x, platform_time());
     if (separated_light)
         terrain_render_surface_lights(platform->renderer, &lighting, &player_view, zombie_view, zombie_count, camera_x);
     else
@@ -1652,8 +1743,9 @@ static void draw_stage(Platform *platform, StagePlay *play, const CharacterSkin 
     HudWeapon gun = {
         .id = play->guns[play->weapon_slot], .name = gun_name, .rounds = play->player.shot.rounds,
         .magazine = play->player.shot.magazine, .reloading = shot_reloading(&play->player.shot),
-        .can_swap = c->weapon_count > 1,
-        .other_id = play->guns[(play->weapon_slot + 1) % c->weapon_count],
+        .can_swap = c->weapon_count > 1 || can_swap_duals(play, progress),
+        .other_id = c->weapon_count > 1 ? play->guns[(play->weapon_slot + 1) % c->weapon_count]
+                    : play->duals_out ? c->weapons[0] : c->power_weapon,
         .power = progress->level >= POWER_LEVEL ? (int)c->power : POWER_NONE,
         .power_wait = play->power_cooldown,
     };
@@ -1907,9 +1999,14 @@ static void capture_screens(Platform *platform, const char *dir, CharacterSkin *
     terrain_add(&play.run.terrain, TERRAIN_BARRICADE, play.player.x + 260.0f);
     terrain_add(&play.run.terrain, TERRAIN_SNARE, play.player.x + 560.0f);
     terrain_add(&play.run.terrain, TERRAIN_NET, play.player.x + 800.0f);
+    terrain_add(&play.run.terrain, TERRAIN_SPIKES, play.player.x - 240.0f);
     weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
     draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
     save_capture(r, dir, "24_obstaculos");
+    Piece *wire = terrain_add(&play.run.terrain, TERRAIN_WIRE, play.player.x + 130.0f);
+    draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "24_alambre");
+    wire->spent = true;
     play.player.x = play.run.terrain.items[1].x;
     idle_steps(&play, &profiles[0], &input, 90);
     draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x,
@@ -1922,6 +2019,11 @@ static void capture_screens(Platform *platform, const char *dir, CharacterSkin *
     draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x,
                play.player.jump.height);
     save_capture(r, dir, "26_red");
+    play.player.catch_shake = CATCH_SHAKE_TIME * 0.5f; /* Mid-swing at the ropes */
+    draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x,
+               play.player.jump.height);
+    save_capture(r, dir, "26_red_golpe");
+    play.player.catch_shake = 0.0f;
 
     /* The road's props at their size beside her: the bottles' table, a
      * crate, both benches with a campfire, a lamp and a coffin. */
@@ -1954,6 +2056,11 @@ static void capture_screens(Platform *platform, const char *dir, CharacterSkin *
     idle_steps(&play, &profiles[0], &input, 4);
     draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
     save_capture(r, dir, "28_rio");
+    play.flashlight = true; /* Her gun and its light sunk with her */
+    play.flashlight_since = 10.0f;
+    draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "28_rio_linterna");
+    play.flashlight = false;
 
     /* Every shipped identity at its real gallery size. This fixture does not
      * reveal entries in the player's profile or alter campaign encounters. */
@@ -1968,6 +2075,100 @@ static void capture_screens(Platform *platform, const char *dir, CharacterSkin *
         almanac_render(r, &review_book, &review_view, .45f);
         snprintf(name, sizeof(name), "23_catalogo_%02d", page + 1);
         save_capture(r, dir, name);
+    }
+
+    /* By day, on the things in its way. */
+    start_stage(&play, 1, &CHARACTERS[0], &profiles[0].progress);
+    terrain_clear(&play.run.terrain);
+    play.run.zombie_count = 1;
+    zombie_spawn(&play.run.zombies[0], &ZOMBIE_RIOT, play.player.x + 420.0f);
+    play.prev_zombie_x[0] = play.run.zombies[0].x;
+    terrain_add(&play.run.terrain, TERRAIN_CRATE, play.player.x + 220.0f);
+    weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+    play.flashlight = true;
+    play.flashlight_since = 10.0f;
+    draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "29_linterna_de_dia");
+
+    /* The flashlight: each one turning it on, then lit and walking. */
+    for (int c = 0; c < 2; c++) {
+        static const float MOMENTS[] = {.5f, 1.1f, 1.5f, 1.9f};
+        start_stage(&play, 3, &CHARACTERS[c], &profiles[c].progress);
+        terrain_clear(&play.run.terrain);
+        play.run.zombie_count = 0;
+        weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+        char name[64];
+        for (int m = 0; m < 4; m++) {
+            play.flashlight_since = MOMENTS[m];
+            draw_stage(platform, &play, &skins[c], &profiles[c].progress, 1.0f, play.player.x, 0.0f);
+            snprintf(name, sizeof(name), "29_linterna_%d_%d", c, m);
+            save_capture(r, dir, name);
+        }
+        bool down[ACTION_COUNT] = {0};
+        down[ACTION_RIGHT] = true;
+        for (int i = 0; i < 40; i++) {
+            input_update(&input, down);
+            stage_step(&play, &input, &profiles[c]);
+        }
+        draw_stage(platform, &play, &skins[c], &profiles[c].progress, 1.0f, play.player.x, 0.0f);
+        snprintf(name, sizeof(name), "29_linterna_%d_caminando", c);
+        save_capture(r, dir, name);
+    }
+
+    /* The cowgirl with both guns holstered, walking. */
+    start_stage(&play, 0, &CHARACTERS[0], &profiles[0].progress);
+    terrain_clear(&play.run.terrain);
+    play.run.zombie_count = 0;
+    weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+    play.duals_out = true;
+    set_guns(&play, profiles[0].progress.level);
+    equip_weapon(&play);
+    play.flashlight = false;
+    play.flashlight_since = 10.0f;
+    bool walking[ACTION_COUNT] = {0};
+    walking[ACTION_RIGHT] = true;
+    for (int i = 0; i < 24; i++) {
+        input_update(&input, walking);
+        stage_step(&play, &input, &profiles[0]);
+    }
+    draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+    save_capture(r, dir, "31_duales_caminando");
+
+    /* The cowgirl with it on, one gun and two: her blow, and the duals' turns. */
+    start_stage(&play, 3, &CHARACTERS[0], &profiles[0].progress);
+    terrain_clear(&play.run.terrain);
+    play.run.zombie_count = 0;
+    weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+    play.flashlight = true;
+    play.flashlight_since = 10.0f;
+    for (int duals = 0; duals < 2; duals++) {
+        char name[64];
+        play.duals_out = duals == 1;
+        set_guns(&play, profiles[0].progress.level);
+        equip_weapon(&play);
+        play.player.melee_wait = 0.0f;
+        player_melee(&play.player);
+        for (int f = 1; f < 5; f++) {
+            animation_set_frame(&play.player.anim, f);
+            draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+            snprintf(name, sizeof(name), "30_golpe_linterna_%d_%d", duals, f);
+            save_capture(r, dir, name);
+        }
+        play.player.state = PLAYER_IDLE;
+    }
+    bool trigger[ACTION_COUNT] = {0};
+    trigger[ACTION_SHOOT] = true;
+    input_update(&input, trigger);
+    stage_step(&play, &input, &profiles[0]);
+    for (int turn = 0; turn < 2; turn++) {
+        char name[64];
+        play.player.shot.other_gun = turn == 1;
+        for (int f = 4; f < 6; f++) {
+            animation_set_frame(&play.player.anim, f);
+            draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+            snprintf(name, sizeof(name), "30_disparo_linterna_%d_%d", turn, f);
+            save_capture(r, dir, name);
+        }
     }
 }
 

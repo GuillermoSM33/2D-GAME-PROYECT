@@ -106,14 +106,15 @@ static void test_guns_kill_about_as_fast(void)
 
 static void test_dual_pistols_are_a_reward(void)
 {
-    /* The cowgirl's level-3 guns: faster than her single cannon, by 10% to
-     * 50% on average, never slower, at the levels she has them. */
+    /* The cowgirl's level-3 guns, one shot from each in turn: faster than her
+     * single cannon by 10% to 50% on average. Barely slower at worst, on a zombie
+     * so weak that the cannon takes one bullet where they take two. */
     float sum = 0.0f;
     int n = 0;
     for (int wl = POWER_LEVEL; wl <= 8; wl++)
         for (int zl = wl - 2; zl <= wl + 2; zl++) {
             float speedup = time_to_kill(WEAPON_REVOLVER, wl, zl) / time_to_kill(WEAPON_DUAL, wl, zl);
-            CHECK(speedup >= 1.0f);
+            CHECK(speedup >= 0.95f);
             sum += speedup;
             n++;
         }

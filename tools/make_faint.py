@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Make the characters' faint sheets: out cold from a heatstroke.
 
-Usage: tools/make_faint.py
+Usage: tools/make_faint.py [cowgirl|swat ...]   (after tools/rework_cowgirl.py: from her dressed walk)
 
 Writes assets/sprites/characters/<id>/faint.png for the cowgirl and the SWAT:
 8 frames of 80 x 67 (wide enough to lie down in), drawn from the standing
@@ -76,7 +76,8 @@ def topple(px: dict, angle: float) -> dict:
                 out[(x, y)] = px[src]
     low = max(y for _, y in out)
     mid = (min(x for x, _ in out) + max(x for x, _ in out)) // 2
-    shift = (PIVOT - mid if abs(angle) >= 80 else 0, GROUND - low)
+    # Falling, she comes back toward the middle of the frame: all of her stays in it.
+    shift = (PIVOT - mid if abs(angle) >= 80 else PIVOT + 6 - mid if abs(angle) >= 50 else 0, GROUND - low)
     return {(x + shift[0], y + shift[1]): c for (x, y), c in out.items()}
 
 
@@ -101,7 +102,7 @@ def make(walk: Image) -> Image:
 
 
 def main() -> int:
-    for who in ('cowgirl', 'swat'):
+    for who in sys.argv[1:] or ('cowgirl', 'swat'):
         walk = load(ROOT / f'assets/sprites/characters/{who}/walk.png')
         img = make(walk)
         path = ROOT / f'assets/sprites/characters/{who}/faint.png'

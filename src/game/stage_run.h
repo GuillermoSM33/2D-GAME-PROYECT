@@ -98,6 +98,7 @@ typedef struct {
     bool omen;         /* A bad feeling: an ambush she senses is near (OMEN_CHANCE of them) */
     bool wire_bit;     /* The wire tore her on this update */
     float wire_timer;  /* Seconds until the wire bites again */
+    float zombie_wire[RUN_MAX_ZOMBIES]; /* The same, for each zombie in it */
     float fire_tick;   /* Seconds until the fires burn again */
     float warmth;      /* Seconds by a campfire toward its next heal */
     float heal_carry;  /* Health earned but under a whole point */
@@ -131,6 +132,10 @@ void run_place_player(const StageRun *run, Player *player);
 
 /* Bullets against the zombies and the barrels. Returns how many hit. */
 int run_bullets(StageRun *run, Bullets *bullets, Effects *effects);
+
+/* Window px from the start to the goal of a stage: its length, and what the
+ * road grew by to make room for what stands on it. */
+float run_road_length(int stage_index);
 
 /* Advances the stage after she moved: wakes groups, moves the zombies (round
  * barricades, claws on her or the crates), blasts, supplies, chests, the

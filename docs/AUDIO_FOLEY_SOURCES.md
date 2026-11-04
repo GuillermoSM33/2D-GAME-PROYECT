@@ -48,8 +48,10 @@ Las capas, cortes en segundos, velocidades y ganancias exactas están en
 | `world/wire` | `wm:metal_sheet_01`, `step:step_cloth2` |
 | `world/rope` | `step:step_cloth1`, `step_lth2`, `step_cloth3` |
 | `world/trap_escape` | `wm:wood_cracking_01`, `step:step_cloth4`, `v2:footstep_01` |
-| `world/footstep` | `v2:footstep_01`, `step:step_lth2` |
-| `world/run_step` | `v2:footstep_02`, `step:step_lth1` |
+| `world/footstep`, `_2` a `_4` (suelo seco) | `v2:footstep_02`, `footstep_wood_03`, `footstep_wood_04` |
+| `world/run_step`, `_2` a `_4` (suelo seco) | `v2:footstep_02`, `footstep_wood_03`, `footstep_wood_04` |
+| `world/footstep_water`, `_2` a `_4` (río o charco) | `v2:footstep_01`, `footstep_02`, `footstep_wood_01`, `footstep_wood_04`, `step:step_lth1`, `step_lth2`, `step_lth33`, `step_lth4` |
+| `world/run_step_water`, `_2` a `_4` (río o charco) | `v2:footstep_01`, `footstep_02`, `footstep_wood_01`, `footstep_wood_03`, `footstep_wood_04`, `step:step_lth1`, `step_lth2`, `step_lth33`, `step_lth4`, `step_cloth1` a `step_cloth4` |
 | `world/sit` | `step:step_cloth1`, `step_lth2`, `wm:wood_squeak_01` |
 | `world/stand` | `step:step_cloth2`, `step_lth1`, `wm:wood_squeak_01` |
 | `effects/hit_flesh` | `v2:hit_01`, `footstep_wet_03`, `step:step_cloth4` |
@@ -89,6 +91,6 @@ python3 tools/make_foley_sfx.py build/foley-preview --only world/hit_wood player
 
 `--download` (también `--fetch`) solo descarga si falta un original y verifica su SHA-256 antes
 de utilizarlo. Sin esa opción, una fuente ausente produce un error claro.
-El script solo puede escribir los 25 nombres anteriores. Quedan intactos
+El script solo puede escribir los 39 nombres anteriores. Quedan intactos
 `zombie/*.wav`, `player/shot.wav`, `player/reload.wav` y los seis sonidos
 legados de `world/` (`wood`, `glass`, `fuse`, `snap`, `explosion`, `supply`).

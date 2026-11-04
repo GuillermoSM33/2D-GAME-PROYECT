@@ -58,6 +58,8 @@ typedef struct {
     float bandage;        /* Seconds of holding U toward stopping the bleeding */
     bool bandaged;        /* The bleeding stopped on this update */
     float bandage_shown;  /* Seconds left of the done bandage on her leg */
+    float swap_time;      /* Seconds left of taking her second pistol out or away (player_swap) */
+    bool swap_back;       /* ...away: the same frames backwards */
     float plant_time;     /* Seconds left of setting a charge (player_plant): she stands to it */
     bool burned;          /* Lightning burned her: slower, heals slower (player_burn) */
     bool burn_bandaged;   /* ...its bandage is on: a drink of water ends it */
@@ -65,7 +67,7 @@ typedef struct {
     int catch_blows;      /* Blows still needed to cut free */
     float catch_time;     /* Seconds since it caught her */
     float catch_shake;    /* Seconds left of the shake from a blow at the ropes */
-    float catch_anchor_x, catch_anchor_y; /* A snare: the sapling's tip (world x, view y) */
+    float catch_anchor_x, catch_anchor_y; /* What the rope hangs from: bough or sapling tip (world x, view y) */
     int health;
     int level;      /* Shown above her head; stats below come from it (progression.c) */
     int max_health;
@@ -85,6 +87,11 @@ typedef struct {
     bool vaulting;      /* Leaping over a low barricade (player_vault): carried across */
     /* Walking while a magazine goes in: the legs walk (legs) under the reload. */
     bool reload_walk;
+    bool light_on;     /* Her flashlight (for drawing it: the switch is the stage's)... */
+    float light_since; /* ...and seconds since it was flipped */
+    float light_time;  /* ...and how long turning it on takes with this gun */
+    float light_rows;  /* ...and its lens's height, if not PLAYER_LIGHT_DY */
+    bool light_swings; /* ...and it stays on through a blow (art of its own for it) */
     Animation legs;
     float sit_time;    /* Seconds on the bench */
     unsigned sit_guns; /* Weapon slots (bits) still to reload sat, one after another */
@@ -151,6 +158,37 @@ void player_plant(Player *player);
 
 /* The blow's animation (its strike frame shows her hitting the ropes). */
 const AnimationDef *player_melee_animation(void);
+
+/* While she holds the gun up with its flashlight, or is turning it on or off:
+ * its animation and frame, else NULL. */
+const AnimationDef *player_light_animation(const Player *player, int *frame);
+
+/* Art rows she is sunk wading the deep river (0 on land, or in the air). */
+int player_sunk_rows(const Player *player);
+
+/* How far through turning it on she is: 0 to 1 (and on, past it). */
+float player_light_progress(const Player *player);
+
+/* Q with the duals: her hands on the second pistol for a moment, no shooting,
+ * out (back false) or away. */
+void player_swap(Player *player, bool back);
+
+/* Holding the flashlight up, stood still: which breath she is on. */
+int player_light_breath(const Player *player);
+
+/* Art rows its lens is off its mark right now, as she breathes and walks (+ down). */
+int player_light_sway(const Player *player);
+
+/* How far its lens has moved from the level gun right now (art px; +x forward, +y
+ * down) and how far the beam tilts, on its gun's kick or in a blow. */
+void player_light_kick(const Player *player, float *dx, float *dy, float *tilt);
+
+/* The shoot frame shown with the flashlight up: its gun is up already, no drawing
+ * it or putting it away. */
+int player_lit_shoot_frame(int frame);
+
+/* Whether her hands are on the gun, so its flashlight can shine. */
+bool player_light_ready(const Player *player);
 
 /* N at a low barricade: a jump that carries her over it, the way she faces.
  * Only from the ground and not mid-shot. Returns whether she leapt. */

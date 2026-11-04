@@ -27,25 +27,111 @@ static bool is_hazard(TerrainKind kind)
            kind == TERRAIN_SNARE || kind == TERRAIN_WIRE;
 }
 
-/* Traps from neighboring spots can come out almost on top of each other: each
- * is pushed ahead until it is HAZARD_GAP past the one before it. */
-static void space_hazards(Terrain *terrain)
+static bool stands_big(TerrainKind kind)
 {
-    int order[TERRAIN_MAX], n = 0;
-    for (int i = 0; i < terrain->count; i++) {
-        if (!is_hazard(terrain->items[i].kind))
+    return kind == TERRAIN_SUPPLY || kind == TERRAIN_BENCH || kind == TERRAIN_CAMPFIRE ||
+           kind == TERRAIN_WALL || kind == TERRAIN_BARRICADE || kind == TERRAIN_GOAL;
+}
+
+/* How far apart what stands on the road must be, center to center, or 0 if it
+ * doesn't matter: a trap keeps its distance from other traps, from what's big
+ * and from a zombie standing there. */
+static float road_gap(const StageRun *run, int a, int b)
+{
+    int count = run->terrain.count;
+    bool za = a >= count, zb = b >= count;
+    bool ha = !za && is_hazard(run->terrain.items[a].kind), hb = !zb && is_hazard(run->terrain.items[b].kind);
+    if (!ha && !hb)
+        return 0.0f;
+    if (ha && hb)
+        return HAZARD_GAP;
+    float half = ZOMBIE_HALF_WIDTH * SPRITE_SCALE;
+    float ah = za ? half : terrain_half_width(run->terrain.items[a].kind);
+    float bh = zb ? half : terrain_half_width(run->terrain.items[b].kind);
+    return ah + bh + (za || zb ? DECOY_ROOM : HAZARD_ROOM);
+}
+
+/* Spots close on the road can come out almost on top of each other. Nothing
+ * is left out or moved out of its order: the road grows there, everything past
+ * the first of the two going that much farther on, the goal too. */
+static void make_room(StageRun *run)
+{
+    int order[TERRAIN_MAX + RUN_MAX_ZOMBIES], n = 0;
+    Terrain *t = &run->terrain;
+    float xs[TERRAIN_MAX + RUN_MAX_ZOMBIES];
+    for (int i = 0; i < t->count + run->zombie_count; i++) {
+        bool zombie = i >= t->count;
+        if (zombie ? run->ambush_x[i - t->count] > 0.0f
+                   : !is_hazard(t->items[i].kind) && !stands_big(t->items[i].kind))
             continue;
-        int j = n++; /* In road order */
-        while (j > 0 && terrain->items[order[j - 1]].x > terrain->items[i].x) {
-            order[j] = order[j - 1];
-            j--;
-        }
-        order[j] = i;
+        order[n] = i;
+        xs[i] = zombie ? run->zombies[i - t->count].x : t->items[i].x;
+        n++;
     }
-    for (int k = 1; k < n; k++) {
-        float floor_x = terrain->items[order[k - 1]].x + HAZARD_GAP;
-        if (terrain->items[order[k]].x < floor_x)
-            terrain->items[order[k]].x = floor_x;
+    for (int a = 1; a < n; a++) { /* In road order */
+        int id = order[a], b = a;
+        while (b > 0 && xs[order[b - 1]] > xs[id]) {
+            order[b] = order[b - 1];
+            b--;
+        }
+        order[b] = id;
+    }
+    for (int i = 1; i < n; i++) {
+        for (int j = 0; j < i; j++) {
+            float need = road_gap(run, order[j], order[i]) - (xs[order[i]] - xs[order[j]]);
+            if (need <= 0.0f)
+                continue;
+            /* Past the first of them: all that lies beyond, the second included. */
+            float from = xs[order[j]];
+            for (int p = 0; p < t->count; p++)
+                if (t->items[p].x > from)
+                    t->items[p].x += need;
+            for (int k = 0; k < run->zombie_count; k++) {
+                if (run->zombies[k].x > from)
+                    run->zombies[k].x += need;
+                if (run->ambush_x[k] > from)
+                    run->ambush_x[k] += need;
+            }
+            run->goal_x += need;
+            for (int k = j + 1; k < n; k++) {
+                float at = xs[order[k]];
+                if (at > from || k >= i) {
+                    xs[order[k]] = at + need;
+                    int id = order[k];
+                    if (at <= from) { /* On the very spot: it alone steps off it */
+                        if (id >= t->count)
+                            run->zombies[id - t->count].x += need;
+                        else
+                            t->items[id].x += need;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* Dead trees and shrubs along the road, the very art of a net's and a snare's
+ * cover: from afar she can't tell scenery from a trap. Same for a stage every
+ * time; wherever there is room. */
+static void scatter_decoys(Terrain *terrain, int stage_index, float start_x, float length)
+{
+    unsigned seed = (unsigned)stage_index * 2246822519u + 11u;
+    for (float x = start_x + DECOY_EVERY; x < start_x + length - 400.0f;) {
+        seed = seed * 1103515245u + 12345u;
+        unsigned roll = seed >> 16;
+        TerrainKind kind = roll & 1u ? TERRAIN_DEAD_TREE : TERRAIN_SHRUB;
+        float half = terrain_half_width(kind);
+        bool room = true;
+        for (int i = 0; i < terrain->count && room; i++) {
+            const Piece *p = &terrain->items[i];
+            room = fabsf(p->x - x) >= half + terrain_half_width(p->kind) + DECOY_ROOM;
+        }
+        if (!room) { /* A little farther on, then */
+            x += DECOY_ROOM * 2.0f;
+            continue;
+        }
+        terrain_add(terrain, kind, x);
+        x += DECOY_EVERY * (0.6f + (float)(roll % 80u) / 100.0f);
     }
 }
 
@@ -177,7 +263,7 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         }
     }
     terrain_add(&run->terrain, TERRAIN_GOAL, run->goal_x);
-    space_hazards(&run->terrain);
+    make_room(run);
     /* A few traps have a warning sign before them (it says what kind). */
     int pieces = run->terrain.count;
     for (int i = 0; i < pieces; i++) {
@@ -187,7 +273,9 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         unsigned roll = ((unsigned)stage_index * 7919u + (unsigned)i * 104729u) * 2654435761u >> 16;
         if (!trap || (int)(roll % 100u) >= SIGN_CHANCE)
             continue;
-        Piece *sign = terrain_add(&run->terrain, TERRAIN_SIGN, p->x - SIGN_GAP);
+        /* Before it, however long the trap: never on it. */
+        float gap = fmaxf(SIGN_GAP, terrain_half_width(p->kind) + terrain_half_width(TERRAIN_SIGN) + SIGN_ROOM);
+        Piece *sign = terrain_add(&run->terrain, TERRAIN_SIGN, p->x - gap);
         if (sign)
             sign->variant = (int)p->kind;
     }
@@ -195,6 +283,7 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         if (run->terrain.items[i].kind == TERRAIN_CRATE)
             run->terrain.items[i].variant = (int)terrain_loot(stage_index, i);
     }
+    scatter_decoys(&run->terrain, stage_index, player_x, run->goal_x - player_x);
 }
 
 /* The right edge of the group holding her: past its last zombie. */
@@ -205,8 +294,14 @@ static float group_wall(const StageRun *run, int group)
         if (run->group_of[k] != group)
             continue;
         wall = fmaxf(wall, run->zombies[k].x + ROUTE_LOCK_MARGIN);
-        if (run->ambush_x[k] > 0.0f) /* An ambush holds her round its spot, with room to move */
+        if (run->ambush_x[k] > 0.0f) { /* An ambush holds her round its spot, with room to move */
             wall = fmaxf(wall, run->ambush_x[k] + AMBUSH_ROOM);
+            /* ...up to a wall just ahead, so she can still get to it and light
+             * a charge. Blown or not it stays the limit: no way past yet. */
+            float next = terrain_next_wall(&run->terrain, run->ambush_x[k]);
+            if (next > 0.0f && next - run->ambush_x[k] <= AMBUSH_WALL_SPAN)
+                wall = fmaxf(wall, next);
+        }
     }
     return wall;
 }
@@ -252,20 +347,47 @@ void run_place_player(const StageRun *run, Player *player)
     player_set_ground(player, terrain_floor(&run->terrain, player->x), min_x, max_x);
 }
 
+/* A group gets up. Those in a coffin wait for it to burst; ambushers for their spot. */
+static void wake_group(StageRun *run, int group)
+{
+    for (int j = 0; j < run->zombie_count; j++) {
+        if (run->group_of[j] != group || run->zombies[j].awake || run->zombies[j].hidden)
+            continue;
+        zombie_wake(&run->zombies[j]);
+        run->elite_woke |= run->zombies[j].stats == &ZOMBIE_ELITE;
+    }
+}
+
 int run_bullets(StageRun *run, Bullets *bullets, Effects *effects)
 {
     /* Walls first: nothing behind one gets hit. */
     int hits = terrain_shoot(&run->terrain, bullets);
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
-        if (z->awake && !z->hidden) { /* Asleep they are out of the fight */
+        if (!z->hidden) { /* Shut in or off the road, no bullet reaches it */
             int impacts = combat_bullets_vs_zombie(bullets, z, effects);
             hits += impacts;
-            if (impacts > 0)
+            if (impacts > 0) {
                 run->sound_events |= z->armor > 0.0f ? RUN_SOUND_HIT_ARMOR : RUN_SOUND_HIT_FLESH;
+                wake_group(run, run->group_of[k]); /* Shot in its sleep: up it gets, and its group */
+            }
         }
     }
     return hits;
+}
+
+float run_road_length(int stage_index)
+{
+    static float known[16];
+    if (stage_index < 0 || stage_index >= STAGE_COUNT)
+        return 0.0f;
+    if (stage_index < 16 && known[stage_index] > 0.0f)
+        return known[stage_index];
+    static StageRun scratch;
+    run_start(&scratch, stage_index, 0.0f, false);
+    if (stage_index < 16)
+        known[stage_index] = scratch.goal_x;
+    return scratch.goal_x;
 }
 
 bool run_vault(StageRun *run, Player *player)
@@ -314,7 +436,8 @@ static void lightning(StageRun *run, Player *player, const Progress *progress, f
     run->bolt_wait -= dt;
     if (run->bolt_wait > 0.0f)
         return;
-    run->bolt_x = player->x + (bolt_roll(run) * 2.0f - 1.0f) * LIGHTNING_NEAR;
+    float away = LIGHTNING_FAR + bolt_roll(run) * (LIGHTNING_NEAR - LIGHTNING_FAR);
+    run->bolt_x = player->x + (bolt_roll(run) < 0.5f ? -away : away);
     run->bolt_warn = LIGHTNING_WARN;
 }
 
@@ -443,8 +566,10 @@ static void blow_up(StageRun *run, Player *player, const Progress *progress)
         float damage = progress_damage(progress) * BARREL_DAMAGE_MULT;
         for (int k = 0; k < run->zombie_count; k++) {
             Zombie *z = &run->zombies[k];
-            if (z->awake && fabsf(z->x - xs[b]) - zombie_body_half_width(z) <= BARREL_RADIUS)
+            if (!z->hidden && zombie_alive(z) && fabsf(z->x - xs[b]) - zombie_body_half_width(z) <= BARREL_RADIUS) {
                 hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
+                wake_group(run, run->group_of[k]); /* Caught asleep, its group wakes too */
+            }
         }
         if (fabsf(player->x - xs[b]) - PLAYER_BODY_HALF_WIDTH <= BLAST_SELF_RADIUS) {
             float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
@@ -480,9 +605,10 @@ static void grenade_blast(StageRun *run, Player *player, const Progress *progres
     float damage = progress_damage(progress) * GRENADE_DAMAGE_MULT;
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
-        if (z->awake && !z->hidden && zombie_alive(z) &&
-            fabsf(z->x - x) - zombie_body_half_width(z) <= GRENADE_RADIUS)
+        if (!z->hidden && zombie_alive(z) && fabsf(z->x - x) - zombie_body_half_width(z) <= GRENADE_RADIUS) {
             hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
+            wake_group(run, run->group_of[k]); /* Caught asleep, its group wakes too */
+        }
     }
     if (fabsf(player->x - x) - PLAYER_BODY_HALF_WIDTH <= BLAST_SELF_RADIUS) {
         float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
@@ -535,13 +661,7 @@ static void wake_groups(StageRun *run, const Player *player)
         }
         if (farthest - player->x > ROUTE_WAKE_DISTANCE)
             continue;
-        for (int j = 0; j < run->zombie_count; j++) {
-            /* Those in a coffin wait for it to burst; ambushers for their spot. */
-            if (run->group_of[j] != group || run->zombies[j].awake || run->zombies[j].hidden)
-                continue;
-            zombie_wake(&run->zombies[j]);
-            run->elite_woke |= run->zombies[j].stats == &ZOMBIE_ELITE;
-        }
+        wake_group(run, group);
     }
 }
 
@@ -601,6 +721,13 @@ static void move_zombies(StageRun *run, Player *player, Progress *progress, floa
         z->depth = terrain_river_depth(&run->terrain, z->x);
         z->wind = player->wind;
         zombie_update(z, target, player_alive(player), dt);
+        /* Barbed wire bites them too, every so often while they push through. */
+        run->zombie_wire[k] = fmaxf(0.0f, run->zombie_wire[k] - dt);
+        if (z->awake && !z->hidden && zombie_alive(z) && z->caught <= 0.0f && run->zombie_wire[k] <= 0.0f &&
+            terrain_wire_at(&run->terrain, z->x, 0.0f) >= 0) {
+            run->zombie_wire[k] = WIRE_BITE_EVERY;
+            hit_zombie(run, z, progress_damage(progress) * WIRE_DAMAGE_MULT, BARREL_ARMOR_SHARE);
+        }
         if (z->struck) {
             if (barricade >= 0)
                 terrain_claw(&run->terrain, barricade);
@@ -710,9 +837,11 @@ static void spring_hangers(StageRun *run, Player *player, const Progress *progre
         if ((p->kind != TERRAIN_NET && p->kind != TERRAIN_SNARE) || p->spent)
             continue;
         CatchKind kind = p->kind == TERRAIN_NET ? CATCH_NET : CATCH_SNARE;
-        /* The sprung sapling's tip, where the rope hangs from. */
-        float tip_x = p->x + (float)(SNARE_TIP_X - SNARE_FRAME_W / 2) * SPRITE_SCALE;
-        float tip_y = (float)(BASELINE - (SNARE_FRAME_H - 1 - SNARE_TIP_Y) * SPRITE_SCALE);
+        /* Where the rope hangs from: the bough's tip, over the trap, or the
+         * sprung sapling's. */
+        float tip_x = kind == CATCH_NET ? p->x : p->x + (float)(SNARE_TIP_X - SNARE_FRAME_W / 2) * SPRITE_SCALE;
+        float tip_y = (float)(BASELINE - (kind == CATCH_NET ? NET_FRAME_H - 1 - NET_TIP_Y
+                                                            : SNARE_FRAME_H - 1 - SNARE_TIP_Y) * SPRITE_SCALE);
         for (int k = 0; k < run->zombie_count && !p->spent; k++) {
             Zombie *z = &run->zombies[k];
             if (!z->awake || z->hidden || !zombie_alive(z) || z->caught > 0.0f ||

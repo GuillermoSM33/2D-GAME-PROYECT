@@ -105,6 +105,51 @@ static void test_walls_and_barricades_block_rays_passing_through(void)
     }
 }
 
+static void test_gun_and_light_sink_with_her_in_the_river(void)
+{
+    Player player;
+    Lighting lighting;
+    player_init(&player);
+    player.x = 500.0f;
+    float mx, dry, deep;
+    player_muzzle(&player, &mx, &dry);
+    lighting_build(&lighting, NULL, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    float light_dry = lighting.lights[0].y;
+    player.depth = 1.0f;
+    player_muzzle(&player, &mx, &deep);
+    lighting_build(&lighting, NULL, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    CHECK_NEAR(deep - dry, RIVER_DEEP_ROWS * SPRITE_SCALE, 0.01f);
+    CHECK_NEAR(lighting.lights[0].y - light_dry, RIVER_DEEP_ROWS * SPRITE_SCALE, 0.01f);
+}
+
+static void test_flashlight_goes_out_in_a_jump(void)
+{
+    /* The jump's art has no gun in hand: no gun, no beam. */
+    Player player;
+    Lighting lighting;
+    player_init(&player);
+    player.x = 500.0f;
+    lighting_build(&lighting, NULL, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    CHECK(lighting.count == 1);
+    player.state = PLAYER_JUMP;
+    player.jump.airborne = true;
+    lighting_build(&lighting, NULL, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    CHECK(lighting.count == 0);
+    player.jump.airborne = false;
+    player.state = PLAYER_LAND;
+    lighting_build(&lighting, NULL, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    CHECK(lighting.count == 0);
+}
+
+static void test_flashlight_stutters_on_and_dies_off(void)
+{
+    CHECK(lighting_flashlight_power(true, -.01f) == 0.0f);
+    CHECK(lighting_flashlight_power(true, .08f) < .5f);
+    CHECK(lighting_flashlight_power(true, .15f) > .5f);
+    CHECK(lighting_flashlight_power(true, 1.0f) == 1.0f);
+    CHECK(lighting_flashlight_power(false, 0.0f) == 1.0f && lighting_flashlight_power(false, 1.0f) == 0.0f);
+}
+
 static void test_flashlight_follows_facing_and_jump(void)
 {
     Player player;
@@ -127,8 +172,8 @@ static void test_flashlight_follows_facing_and_jump(void)
     CHECK_NEAR(left.y, right.y - player.jump.height, 0.01f);
     CHECK(lighting_strength_at(&lighting, &left, left.x - 200.0f, left.y + 60.0f) > 0.0f);
     CHECK(lighting_strength_at(&lighting, &left, left.x + 200.0f, left.y) == 0.0f);
-    lighting_build(&lighting, NULL, NULL, &player, false, true, 0.0f, 0.0);
-    CHECK(lighting.count == 0);
+    lighting_build(&lighting, NULL, NULL, &player, false, true, 0.0f, 0.0); /* By day too, if she wants */
+    CHECK(lighting.count == 1);
     lighting_build(&lighting, NULL, NULL, &player, true, false, 0.0f, 0.0);
     CHECK(lighting.count == 0);
     player.state = PLAYER_DEAD;
@@ -211,6 +256,9 @@ int main(void)
     RUN(test_point_falloff_is_symmetric_and_monotonic);
     RUN(test_walls_and_barricades_block_rays_passing_through);
     RUN(test_flashlight_follows_facing_and_jump);
+    RUN(test_flashlight_stutters_on_and_dies_off);
+    RUN(test_flashlight_goes_out_in_a_jump);
+    RUN(test_gun_and_light_sink_with_her_in_the_river);
     RUN(test_explosion_flash_tracks_animation_and_expires);
     RUN(test_night_color_is_warm_near_sources_and_day_stays_white);
     RUN(test_ground_shadows_follow_source_height_and_perspective);

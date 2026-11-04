@@ -36,6 +36,16 @@ Solo para `tools/crush_sfx.py` (grabar/convertir sonidos, no para compilar): **f
   `$env:MSYSTEM="UCRT64"; $env:CHERE_INVOKING="1"; C:\msys64\usr\bin\bash.exe --login -c "./build.sh"`
 - En ambos sistemas sirven `make`, `make test`, `make run` y `make watch`.
 
+## Arte de la vaquera: pendiente
+
+**Sus medidas todavía no quedan como deberían**; no des su arte por terminado. La referencia es
+`walk`, y la meta es una silueta de reloj de arena en todas las poses: hombros y cadera de ancho
+parecido, cintura marcada y sin escalón entre cinturón y pierna. Regenera todas sus hojas con
+`python3 tools/rebuild_cowgirl.py` y revísalas ampliadas antes de reportarlas.
+
+`DUALS_FROM_ANY_LEVEL` en `src/config.h` está en 1 solo para probar ese arte: vuelve a ponerlo en
+0 al terminar.
+
 ## Repositorio
 
 https://github.com/GuillermoSM33/2D-GAME-PROYECT, en la cuenta **personal** del usuario

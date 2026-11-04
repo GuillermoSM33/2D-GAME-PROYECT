@@ -3,58 +3,49 @@
 #include <math.h>
 #include <string.h>
 
-static unsigned next(Bats *bats)
+static unsigned hash(unsigned h)
 {
-    unsigned h = bats->seed = bats->seed * 1103515245u + 12345u;
     h ^= h >> 13;
     h *= 0x5bd1e995u;
     return h ^ (h >> 15);
 }
 
-static float roll(Bats *bats, float lo, float hi)
-{
-    return lo + (hi - lo) * (float)(next(bats) % 1000u) / 999.0f;
-}
-
-void bats_start(Bats *bats, int stage_index)
+void bats_start(Bats *bats, int stage_index, float start_x, float length, bool night)
 {
     memset(bats, 0, sizeof(*bats));
-    bats->seed = (unsigned)stage_index * 2654435761u + 7u;
-    bats->wait = BAT_FIRST;
-}
-
-static void spawn(Bats *bats, float view_left)
-{
-    int dir = next(bats) & 1u ? 1 : -1;
-    int count = 1 + (int)(next(bats) % (unsigned)BAT_GROUP_MAX);
-    float base = roll(bats, BAT_LOW, BAT_HIGH);
-    for (int i = 0, made = 0; i < BATS_MAX && made < count; i++) {
-        Bat *b = &bats->items[i];
-        if (bat_present(b))
-            continue;
-        memset(b, 0, sizeof(*b));
-        b->alive = true;
-        b->facing = dir;
-        b->vx = (float)dir * roll(bats, BAT_SPEED * 0.8f, BAT_SPEED * 1.2f);
-        b->x = dir > 0 ? view_left - 60.0f - (float)made * 70.0f
-                       : view_left + VIEW_WIDTH + 60.0f + (float)made * 70.0f;
-        b->base = base + roll(bats, -30.0f, 30.0f);
-        b->time = roll(bats, 0.0f, 3.0f); /* Each on its own beat */
-        b->height = b->base;
-        made++;
-    }
-}
-
-void bats_update(Bats *bats, bool night, float view_left, float dt)
-{
-    bats->killed = 0;
-    if (night) {
-        bats->wait -= dt;
-        if (bats->wait <= 0.0f) {
-            spawn(bats, view_left);
-            bats->wait = roll(bats, BAT_EVERY_MIN, BAT_EVERY_MAX);
+    if (!night)
+        return;
+    unsigned seed = (unsigned)stage_index * 2654435761u + 7u;
+    int count = 0;
+    for (float x = start_x + BAT_COLONY_EVERY * 0.5f; x < start_x + length - 600.0f;) {
+        seed = hash(seed + 101u);
+        int size = 1 + (int)(seed % (unsigned)BAT_GROUP_MAX);
+        for (int i = 0; i < size && count < BATS_MAX; i++) {
+            Bat *b = &bats->items[count++];
+            unsigned h = hash(seed + (unsigned)i * 31u);
+            b->alive = true;
+            b->home = x + (float)(i * 90);
+            b->x = b->home;
+            b->facing = h & 1u ? 1 : -1;
+            b->base = BAT_LOW + (BAT_HIGH - BAT_LOW) * (float)(h % 100u) / 99.0f;
+            b->time = (float)(h % 300u) / 100.0f; /* Each on its own beat */
+            b->height = b->base;
         }
+        x += BAT_COLONY_EVERY * (0.7f + (float)(seed % 60u) / 100.0f);
     }
+}
+
+static void take_off(Bat *b, float from_x)
+{
+    if (!b->alive || b->fleeing)
+        return;
+    b->fleeing = true;
+    b->facing = b->x >= from_x ? 1 : -1;
+    b->vx = (float)b->facing * BAT_FLEE_SPEED;
+}
+
+void bats_update(Bats *bats, float player_x, float dt)
+{
     for (int i = 0; i < BATS_MAX; i++) {
         Bat *b = &bats->items[i];
         if (!bat_present(b))
@@ -70,33 +61,47 @@ void bats_update(Bats *bats, bool night, float view_left, float dt)
             }
             continue;
         }
-        /* Flitting: a swoop up and down with a quick jitter on top. */
-        b->x += b->vx * dt;
+        if (b->fleeing) {
+            b->x += b->vx * dt;
+            b->height += BAT_CLIMB * dt;
+            b->alive = b->height < CROW_GONE_HEIGHT;
+            continue;
+        }
+        if (fabsf(b->x - player_x) <= BAT_SCARE_RANGE) {
+            take_off(b, player_x);
+            continue;
+        }
+        /* Flitting over its spot: to and fro, a swoop up and down, a quick jitter. */
+        float x = b->home + BAT_ROAM * sinf(b->time * 1.3f);
+        if (x != b->x)
+            b->facing = x > b->x ? 1 : -1;
+        b->vx = (x - b->x) / dt;
+        b->x = x;
         b->height = b->base + BAT_DIP * sinf(b->time * 2.6f) + 10.0f * sinf(b->time * 11.0f);
-        bool past = b->facing > 0 ? b->x > view_left + VIEW_WIDTH + 200.0f : b->x < view_left - 200.0f;
-        if (past)
-            b->alive = false;
     }
 }
 
 static void kill(Bats *bats, Bat *b)
 {
     b->alive = false;
+    b->fleeing = false;
     b->dead = true;
     b->vx *= 0.25f;
     b->vy = 0.0f;
-    bats->killed++;
+    for (int i = 0; i < BATS_MAX; i++) /* The rest of them scatter */
+        if (fabsf(bats->items[i].x - b->x) <= BAT_FLOCK_RANGE)
+            take_off(&bats->items[i], b->x);
 }
 
 int bats_shoot(Bats *bats, Bullets *bullets)
 {
     int hits = 0;
-    float half_w = BAT_FRAME_W * SPRITE_SCALE / 2.0f, half_h = BAT_FRAME_H * SPRITE_SCALE / 2.0f + 6.0f;
+    float half_w = BAT_FRAME_W * SPRITE_SCALE / 2.0f, half_h = BAT_FRAME_H * SPRITE_SCALE / 2.0f + 12.0f;
     for (int i = 0; i < BATS_MAX; i++) {
         Bat *b = &bats->items[i];
         if (!b->alive)
             continue;
-        float cy = (float)BASELINE - b->height - half_h;
+        float cy = (float)BASELINE - b->height - BAT_FRAME_H * SPRITE_SCALE / 2.0f;
         for (int k = 0; k < BULLET_MAX; k++) {
             Bullet *bullet = &bullets->items[k];
             if (!bullet->active || fabsf(bullet->y - cy) > half_h)
@@ -118,9 +123,13 @@ int bats_blast(Bats *bats, float x, float radius)
     int killed = 0;
     for (int i = 0; i < BATS_MAX; i++) {
         Bat *b = &bats->items[i];
-        if (b->alive && fabsf(b->x - x) <= radius && b->height <= radius) {
+        if (!b->alive)
+            continue;
+        if (fabsf(b->x - x) <= radius && b->height <= radius) {
             kill(bats, b);
             killed++;
+        } else if (fabsf(b->x - x) <= CROW_BLAST_RANGE) {
+            take_off(b, x);
         }
     }
     return killed;

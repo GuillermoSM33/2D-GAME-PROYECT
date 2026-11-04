@@ -22,6 +22,9 @@ void hang_rope(SDL_Renderer *renderer, float x0, float y0, float x1, float y1);
 
 /* The net closed round a body, its bottom at y (view), centered on x,
  * then its rope up off the top of the view. */
-void hang_net(SDL_Renderer *renderer, float x, float bottom_y, float t);
+void hang_net(SDL_Renderer *renderer, float anchor_x, float anchor_y, float x, float bottom_y, float t);
+
+/* Window px over the ground to the top of what hangs (the bag, or her feet). */
+float hang_top(CatchKind kind, float t);
 
 #endif

@@ -88,7 +88,8 @@ void zombie_render(SDL_Renderer *renderer, const Zombie *zombie, float camera_x)
     SDL_SetTextureAlphaMod(sheet, 255);
     SDL_SetTextureColorMod(sheet, 255, 255, 255);
     if (hanging && zombie->catch_kind == CATCH_NET)
-        hang_net(renderer, (float)(dst.x + (int)lroundf(anchor_x * SPRITE_SCALE)),
+        hang_net(renderer, zombie->catch_anchor_x - camera_x, zombie->catch_anchor_y,
+                 (float)(dst.x + (int)lroundf(anchor_x * SPRITE_SCALE)),
                  (float)BASELINE - lift + 2.0f * SPRITE_SCALE, zombie->catch_time);
 
     if (zombie_alive(zombie) && zombie->health < zombie->max_health)

@@ -30,6 +30,8 @@ static const struct {
     [TERRAIN_WIRE] = {"sprites/terrain/wire", WIRE_FRAME_W, WIRE_FRAME_H, 3, 0},
     [TERRAIN_NET] = {"sprites/terrain/net", NET_FRAME_W, NET_FRAME_H, 3, 0},
     [TERRAIN_SNARE] = {"sprites/terrain/snare", SNARE_FRAME_W, SNARE_FRAME_H, 3, 0},
+    [TERRAIN_DEAD_TREE] = {"sprites/terrain/net", NET_FRAME_W, NET_FRAME_H, 3, 0},
+    [TERRAIN_SHRUB] = {"sprites/terrain/snare", SNARE_FRAME_W, SNARE_FRAME_H, 3, 0},
     [TERRAIN_SPIKES] = {"sprites/terrain/spikes", SPIKES_FRAME_W, SPIKES_FRAME_H, 3, 0},
     [TERRAIN_RIVER] = {"sprites/terrain/river", RIVER_FRAME_W, RIVER_FRAME_H, 4, 0, RIVER_SINK},
     [TERRAIN_SIGN] = {"sprites/terrain/sign", SIGN_FRAME_W, SIGN_FRAME_H, 1, 0},
@@ -336,6 +338,8 @@ int terrain_shoot(Terrain *terrain, Bullets *bullets)
             Bullet *bullet = &bullets->items[b];
             if (!bullet->active || (barrel && bullet->y < top))
                 continue; /* Over a barrel's lid: it flies on */
+            if (p->kind == TERRAIN_LAMP && bullet->y > BASELINE - LAMP_GLASS_ROWS * SPRITE_SCALE)
+                continue; /* Past the post, under the glass: it flies on */
             float lo = fminf(bullet->prev_x, bullet->x), hi = fmaxf(bullet->prev_x, bullet->x);
             if (hi < p->x - half || lo > p->x + half)
                 continue;
@@ -377,6 +381,17 @@ static Piece *wall_near(Terrain *terrain, float x)
             return p;
     }
     return NULL;
+}
+
+float terrain_next_wall(const Terrain *terrain, float x)
+{
+    float next = 0.0f;
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind == TERRAIN_WALL && p->x > x && (next <= 0.0f || p->x < next))
+            next = p->x;
+    }
+    return next;
 }
 
 bool terrain_wall_near(const Terrain *terrain, float x)
@@ -468,6 +483,18 @@ float terrain_river_depth(const Terrain *terrain, float x)
         return fminf(1.0f, from_bank / slope);
     }
     return 0.0f;
+}
+
+bool terrain_water_at(const Terrain *terrain, float x)
+{
+    if (terrain_river_at(terrain, x))
+        return true;
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind == TERRAIN_PUDDLE && fabsf(x - p->x) <= terrain_half_width(p->kind))
+            return true;
+    }
+    return false;
 }
 
 bool terrain_splash(Terrain *terrain, float x)

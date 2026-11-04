@@ -22,6 +22,9 @@ void shot_cancel(Shot *shot)
     shot->burst = gun.burst;
     shot->burst_gap = gun.burst_gap;
     shot->automatic = gun.automatic;
+    shot->piston = gun.piston;
+    shot->other_gun = gun.other_gun;
+    shot->next_other = gun.next_other;
     shot->magazine = gun.magazine;
     shot->mag_reload_time = gun.mag_reload_time;
     shot->rounds = gun.rounds;
@@ -37,6 +40,23 @@ void shot_set_burst(Shot *shot, int burst, float burst_gap, bool automatic)
     shot->burst = burst > 1 ? burst : 1;
     shot->burst_gap = burst_gap;
     shot->automatic = automatic;
+}
+
+void shot_set_piston(Shot *shot, bool piston)
+{
+    shot->piston = piston;
+}
+
+void shot_trigger(Shot *shot, bool pressed, bool held)
+{
+    shot->held = held && shot->automatic;
+    if (pressed && shot->active && shot->piston)
+        shot->queued = true;
+}
+
+float shot_fps(const Shot *shot)
+{
+    return shot->piston ? PLAYER_PISTON_FPS : PLAYER_SHOOT_FPS;
 }
 
 void shot_set_magazine(Shot *shot, int magazine, float reload_time, int rounds)
@@ -76,12 +96,12 @@ bool shot_reload_now(Shot *shot)
 /* Holds the sequence mid-frame on this sheet frame. */
 static void hold_frame(Shot *shot, int frame)
 {
-    shot->time = ((float)(frame - shot->start_frame) + 0.5f) / PLAYER_SHOOT_FPS;
+    shot->time = ((float)(frame - shot->start_frame) + 0.5f) / shot_fps(shot);
 }
 
 static int raw_frame(const Shot *shot)
 {
-    return shot->start_frame + (int)(shot->time * PLAYER_SHOOT_FPS);
+    return shot->start_frame + (int)(shot->time * shot_fps(shot));
 }
 
 bool shot_start(Shot *shot)
@@ -92,6 +112,16 @@ bool shot_start(Shot *shot)
         if (shot->active) /* The recoil still showing: the reload follows it */
             return false;
         start_magazine_reload(shot);
+        return true;
+    }
+    if (shot->piston) { /* A turn under way plays whole: shot_update starts the next */
+        if (shot->active)
+            return false;
+        shot->active = true;
+        shot->fired = false;
+        shot->start_frame = 0;
+        shot->time = 0.0f;
+        shot->other_gun = shot->next_other;
         return true;
     }
     bool follow_up = shot->active;
@@ -145,17 +175,26 @@ bool shot_update(Shot *shot, float dt)
         start_magazine_reload(shot);
         return false;
     }
-    if (shot->fired && shot->reload > 0.0f && frame > PLAYER_SHOOT_RELOAD_FRAME) {
+    if (!shot->piston && shot->fired && shot->reload > 0.0f && frame > PLAYER_SHOOT_RELOAD_FRAME) {
         /* Reloading: stay mid-frame on the recoil until the ball is in. */
         hold_frame(shot, PLAYER_SHOOT_RELOAD_FRAME);
         frame = PLAYER_SHOOT_RELOAD_FRAME;
     }
     if (frame >= PLAYER_SHOOT_FRAMES) {
+        if (shot->piston && (shot->held || shot->queued)) {
+            /* The other gun is on its way up already: its turn, no stop between. */
+            shot->time -= (float)PLAYER_SHOOT_FRAMES / shot_fps(shot);
+            shot->fired = false;
+            shot->queued = false;
+            shot->other_gun = shot->next_other;
+            return false;
+        }
         shot_cancel(shot);
         return false;
     }
     if (!shot->fired && frame >= PLAYER_SHOOT_FIRE_FRAME) {
         shot->fired = true;
+        shot->next_other = !shot->other_gun;
         shot->burst_left = shot->burst - 1;
         shot->burst_timer = shot->burst_gap;
         shot->reload = shot->burst_left > 0 ? 0.0f : shot->reload_time;

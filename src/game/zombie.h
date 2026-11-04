@@ -107,7 +107,7 @@ typedef struct {
     float depth;          /* ...and how deep, 0 .. 1 (drawn sunk to the waist) */
     int wind;             /* The wind: +1 blowing right, -1 left, 0 (the stage sets it) */
     float catch_time;     /* Seconds since a hanging trap caught it */
-    float catch_anchor_x, catch_anchor_y; /* A snare: the sapling's tip (world x, view y) */
+    float catch_anchor_x, catch_anchor_y; /* What the rope hangs from: bough or sapling tip (world x, view y) */
     int health;
     float wound; /* Damage under a whole health point, kept for the next hit */
     float stagger_time; /* While > 0, hits do not make it recoil again */

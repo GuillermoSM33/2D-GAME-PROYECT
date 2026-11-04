@@ -33,6 +33,8 @@ typedef enum {
     TERRAIN_RIVER,     /* A river across the road: wading it is slow (timer: its current) */
     TERRAIN_PUDDLE,    /* A puddle: splashes and ripples under feet */
     TERRAIN_SIGN,      /* A warning sign before a trap (variant: the trap's kind) */
+    TERRAIN_DEAD_TREE, /* Only scenery, drawn just as a net's tree: which is which? */
+    TERRAIN_SHRUB,     /* Only scenery, drawn just as a snare's shrub */
     TERRAIN_KINDS
 } TerrainKind;
 
@@ -169,6 +171,9 @@ bool terrain_river_at(const Terrain *terrain, float x);
  * middle (to the waist), in between on the slopes. */
 float terrain_river_depth(const Terrain *terrain, float x);
 
+/* Feet in water at x: a river or a puddle. */
+bool terrain_water_at(const Terrain *terrain, float x);
+
 /* Feet in water at x (a river or a puddle): true, and a puddle there
  * ripples. */
 bool terrain_splash(Terrain *terrain, float x);
@@ -179,6 +184,9 @@ int terrain_sink(TerrainKind kind);
 
 /* Uncut wire ahead of her within range, the way she faces. */
 bool terrain_wire_ahead(const Terrain *terrain, float x, int dir, float range);
+
+/* The center of the first wall past x, standing or blown; 0 if there is none. */
+float terrain_next_wall(const Terrain *terrain, float x);
 
 /* Whether there is a standing, unlit wall within reach of x. */
 bool terrain_wall_near(const Terrain *terrain, float x);

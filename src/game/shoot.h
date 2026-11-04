@@ -15,6 +15,11 @@ typedef struct {
     int burst;         /* The gun's bullets per shot */
     float burst_gap;   /* ...and seconds between them */
     bool automatic;    /* The gun keeps firing while the trigger is held */
+    bool piston;       /* Two guns taking turns: each shot plays whole, the other's next */
+    bool other_gun;    /* ...this shot is the other gun's */
+    bool next_other;   /* ...and whose the next is: it changes once a bullet has left */
+    bool held;         /* ...the trigger is down: the next turn follows without a stop */
+    bool queued;       /* ...it was clicked during this turn: the next follows too */
     int burst_left;    /* Bullets of this shot still to come */
     float burst_timer; /* Seconds until the next of them */
     int magazine;          /* The gun's shots per magazine; 0 = it never runs dry */
@@ -37,6 +42,13 @@ void shot_set_reload(Shot *shot, float reload_time);
  * whether holding the trigger keeps firing. */
 void shot_set_burst(Shot *shot, int burst, float burst_gap, bool automatic);
 
+/* The gun changed: two guns taking turns like a piston, or one gun. */
+void shot_set_piston(Shot *shot, bool piston);
+
+/* The trigger this step: a click, and whether it is held (only an automatic gun
+ * fires on while held). With two guns they keep the turns coming. */
+void shot_trigger(Shot *shot, bool pressed, bool held);
+
 /* The gun changed: shots per magazine (0 = no magazine), seconds to reload
  * one, and the shots it still has (a gun put away keeps its count). */
 void shot_set_magazine(Shot *shot, int magazine, float reload_time, int rounds);
@@ -51,6 +63,9 @@ bool shot_start(Shot *shot);
  * shot, or once per bullet of a burst. Between those bullets the frame
  * flicks between fire and recoil, and the reload starts after the last. */
 bool shot_update(Shot *shot, float dt);
+
+/* Frames per second this shot's sheet plays at. */
+float shot_fps(const Shot *shot);
 
 /* Sheet frame to show, 0 .. PLAYER_SHOOT_FRAMES - 1. */
 int shot_frame(const Shot *shot);

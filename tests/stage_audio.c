@@ -316,6 +316,35 @@ static void test_planting_takes_her_hands_for_a_moment(void)
     CHECK(game.player.shot.active || game.player.x != x);
 }
 
+static void test_q_takes_the_second_pistol_out_and_away(void)
+{
+    /* The cowgirl: Q swaps gun and plays the hands; no shooting while they're busy. */
+    setup_weapon(WEAPON_REVOLVER);
+    InputState input = {0};
+#if DUALS_FROM_ANY_LEVEL
+    input.pressed[ACTION_SWAP] = true;
+    step(&input);
+    input.pressed[ACTION_SWAP] = false;
+    CHECK(game.guns[0] == WEAPON_DUAL && game.player.swap_time > 0.0f && !game.player.swap_back);
+    int frame = -1;
+    CHECK(player_care_animation(&game.player, &frame) != NULL && frame < PLAYER_SWAP_FRAMES / 2);
+    input.pressed[ACTION_SHOOT] = true;
+    step(&input);
+    input.pressed[ACTION_SHOOT] = false;
+    CHECK(!game.player.shot.active);
+    input.pressed[ACTION_SWAP] = true; /* Not again halfway through */
+    step(&input);
+    input.pressed[ACTION_SWAP] = false;
+    CHECK(game.guns[0] == WEAPON_DUAL);
+    for (int i = 0; i < (int)(PLAYER_SWAP_TIME / FIXED_DT) + 2; i++)
+        step(&input);
+    CHECK(game.player.swap_time <= 0.0f);
+    input.pressed[ACTION_SWAP] = true;
+    step(&input);
+    CHECK(game.guns[0] == WEAPON_REVOLVER && game.player.swap_back);
+#endif
+}
+
 static void test_footsteps_are_quiet_and_uneven(void)
 {
     /* Walking: steps under the rest of the sounds, the two feet apart. */
@@ -327,13 +356,109 @@ static void test_footsteps_are_quiet_and_uneven(void)
     float lo = 1.0f, hi = 0.0f;
     int steps = 0;
     for (int i = 0; i < cue_count; i++) {
-        if (cues[i].kind != CUE_PLAY || cues[i].name == NULL || strcmp(cues[i].name, "world/footstep") != 0)
+        if (cues[i].kind != CUE_PLAY || cues[i].name == NULL || strncmp(cues[i].name, "world/footstep", 14) != 0)
             continue;
         steps++;
         lo = fminf(lo, cues[i].gain);
         hi = fmaxf(hi, cues[i].gain);
     }
     CHECK(steps >= 4 && hi <= FOOTSTEP_GAIN + 1e-4f && lo < hi);
+}
+
+/* How many steps were heard, checking each is of the given kind (prefix, and
+ * water take or not). takes, if given, receives how many different takes. */
+static int count_steps(const char *prefix, bool water, int *takes)
+{
+    const char *seen[8];
+    int steps = 0, distinct = 0;
+    for (int i = 0; i < cue_count; i++) {
+        const char *name = cues[i].name;
+        if (cues[i].kind != CUE_PLAY || name == NULL ||
+            (strncmp(name, "world/footstep", 14) != 0 && strncmp(name, "world/run_step", 14) != 0))
+            continue;
+        steps++;
+        CHECK(strncmp(name, prefix, strlen(prefix)) == 0);
+        CHECK((strstr(name, "_water") != NULL) == water);
+        bool known = false;
+        for (int k = 0; k < distinct; k++)
+            known = known || strcmp(seen[k], name) == 0;
+        if (!known && distinct < 8)
+            seen[distinct++] = name;
+    }
+    if (takes)
+        *takes = distinct;
+    return steps;
+}
+
+static void test_footsteps_keep_time_with_the_legs(void)
+{
+    /* A step only as a foot lands (frames 0 and 4), two per walk cycle:
+     * walking 3 a second, running 3.75. */
+    const struct { bool run; const char *prefix; float per_second; } cases[] = {
+        {false, "world/footstep", PLAYER_WALK_FPS / (PLAYER_WALK_FRAMES / 2)},
+        {true, "world/run_step", PLAYER_WALK_FPS * PLAYER_RUN_ANIM_MULT / (PLAYER_WALK_FRAMES / 2)},
+    };
+    for (int c = 0; c < 2; c++) {
+        setup_weapon(WEAPON_REVOLVER);
+        InputState input = {0};
+        input.down[ACTION_RIGHT] = true;
+        input.down[ACTION_RUN] = cases[c].run;
+        const int ticks = 240;
+        int heard = 0;
+        for (int i = 0; i < ticks; i++) {
+            step(&input);
+            int steps = count_steps(cases[c].prefix, false, NULL);
+            if (steps > heard) {
+                CHECK(game.player.anim.frame % (PLAYER_WALK_FRAMES / 2) == 0);
+                heard = steps;
+            }
+        }
+        /* This stage's wind at her back quickens the legs, and the steps with them. */
+        float pace = game.player.wind ? WIND_WITH : 1.0f;
+        float expected = cases[c].per_second * pace * (float)ticks * FIXED_DT;
+        CHECK(fabsf((float)heard - expected) <= 1.5f);
+    }
+}
+
+static void test_footsteps_sound_by_the_ground(void)
+{
+    /* Dry takes on dry ground, the fuller ones in a river or a puddle, and
+     * the takes take turns. */
+    const struct { bool run; TerrainKind water; bool wet; const char *prefix; } cases[] = {
+        {false, TERRAIN_KINDS, false, "world/footstep"},
+        {true, TERRAIN_KINDS, false, "world/run_step"},
+        {false, TERRAIN_RIVER, true, "world/footstep_water"},
+        {true, TERRAIN_RIVER, true, "world/run_step_water"},
+        {false, TERRAIN_PUDDLE, true, "world/footstep_water"},
+    };
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        setup_weapon(WEAPON_REVOLVER);
+        if (cases[c].wet) /* Right under her feet */
+            terrain_add(&game.run.terrain, cases[c].water, game.player.x);
+        InputState input = {0};
+        input.down[ACTION_RIGHT] = true;
+        input.down[ACTION_RUN] = cases[c].run;
+        float start = game.player.x;
+        for (int i = 0; i < 240; i++) {
+            game.player.x = start; /* Walking on the spot, not out of a small puddle */
+            step(&input);
+        }
+        int takes = 0;
+        CHECK(count_steps(cases[c].prefix, cases[c].wet, &takes) >= 4);
+        CHECK(takes == 4);
+    }
+}
+
+static void test_blocked_feet_stay_quiet(void)
+{
+    /* Her legs go on against the edge of the stage, but no foot lands anywhere new. */
+    setup_weapon(WEAPON_REVOLVER);
+    game.player.x = game.player.min_x;
+    InputState input = {0};
+    input.down[ACTION_LEFT] = true;
+    for (int i = 0; i < 120; i++)
+        step(&input);
+    CHECK(count_steps("world/footstep", false, NULL) == 0);
 }
 
 static void test_bench_latch_aligns_with_completion_and_swap_keeps_it(void)
@@ -444,11 +569,11 @@ static void test_field_guide_request_and_light_preserve_stage_state(void)
     CHECK(game.request_almanac && game.player.x == x && game.player.shot.rounds == 2);
     CHECK(cue_count == 0);
     game.request_almanac = false;
-    CHECK(game.flashlight);
+    CHECK(!game.flashlight); /* By day it starts off */
     press(ACTION_LIGHT);
-    CHECK(!game.flashlight && game.player.x == x && game.player.shot.rounds == 2);
+    CHECK(game.flashlight && game.player.x == x && game.player.shot.rounds == 2);
     press(ACTION_LIGHT);
-    CHECK(game.flashlight);
+    CHECK(!game.flashlight);
     game.paused = true;
     game.pause_view = PAUSE_VIEW_LIST;
     list_menu_init(&game.pause_menu, PAUSE_ITEMS);
@@ -544,7 +669,11 @@ int main(void)
     RUN(test_dynamite_interrupts_reload_and_shooting);
     RUN(test_planting_takes_her_hands_for_a_moment);
     RUN(test_bench_latch_aligns_with_completion_and_swap_keeps_it);
+    RUN(test_q_takes_the_second_pistol_out_and_away);
     RUN(test_footsteps_are_quiet_and_uneven);
+    RUN(test_footsteps_keep_time_with_the_legs);
+    RUN(test_footsteps_sound_by_the_ground);
+    RUN(test_blocked_feet_stay_quiet);
     RUN(test_rifle_fire_mode_toggles_on_k_keeping_its_rounds);
     RUN(test_bandage_starts_once_and_stops_only_when_cancelled);
     RUN(test_player_volume_preview_uses_player_group);

@@ -263,7 +263,19 @@ static void test_lamp_falls_into_fire(void)
     Terrain t;
     terrain_clear(&t);
     terrain_add(&t, TERRAIN_LAMP, 1000.0f);
-    shoot_at(&t, 1000.0f);
+    /* From the road a bullet goes under the glass, past the post... */
+    Bullets low;
+    bullets_clear(&low);
+    bullets_spawn(&low, 980.0f, 990.0f, BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE, 1);
+    bullets_update(&low, FIXED_DT, 500.0f);
+    terrain_shoot(&t, &low);
+    CHECK(!t.items[0].spent && t.count == 1 && bullets_active_count(&low) == 1);
+    /* ...only the glass itself brings it down. */
+    Bullets high;
+    bullets_clear(&high);
+    bullets_spawn(&high, 980.0f, 990.0f, BASELINE - (LAMP_GLASS_ROWS + 4) * SPRITE_SCALE, 1);
+    bullets_update(&high, FIXED_DT, 500.0f);
+    terrain_shoot(&t, &high);
     CHECK(t.items[0].spent && t.count == 2 && t.items[1].kind == TERRAIN_FIRE);
     for (int i = 0; i < (int)(FIRE_TIME / FIXED_DT) + 2; i++)
         terrain_update(&t, FIXED_DT);

@@ -56,9 +56,14 @@
 #define PLAYER_SHOOT_FRAME_W 81
 #define PLAYER_SHOOT_FRAME_H 80
 #define PLAYER_SHOOT_FRAMES 8     /* 0-2 draw, 3 aim, 4 fire, 5-6 recoil, 7 holster */
+#define PLAYER_SHOOT_AIM_FRAME 3
 #define PLAYER_SHOOT_AIM_FRAME 3  /* A follow-up shot restarts here, already aimed */
 #define PLAYER_SHOOT_FIRE_FRAME 4 /* The bullet leaves on this frame */
 #define PLAYER_SHOOT_FPS 16.0f
+#define PLAYER_PISTON_FPS 20.0f    /* Two guns taking turns: a whole turn each shot, 0.4 s */
+#define PLAYER_FAR_GUN_BACK 10     /* Her far gun's muzzle is this many art px behind the near one's (her arm's length)... */
+#define PLAYER_FAR_GUN_ROWS 5      /* ...and this many under it... */
+#define PLAYER_LIT_FAR_GUN_ROWS 9  /* ...or this many with the flashlight up on the other, from her hip */
 #define PLAYER_SHOOT_RELOAD_FRAME 6 /* Recoil frame held while the next ball goes in */
 /* Seconds from a bullet until the next shot can start. With the aim frame
  * a follow-up fires 1/16 s later: one bullet every 0.445 s. */
@@ -71,6 +76,13 @@
 #define PLAYER_WAIST_ROW 46        /* Walk-frame row where legs start (reloading while walking) */
 /* Sitting on a bench (sit sheet, tools/make_sit.py): 12 frames of 72 x 67. */
 /* The blow with the gun (V): the melee sheets (tools/make_melee.py). */
+#define PLAYER_LIGHT_FRAMES 16      /* Turning the flashlight on; the last is held (light.png) */
+#define PLAYER_LIGHT_OFF 0.6f      /* Putting it away takes this share of what it took (WeaponDef.light_time) */
+#define PLAYER_LIGHT_BREATHS 4     /* Frames of holding it up, breathing, after the walk's in light_walk.png */
+#define PLAYER_LIGHT_BREATH_FPS 2.2f
+#define PLAYER_LIGHT_CLICK 0.92f   /* Share of that when the light comes on: the gun level again */
+#define PLAYER_LIGHT_DX 32.5f      /* Art px from her pivot to its lens, on the level gun */
+#define PLAYER_LIGHT_DY 33.5f      /* Art px over the ground to it */
 #define PLAYER_MELEE_FRAMES 7
 #define PLAYER_MELEE_FPS 10.0f
 #define PLAYER_MELEE_HIT_FRAME 3  /* The blow lands on this frame */
@@ -156,7 +168,7 @@
 /* Where the bullet's center appears in the fire frame, measured on the art
  * relative to the body's pivot: centered on the barrel (rows 31-34), with the
  * back of the 6 px ball at the muzzle tip (x 64). */
-#define PLAYER_MUZZLE_DX 35.5f /* Art px ahead of the body center */
+#define PLAYER_MUZZLE_DX 37.5f /* Art px ahead of the body center */
 #define PLAYER_MUZZLE_DY 35.0f /* Art px above the ground line */
 
 /* Bullet sheet: 4 frames of 8 x 6 px, a 6 x 6 ball centered in each. */
@@ -305,6 +317,7 @@
 #define AMBUSH_AHEAD 1000.0f
 #define AMBUSH_SPACING 120.0f      /* Window px between ambushers on one side */
 #define AMBUSH_ROOM 560.0f         /* Window px past the spot she may move while it holds her */
+#define AMBUSH_WALL_SPAN 1200.0f   /* A wall this close past the spot: she may walk on up to it */
 #define ROUTE_PX_PER_METER 48.0f   /* For the distance to the goal in the HUD */
 #define ROUTE_QUEUE_STEP 40.0f     /* Zombies queue up by her: each a step behind; two still reach */
 #define PLAYER_BODY_HALF_WIDTH 40.0f /* What runs into a barricade: her body, not the frame */
@@ -312,6 +325,9 @@
 /* Terrain (terrain.c, art from tools/make_terrain.py). */
 #define TERRAIN_MAX 96
 #define POWER_LEVEL 3             /* Each character's level-3 power: dual pistols, grenades */
+/* TEMPORARY, to see the art in play: Q swaps to the duals from level 1. Set to
+ * 0 for the real rule, from POWER_LEVEL. */
+#define DUALS_FROM_ANY_LEVEL 1
 #define GRENADE_SPEED_X 430.0f    /* Window px/s ahead when thrown */
 #define GRENADE_SPEED_Y 560.0f    /* ...and up */
 #define GRENADE_GRAVITY 1500.0f
@@ -333,8 +349,8 @@
 #define HOUSE_PARALLAX 0.8f       /* ...and slower */
 #define HOUSE_SPACING 700.0f      /* A slot for a house every this many px of their strip */
 #define BARRICADE_FRAME_W 68
-#define BARRICADE_FRAME_H 44
-#define BARRICADE_TOP 168.0f      /* Window px: over her jump's peak, so only N (a vault) gets her over */
+#define BARRICADE_FRAME_H 36
+#define BARRICADE_TOP 146.0f      /* Window px: under her face, over her jump's peak: only N gets her over */
 #define BARRICADE_STRIKES 4       /* Claw strikes that wreck it */
 #define BARRICADE_KINDS 4         /* Crates, sandbags, logs, a steel barrier (Piece.variant) */
 #define BARRICADE_CLAW_GAP 36.0f  /* A zombie clawing it stands this far from its edge */
@@ -384,6 +400,10 @@
 #define CRATE_HITS 3
 #define CRATE_SPACING 140.0f      /* Window px between crates of one spot */
 #define TRAP_SPACING 420.0f
+#define HAZARD_ROOM 320.0f        /* Window px of clear road between a trap and the wagon, a bench, a wall:
+                                   * room to land from a vault and see it coming */
+#define DECOY_EVERY 1500.0f       /* Window px between dead trees and shrubs on the road, about */
+#define DECOY_ROOM 70.0f          /* Window px clear round one */
 /* Window px at least between two traps on the road (bear traps, spikes, nets,
  * snares, wire): room to land after jumping one and take off for the next. */
 #define HAZARD_GAP 400.0f
@@ -411,6 +431,8 @@
 #define BANDAGE_TIME 1.5f         /* Seconds holding U to stop the bleeding... */
 #define BANDAGE_WALK 0.5f         /* ...walking at this pace meanwhile */
 #define PLAYER_CARE_FRAMES 6      /* <id>/drink, <id>/bandage and <id>/plant: the shoot template */
+#define PLAYER_SWAP_FRAMES 12      /* <id>/swap: taking her second pistol out; backwards to put it away */
+#define PLAYER_SWAP_TIME 0.9f      /* Seconds of that */
 #define PLANT_TIME 0.45f          /* Seconds she stands setting a charge (E), its fuse lit at the end */
 #define BANDAGE_SHOW 2.5f         /* Seconds the done bandage stays on her leg */
 /* A burn (lightning): slower walking and healing until she has bandaged it
@@ -419,10 +441,12 @@
 #define BURN_HEAL_MULT 0.5f
 /* Lightning in a storm (stage_run.c): every so often a bolt comes down near
  * her, crackling on the ground first so she can get away. */
-#define LIGHTNING_EVERY_MIN 7.0f
-#define LIGHTNING_EVERY_MAX 15.0f
+#define LIGHTNING_EVERY_MIN 20.0f
+#define LIGHTNING_EVERY_MAX 38.0f
 #define LIGHTNING_WARN 1.0f       /* Seconds of crackling where it will strike */
-#define LIGHTNING_NEAR 420.0f     /* Window px either side of her it may strike */
+#define LIGHTNING_FAR 340.0f      /* Window px either side of her it strikes: never closer, the warning
+                                   * gives her time to stay out of it... */
+#define LIGHTNING_NEAR 800.0f     /* ...and never farther */
 #define LIGHTNING_RADIUS 110.0f   /* Window px round the strike that it hurts */
 #define LIGHTNING_SELF_MULT 1.6f  /* Claws of the stage's zombies on her (plus a burn) */
 #define LIGHTNING_DAMAGE_MULT 2.5f /* Times her weapon damage on a zombie */
@@ -431,6 +455,7 @@
 #define SIGN_FRAME_H 30
 #define SIGN_CHANCE 25            /* Percent of traps with one */
 #define SIGN_GAP 200.0f           /* Window px before the trap */
+#define SIGN_ROOM 40.0f           /* ...and at least this clear of it */
 #define SIGN_WARN_RANGE 360.0f    /* Its warning shows this far before it */
 #define PUDDLE_FRAME_W 64
 #define PUDDLE_FRAME_H 6
@@ -470,59 +495,63 @@
 #define CROW_CORPSE_TIME 4.0f     /* Seconds it lies on the road... */
 #define CROW_FADE_TIME 0.8f       /* ...then fades */
 #define CROW_FRAMES 8
-/* Bats at night (bats.c): a few now and then flitting across the view. */
+/* Bats at night (bats.c): small colonies along the road, like the crows. */
 #define BAT_FRAME_W 16
 #define BAT_FRAME_H 10
 #define BAT_FRAMES 6              /* 0-3 the wingbeat, 4 falling, 5 dead on the road */
-#define BATS_MAX 8
-#define BAT_GROUP_MAX 3
-#define BAT_FIRST 6.0f            /* Seconds into a night stage before the first */
-#define BAT_EVERY_MIN 9.0f        /* Seconds between them */
-#define BAT_EVERY_MAX 20.0f
-#define BAT_SPEED 260.0f          /* Px per second across */
-#define BAT_LOW 120.0f            /* Window px over the ground it flits about... */
-#define BAT_HIGH 230.0f
-#define BAT_DIP 55.0f             /* ...up and down this much (down to her gun's height) */
+#define BATS_MAX 16
+#define BAT_GROUP_MAX 2
+#define BAT_COLONY_EVERY 5200.0f  /* Window px between colonies on the road, about */
+#define BAT_ROAM 90.0f            /* Window px they flit to each side of their spot */
+#define BAT_LOW 105.0f            /* Window px over the ground they flit about... */
+#define BAT_HIGH 150.0f
+#define BAT_DIP 45.0f             /* ...up and down this much: through her line of fire */
+#define BAT_SCARE_RANGE 300.0f    /* She walks this near, they go */
+#define BAT_FLOCK_RANGE 400.0f    /* One shot down, those this near it go too */
+#define BAT_FLEE_SPEED 260.0f     /* Px per second away */
+#define BAT_CLIMB 220.0f
 #define BAT_FLAP_FPS 16.0f
 /* Traps that hang their catch up (CatchKind): a net (a bag up in the air)
  * and a snare (by one foot, head down, from a sapling). She gets out with
  * blows (V); a zombie hangs a while and drops. */
-#define NET_FRAME_W 40
-#define NET_FRAME_H 30
+#define NET_FRAME_W 84            /* A dead tree with its bough over the road: the tip at the center */
+#define NET_FRAME_H 128
+#define NET_TIP_Y 11              /* Art px in its frame: the bough's tip, where the net hangs from */
 #define NET_BAG_W 44              /* effects/net_bag: 2 sway frames, then 2 closing */
 #define NET_BAG_H 66
 #define NET_LIFT 170.0f           /* Window px her feet go up */
 #define NET_BLOWS 3               /* Blows to cut her way out */
 #define NET_HOLD 4.0f             /* Seconds a zombie hangs in it */
-#define SNARE_FRAME_W 48
-#define SNARE_FRAME_H 84
-#define SNARE_TIP_X 37            /* Art px in its frame: the sprung sapling's tip */
-#define SNARE_TIP_Y 2
+#define SNARE_FRAME_W 72          /* Hidden in a shrub; sprung, the sapling stands over her feet */
+#define SNARE_FRAME_H 124
+#define SNARE_TIP_X 38            /* Art px in its frame: the sprung sapling's tip */
+#define SNARE_TIP_Y 4
 #define SNARE_LIFT 150.0f         /* Window px her head hangs over the ground */
 #define SNARE_BLOWS 2
 #define SNARE_HOLD 5.0f
 #define CATCH_RISE_TIME 0.25f     /* Seconds the trap takes to haul its catch up */
-#define CATCH_SHAKE_TIME 0.2f     /* A blow at the ropes: her strike frame this long */
+#define CATCH_SHAKE_TIME 0.35f    /* A blow at the ropes: her whole strike plays in this long */
 #define SPRING_TIME 0.18f         /* Seconds a trap's springing frame shows */
 /* A spike plate: stepped on, its spikes come up a moment later and stay out
  * a while, then sink back and it can go again. */
-#define SPIKES_FRAME_W 32
-#define SPIKES_FRAME_H 16
+#define SPIKES_FRAME_W 40
+#define SPIKES_FRAME_H 22
 #define SPIKES_DELAY 0.35f        /* Seconds from the step to the spikes */
 #define SPIKES_OUT 0.8f           /* Seconds they stay out */
 #define SPIKES_REARM 1.5f         /* Seconds sunk before it can go again */
-#define SPIKES_TOP 60.0f          /* Window px: higher in a jump, she clears them */
+#define SPIKES_TOP 72.0f          /* Window px: higher in a jump, she clears them */
 #define SPIKES_SELF_MULT 1.2f     /* Claws of the stage's zombies on her (plus bleeding) */
 #define SPIKES_DAMAGE_MULT 2.5f   /* Times her weapon damage on a zombie */
 /* Barbed wire across the road: it doesn't stop her, it tears her (bleeding,
  * limping) while she is in it below WIRE_TOP. Shots or blows cut it. */
-#define WIRE_FRAME_W 80
-#define WIRE_FRAME_H 22
+#define WIRE_FRAME_W 112
+#define WIRE_FRAME_H 30
 #define WIRE_HITS 4               /* Shots that cut it */
 #define WIRE_MELEE_HITS 2         /* What one blow counts for */
-#define WIRE_TOP 70.0f            /* Window px over the ground: higher, she clears it */
+#define WIRE_TOP 100.0f           /* Window px over the ground: higher, she clears it */
 #define WIRE_BITE_EVERY 0.8f      /* Seconds between bites while she is in it */
 #define WIRE_SELF_MULT 0.5f       /* Claws of the stage's zombies per bite */
+#define WIRE_DAMAGE_MULT 1.0f     /* Times her weapon damage on a zombie per bite */
 #define WIRE_WARN_RANGE 420.0f    /* Window px: the prompt tells her what to do */
 #define LAMP_SPACING 320.0f
 #define COFFIN_SPACING 130.0f
@@ -541,8 +570,8 @@
 #define BOTTLES_FRAME_W 40        /* Three bottles on a saloon table: frames with 3, 2, 1, 0 left */
 #define BOTTLES_FRAME_H 40
 #define BOTTLE_COUNT 3
-#define TRAP_FRAME_W 32           /* A bear trap: open, snapping, shut */
-#define TRAP_FRAME_H 12
+#define TRAP_FRAME_W 48           /* A bear trap: open, snapping, shut */
+#define TRAP_FRAME_H 18
 #define TRAP_REACH 60.0f          /* Window px from its center: a foot on it snaps it */
 #define TRAP_HOLD 3.0f            /* Seconds a zombie stays caught */
 #define TRAP_DAMAGE_MULT 2.0f     /* Times her weapon damage to a zombie; her: TRAP_SELF_MULT claws */
@@ -562,6 +591,7 @@
 #define COFFIN_RANGE 340.0f       /* Window px: she comes this near, it bursts open */
 #define LAMP_FRAME_W 14           /* Oil lamp on a post: lit, post without its lamp */
 #define LAMP_FRAME_H 76
+#define LAMP_GLASS_ROWS 54        /* Art rows over the ground to the glass: a bullet below it misses */
 #define FIRE_FRAME_W 32           /* Burning oil on the ground */
 #define FIRE_FRAME_H 24
 #define FIRE_FRAMES 4

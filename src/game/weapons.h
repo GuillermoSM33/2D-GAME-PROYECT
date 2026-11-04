@@ -22,6 +22,7 @@ typedef struct {
     int burst;            /* Bullets per shot, one after another; 0 or 1 = a single one */
     float burst_gap;      /* Seconds between the bullets of a burst */
     bool automatic;       /* Holding the trigger keeps firing */
+    bool piston;          /* Two guns taking turns, each shot played whole */
     int magazine;         /* Shots (bursts count as one) before a magazine reload; 0 = never */
     float magazine_reload; /* Seconds that reload takes */
     /* K: a second fire mode, one bullet per click, with the magazine's bullets
@@ -46,6 +47,13 @@ typedef struct {
      * (assets/sprites/characters/<id>/<shoot_sheet>.png), or NULL. Same size
      * and template as shoot.png. */
     const char *shoot_sheet;
+    /* With two guns taking turns: the sheet where the other one fires, or NULL. */
+    const char *shoot_other_sheet;
+    const char *walk_sheet;            /* Her own walk and jump with this gun, if any: its holsters */
+    const char *jump_sheet;
+    const char *melee_lit_sheet;       /* Its blow with the flashlight on: the beam swings with it */
+    const char *shoot_lit_sheet;       /* Both turns with the flashlight on: it stays up, lit */
+    const char *shoot_other_lit_sheet;
     /* The character's sheet while putting a magazine in (needed with a
      * magazine), same size and template as shoot.png. */
     const char *reload_sheet;
@@ -55,6 +63,14 @@ typedef struct {
     /* The character's sheet for a blow with this gun, instead of "melee", or
      * NULL (tools/make_melee.py). Same frame size as shoot.png. */
     const char *melee_sheet;
+    /* The character's sheet turning on the flashlight with this gun, its last
+     * frame held while it stays on (tools/make_flashlight.py, make_swat.py), or
+     * NULL. Same frame size as shoot.png. */
+    const char *light_sheet;
+    /* ...and walking with it on, the same frames as the walk (light_walk.png). */
+    const char *light_walk_sheet;
+    float light_time; /* Seconds turning it on: fetching and clipping it, or just the switch */
+    float light_rows; /* Art rows over the ground to its lens, if not PLAYER_LIGHT_DY: clipped under the barrel */
 } WeaponDef;
 
 const WeaponDef *weapon_def(WeaponId id);
