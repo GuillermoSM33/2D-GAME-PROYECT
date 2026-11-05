@@ -15,7 +15,7 @@ void shot_reset(Shot *shot)
 void shot_cancel(Shot *shot)
 {
     Shot gun = *shot;
-    if (gun.fired && gun.burst_left > 0)
+    if (gun.magazine > 0 && gun.fired && gun.burst_left > 0)
         gun.rounds--; /* A burst cut short still spent its shot */
     memset(shot, 0, sizeof(*shot));
     shot->reload_time = gun.reload_time;
@@ -165,7 +165,8 @@ bool shot_update(Shot *shot, float dt)
         hold_frame(shot, PLAYER_SHOOT_FIRE_FRAME);
         if (shot->burst_left == 0) {
             shot->reload = shot->reload_time;
-            shot->rounds--;
+            if (shot->magazine > 0)
+                shot->rounds--;
         }
         return true;
     }
@@ -198,7 +199,7 @@ bool shot_update(Shot *shot, float dt)
         shot->burst_left = shot->burst - 1;
         shot->burst_timer = shot->burst_gap;
         shot->reload = shot->burst_left > 0 ? 0.0f : shot->reload_time;
-        if (shot->burst_left == 0)
+        if (shot->burst_left == 0 && shot->magazine > 0)
             shot->rounds--;
         return true;
     }

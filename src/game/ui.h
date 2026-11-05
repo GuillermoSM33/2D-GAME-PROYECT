@@ -56,6 +56,8 @@ void ui_button(SDL_Renderer *renderer, int x, int y, int w, int h, const char *l
 /* A key cap sized to its label ("E", "ESC", "←"), top-left at x, y.
  * Returns its width. */
 int ui_key(SDL_Renderer *renderer, int x, int y, const char *label);
+/* Same key artwork at 2x, for the compact gameplay HUD. */
+int ui_key_compact(SDL_Renderer *renderer, int x, int y, const char *label);
 int ui_key_width(const char *label);
 int ui_key_height(void);
 

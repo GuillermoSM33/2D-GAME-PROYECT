@@ -121,6 +121,100 @@ static void test_invalid_or_truncated_data_never_mutates_profiles(void)
     CHECK(size == 0);
 }
 
+static void prepare_shots_and_level_up(int hero)
+{
+    const InputState idle = {0};
+    save_game_init(&source);
+    source.profiles[hero].progress.xp = xp_to_next(1) - 1;
+    stage_start_profile(&play, 0, &CHARACTERS[hero], &source.profiles[hero]);
+    InputState trigger = {0};
+    trigger.pressed[ACTION_SHOOT] = true;
+    for (int shot = 0; shot < 3; shot++) {
+        CHECK(stage_step(&play, &trigger, &source.profiles[hero], &options));
+        for (int frame = 0; frame < 75; frame++)
+            CHECK(stage_step(&play, &idle, &source.profiles[hero], &options));
+    }
+    play.player.health = 9;
+    chest_place(&play.run.chests[0], play.player.x, 2);
+    CHECK(stage_step(&play, &idle, &source.profiles[hero], &options));
+    CHECK(source.profiles[hero].progress.level == 2);
+    CHECK(play.player.health == play.player.max_health);
+    if (play.player.shot.magazine == 0)
+        CHECK(play.player.shot.rounds == 0);
+}
+
+static void test_level_up_checkpoint_roundtrip_for_every_character(void)
+{
+    for (int hero = 0; hero < CHARACTER_COUNT; hero++) {
+        prepare_shots_and_level_up(hero);
+        save_game_snapshot(&source, source.profiles, hero, &source.volumes, &play);
+        size_t size = 0;
+        CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+        CHECK(save_game_decode(bytes, size, &decoded));
+        CHECK(save_game_resume(&decoded, &resumed, hero, 0));
+        CHECK(resumed.player.level == 2 && resumed.player.health == play.player.health);
+        if (play.player.shot.magazine == 0) {
+            /* A live attempt produced by the previous version can already
+             * contain negative counters; they are unused for infinite ammo. */
+            source.checkpoint.player.shot.rounds = -3;
+            source.checkpoint.rounds[source.checkpoint.weapon_slot] = -3;
+            CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+            CHECK(save_game_decode(bytes, size, &decoded));
+            CHECK(decoded.checkpoint.player.shot.rounds == -3);
+        } else {
+            source.checkpoint.player.shot.rounds = -1;
+            CHECK(!save_game_encode(&source, bytes, sizeof(bytes), &size));
+            source.checkpoint.player.shot.rounds = 1;
+            source.checkpoint.rounds[source.checkpoint.weapon_slot] = -2;
+            CHECK(!save_game_encode(&source, bytes, sizeof(bytes), &size));
+        }
+    }
+}
+
+static void test_combat_checkpoints_through_first_level_up(void)
+{
+    const InputState idle = {0};
+    save_game_init(&source);
+    stage_start_profile(&play, 0, &CHARACTERS[0], &source.profiles[0]);
+    for (int enemy = 0; enemy < play.run.zombie_count && source.profiles[0].progress.level == 1; enemy++) {
+        play.player.x = play.run.zombies[enemy].x;
+        zombie_hit_through(&play.run.zombies[enemy], 10000.0f, 0.0f);
+        for (int frame = 0; frame < 160; frame++) {
+            CHECK(stage_step(&play, &idle, &source.profiles[0], &options));
+            save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+            size_t size = 0;
+            if (!save_game_encode(&source, bytes, sizeof(bytes), &size)) {
+                fprintf(stderr, "combat snapshot failed: enemy=%d frame=%d level=%d\n", enemy, frame,
+                        source.profiles[0].progress.level);
+                CHECK(false);
+                return;
+            }
+        }
+    }
+    CHECK(source.profiles[0].progress.level == 2);
+}
+
+static void test_next_mission_saves_after_clearing_the_first(void)
+{
+    save_game_init(&source);
+    Profile *profile = &source.profiles[0];
+    stage_start_profile(&play, 0, &CHARACTERS[0], profile);
+    CHECK(!stage_unlocked(&profile->record, 1));
+    play.run.phase = RUN_CLEARED;
+    mission_finish(&play.run.mission, &profile->record, 0, play.player.health, play.player.max_health);
+    size_t size = 0;
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    CHECK(!source.has_checkpoint && save_game_encode(&source, bytes, sizeof(bytes), &size));
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, NULL);
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(stage_unlocked(&profile->record, 1));
+    stage_start_profile(&play, 1, &CHARACTERS[0], profile);
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    CHECK(source.has_checkpoint && save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(save_game_resume(&decoded, &resumed, 0, 1));
+}
+
 static void test_retry_cannot_bank_unearned_progress_or_duplicate_rewards(void)
 {
     fixture(37, 111);
@@ -223,9 +317,35 @@ int main(int argc, char **argv)
     SDL_SetMainReady();
     if (argc < 3) return 2;
     directory = argv[2];
-    if (strcmp(argv[1], "checks") == 0) {
+    if (strcmp(argv[1], "levelup-write") == 0 || strcmp(argv[1], "levelup-read") == 0) {
+        if (argc != 4) return 2;
+        int hero = atoi(argv[3]);
+        if (hero < 0 || hero >= CHARACTER_COUNT) return 2;
+        static Autosave a;
+        if (strcmp(argv[1], "levelup-write") == 0) {
+            prepare_shots_and_level_up(hero);
+            CHECK(autosave_init(&a, true, directory) == STORAGE_EMPTY);
+            CHECK(autosave_request(&a, source.profiles, hero, &source.volumes, &play));
+            autosave_shutdown(&a);
+            CHECK(!a.failed);
+        } else {
+            CHECK(autosave_init(&a, true, directory) == STORAGE_LOADED);
+            CHECK(a.game.hero == hero && a.game.profiles[hero].progress.level == 2);
+            CHECK(a.game.profiles[hero].progress.xp == 1);
+            CHECK(save_game_resume(&a.game, &resumed, hero, 0));
+            CHECK(resumed.player.level == 2 && resumed.player.health == resumed.player.max_health);
+            CHECK(resumed.player.shot.rounds >= 0);
+            CHECK(resumed.progress_at_start.level == 1);
+            const InputState idle = {0};
+            CHECK(stage_step(&resumed, &idle, &a.game.profiles[hero], &options));
+            autosave_shutdown(&a);
+        }
+    } else if (strcmp(argv[1], "checks") == 0) {
         RUN(test_roundtrip_preserves_live_mission_and_rebinds_references);
         RUN(test_invalid_or_truncated_data_never_mutates_profiles);
+        RUN(test_level_up_checkpoint_roundtrip_for_every_character);
+        RUN(test_combat_checkpoints_through_first_level_up);
+        RUN(test_next_mission_saves_after_clearing_the_first);
         RUN(test_retry_cannot_bank_unearned_progress_or_duplicate_rewards);
         RUN(test_replacing_pending_mission_restores_its_entry_balance);
         RUN(test_timer_counts_fifteen_minutes_of_active_play_only);

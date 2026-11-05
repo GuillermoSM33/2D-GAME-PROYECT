@@ -232,6 +232,32 @@ static void test_cut_reload_resumes_and_keeps_rounds(void)
     CHECK(shot.magazine == 0); /* The revolver never runs dry */
 }
 
+static void test_infinite_ammo_never_spends_a_magazine_counter(void)
+{
+    for (int burst = 1; burst <= 3; burst += 2) {
+        Shot shot;
+        shot_reset(&shot);
+        shot_set_burst(&shot, burst, 0.07f, true);
+        shot_set_magazine(&shot, 0, 0.0f, -1);
+        int fires = 0;
+        for (int frame = 0; frame < 600; frame++) {
+            shot_start(&shot);
+            fires += shot_update(&shot, FIXED_DT);
+            CHECK(shot.rounds == 0 && !shot_reloading(&shot));
+        }
+        CHECK(fires >= 10);
+        shot_cancel(&shot);
+        CHECK(shot.rounds == 0);
+        if (burst > 1) {
+            shot_start(&shot);
+            while (!shot_update(&shot, FIXED_DT)) {}
+            CHECK(shot.burst_left > 0);
+            shot_cancel(&shot); /* A partially fired burst spends no finite ammo. */
+            CHECK(shot.rounds == 0);
+        }
+    }
+}
+
 static void piston_guns(Shot *shot)
 {
     shot_reset(shot);
@@ -322,6 +348,7 @@ int main(void)
     RUN(test_magazine_runs_dry_and_reloads);
     RUN(test_burst_counts_as_one_shot);
     RUN(test_cut_reload_resumes_and_keeps_rounds);
+    RUN(test_infinite_ammo_never_spends_a_magazine_counter);
     RUN(test_held_trigger_alternates_the_guns);
     RUN(test_turn_plays_whole_between_shots);
     RUN(test_clicks_during_a_turn_are_kept_and_alternate);

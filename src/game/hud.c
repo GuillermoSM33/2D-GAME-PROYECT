@@ -27,25 +27,60 @@ static int view_y(float y)
 }
 #define TAG_GAP 8 /* Window px between a head (or bar) and its level tag */
 
-/* Compact leather readouts leave the landscape open. The wider life field
- * accommodates large health totals; secondary information stays underneath. */
+/* Three columns inside the sky band, ordered by what a player looks for:
+ * herself on the left, the mission in the middle, the gun on the right. Each
+ * has one main plate; everything under it appears only when it applies. The
+ * world starts at VIEW_TOP, so none of this ever covers the fight. */
 #define HUD_MARGIN 12
-#define TOP_H 52
-#define LEFT_W 264
-#define RIGHT_W 356
-#define WEAPON_W 292
-#define WEAPON_X (HUD_MARGIN + LEFT_W + 12)
+#define HUD_GAP 12
+#define HUD_TOP 8
+#define TOP_H 60
+#define VITALS_W 324
+#define MISSION_W 264
+#define WEAPON_W 324
+#define VITALS_X HUD_MARGIN
+#define MISSION_X (VITALS_X + VITALS_W + HUD_GAP)
+#define WEAPON_X (MISSION_X + MISSION_W + HUD_GAP)
+#define XP_BAR_W 68
+#define EXIT_W 146 /* "SALIDA 9999 M" at scale two */
+#define ROUTE_W (MISSION_W - 24 - EXIT_W)
+#define DEFEATED_W 62 /* "22/22" at scale two */
+#define CLOCK_ICON_W 16 /* The clock's icon and the gap before its time */
 
-enum { HUD_ROAD, HUD_WEAPON, HUD_LIFE };
+/* Second row: supplies, a critical alert, gun shortcuts. */
+#define CHIP_Y (HUD_TOP + TOP_H + 4)
+#define CHIP_H 28
+#define HUD_KEY_SIZE 28 /* ui_key_compact with a one-letter label */
+#define SWAP_W 84
+#define POWER_W 232
+
+/* Third row: her conditions from the left, the save status on the right. */
+#define STATE_Y (CHIP_Y + CHIP_H + 4)
+#define STATE_H 24
+#define STATE_GAP 4
+#define STATES_W (VITALS_W + HUD_GAP + MISSION_W)
+#define STATE_TIP_W 600
+#define STATE_TIP_H 62
+#define STATE_MAX 19 /* Entries in draw_states' table */
+
+enum { HUD_VITALS, HUD_MISSION, HUD_WEAPON };
 static const SDL_Rect HUD_REGIONS[] = {
-    {HUD_MARGIN, 12, LEFT_W, TOP_H},
-    {WEAPON_X, 12, WEAPON_W, TOP_H},
-    {WINDOW_WIDTH - HUD_MARGIN - RIGHT_W, 12, RIGHT_W, TOP_H},
+    {VITALS_X, HUD_TOP, VITALS_W, TOP_H},
+    {MISSION_X, HUD_TOP, MISSION_W, TOP_H},
+    {WEAPON_X, HUD_TOP, WEAPON_W, TOP_H},
 };
+
+#define RESULT_W 708
+#define RESULT_H 444
+#define RESULT_STAR_SCALE 6
+#define RESULT_STAR_GAP 16
+#define MISSION_GOALS_W 452
+#define MISSION_GOALS_H 174
 
 #define POPUP_MAX 6
 #define POPUP_TIME 1.4f
 #define POPUP_RISE 40.0f /* px it climbs over its life */
+#define POPUP_LIFT 26 /* Window px up, so a line starts clear of the level badge */
 
 #define CARD_W 292
 #define CARD_GAP 18
@@ -104,10 +139,28 @@ static int hud_text_fit(SDL_Renderer *renderer, const char *str, int x, int y,
     return ui_text(renderer, str, x, y, hud_text_scale(str, width, preferred_scale), ink, anchor);
 }
 
+/* The y that centers a line of text in a band: the glyphs' 7 rows start 2 rows
+ * into their cell (room for accents). */
+static int hud_centered_y(int y, int h, int scale)
+{
+    return y + (h - 7 * scale) / 2 - 2 * scale;
+}
+
 static void hud_top_panel(SDL_Renderer *renderer, int index)
 {
     const SDL_Rect *r = &HUD_REGIONS[index];
     hud_plate(renderer, r->x, r->y, r->w, r->h);
+}
+
+/* A lighter recess behind a gun's picture: the guns are dark art and would
+ * otherwise sink into the leather. */
+static void hud_well(SDL_Renderer *renderer, int x, int y, int w, int h)
+{
+    SDL_Rect well = {x, y, w, h};
+    SDL_SetRenderDrawColor(renderer, 124, 104, 84, 255);
+    SDL_RenderFillRect(renderer, &well);
+    SDL_SetRenderDrawColor(renderer, 24, 17, 16, 255);
+    SDL_RenderDrawRect(renderer, &well);
 }
 
 static void hud_meter(SDL_Renderer *renderer, int x, int y, int w, int h,
@@ -273,34 +326,41 @@ static void draw_popups(SDL_Renderer *renderer, float camera_x)
             continue;
         float t = p->age / POPUP_TIME;
         float alpha = t < 0.6f ? 1.0f : fmaxf(0.0f, 1.0f - (t - 0.6f) / 0.4f);
-        pixfont_draw(renderer, p->str, view_x(p->world_x - camera_x), view_y((float)p->y) -
+        pixfont_draw(renderer, p->str, view_x(p->world_x - camera_x), view_y((float)p->y) - POPUP_LIFT -
                      (int)lroundf(POPUP_RISE * t), p->big ? 3 : 2, p->rgb, ANCHOR_N,
                      (Uint8)lroundf(alpha * 255.0f));
     }
 }
 
-/* Top left: the stage, the zombies beaten and the meters to the gate (and
- * the dynamite she carries, once she has any). */
-static void draw_road_panel(SDL_Renderer *renderer, const Player *player, const StageRun *run)
+/* Middle: the clock, centered on the window; which route and how far to its
+ * exit; then the zombies beaten and how much of the fight that is. */
+static void draw_mission(SDL_Renderer *renderer, const Player *player, const StageRun *run)
 {
     char str[64];
-    int x = HUD_MARGIN + 12, right = HUD_MARGIN + LEFT_W - 12;
-    hud_top_panel(renderer, HUD_ROAD);
+    int x = MISSION_X + 12, right = MISSION_X + MISSION_W - 12, y0 = HUD_TOP;
+    hud_top_panel(renderer, HUD_MISSION);
+    char time[24];
+    mission_format_time(run->mission.ticks, time, sizeof(time));
+    int time_w = ui_text_width(time, 2), clock_w = CLOCK_ICON_W + time_w;
+    int clock_x = WINDOW_WIDTH / 2 - clock_w / 2;
+    ui_icon(renderer, ICON_CLOCK, clock_x, y0 + 5, 1);
+    ui_text(renderer, time, clock_x + CLOCK_ICON_W, y0, 2, COLOR_HUD_TITLE, ANCHOR_NW);
     snprintf(str, sizeof(str), "RUTA %s", run->stage->name);
-    hud_text_fit(renderer, str, x, 20, LEFT_W / 2 - 16, 2, COLOR_HUD_TITLE, ANCHOR_NW);
+    hud_text_fit(renderer, str, x, y0 + 19, ROUTE_W, 2, COLOR_HUD_TITLE, ANCHOR_NW);
     int meters = (int)fmaxf(0.0f, (run->goal_x - player->x) / ROUTE_PX_PER_METER);
     snprintf(str, sizeof(str), "SALIDA %d M", meters);
-    ui_text(renderer, str, right, 25, 1, COLOR_HUD_PRIMARY, ANCHOR_NE);
-    ui_icon(renderer, ICON_SKULL, x, 42, 1);
-    snprintf(str, sizeof(str), "%d/%d ZOMBIS", run->defeated, run->stage->zombies);
-    hud_text_fit(renderer, str, x + 18, 43, LEFT_W - 42, 1, COLOR_HUD_SECONDARY, ANCHOR_NW);
+    hud_text_fit(renderer, str, right, y0 + 19, EXIT_W, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
+    ui_icon(renderer, ICON_SKULL, x, y0 + 43, 1);
+    snprintf(str, sizeof(str), "%d/%d", run->defeated, run->stage->zombies);
+    hud_text_fit(renderer, str, x + 16, y0 + 38, DEFEATED_W, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
     float share = run->stage->zombies > 0 ? (float)run->defeated / (float)run->stage->zombies : 1.0f;
-    hud_meter(renderer, x, 56, LEFT_W - 24, 6, share, 0x9c7044, 0xcd9b5b);
+    int bar_x = x + 16 + DEFEATED_W + 6;
+    hud_meter(renderer, bar_x, y0 + 44, right - bar_x, 9, share, 0x9c7044, 0xcd9b5b);
 }
 
-/* Supplies form one small line rather than a second large board. */
-static void draw_gold(SDL_Renderer *renderer, const Player *player, const Progress *progress,
-                      const StageRun *run)
+/* Under her health: what she carries. Dynamite shows once she has some. */
+static void draw_supplies(SDL_Renderer *renderer, const Player *player, const Progress *progress,
+                          const StageRun *run)
 {
     char values[3][24];
     const UiIcon icons[] = {ICON_GOLD, ICON_WATER, ICON_DYNAMITE};
@@ -311,71 +371,98 @@ static void draw_gold(SDL_Renderer *renderer, const Player *player, const Progre
     do {
         width = 0;
         for (int i = 0; i < count; i++)
-            width += 18 + ui_text_width(values[i], scale) + (i ? 10 : 0);
-        if (width <= LEFT_W - 16 || scale == 1)
+            width += 16 + ui_text_width(values[i], scale) + (i ? 14 : 0);
+        if (width <= VITALS_W - 20 || scale == 1)
             break;
         scale--;
     } while (true);
-    int x = HUD_MARGIN + 8, y = 78;
+    hud_plate(renderer, VITALS_X, CHIP_Y, width + 20, CHIP_H);
+    int x = VITALS_X + 10;
     for (int i = 0; i < count; i++) {
-        ui_icon(renderer, icons[i], x, y + 4, 1);
-        x += 18;
-        x += ui_text(renderer, values[i], x, y + (scale == 1 ? 6 : 1), scale,
-                     i == 0 ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW) + 10;
-    }
-    /* A critical condition has a readable name even without hovering its icon. */
-    char title[48] = "", note[64] = "";
-    unsigned ink = COLOR_HUD_DANGER;
-    if (player->bandage > 0.0f)
-        snprintf(title, sizeof(title), "VENDANDO %d%%", (int)(100.0f * player->bandage / BANDAGE_TIME));
-    else if (player->bleeding) {
-        snprintf(title, sizeof(title), "SANGRADO");
-        snprintf(note, sizeof(note), "MANTÉN U PARA VENDARTE");
-    } else if (player->fatigue >= FATIGUE_STROKE) {
-        snprintf(title, sizeof(title), "GOLPE DE CALOR");
-        snprintf(note, sizeof(note), "ALÉJATE DEL FUEGO");
-    } else if (player_thirst_level(player) >= 2) {
-        snprintf(title, sizeof(title), "DESHIDRATACIÓN");
-        snprintf(note, sizeof(note), "U PARA BEBER");
-    } else if (player->drink_time > 0.0f) {
-        snprintf(title, sizeof(title), "BEBIENDO");
-        ink = COLOR_HUD_PRIMARY;
-    }
-    if (player_alive(player) && title[0]) {
-        hud_text_fit(renderer, title, HUD_MARGIN + 8, 103, LEFT_W - 16, 2, ink, ANCHOR_NW);
-        if (note[0])
-            ui_text(renderer, note, HUD_MARGIN + 8, 122, 1, COLOR_HUD_PRIMARY, ANCHOR_NW);
+        ui_icon(renderer, icons[i], x, CHIP_Y + (CHIP_H - UI_ICON_SIZE) / 2, 1);
+        x += 16;
+        x += ui_text(renderer, values[i], x, hud_centered_y(CHIP_Y, CHIP_H, scale), scale,
+                     i == 0 ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW) + 14;
     }
 }
 
-/* Top right: health with its numbers, XP under it, her level badge left of both. */
-static void draw_life_panel(SDL_Renderer *renderer, const Player *player, const Progress *progress)
+/* What needs doing right now, by name and with its key, even without hovering
+ * an icon. It appears only then, so it stands out when it does. */
+static void draw_alert(SDL_Renderer *renderer, const Player *player)
+{
+    char label[32] = "";
+    const char *action = NULL, *key = NULL;
+    unsigned ink = COLOR_HUD_DANGER;
+    if (player->bandage > 0.0f) {
+        snprintf(label, sizeof(label), "VENDANDO %d%%", (int)(100.0f * player->bandage / BANDAGE_TIME));
+        ink = COLOR_HUD_TITLE;
+    } else if (player->bleeding) {
+        snprintf(label, sizeof(label), "SANGRADO");
+        action = "MANTÉN";
+        key = "U";
+    } else if (player->fatigue >= FATIGUE_STROKE) {
+        snprintf(label, sizeof(label), "¡ALÉJATE DEL FUEGO!");
+    } else if (player_thirst_level(player) >= 2) {
+        snprintf(label, sizeof(label), "SED GRAVE");
+        action = "BEBE";
+        key = "U";
+    } else if (player->drink_time > 0.0f) {
+        snprintf(label, sizeof(label), "BEBIENDO");
+        ink = COLOR_HUD_TITLE;
+    }
+    if (!player_alive(player) || !label[0])
+        return;
+    int width = ui_text_width(label, 2);
+    if (key)
+        width += 10 + ui_text_width(action, 2) + 6 + HUD_KEY_SIZE;
+    hud_plate(renderer, MISSION_X, CHIP_Y, MISSION_W, CHIP_H);
+    SDL_Rect accent = {MISSION_X, CHIP_Y, 3, CHIP_H};
+    SDL_SetRenderDrawColor(renderer, (Uint8)(ink >> 16), (Uint8)(ink >> 8), (Uint8)ink, 255);
+    SDL_RenderFillRect(renderer, &accent);
+    int x = MISSION_X + (MISSION_W - width) / 2, y = hud_centered_y(CHIP_Y, CHIP_H, 2);
+    x += ui_text(renderer, label, x, y, 2, ink, ANCHOR_NW);
+    if (key) {
+        x += 10;
+        x += ui_text(renderer, action, x, y, 2, COLOR_HUD_PRIMARY, ANCHOR_NW) + 6;
+        ui_key_compact(renderer, x, CHIP_Y, key);
+    }
+}
+
+/* Left: her level, her health with its numbers on the bar, XP under it. */
+static void draw_vitals(SDL_Renderer *renderer, const Player *player, const Progress *progress)
 {
     char str[48];
-    int x0 = WINDOW_WIDTH - HUD_MARGIN - RIGHT_W;
-    hud_top_panel(renderer, HUD_LIFE);
-    draw_badge(renderer, x0 + 22, 57, progress->level, BADGE_PLAYER, false);
-    int x = x0 + 46, right = WINDOW_WIDTH - HUD_MARGIN - 12;
-    ui_icon(renderer, ICON_HEART, x, 19, 2);
+    int x0 = VITALS_X, y0 = HUD_TOP, x = x0 + 74, w = VITALS_W - 84, bar_y = y0 + 7, bar_h = 22;
+    hud_top_panel(renderer, HUD_VITALS);
+    draw_badge(renderer, x0 + 24, y0 + (TOP_H + BADGE_H * BADGE_SCALE) / 2, progress->level, BADGE_PLAYER, false);
+    ui_icon(renderer, ICON_HEART, x0 + 46, y0 + 6, 2);
     float life = player->max_health > 0 ? (float)player->health / (float)player->max_health : 0.0f;
-    hud_meter(renderer, x + 30, 23, 114, 16, life, COLOR_HEALTH_FILL, 0xe07a50);
+    hud_meter(renderer, x, bar_y, w, bar_h, life, COLOR_HEALTH_FILL, 0xe07a50);
+    if (life <= 0.25f) {
+        SDL_Rect frame = {x, bar_y, w, bar_h};
+        unsigned rgb = COLOR_HUD_DANGER;
+        SDL_SetRenderDrawColor(renderer, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb, 255);
+        SDL_RenderDrawRect(renderer, &frame);
+    }
     snprintf(str, sizeof(str), "%d/%d", player->health, player->max_health);
-    hud_text_fit(renderer, str, right, 21, right - (x + 152), 2,
-                 life > 0.25f ? COLOR_HUD_PRIMARY : COLOR_HUD_DANGER, ANCHOR_NE);
-    ui_icon(renderer, ICON_STAR, x + 7, 44, 1);
+    int scale = hud_text_scale(str, w - 8, 2), text_y = hud_centered_y(bar_y, bar_h, scale);
+    ui_text(renderer, str, x + w / 2 + 1, text_y + 1, scale, 0x140e0c, ANCHOR_N); /* Legible on any fill */
+    ui_text(renderer, str, x + w / 2, text_y, scale, COLOR_HUD_TITLE, ANCHOR_N);
+    ui_icon(renderer, ICON_STAR, x0 + 52, y0 + 38, 1);
     int need = xp_to_next(progress->level);
-    hud_meter(renderer, x + 30, 47, 114, 7, need > 0 ? (float)progress->xp / (float)need : 1.0f,
+    hud_meter(renderer, x, y0 + 39, XP_BAR_W, 10, need > 0 ? (float)progress->xp / (float)need : 1.0f,
               COLOR_HUD_XP, 0xb0e090);
     snprintf(str, sizeof(str), "XP %d/%d", progress->xp, need);
-    hud_text_fit(renderer, str, right, 45, right - (x + 152), 1, COLOR_HUD_XP, ANCHOR_NE);
+    scale = hud_text_scale(str, w - XP_BAR_W - 8, 2);
+    ui_text(renderer, str, x + w, hud_centered_y(y0 + 34, 20, scale), scale, COLOR_HUD_XP, ANCHOR_NE);
 }
 
 /* Where the mouse is (hud_set_pointer). */
 static int pointer_x = -1, pointer_y = -1;
 
-/* Under the life panel: what helps or ails her now, each a small icon (and
- * the seconds left, if it wears off); the mouse over one opens it: a name
- * and what it means. */
+/* The bottom row: what helps or ails her now, each an icon (and the seconds
+ * left, if it wears off) underlined green or red; the mouse over one opens it:
+ * a name and what it means. */
 static void draw_states(SDL_Renderer *renderer, const Player *player, const StageRun *run)
 {
     if (!player_alive(player))
@@ -423,51 +510,58 @@ static void draw_states(SDL_Renderer *renderer, const Player *player, const Stag
          FATIGUE_FAINT - player->fatigue, false},
         {run->omen, ICON_OMEN, "MAL PRESAGIO", "UNA EMBOSCADA PUEDE ESTAR CERCA", 0.0f, false},
     };
-    /* Two bounded rows keep simultaneous weather/health states within the
-     * life column instead of growing leftward into the gun and supplies. */
-    int size = 24, gap = 4, columns = (RIGHT_W - 8) / (size + gap), shown = 0;
-    int open = -1, open_x = 0, open_y = 0;
-    for (int i = 0; i < (int)(sizeof(states) / sizeof(states[0])); i++) {
+    /* One row: if the seconds would not fit beside every icon, the row drops
+     * them. They stay available in each icon's description. */
+    int count = (int)(sizeof(states) / sizeof(states[0]));
+    char times[sizeof(states) / sizeof(states[0])][16];
+    int total = 0;
+    for (int i = 0; i < count; i++) {
+        times[i][0] = '\0';
         if (!states[i].on)
             continue;
-        int x = WINDOW_WIDTH - HUD_MARGIN - size - (shown % columns) * (size + gap);
-        int y = 76 + (shown / columns) * (size + gap);
-        shown++;
-        bool hover = pointer_x >= x && pointer_x < x + size && pointer_y >= y && pointer_y < y + size;
-        hud_plate(renderer, x, y, size, size);
-        ui_icon(renderer, states[i].icon, x + 6, y + 2, 1);
-        if (states[i].time > 0.0f) { /* Seconds left, small under the icon */
-            char str[16];
-            if (states[i].time > 99.0f)
-                snprintf(str, sizeof(str), "99+");
-            else
-                snprintf(str, sizeof(str), "%d", (int)ceilf(states[i].time));
-            ui_text(renderer, str, x + size - 3, y + 12, 1, COLOR_HUD_PRIMARY, ANCHOR_NE);
-        }
+        if (states[i].time > 99.0f)
+            snprintf(times[i], sizeof(times[i]), "99+");
+        else if (states[i].time > 0.0f)
+            snprintf(times[i], sizeof(times[i]), "%d", (int)ceilf(states[i].time));
+        total += STATE_H + STATE_GAP + (times[i][0] ? ui_text_width(times[i], 2) + 2 : 0);
+    }
+    bool compact = total > STATES_W;
+    int x = VITALS_X, open = -1, open_x = 0;
+    for (int i = 0; i < count; i++) {
+        if (!states[i].on)
+            continue;
+        int w = STATE_H + (!compact && times[i][0] ? ui_text_width(times[i], 2) + 2 : 0);
+        bool hover = pointer_x >= x && pointer_x < x + w && pointer_y >= STATE_Y && pointer_y < STATE_Y + STATE_H;
+        hud_plate(renderer, x, STATE_Y, w, STATE_H);
+        ui_icon(renderer, states[i].icon, x + 6, STATE_Y + 5, 1);
+        if (!compact && times[i][0])
+            ui_text(renderer, times[i], x + 22, hud_centered_y(STATE_Y, STATE_H - 2, 2), 2,
+                    COLOR_HUD_PRIMARY, ANCHOR_NW);
         unsigned rgb = states[i].good ? COLOR_HUD_XP : COLOR_HUD_DANGER;
+        SDL_Rect mark = {x + 4, STATE_Y + STATE_H - 4, w - 8, 2};
         SDL_SetRenderDrawColor(renderer, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb, 255);
-        SDL_RenderDrawLine(renderer, x + 5, y + size - 2, x + size - 6, y + size - 2);
+        SDL_RenderFillRect(renderer, &mark);
         if (hover) {
             open = i;
             open_x = x;
-            open_y = y;
         }
+        x += w + STATE_GAP;
     }
     if (open < 0)
         return;
-    int w = RIGHT_W, px = open_x + size - w, py = open_y + size + 6;
-    if (px < HUD_MARGIN)
-        px = HUD_MARGIN;
-    hud_plate(renderer, px, py, w, 50);
-    ui_icon(renderer, states[open].icon, px + 12, py + 12, 2);
-    int timer_width = states[open].time > 0.0f ? 70 : 0;
-    hud_text_fit(renderer, states[open].name, px + 44, py + 7, w - 56 - timer_width, 2,
+    int w = STATE_TIP_W, px = open_x, py = VIEW_TOP + 6;
+    if (px + w > WINDOW_WIDTH - HUD_MARGIN)
+        px = WINDOW_WIDTH - HUD_MARGIN - w;
+    hud_plate(renderer, px, py, w, STATE_TIP_H);
+    ui_icon(renderer, states[open].icon, px + 12, py + 19, 2);
+    int timer_width = states[open].time > 0.0f ? 96 : 0;
+    hud_text_fit(renderer, states[open].name, px + 44, py + 6, w - 56 - timer_width, 2,
                  states[open].good ? COLOR_HUD_XP : COLOR_HUD_DANGER, ANCHOR_NW);
-    hud_text_fit(renderer, states[open].note, px + 44, py + 31, w - 56, 1, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    hud_text_fit(renderer, states[open].note, px + 44, py + 32, w - 56, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
     if (states[open].time > 0.0f) {
         char str[16];
         snprintf(str, sizeof(str), "%.1f S", states[open].time);
-        hud_text_fit(renderer, str, px + w - 12, py + 10, 68, 1, COLOR_HUD_PRIMARY, ANCHOR_NE);
+        hud_text_fit(renderer, str, px + w - 12, py + 6, timer_width - 8, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
     }
 }
 
@@ -484,62 +578,58 @@ static bool weapon_readout(const HudWeapon *weapon, char *str, size_t size)
     else if (weapon->reloading)
         snprintf(str, size, "RECARGANDO");
     else if (weapon->magazine == 0)
-        snprintf(str, size, "∞");
+        snprintf(str, size, "INFINITA");
     else
         snprintf(str, size, "%d/%d", weapon->rounds, weapon->magazine);
     return weapon->reloading && weapon->magazine > 0;
 }
 
-/* Top middle: the gun's picture and name, its rounds (or "recargando"), and
- * the other gun with its key if she can switch. */
+/* Right: the gun's picture and name, its rounds (or "recargando"), and under
+ * it the other gun with its key if she can switch. */
 static void draw_weapon_panel(SDL_Renderer *renderer, const HudWeapon *weapon)
 {
     char str[64];
-    int x0 = WEAPON_X, y0 = 12;
+    int x0 = WEAPON_X, y0 = HUD_TOP, x = x0 + 96, w = WEAPON_W - 108;
     hud_top_panel(renderer, HUD_WEAPON);
+    hud_well(renderer, x0 + 8, y0 + 10, UI_WEAPON_W * 2 + 8, UI_WEAPON_H * 2 + 12);
     ui_weapon(renderer, weapon->id, x0 + 12, y0 + 16, 2);
-    hud_text_fit(renderer, weapon->name, x0 + 92, y0 + 7, WEAPON_W - 104, 2,
-                 COLOR_HUD_TITLE, ANCHOR_NW);
-    ui_icon(renderer, weapon->id == WEAPON_SHOTGUN ? ICON_SHELL : ICON_BULLET, x0 + 92, y0 + 32, 1);
+    hud_text_fit(renderer, weapon->name, x, y0 + 5, w, 2, COLOR_HUD_TITLE, ANCHOR_NW);
+    ui_icon(renderer, weapon->id == WEAPON_SHOTGUN ? ICON_SHELL : ICON_BULLET, x, y0 + 35, 1);
     bool reload_label = weapon_readout(weapon, str, sizeof(str));
-    hud_text_fit(renderer, str, x0 + 110, y0 + 30, WEAPON_W - 122,
-                 2,
-                 weapon->reloading || (weapon->magazine > 0 && weapon->rounds == 0)
-                     ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NW);
-    if (reload_label) {
-        int after = 110 + ui_text_width(str, hud_text_scale(str, WEAPON_W - 122, 2)) + 10;
-        if (after + ui_text_width("RECARGANDO", 1) <= WEAPON_W - 12)
-            ui_text(renderer, "RECARGANDO", x0 + after, y0 + 35, 1, COLOR_HUD_DANGER, ANCHOR_NW);
-        else
-            ui_text(renderer, "RECARGANDO", x0 + 12, y0 + 1, 1, COLOR_HUD_DANGER, ANCHOR_NW);
-    }
+    int scale = hud_text_scale(str, w - 18, 2);
+    int used = ui_text(renderer, str, x + 18, y0 + 30, scale,
+                       weapon->reloading || (weapon->magazine > 0 && weapon->rounds == 0)
+                           ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NW);
+    if (reload_label && 18 + used + 10 + ui_text_width("RECARGANDO", 2) <= w)
+        ui_text(renderer, "RECARGANDO", x + 18 + used + 10, y0 + 30, 2, COLOR_HUD_DANGER, ANCHOR_NW);
     if (weapon->can_swap) {
-        int x = x0;
-        ui_key(renderer, x, 72, "Q");
-        ui_weapon(renderer, weapon->other_id, x + 48, 85, 1);
+        hud_plate(renderer, x0, CHIP_Y, SWAP_W, CHIP_H);
+        ui_key_compact(renderer, x0, CHIP_Y, "Q");
+        hud_well(renderer, x0 + HUD_KEY_SIZE + 4, CHIP_Y + 4, UI_WEAPON_W + 8, CHIP_H - 8);
+        ui_weapon(renderer, weapon->other_id, x0 + HUD_KEY_SIZE + 8, CHIP_Y + (CHIP_H - UI_WEAPON_H) / 2, 1);
     }
 }
 
-/* Under the gun: the level-3 power on F, ready or how long until it is. */
+/* Beside the other gun: the level-3 power on F, ready or how long until it is. */
 static void draw_power_panel(SDL_Renderer *renderer, const HudWeapon *weapon)
 {
     if (weapon->power == POWER_NONE)
         return;
-    int w = weapon->can_swap ? 194 : 208, h = 42;
-    int x0 = WEAPON_X + WEAPON_W - w, y0 = 72;
-    hud_plate(renderer, x0, y0, w, h);
+    int x0 = WEAPON_X + WEAPON_W - POWER_W, y = hud_centered_y(CHIP_Y, CHIP_H, 2);
+    hud_plate(renderer, x0, CHIP_Y, POWER_W, CHIP_H);
     int x = x0;
-    x += ui_key(renderer, x, y0, "F") + 6;
+    x += ui_key_compact(renderer, x, CHIP_Y, "F") + 6;
     int picture = weapon->power == POWER_GRENADES ? UI_GRENADE : WEAPON_DUAL;
-    ui_weapon(renderer, picture, x, y0 + 14, 1);
+    hud_well(renderer, x - 2, CHIP_Y + 4, UI_WEAPON_W + 4, CHIP_H - 8);
+    ui_weapon(renderer, picture, x, CHIP_Y + (CHIP_H - UI_WEAPON_H) / 2, 1);
     x += UI_WEAPON_W + 6;
     char str[24];
+    const char *name = weapon->power == POWER_GRENADES ? "GRANADA" : "REBOTE";
     if (weapon->power_wait <= 0.0f) {
-        hud_text_fit(renderer, weapon->power == POWER_GRENADES ? "GRANADA" : "REBOTE", x, y0 + 13,
-                     x0 + w - x - 8, 2, COLOR_HUD_XP, ANCHOR_NW);
+        hud_text_fit(renderer, name, x, y, x0 + POWER_W - x - 8, 2, COLOR_HUD_XP, ANCHOR_NW);
     } else {
-        snprintf(str, sizeof(str), "%d S", (int)ceilf(weapon->power_wait));
-        hud_text_fit(renderer, str, x, y0 + 13, x0 + w - x - 8, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
+        snprintf(str, sizeof(str), "%s %d S", name, (int)ceilf(weapon->power_wait));
+        hud_text_fit(renderer, str, x, y, x0 + POWER_W - x - 8, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
     }
 }
 
@@ -606,65 +696,99 @@ static void draw_message(SDL_Renderer *renderer, const char *title, unsigned rgb
     draw_hints(renderer, hints, hint_count, y + 92);
 }
 
-static void draw_mission_clock(SDL_Renderer *renderer, const StageRun *run)
+static void draw_stars(SDL_Renderer *renderer, int earned, int x, int y, int scale, int gap)
 {
-    int x = WEAPON_X, y = 116;
-    char time[24];
-    mission_format_time(run->mission.ticks, time, sizeof(time));
-    hud_plate(renderer, x, y, 96, 18);
-    ui_icon(renderer, ICON_CLOCK, x + 4, y + 3, 1);
-    hud_text_fit(renderer, time, x + 22, y - 1, 70, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
-    if (pointer_x < x || pointer_x >= x + 96 || pointer_y < y || pointer_y >= y + 18)
+    for (int i = 0; i < 3; i++)
+        ui_icon(renderer, i < earned ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY,
+                  x + i * (UI_ICON_SIZE * scale + gap), y, scale);
+}
+
+/* Center the whole icon/value group, including when the clock grows to hours. */
+static void draw_metric(SDL_Renderer *renderer, UiIcon icon, const char *text, int center,
+                          int y, int width, unsigned ink)
+{
+    int size = UI_ICON_SIZE * 2, gap = 8;
+    int scale = hud_text_scale(text, width - size - gap, 2);
+    int text_width = ui_text_width(text, scale);
+    int x = center - (size + gap + text_width) / 2;
+    ui_icon(renderer, icon, x, y, 2);
+    ui_text(renderer, text, x + size + gap, y + (size - pixfont_height(scale)) / 2,
+              scale, ink, ANCHOR_NW);
+}
+
+/* The mouse over the mission plate opens the goals for its three stars. */
+static void draw_mission_goals(SDL_Renderer *renderer, const StageRun *run)
+{
+    SDL_Point pointer = {pointer_x, pointer_y};
+    if (!SDL_PointInRect(&pointer, &HUD_REGIONS[HUD_MISSION]) || run->phase != RUN_FIGHTING)
         return;
     MissionGoals goals = mission_goals(run->stage_index);
-    int w = 390, left = x, top = y + 24;
-    ui_panel(renderer, left, top, w, 132);
-    ui_text(renderer, "METAS DE ESTA MISIÓN", left + 20, top + 14, 2, COLOR_HUD_TITLE, ANCHOR_NW);
+    int left = (WINDOW_WIDTH - MISSION_GOALS_W) / 2, top = VIEW_TOP + 6;
+    ui_panel(renderer, left, top, MISSION_GOALS_W, MISSION_GOALS_H);
+    ui_text(renderer, "METAS DE ESTA MISIÓN", WINDOW_WIDTH / 2, top + 12, 2, COLOR_HUD_TITLE, ANCHOR_N);
+    ui_text(renderer, "TIEMPO MÁX.", left + 124, top + 36, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
+    ui_text(renderer, "VIDA MÍN.", left + 314, top + 36, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
     for (int stars = 3; stars > 0; stars--) {
-        int row = top + 44 + (3 - stars) * 26;
-        for (int i = 0; i < 3; i++)
-            ui_icon(renderer, i < stars ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY, left + 20 + i * 15, row, 1);
-        char limit[24], text[64];
+        int row = top + 62 + (3 - stars) * 34;
+        draw_stars(renderer, stars, left + 20, row, 2, 4);
+        char limit[24], text[24];
         mission_format_time(goals.seconds[stars - 1] * SIMULATION_HZ, limit, sizeof(limit));
-        snprintf(text, sizeof(text), "%s · %d%% DE VIDA", limit, goals.health_percent[stars - 1]);
-        ui_text(renderer, text, left + 82, row + 1, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+        ui_icon(renderer, ICON_CLOCK, left + 124, row + 6, 1);
+        ui_text(renderer, limit, left + 144, row + 2, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+        ui_icon(renderer, ICON_HEART, left + 314, row + 6, 1);
+        snprintf(text, sizeof(text), "%d%%", goals.health_percent[stars - 1]);
+        ui_text(renderer, text, left + 334, row + 2, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
     }
+}
+
+static void draw_reward_row(SDL_Renderer *renderer, int x, int y, const char *label,
+                               int xp, int gold, unsigned ink)
+{
+    char text[40];
+    hud_text_fit(renderer, label, x + 30, y, 286, 2, ink, ANCHOR_NW);
+    snprintf(text, sizeof(text), "+%d XP", xp);
+    hud_text_fit(renderer, text, x + 492, y, 160, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
+    snprintf(text, sizeof(text), "+%d ORO", gold);
+    hud_text_fit(renderer, text, x + RESULT_W - 30, y, 160, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
 }
 
 static void draw_mission_results(SDL_Renderer *renderer, const StageRun *run)
 {
     const MissionReport *m = &run->mission;
-    int w = 660, h = 328, x = (WINDOW_WIDTH - w) / 2, y = 144;
+    int w = RESULT_W, h = RESULT_H, x = (WINDOW_WIDTH - w) / 2, y = (WINDOW_HEIGHT - h) / 2;
     char text[128], time[24];
     ui_dim(renderer, 130);
     ui_panel(renderer, x, y, w, h);
     snprintf(text, sizeof(text), "¡NIVEL %s COMPLETADO!", run->stage->name);
-    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 24, 3, COLOR_HUD_TITLE, ANCHOR_N);
-    int star_x = WINDOW_WIDTH / 2 - 66;
-    for (int i = 0; i < 3; i++)
-        ui_icon(renderer, i < m->stars ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY,
-                  star_x + i * 48, y + 67, 3);
-    snprintf(text, sizeof(text), "%d/3 ESTRELLAS", m->stars);
-    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 106, 1, COLOR_HUD_SECONDARY, ANCHOR_N);
+    hud_text_fit(renderer, text, WINDOW_WIDTH / 2, y + 18, w - 48, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    int stars_width = 3 * UI_ICON_SIZE * RESULT_STAR_SCALE + 2 * RESULT_STAR_GAP;
+    draw_stars(renderer, m->stars, (WINDOW_WIDTH - stars_width) / 2, y + 60,
+                  RESULT_STAR_SCALE, RESULT_STAR_GAP);
+    snprintf(text, sizeof(text), "%d DE 3 ESTRELLAS", m->stars);
+    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 138, 2, COLOR_HUD_TITLE, ANCHOR_N);
     mission_format_time(m->ticks, time, sizeof(time));
-    ui_icon(renderer, ICON_CLOCK, x + 118, y + 120, 2);
-    snprintf(text, sizeof(text), "%s%s", time, m->new_record ? " · NUEVO RÉCORD" : "");
-    ui_text(renderer, text, x + 152, y + 121, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
-    snprintf(text, sizeof(text), "VIDA AL LLEGAR: %d%%", m->health_percent);
-    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 155, 2, COLOR_HUD_SECONDARY, ANCHOR_N);
+    draw_metric(renderer, ICON_CLOCK, time, x + w / 4, y + 170, w / 2 - 60, COLOR_HUD_PRIMARY);
+    snprintf(text, sizeof(text), "%d%% VIDA", m->health_percent);
+    draw_metric(renderer, ICON_HEART, text, x + w * 3 / 4, y + 170, w / 2 - 60, COLOR_HUD_PRIMARY);
+    if (m->new_record)
+        ui_text(renderer, "NUEVO RÉCORD PERSONAL", x + w / 4, y + 198, 2, COLOR_HUD_TITLE, ANCHOR_N);
     int total_xp = m->base_xp + m->star_xp + m->record_xp;
     int total_gold = m->base_gold + m->star_gold + m->record_gold;
-    snprintf(text, sizeof(text), "+%d XP     +%d ORO", total_xp, total_gold);
-    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 193, 3, COLOR_HUD_XP, ANCHOR_N);
-    snprintf(text, sizeof(text), "BASE: %d XP / %d ORO  ·  ESTRELLAS: +%d XP / +%d ORO", m->base_xp, m->base_gold,
-               m->star_xp, m->star_gold);
-    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 237, 1, COLOR_HUD_SECONDARY, ANCHOR_N);
+    int card_w = (w - 72) / 2;
+    hud_plate(renderer, x + 30, y + 224, card_w, 54);
+    hud_plate(renderer, x + w / 2 + 6, y + 224, card_w, 54);
+    snprintf(text, sizeof(text), "+%d XP", total_xp);
+    hud_text_fit(renderer, text, x + 30 + card_w / 2, y + 235, card_w - 24, 3, COLOR_HUD_XP, ANCHOR_N);
+    snprintf(text, sizeof(text), "+%d ORO", total_gold);
+    hud_text_fit(renderer, text, x + w / 2 + 6 + card_w / 2, y + 235, card_w - 24, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    draw_reward_row(renderer, x, y + 290, "BASE DE MISIÓN", m->base_xp, m->base_gold, COLOR_HUD_SECONDARY);
+    snprintf(text, sizeof(text), "%d %s", m->stars, m->stars == 1 ? "ESTRELLA" : "ESTRELLAS");
+    draw_reward_row(renderer, x, y + 316, text, m->star_xp, m->star_gold, COLOR_HUD_SECONDARY);
     if (m->record_xp || m->record_gold) {
-        snprintf(text, sizeof(text), "RÉCORD CON VIDA COMPLETA: +%d XP Y +%d ORO", m->record_xp, m->record_gold);
-        ui_text(renderer, text, WINDOW_WIDTH / 2, y + 258, 1, COLOR_HUD_TITLE, ANCHOR_N);
+        draw_reward_row(renderer, x, y + 342, "RÉCORD + VIDA 100%", m->record_xp, m->record_gold, COLOR_HUD_TITLE);
     }
     static const char *const hints[] = {"ENTER", "CONTINUAR"};
-    draw_hints(renderer, hints, 1, y + h - 47);
+    draw_hints(renderer, hints, 1, y + 388);
 }
 
 void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *zombies,
@@ -673,14 +797,15 @@ void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *
 {
     draw_tags(renderer, player, zombies, zombie_count, camera_x);
     draw_popups(renderer, camera_x);
-    draw_road_panel(renderer, player, run);
-    draw_gold(renderer, player, progress, run);
-    draw_life_panel(renderer, player, progress);
+    draw_vitals(renderer, player, progress);
+    draw_mission(renderer, player, run);
     draw_weapon_panel(renderer, weapon);
+    draw_supplies(renderer, player, progress, run);
+    draw_alert(renderer, player);
     draw_power_panel(renderer, weapon);
     draw_states(renderer, player, run);
     draw_prompt(renderer, player, run);
-    draw_mission_clock(renderer, run);
+    draw_mission_goals(renderer, run);
 
     if (run->phase == RUN_FAILED) {
         static const char *const hints[] = {"R", "REINTENTAR", "ESC", "PAUSA"};
@@ -697,6 +822,16 @@ static bool layout_text_fits(const char *str, int width, int preferred_scale)
     if (measured <= width)
         return true;
     fprintf(stderr, "HUD: '%s' necesita %d px, dispone de %d.\n", str, measured, width);
+    return false;
+}
+
+/* For what must not shrink to the small font in ordinary play. */
+static bool layout_text_stays_large(const char *str, int width)
+{
+    int measured = ui_text_width(str, 2);
+    if (measured <= width)
+        return true;
+    fprintf(stderr, "HUD: '%s' necesita %d px en tamaño 2, dispone de %d.\n", str, measured, width);
     return false;
 }
 
@@ -723,17 +858,19 @@ void hud_draw_autosave_notice(SDL_Renderer *renderer)
             COLOR_HUD_SECONDARY, ANCHOR_N);
 }
 
+/* Bottom right, clear of everything else: brief, and it never takes a click. */
 void hud_draw_autosave_status(SDL_Renderer *renderer, bool saving, bool failed, float age)
 {
-    int w = 192, h = 18, x = WEAPON_X + WEAPON_W - w, y = 116;
-    hud_plate(renderer, x, y, w, h);
-    ui_icon(renderer, ICON_SAVE, x + 4, y + 3, 1);
     const char *text = saving ? "GUARDANDO..." : failed ? "NO SE PUDO GUARDAR" : "PARTIDA GUARDADA";
-    ui_text(renderer, text, x + 24, y + 5, 1,
+    int w = 30 + ui_text_width(text, 2) + 10, h = STATE_H;
+    int x = WINDOW_WIDTH - HUD_MARGIN - w, y = STATE_Y;
+    hud_plate(renderer, x, y, w, h);
+    ui_icon(renderer, ICON_SAVE, x + 8, y + (h - UI_ICON_SIZE) / 2, 1);
+    ui_text(renderer, text, x + 30, hud_centered_y(y, h, 2), 2,
             failed && !saving ? COLOR_HUD_DANGER : COLOR_HUD_SECONDARY, ANCHOR_NW);
     if (saving) {
         int phase = (int)fmodf(fmaxf(0.0f, age) * 5.0f, 4.0f);
-        SDL_Rect dot = {x + w - 11, y + 4 + phase * 2, 3, 3};
+        SDL_Rect dot = {x + 4, y + 7 + phase * 2, 2, 2};
         SDL_SetRenderDrawColor(renderer, 205, 155, 91, 255);
         SDL_RenderFillRect(renderer, &dot);
     }
@@ -771,52 +908,71 @@ bool hud_verify_layout(void)
     /* Use the actual formatter and font metrics with full integer totals;
      * the compact fallback must preserve the complete health/ammo numbers. */
     char str[80];
+    int health_w = VITALS_W - 84, xp_w = health_w - XP_BAR_W - 8, gun_w = WEAPON_W - 108;
     snprintf(str, sizeof(str), "%d/%d", INT_MAX, INT_MAX);
-    ok = layout_text_fits(str, RIGHT_W - 210, 2) && ok;
+    ok = layout_text_fits(str, health_w - 8, 2) && ok;
+    /* The clock stays centered and whole, past an hour too. */
+    ok = layout_text_stays_large("99:59:59", MISSION_W - 24 - CLOCK_ICON_W) && ok;
     snprintf(str, sizeof(str), "XP %d/%d", INT_MAX, INT_MAX);
-    ok = layout_text_fits(str, RIGHT_W - 210, 1) && ok;
+    ok = layout_text_fits(str, xp_w, 2) && ok;
     snprintf(str, sizeof(str), "SALIDA %d M", INT_MAX);
-    ok = layout_text_fits(str, LEFT_W / 2 - 8, 1) && ok;
-    snprintf(str, sizeof(str), "%d/%d ZOMBIS", INT_MAX, INT_MAX);
-    ok = layout_text_fits(str, LEFT_W - 42, 1) && ok;
+    ok = layout_text_fits(str, EXIT_W, 2) && ok;
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        snprintf(str, sizeof(str), "%d/%d", STAGES[s].zombies, STAGES[s].zombies);
+        ok = layout_text_stays_large(str, DEFEATED_W) && ok;
+        snprintf(str, sizeof(str), "RUTA %s", STAGES[s].name);
+        ok = layout_text_stays_large(str, ROUTE_W) && ok;
+    }
+    for (int level = 1; level < MAX_LEVEL; level++) {
+        int need = xp_to_next(level);
+        snprintf(str, sizeof(str), "XP %d/%d", need - 1, need);
+        ok = layout_text_stays_large(str, xp_w) && ok;
+    }
     snprintf(str, sizeof(str), "%d", INT_MAX);
-    if (3 * (18 + ui_text_width(str, 1)) + 20 > LEFT_W - 16) {
+    if (3 * (16 + ui_text_width(str, 1)) + 28 > VITALS_W - 20) {
         fprintf(stderr, "HUD: suministros máximos exceden su columna.\n");
         ok = false;
     }
     for (int id = 0; id < WEAPON_COUNT; id++) {
         const WeaponDef *def = weapon_def((WeaponId)id);
-        ok = layout_text_fits(def->name, WEAPON_W - 104, 2) && ok;
+        ok = layout_text_stays_large(def->name, gun_w) && ok;
         HudWeapon weapon = {.id = id, .name = def->name, .rounds = INT_MAX,
                             .magazine = INT_MAX, .reloading = true};
         weapon_readout(&weapon, str, sizeof(str));
-        ok = layout_text_fits(str, WEAPON_W - 122, 1) && ok;
+        ok = layout_text_fits(str, gun_w - 18, 2) && ok;
     }
-    static const char *const critical[] = {
-        "SANGRADO", "GOLPE DE CALOR", "DESHIDRATACIÓN", "VENDANDO 100%",
-    };
-    for (int i = 0; i < (int)(sizeof(critical) / sizeof(critical[0])); i++)
-        ok = layout_text_fits(critical[i], LEFT_W - 16, 2) && ok;
-    ok = layout_text_fits("GRANADA", 194 - 42 - 6 - UI_WEAPON_W - 6 - 8, 2) && ok;
+    /* What a player reads in play stays at scale two with ordinary values. */
+    ok = layout_text_stays_large("SALIDA 9999 M", EXIT_W) && ok;
+    ok = layout_text_stays_large("0/99 RECARGANDO", gun_w - 18) && ok;
+    ok = layout_text_stays_large("¡ALÉJATE DEL FUEGO!", MISSION_W - 12) && ok;
+    ok = layout_text_stays_large("VENDANDO 100%", MISSION_W - 12) && ok;
+    if (ui_text_width("SED GRAVE", 2) + 10 + ui_text_width("BEBE", 2) + 6 + HUD_KEY_SIZE > MISSION_W - 12 ||
+        ui_text_width("SANGRADO", 2) + 10 + ui_text_width("MANTÉN", 2) + 6 + HUD_KEY_SIZE > MISSION_W - 12) {
+        fprintf(stderr, "HUD: alerta fuera de su espacio.\n");
+        ok = false;
+    }
+    int power_w = POWER_W - HUD_KEY_SIZE - 6 - UI_WEAPON_W - 6 - 8;
+    ok = layout_text_stays_large("GRANADA 99 S", power_w) && ok;
+    ok = layout_text_stays_large("REBOTE 99 S", power_w) && ok;
+    if (HUD_KEY_SIZE + 8 + UI_WEAPON_W > SWAP_W || SWAP_W + POWER_W + 8 > WEAPON_W) {
+        fprintf(stderr, "HUD: atajos del arma fuera de su columna.\n");
+        ok = false;
+    }
     ok = layout_text_fits("999+", BADGE_W * BADGE_SCALE - 4, 1) && ok;
     ok = layout_text_fits("GUARDADO AUTOMÁTICO", 612, 3) && ok;
     ok = layout_text_fits("TAMBIÉN AL COMPLETAR UN NIVEL Y AL SALIR", 612, 2) && ok;
-    ok = layout_text_fits("NO SE PUDO GUARDAR", 156, 1) && ok;
     ok = layout_text_fits("VIDA AL LLEGAR: 100%", 612, 2) && ok;
     ok = layout_text_fits("06:45 · NUEVO RÉCORD", 460, 2) && ok;
-    SDL_Rect clock = {WEAPON_X, 116, 96, 18};
-    SDL_Rect saving = {WEAPON_X + WEAPON_W - 192, 116, 192, 18};
-    if (clock.y + clock.h > VIEW_TOP || saving.y + saving.h > VIEW_TOP || SDL_HasIntersection(&clock, &saving)) {
-        fprintf(stderr, "HUD: reloj y autoguardado fuera de su espacio.\n");
+    ok = layout_text_stays_large("TE CURAS Y CAMINAS MÁS LENTO. MANTÉN U: VÉNDATE", STATE_TIP_W - 56) && ok;
+    /* The longest save message stays right of the conditions and inside the
+     * sky band, and every condition at once still fits as bare icons. */
+    int save_x = WINDOW_WIDTH - HUD_MARGIN - (30 + ui_text_width("NO SE PUDO GUARDAR", 2) + 10);
+    if (save_x < VITALS_X + STATES_W || STATE_Y + STATE_H > VIEW_TOP) {
+        fprintf(stderr, "HUD: autoguardado fuera de su espacio.\n");
         ok = false;
     }
-    /* The last of eighteen possible state cells stays above the world and
-     * inside the life column, including when effects need a second row. */
-    int columns = (RIGHT_W - 8) / 28;
-    int state_left = WINDOW_WIDTH - HUD_MARGIN - 24 - (columns - 1) * 28;
-    int state_bottom = 76 + (17 / columns) * 28 + 24;
-    if (state_left < HUD_REGIONS[HUD_LIFE].x || state_bottom > VIEW_TOP) {
-        fprintf(stderr, "HUD: estados fuera de su columna.\n");
+    if (STATE_MAX * (STATE_H + STATE_GAP) > STATES_W) {
+        fprintf(stderr, "HUD: estados fuera de su fila.\n");
         ok = false;
     }
     return ok;
@@ -968,12 +1124,12 @@ void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Pro
         ui_icon(renderer, ICON_SKULL, x + 184, y + 14, 2);
         ui_text(renderer, str, x + 214, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
         snprintf(str, sizeof(str), "%d M", (int)(run_road_length(i) / ROUTE_PX_PER_METER));
-        ui_icon(renderer, ICON_FLAG, x + 384, y + 14, 2);
-        ui_text(renderer, str, x + 414, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
+        ui_icon(renderer, ICON_FLAG, x + 396, y + 14, 2);
+        ui_text(renderer, str, x + 426, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
         if (record->cleared[i]) {
             for (int star = 0; star < 3; star++)
                 ui_icon(renderer, (unsigned)star < record->stars[i] ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY,
-                          x + w - 50 + star * 14, y + 22, 1);
+                          x + w - 88 + star * (UI_ICON_SIZE * 2 + 2), y + 14, 2);
         } else if (!open)
             ui_icon(renderer, ICON_LOCK, x + w - 52, y + 14, 2);
     }
@@ -997,14 +1153,14 @@ static int draw_wrapped(SDL_Renderer *renderer, const char *text, int cx, int y,
         p += n;
         while (*p == ' ')
             p++;
-        char trial[272];
+        char trial[sizeof(line) + sizeof(word)]; /* Both, and the space between them */
         snprintf(trial, sizeof(trial), "%s%s%s", line, line[0] ? " " : "", word);
         if (line[0] && ui_text_width(trial, 2) > max_w) {
             ui_text(renderer, line, cx, y, 2, rgb, ANCHOR_N);
             y += line_h;
             snprintf(line, sizeof(line), "%s", word);
         } else {
-            snprintf(line, sizeof(line), "%s", trial);
+            SDL_strlcpy(line, trial, sizeof(line));
         }
     }
     if (line[0]) {

@@ -232,7 +232,9 @@ static void checkpoint(Codec *c, SaveGame *game)
     B(p->ricochet_armed); B(p->ricochet_fired);
     for (int i = 0; i < CHARACTER_MAX_WEAPONS; i++) {
         I(p->guns[i]); I(p->rounds[i]);
-        CHECK(p->guns[i] >= 0 && p->guns[i] < WEAPON_COUNT && p->rounds[i] >= -1);
+        CHECK(p->guns[i] >= 0 && p->guns[i] < WEAPON_COUNT);
+        if (p->guns[i] >= 0 && p->guns[i] < WEAPON_COUNT)
+            CHECK(p->rounds[i] >= -1 || weapon_def(p->guns[i])->magazine == 0);
     }
     codec_Player(c, &p->player);
     run(c, &p->run);
@@ -514,7 +516,10 @@ static void codec_Player(Codec *c, Player *p)
     CHECK(p->health >= 0 && p->health <= p->max_health && p->water >= 0);
     CHECK(p->catch_kind >= CATCH_NONE && p->catch_kind <= CATCH_SNARE);
     CHECK(p->sit_gun >= -1 && p->sit_gun < CHARACTER_MAX_WEAPONS);
-    CHECK(p->shot.rounds >= -1 && p->shot.magazine >= 0);
+    /* Earlier sessions decremented this unused counter for infinite-ammo
+     * guns too. Accept those harmless negatives without relaxing validation
+     * for a real magazine. Stored, unequipped guns use -1 for "full". */
+    CHECK(p->shot.magazine >= 0 && (p->shot.magazine == 0 || p->shot.rounds >= 0));
 }
 
 static void codec_Zombie(Codec *c, Zombie *p)

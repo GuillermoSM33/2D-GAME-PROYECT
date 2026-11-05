@@ -171,6 +171,11 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     stage_draw(platform, &play, &skins[1], &veteran, 1.0f,
                play.player.x, play.player.jump.height, options);
     save_capture(r, dir, "14_hud_estados_recarga");
+    hud_set_pointer(24, 114); /* The first condition opens its description */
+    stage_draw(platform, &play, &skins[1], &veteran, 1.0f,
+               play.player.x, play.player.jump.height, options);
+    save_capture(r, dir, "14_hud_estado_detalle");
+    hud_set_pointer(-1, -1);
     veteran.gold = veteran.xp = INT_MAX;
     play.player.health = 123456789;
     play.player.max_health = INT_MAX;
@@ -452,7 +457,7 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     /* The new mission HUD and results use the same rules as real play. */
     stage_start(&play, 2, &CHARACTERS[0], &profiles[0].progress);
     play.run.mission.ticks = 187 * SIMULATION_HZ;
-    hud_set_pointer(320, 122);
+    hud_set_pointer(WINDOW_WIDTH / 2, 30); /* Over the mission plate */
     stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
     save_capture(r, dir, "36_reloj_y_metas");
     hud_set_pointer(-1, -1);

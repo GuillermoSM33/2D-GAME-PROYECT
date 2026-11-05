@@ -89,14 +89,25 @@ int ui_key_height(void)
     return KEY_SIZE * UI_SCALE;
 }
 
-int ui_key(SDL_Renderer *renderer, int x, int y, const char *label)
+static int draw_key(SDL_Renderer *renderer, int x, int y, const char *label, int scale)
 {
-    int w = ui_key_width(label), h = ui_key_height();
+    int w = ui_text_width(label, 2) + 8 * scale, h = KEY_SIZE * scale;
+    if (w < h) w = h;
     nine_slice(renderer, assets_texture(KEY_SHEET), 0, 0, KEY_SIZE, KEY_SIZE, KEY_CORNER, x, y, w, h);
     /* On the cap's face (its lit top 11 rows), letters' 7 rows centered. */
-    pixfont_draw(renderer, label, x + w / 2, y + (11 * UI_SCALE - 7 * 2) / 2 - 2 * 2 + UI_SCALE, 2,
+    pixfont_draw(renderer, label, x + w / 2, y + (11 * scale - 7 * 2) / 2 - 2 * 2 + scale, 2,
                  0x2a1f1a, ANCHOR_N, 255);
     return w;
+}
+
+int ui_key(SDL_Renderer *renderer, int x, int y, const char *label)
+{
+    return draw_key(renderer, x, y, label, UI_SCALE);
+}
+
+int ui_key_compact(SDL_Renderer *renderer, int x, int y, const char *label)
+{
+    return draw_key(renderer, x, y, label, 2);
 }
 
 void ui_icon(SDL_Renderer *renderer, UiIcon icon, int x, int y, int scale)

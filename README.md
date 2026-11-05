@@ -48,10 +48,13 @@ el modo de video, y se recuerda entre partidas en `~/.local/share/Vaquera2D/Vaqu
 **Pausa automática:** si la ventana pierde el foco durante un nivel (clic fuera de ella,
 `Alt+Tab`, minimizarla), el nivel se pausa como con `Esc`.
 
-Durante el nivel, el HUD distribuye la misión y los suministros a la izquierda, vida y
-experiencia a la derecha, y el arma, las balas y el poder en sus paneles propios. La
-recarga muestra su progreso; los estados llevan iconos y explicación al pasar el mouse.
-Los números y nombres ajustan su escala al espacio del panel para conservar la lectura.
+Durante el nivel, el HUD ocupa solo la franja del cielo, en tres columnas: a la izquierda
+tu nivel, vida y experiencia, con los suministros y los estados debajo; al centro la ruta,
+el reloj y lo que falta, con las alertas graves debajo; a la derecha el arma y sus balas, con
+el cambio de arma (`Q`), el poder (`F`) y el aviso de guardado debajo. Lo secundario aparece
+solo cuando aplica. Los estados llevan icono y explicación al pasar el mouse, y el mouse sobre
+la misión abre las metas de sus tres estrellas. Los números muy largos reducen su escala para
+no salirse del panel.
 Mientras recarga puede caminar a media velocidad.
 `--capturas DIR` guarda 31 pantallas como BMP para revisar el arte sin jugar: menús,
 combate, obstáculos, pausa, derrota, clima, farol, linterna y destello de explosión,

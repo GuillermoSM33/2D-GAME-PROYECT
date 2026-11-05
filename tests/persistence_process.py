@@ -11,8 +11,8 @@ if not binary.exists() and binary.with_name(binary.name + '.exe').exists():
     binary = binary.with_name(binary.name + '.exe')
 
 
-def run(mode, directory):
-    subprocess.run([str(binary), mode, str(directory)], check=True)
+def run(mode, directory, *extra):
+    subprocess.run([str(binary), mode, str(directory), *map(str, extra)], check=True)
 
 
 with tempfile.TemporaryDirectory(prefix='vaquera-sesión-') as temporary:
@@ -21,6 +21,11 @@ with tempfile.TemporaryDirectory(prefix='vaquera-sesión-') as temporary:
     checks.mkdir()
     run('checks', checks)
     assert not list(checks.glob('*.sav')), 'Timer tests must not save user data'
+    for hero in range(3):
+        levelup = root / f'levelup-{hero}'
+        levelup.mkdir()
+        run('levelup-write', levelup, hero)
+        run('levelup-read', levelup, hero)
     for corruption in ('truncate', 'schema'):
         directory = root / corruption
         directory.mkdir()
