@@ -1,0 +1,110 @@
+{
+    "version": "2.0.0",
+    // Todas corren en bash: el del sistema en Linux y el de MSYS2 UCRT64 en Windows.
+    "linux": {
+        "options": {
+            "shell": { "executable": "bash", "args": ["-c"] }
+        }
+    },
+    "windows": {
+        "options": {
+            "shell": { "executable": "C:\\msys64\\usr\\bin\\bash.exe", "args": ["--login", "-c"] },
+            "env": { "MSYSTEM": "UCRT64", "CHERE_INVOKING": "1" }
+        }
+    },
+    "tasks": [
+        {
+            "label": "Compilar",
+            "type": "shell",
+            "command": "make -j\"$(nproc)\"",
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Jugar",
+            "type": "shell",
+            "command": "make -j\"$(nproc)\" run",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Pruebas",
+            "type": "shell",
+            "command": "make -j\"$(nproc)\" test",
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Build completo (build.sh)",
+            "type": "shell",
+            "command": "./build.sh",
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Vigilar cambios (make watch)",
+            "type": "shell",
+            "command": "make watch",
+            "problemMatcher": [],
+            "presentation": { "panel": "dedicated" }
+        },
+        {
+            "label": "Regenerar hojas de la vaquera",
+            "type": "shell",
+            "command": "python3 tools/rebuild_cowgirl.py",
+            "problemMatcher": []
+        },
+        {
+            "label": "Grabar sonido (8 bits)",
+            "type": "shell",
+            "command": "python3",
+            "args": ["tools/crush_sfx.py", "record", "${input:soundName}"],
+            "problemMatcher": [],
+            "presentation": { "focus": true }
+        },
+        {
+            "label": "Convertir archivo a sonido (8 bits)",
+            "type": "shell",
+            "command": "python3",
+            "args": ["tools/crush_sfx.py", "convert", "${input:soundFile}", "${input:soundName}"],
+            "problemMatcher": []
+        },
+        {
+            // Sin optimizar y en build/debug, para no mezclarse con los objetos -O2 de build/.
+            // CFLAGS va como variable de entorno: en la línea de comandos anularía -std=c11 -Wall.
+            "label": "Compilar para depurar",
+            "type": "shell",
+            "command": "make -j\"$(nproc)\" BUILD=build/debug GEN=build/generated",
+            "options": { "env": { "CFLAGS": "-O0 -g" } },
+            "windows": {
+                "options": { "env": { "CFLAGS": "-O0 -g", "MSYSTEM": "UCRT64", "CHERE_INVOKING": "1" } }
+            },
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "hide": true
+        },
+        {
+            "label": "Compilar prueba abierta para depurar",
+            "type": "shell",
+            "command": "make -j\"$(nproc)\" BUILD=build/debug GEN=build/generated build/debug/tests/${fileBasenameNoExtension}",
+            "options": { "env": { "CFLAGS": "-O0 -g" } },
+            "windows": {
+                "options": { "env": { "CFLAGS": "-O0 -g", "MSYSTEM": "UCRT64", "CHERE_INVOKING": "1" } }
+            },
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "hide": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "soundName",
+            "type": "promptString",
+            "description": "Nombre bajo assets/sounds, con una carpeta como máximo (ej.: zombie/growl)"
+        },
+        {
+            "id": "soundFile",
+            "type": "promptString",
+            "description": "Archivo de origen (mp4, m4a, mp3, wav...)"
+        }
+    ]
+}

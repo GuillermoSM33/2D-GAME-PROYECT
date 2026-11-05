@@ -1,0 +1,419 @@
+{
+  "format": {
+    "channels": 1,
+    "rate": 22050,
+    "bits": 16
+  },
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "file_sources": {
+    "bat_01": {
+      "filename": "bat.zip",
+      "title": "Bat Screeches",
+      "author": "polymorpheva; isolated and denoised by AntumDeluge",
+      "page": "https://opengameart.org/content/bat-screeches",
+      "original_page": "https://freesound.org/people/polymorpheva/sounds/104205/",
+      "url": "https://opengameart.org/sites/default/files/bat.zip",
+      "sha256": "8a41cfeca5a3b184f4cf171d45faf0041715b6f9d402dcfe04c53369c05e0ab3",
+      "member": "flac/bat_01.flac",
+      "member_sha256": "71dd6dac86d9cd74480f78b521021a22d5ec4d3f7151caa7536ed2da6acf21ee",
+      "license": "CC0-1.0"
+    },
+    "bat_02": {
+      "filename": "bat.zip",
+      "title": "Bat Screeches",
+      "author": "polymorpheva; isolated and denoised by AntumDeluge",
+      "page": "https://opengameart.org/content/bat-screeches",
+      "original_page": "https://freesound.org/people/polymorpheva/sounds/104205/",
+      "url": "https://opengameart.org/sites/default/files/bat.zip",
+      "sha256": "8a41cfeca5a3b184f4cf171d45faf0041715b6f9d402dcfe04c53369c05e0ab3",
+      "member": "flac/bat_02.flac",
+      "member_sha256": "72d1705f4e12b1dfb7d19cc9091bb8c7f11c5aaf80154342c3a31c817cdc2a1b",
+      "license": "CC0-1.0"
+    },
+    "bat_03": {
+      "filename": "bat.zip",
+      "title": "Bat Screeches",
+      "author": "polymorpheva; isolated and denoised by AntumDeluge",
+      "page": "https://opengameart.org/content/bat-screeches",
+      "original_page": "https://freesound.org/people/polymorpheva/sounds/104205/",
+      "url": "https://opengameart.org/sites/default/files/bat.zip",
+      "sha256": "8a41cfeca5a3b184f4cf171d45faf0041715b6f9d402dcfe04c53369c05e0ab3",
+      "member": "flac/bat_03.flac",
+      "member_sha256": "bc7f1ac5f52fa87f33eff62e4ecb9b7e0fe42164b5830f24a4ce6471ae4d2a01",
+      "license": "CC0-1.0"
+    },
+    "book": {
+      "filename": "book.mp3",
+      "title": "Book Page Turn",
+      "author": "Kodack",
+      "page": "https://freesound.org/people/Kodack/sounds/256475/",
+      "url": "https://cdn.freesound.org/previews/256/256475_2276808-hq.mp3",
+      "sha256": "99c0ffb127dfc64214c6ecd5d30f2a5deb3f2419328e5a54f7c070f2e341cd71",
+      "license": "CC0-1.0"
+    },
+    "fireplace": {
+      "filename": "fireplace.wav",
+      "title": "Fireplace Sound loop",
+      "author": "PagDev",
+      "page": "https://opengameart.org/content/fireplace-sound-loop",
+      "url": "https://opengameart.org/sites/default/files/fire.wav",
+      "sha256": "85ca0cc60d0c037fff8b185e31ad1fcdbda6ce45eee17c3ee1318d1b8f59e330",
+      "license": "CC0-1.0"
+    },
+    "sparks": {
+      "filename": "sparks.mp3",
+      "title": "Electric Sparks.wav",
+      "author": "kev_durr",
+      "page": "https://freesound.org/people/kev_durr/sounds/396470/",
+      "url": "https://cdn.freesound.org/previews/396/396470_5415774-hq.mp3",
+      "sha256": "11d14640af7799238736ed289138cd88fc632464b6a99aebd07c65581793225c",
+      "license": "CC0-1.0"
+    }
+  },
+  "archives": {
+    "step": {
+      "filename": "footsteps.zip",
+      "url": "https://opengameart.org/sites/default/files/footsteps.zip",
+      "sha256": "94b5155d119d9378315c2b4457c00098d78a36f2a2c436d5145687d1d3bad257",
+      "license": "CC0-1.0",
+      "credits": "docs/AUDIO_FOLEY_SOURCES.md",
+      "members": {
+        "footsteps/step_lth1.ogg": "8abf47391e53218a4826a1419e4861ae7dae14df55c51a322f2fa2d4fab2005f",
+        "footsteps/step_lth2.ogg": "35214722297cda533de2158e3a4754c5639990760b213101fe097ab34bab1b86"
+      }
+    },
+    "v2": {
+      "filename": "sfx_100_v2.zip",
+      "url": "https://opengameart.org/sites/default/files/sfx_100_v2.zip",
+      "sha256": "0fc61b4494e2e893c0c015ced4877b3f689c7d84a48cb61daecd7ddb52db797b",
+      "license": "CC0-1.0",
+      "credits": "docs/AUDIO_FOLEY_SOURCES.md",
+      "members": {
+        "sfx100v2_footstep_wet_02.ogg": "b2cfbdd75ee970dcb68cc157fec818eda2f5802989b0da684aa67817cb914b52",
+        "sfx100v2_footstep_wet_03.ogg": "4d475dd54d72a862cb72fcff4d1970161e619352f500f8b75755a2f5e987513e",
+        "sfx100v2_loop_water_01.ogg": "955a367cf87f150f7868e2ecf5745ef13cec2c78a29304eda27e74f1fea06c57",
+        "sfx100v2_loop_water_03.ogg": "33b123860425a34ce8de43cfa075b0b4ffb7a3cf090be5c21213c9b99f3d2fa3",
+        "sfx100v2_stones_02.ogg": "23f8c7335eb656ea759899946ed665712ec41f4572656f421f7f5652bea66279",
+        "sfx100v2_switch_01.ogg": "fa2c8ebd6361394762e9964698a0be2e31ae62dc91510f81c716c0ef8cf5741d",
+        "sfx100v2_switch_02.ogg": "4ea2e80d7b9bee89dcb878233ae6bd3a18c1cf960885ec844b3d43dfbf8d700b"
+      }
+    },
+    "wm": {
+      "filename": "100-CC0-wood-metal-SFX.zip",
+      "url": "https://opengameart.org/sites/default/files/100-CC0-wood-metal-SFX.zip",
+      "sha256": "be6eba63b03409ac0c77787a956b1503a7c186403d04aef9725c52644a4b7878",
+      "license": "CC0-1.0",
+      "credits": "docs/AUDIO_FOLEY_SOURCES.md",
+      "members": {
+        "metal_close_01.ogg": "f504b912782760ff3ec25814db6c27bd2d884a94cda2a94d0ffbec921ab478b6",
+        "metal_hit_03.ogg": "9daf6e7e1fc1871acfb063cb25ce050faab559ee6c42fed84bf18a4067f26a4d",
+        "wood_hit_06.ogg": "6224beb74c930ac6b88358ced7c024b23a50d71acfe565e83cc29ffbe383676e"
+      }
+    }
+  },
+  "processing": "Natural speed; mono; HP75/LP6200 (bat LP9800); selective 2:1 compression of paper/water/fire; RMS target with peak ceiling; fades or 1s loop crossfade.",
+  "subjective_listening_verified": false,
+  "outputs": {
+    "player/flashlight_on": {
+      "sha256": "8b2e3f484aede92b52a91380c920d9a7ce912755f3baa33aa3a93df2165703f4",
+      "seconds": 0.150023,
+      "rms": 0.011863,
+      "peak": 0.3,
+      "archive_layers": [
+        {
+          "pack": "v2",
+          "name": "sfx100v2_switch_01",
+          "at": 0.0,
+          "gain": 1.0,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": null
+        }
+      ],
+      "file_cuts": []
+    },
+    "player/flashlight_off": {
+      "sha256": "8cc5dcf20139aac61cccffc81ee8df82b7c5cdce7617250e665bec951412b393",
+      "seconds": 0.150023,
+      "rms": 0.013567,
+      "peak": 0.28,
+      "archive_layers": [
+        {
+          "pack": "v2",
+          "name": "sfx100v2_switch_02",
+          "at": 0.0,
+          "gain": 1.0,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": null
+        }
+      ],
+      "file_cuts": []
+    },
+    "weapons/fire_mode": {
+      "sha256": "7721762b255c81d38ca25814d2bb236ec2c7108a7b4ed37224427436606233ad",
+      "seconds": 0.170023,
+      "rms": 0.015691,
+      "peak": 0.32,
+      "archive_layers": [
+        {
+          "pack": "v2",
+          "name": "sfx100v2_switch_02",
+          "at": 0.0,
+          "gain": 0.85,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": null
+        },
+        {
+          "pack": "wm",
+          "name": "metal_close_01",
+          "at": 0.015,
+          "gain": 0.12,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 0.1
+        }
+      ],
+      "file_cuts": []
+    },
+    "world/grenade_bounce": {
+      "sha256": "fe12b3b7bfff17cead41686eadf1127eac06807d283121c4b53b6ef696231043",
+      "seconds": 0.24,
+      "rms": 0.030818,
+      "peak": 0.36,
+      "archive_layers": [
+        {
+          "pack": "v2",
+          "name": "sfx100v2_stones_02",
+          "at": 0.0,
+          "gain": 0.65,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 0.16
+        },
+        {
+          "pack": "wm",
+          "name": "metal_hit_03",
+          "at": 0.006,
+          "gain": 0.18,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 0.12
+        }
+      ],
+      "file_cuts": []
+    },
+    "world/splash": {
+      "sha256": "41b4a3c7aa9666990b31bcca6dc6ac4fbcfedc854e0071074eb5fe47dc3ce017",
+      "seconds": 0.48,
+      "rms": 0.049484,
+      "peak": 0.48,
+      "archive_layers": [
+        {
+          "pack": "v2",
+          "name": "sfx100v2_footstep_wet_02",
+          "at": 0.0,
+          "gain": 0.7,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": null
+        },
+        {
+          "pack": "v2",
+          "name": "sfx100v2_footstep_wet_03",
+          "at": 0.08,
+          "gain": 0.45,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": null
+        },
+        {
+          "pack": "step",
+          "name": "footsteps/step_lth1",
+          "at": 0.0,
+          "gain": 0.1,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 0.12
+        }
+      ],
+      "file_cuts": []
+    },
+    "bat/flee": {
+      "sha256": "ceaa47b98a5f5524c175e1d9e40e566e91f6d6a674ee3537350c272b705e21b2",
+      "seconds": 1.470023,
+      "rms": 0.033466,
+      "peak": 0.4,
+      "archive_layers": [],
+      "file_cuts": [
+        [
+          "bat_01",
+          0.0,
+          1.428662,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "bat/death": {
+      "sha256": "24b77c0aaee12dbbed766859bccf73bef96f3c9f6f6e52977532661d91fbff50",
+      "seconds": 1.4,
+      "rms": 0.033637,
+      "peak": 0.44,
+      "archive_layers": [],
+      "file_cuts": [
+        [
+          "bat_03",
+          0.0,
+          1.36127,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "bat/chirp": {
+      "sha256": "12ba8f0a06195b0e872c9e75ffd164af5b729631163b939b6cb7facc783b396d",
+      "seconds": 1.790023,
+      "rms": 0.041807,
+      "peak": 0.42,
+      "archive_layers": [],
+      "file_cuts": [
+        [
+          "bat_02",
+          0.0,
+          1.747302,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "ui/book_open": {
+      "sha256": "3d24bee36f2413d6d0d274231649391b7235e0bb528320dfb9f15b32566b0770",
+      "seconds": 0.689977,
+      "rms": 0.021831,
+      "peak": 0.32,
+      "archive_layers": [
+        {
+          "pack": "step",
+          "name": "footsteps/step_lth2",
+          "at": 0.015,
+          "gain": 0.1,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 0.16
+        }
+      ],
+      "file_cuts": [
+        [
+          "book",
+          0.18,
+          0.77,
+          0.025,
+          1.0
+        ]
+      ]
+    },
+    "ui/book_close": {
+      "sha256": "04363c4cf229477e878be9b1d87fd37c43179fea4f50fa9e853a76d7ced1e895",
+      "seconds": 0.64,
+      "rms": 0.031571,
+      "peak": 0.34,
+      "archive_layers": [
+        {
+          "pack": "wm",
+          "name": "wood_hit_06",
+          "at": 0.4,
+          "gain": 0.08,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 0.11
+        }
+      ],
+      "file_cuts": [
+        [
+          "book",
+          8.02,
+          8.56,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "ui/book_page": {
+      "sha256": "01aaad90d7cc3ce3b7fe7c02a662123a51d5645c4caed65a304f17b00d882a80",
+      "seconds": 0.590023,
+      "rms": 0.015896,
+      "peak": 0.3,
+      "archive_layers": [],
+      "file_cuts": [
+        [
+          "book",
+          6.02,
+          6.55,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "weather/lightning_warn": {
+      "sha256": "9a6db195d035f594e3f86e81b2936a9af44776429742e04d8ad79971b6eb24a1",
+      "seconds": 1.0,
+      "rms": 0.023342,
+      "peak": 0.48,
+      "archive_layers": [],
+      "file_cuts": [
+        [
+          "sparks",
+          3.25,
+          4.25,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "world/river": {
+      "sha256": "a58d7357fe6a4b02f5d79d7551f8894b1f858f6979e7976a1b5576649c17be00",
+      "seconds": 12.0,
+      "rms": 0.0657,
+      "peak": 0.36,
+      "archive_layers": [
+        {
+          "pack": "v2",
+          "name": "sfx100v2_loop_water_03",
+          "at": 0.0,
+          "gain": 1.0,
+          "speed": 1.0,
+          "start": 0.0,
+          "length": 9.4
+        },
+        {
+          "pack": "v2",
+          "name": "sfx100v2_loop_water_01",
+          "at": 8.4,
+          "gain": 1.0,
+          "speed": 1.0,
+          "start": 0.4,
+          "length": 5.1
+        }
+      ],
+      "file_cuts": []
+    },
+    "world/fire": {
+      "sha256": "141115b5624a3396d7a7b55f31652a07b7f7a233ed9a0c3686fd3bf61b5a676e",
+      "seconds": 12.0,
+      "rms": 0.027531,
+      "peak": 0.34,
+      "archive_layers": [],
+      "file_cuts": [
+        [
+          "fireplace",
+          5.0,
+          18.0,
+          0.0,
+          1.0
+        ]
+      ]
+    }
+  }
+}

@@ -27,6 +27,9 @@ done
 echo "SDL2 $(pkg-config --modversion sdl2), SDL2_ttf $(pkg-config --modversion SDL2_ttf)," \
      "SDL2_mixer $(pkg-config --modversion SDL2_mixer)"
 
+step "Comprobando arquitectura"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_architecture.py
+
 step "Comprobando sonidos y originales protegidos"
 PYTHONDONTWRITEBYTECODE=1 python3 tools/check_audio.py
 

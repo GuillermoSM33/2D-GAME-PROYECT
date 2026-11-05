@@ -35,13 +35,21 @@ void bats_start(Bats *bats, int stage_index, float start_x, float length, bool n
     }
 }
 
-static void take_off(Bat *b, float from_x)
+static void take_off(Bats *bats, Bat *b, float from_x)
 {
     if (!b->alive || b->fleeing)
         return;
     b->fleeing = true;
     b->facing = b->x >= from_x ? 1 : -1;
     b->vx = (float)b->facing * BAT_FLEE_SPEED;
+    bats->pending_flee++;
+}
+
+int bats_take_flee_events(Bats *bats)
+{
+    int events = bats->pending_flee;
+    bats->pending_flee = 0;
+    return events;
 }
 
 void bats_update(Bats *bats, float player_x, float dt)
@@ -68,7 +76,7 @@ void bats_update(Bats *bats, float player_x, float dt)
             continue;
         }
         if (fabsf(b->x - player_x) <= BAT_SCARE_RANGE) {
-            take_off(b, player_x);
+            take_off(bats, b, player_x);
             continue;
         }
         /* Flitting over its spot: to and fro, a swoop up and down, a quick jitter. */
@@ -90,7 +98,7 @@ static void kill(Bats *bats, Bat *b)
     b->vy = 0.0f;
     for (int i = 0; i < BATS_MAX; i++) /* The rest of them scatter */
         if (fabsf(bats->items[i].x - b->x) <= BAT_FLOCK_RANGE)
-            take_off(&bats->items[i], b->x);
+            take_off(bats, &bats->items[i], b->x);
 }
 
 int bats_shoot(Bats *bats, Bullets *bullets)
@@ -129,7 +137,7 @@ int bats_blast(Bats *bats, float x, float radius)
             kill(bats, b);
             killed++;
         } else if (fabsf(b->x - x) <= CROW_BLAST_RANGE) {
-            take_off(b, x);
+            take_off(bats, b, x);
         }
     }
     return killed;

@@ -6,11 +6,13 @@ el carácter del juego. El pixel art no obliga a usar pitidos electrónicos.
 
 Se conservan **byte por byte los once originales**: `zombie/*`, los seis
 archivos legacy de `world/`, `player/shot` y `player/reload`. Estos dos últimos
-son exclusivos del cañón de mano de la vaquera. Los únicos anteriores
-reemplazados son `player/drink`, `crow/caw` y `crow/death`.
+son exclusivos del cañón de mano de la vaquera. En la ampliación anterior
+se reemplazaron `player/drink`, `crow/caw` y `crow/death`.
 
-Los 74 efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
+Los 88 efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
 conservan las colas suaves sin añadir hiss. No se reexportan los originales.
+La ampliación de noviembre añade catorce efectos y conserva byte por byte los
+85 WAV que ya estaban en el juego.
 
 ## Fuentes y montaje
 
@@ -20,6 +22,7 @@ conservan las colas suaves sin añadir hiss. No se reexportan los originales.
 | Golpes, materiales, pasos, ropa y trampas | [AUDIO_FOLEY_SOURCES.md](AUDIO_FOLEY_SOURCES.md) |
 | Beber, cuervos y clima | [AUDIO_NATURE_SOURCES.md](AUDIO_NATURE_SOURCES.md) |
 | Explosiones, plasma, cofres, avisos y menús | [AUDIO_DESIGNED_SOURCES.md](AUDIO_DESIGNED_SOURCES.md) |
+| Linterna, selector, rebotes, chapoteos, murciélagos, almanaque y ambiente local | [AUDIO_EXPANSION_SOURCES.md](AUDIO_EXPANSION_SOURCES.md) |
 
 Las fuentes crudas quedan en `recordings/`, ignoradas por Git y fuera del
 ejecutable. Cada generador registra sus URLs y hashes. Las licencias se
@@ -55,7 +58,13 @@ existentes. `tools/crush_sfx.py` sigue disponible para grabación manual.
 | Trampas | Cepo conserva `world/snap`; alambre, cuerda/red y liberación tienen eventos propios |
 | Acciones | Beber y vendarse suenan al comenzar; el culatazo empieza antes del impacto. Interrumpir una recarga cancela su sonido |
 | Clima | Viento y lluvia en bucles de 12 s, con canales reservados. El trueno sigue al relámpago |
+| Ambiente local | Río y fuego en bucles de 12 s, con volumen según la cercanía y canales reservados |
 | Perro infectado | Ladrido, gruñido y quejido caninos propios; las voces originales de los zombis se conservan |
+| Murciélagos | Chirridos agudos de murciélagos reales al volar cerca, huir y recibir un impacto. Conservan el tono y la velocidad de la grabación; el efecto de impacto adapta una llamada, sin presentarla como una muerte grabada |
+| Linterna y selector | Clics grabados al encender/apagar la linterna y cambiar el modo de fuego |
+| Granada y agua | Rebote de la granada contra el suelo y chapoteo al aterrizar en el agua |
+| Almanaque | Apertura, cierre y paso de página discretos, además de los clics de navegación existentes |
+| Aviso de rayo | Señal física breve durante la advertencia previa al impacto |
 | Interfaz y progreso | Clics mecánicos discretos, cofre, emboscada, nivel y victoria |
 
 Las armas con munición ilimitada no producen falsos avisos de cargador vacío.
@@ -74,7 +83,9 @@ python3 tools/check_audio.py --report build/audio_check.json
 
 Se comprueban cobertura, referencias, formato, silencio, picos, componente
 continua, extremos, bucles, tiempos y los once hashes registrados en
-`AUDIO_LEGACY_SHA256.json`. Las pruebas SDL usan dispositivos `dummy`.
+`AUDIO_LEGACY_SHA256.json`. El catálogo se obtiene de los generadores y las
+referencias se buscan en todo `src/`; los manifiestos de diseño y ampliación
+deben cubrir sus salidas y coincidir con sus hashes. Las pruebas SDL usan dispositivos `dummy`.
 `build.sh` ejecuta las pruebas, verifica los recursos incrustados y realiza
 la prueba de humo del juego.
 
@@ -83,6 +94,7 @@ Para generar comparaciones de fuentes y resultados fuera de `assets/`:
 ```sh
 python3 tools/make_nature_sfx.py --review build/nature_review
 python3 tools/make_designed_sfx.py --review
+python3 tools/make_expansion_sfx.py --review build/expansion_review
 ```
 
 La revisión considera correspondencia física, ausencia de pitidos genéricos,

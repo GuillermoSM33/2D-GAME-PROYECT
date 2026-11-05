@@ -60,6 +60,8 @@ static void test_they_fly_off_when_she_comes(void)
     for (int i = 0; i < (int)(10.0f / FIXED_DT) && b->alive; i++)
         bats_update(&bats, 1000.0f - BAT_SCARE_RANGE, FIXED_DT);
     CHECK(!bat_present(b) && b->x > 1000.0f);
+    CHECK(bats_take_flee_events(&bats) == 1); /* Survives all flight updates */
+    CHECK(bats_take_flee_events(&bats) == 0);
 }
 
 static void test_a_bullet_brings_one_down(void)
@@ -80,6 +82,9 @@ static void test_a_bullet_brings_one_down(void)
     CHECK(bats_shoot(&bats, &bullets) == 1 && b->dead && !b->alive);
     CHECK(bullets_active_count(&bullets) == 0);
     CHECK(bats.items[1].fleeing); /* The other one heard it */
+    bats_update(&bats, -5000.0f, FIXED_DT);
+    CHECK(bats_take_flee_events(&bats) == 1); /* Not cleared by update */
+    CHECK(bats_take_flee_events(&bats) == 0);
     for (int i = 0; i < 120; i++)
         bats_update(&bats, -5000.0f, FIXED_DT);
     CHECK(b->height == 0.0f && bat_frame(b) == 5); /* Lying on the road */
@@ -96,6 +101,12 @@ static void test_a_blast_kills_the_low_ones(void)
     bats.items[1] = (Bat){.x = 100.0f, .height = 600.0f, .alive = true};
     CHECK(bats_blast(&bats, 120.0f, BARREL_RADIUS) == 1);
     CHECK(bats.items[0].dead && bats.items[1].alive);
+    bats_update(&bats, -5000.0f, FIXED_DT);
+    CHECK(bats_take_flee_events(&bats) == 1);
+    bats_blast(&bats, 120.0f, BARREL_RADIUS);
+    CHECK(bats_take_flee_events(&bats) == 0); /* Already fleeing */
+    bats_start(&bats, 3, 0.0f, 26500.0f, false);
+    CHECK(bats_take_flee_events(&bats) == 0); /* A new run is clean */
 }
 
 int main(void)

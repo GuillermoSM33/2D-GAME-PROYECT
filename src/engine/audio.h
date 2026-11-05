@@ -20,8 +20,8 @@ void audio_play_in(const char *name, int group);
 /* Per-instance gain, on top of the master and group volumes. */
 void audio_play_in_gain(const char *name, int group, float gain);
 
-/* Starts or updates an ambience loop without restarting it. Two dedicated
- * channels let wind and rain overlap without using up effect channels. */
+/* Starts or updates an ambience loop without restarting it. Four dedicated
+ * channels let wind, rain, river and fire overlap under the effects. */
 void audio_loop_in(const char *name, int group, float gain);
 void audio_stop_loop(const char *name);
 

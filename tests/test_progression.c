@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "game/damage.h"
+#include "game/mission.h"
 #include "game/progression.h"
 #include "game/stages.h"
 #include "game/stage_run.h"
@@ -61,9 +62,11 @@ static void test_equal_levels_stay_balanced(void)
  * mission's at the gate; kills and her chests at the stage's XP share), and checks each fight is achievable but not
  * trivial: bullets to kill and claws to die within a band (an elite takes
  * longer and hits harder), and she gains about one level a stage. */
-static void test_campaign_is_winnable_not_trivial(void)
+static void simulate_campaign(bool best_result)
 {
     Progress p;
+    StageRecord record;
+    stage_record_init(&record);
     progress_init(&p);
     for (int s = 0; s < STAGE_COUNT; s++) {
         const StageDef *stage = &STAGES[s];
@@ -100,9 +103,21 @@ static void test_campaign_is_winnable_not_trivial(void)
                 progress_add_xp(&p, elite ? xp : (int)lroundf((float)xp * share));
             }
         }
-        progress_add_xp(&p, chest_xp(p.level, stage->zombie_level, stage->complexity, 1.0f, true));
+        MissionGoals goals = mission_goals(s);
+        MissionReport report = {
+            .ticks = best_result ? goals.seconds[2] * SIMULATION_HZ
+                                 : goals.seconds[0] * SIMULATION_HZ + 1,
+        };
+        CHECK(mission_finish(&report, &record, s, best_result ? 100 : 20, 100));
+        progress_add_xp(&p, report.base_xp + report.star_xp + report.record_xp);
         CHECK(p.level - start_level >= 1 && p.level - start_level <= 2);
     }
+}
+
+static void test_campaign_is_winnable_not_trivial(void)
+{
+    simulate_campaign(false); /* Base reward, without earning any stars. */
+    simulate_campaign(true);  /* Maximum rewards: 3 stars and a perfect record. */
 }
 
 static void test_routes_add_up(void)

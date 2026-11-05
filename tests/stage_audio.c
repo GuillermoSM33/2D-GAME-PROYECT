@@ -1,11 +1,18 @@
 /* Application-level sound integration without a window or audio device.
- * Compile this translation unit with the normal game objects except main.o
- * and audio.o: the real stage code runs, and the audio boundary is recorded.
+ * Link the normal application modules except main.o and audio.o: the real
+ * stage code runs, and only the audio boundary is replaced by recording stubs.
  * Keeping this outside test_*.c avoids the pure-logic test linker rule. */
 #define SDL_MAIN_HANDLED
-#define main unused_game_entry_for_stage_audio
-#include "../src/main.c"
-#undef main
+#include "app/stage.h"
+#include "app/stage_render.h"
+#include "app/navigation.h"
+#include "engine/audio.h"
+#include "game/camera.h"
+#include "game/scene.h"
+#include "game/hud.h"
+
+#include <math.h>
+#include <string.h>
 
 #include "test.h"
 
@@ -22,6 +29,7 @@ static Cue cues[8192];
 static int cue_count, tick_number;
 static StagePlay game;
 static Profile profile;
+static AppOptions options;
 
 static void record_cue(CueKind kind, const char *name, int group, float gain)
 {
@@ -93,14 +101,15 @@ static void setup_weapon(WeaponId weapon)
         profile.progress.level = POWER_LEVEL;
     int character = weapon == WEAPON_PLASMA ? 2 :
                     weapon == WEAPON_RIFLE || weapon == WEAPON_SHOTGUN ? 1 : 0;
-    start_stage(&game, 0, &CHARACTERS[character], &profile.progress);
+    stage_start(&game, 0, &CHARACTERS[character], &profile.progress);
     if (weapon == WEAPON_SHOTGUN)
-        swap_weapon(&game);
+        stage_swap_weapon(&game);
     CHECK(game.guns[game.weapon_slot] == weapon);
     /* Keep real stage/update code but isolate the requested interaction. */
     terrain_clear(&game.run.terrain);
     game.run.zombie_count = 0;
     memset(&game.crows, 0, sizeof(game.crows));
+    memset(&game.bats, 0, sizeof(game.bats));
     weather_start(&game.weather, WEATHER_CLEAR, camera_left(game.player.x));
     tick_number = 0;
     clear_cues();
@@ -109,7 +118,7 @@ static void setup_weapon(WeaponId weapon)
 static void step(const InputState *input)
 {
     tick_number++;
-    CHECK(stage_step(&game, input, &profile));
+    CHECK(stage_step(&game, input, &profile, &options));
 }
 
 static void idle(void)
@@ -130,7 +139,7 @@ static void test_every_weapon_fires_its_own_cues(void)
     for (int id = 0; id < WEAPON_COUNT; id++) {
         setup_weapon((WeaponId)id);
         const WeaponDef *w = weapon_def((WeaponId)id);
-        fire_weapon(&game, &profile.progress);
+        stage_fire_weapon(&game, &profile.progress);
         CHECK(cue_matches(CUE_PLAY, w->shot_sound, SOUND_PLAYER) == 1);
         if (w->cycle_sound)
             CHECK(cue_matches(CUE_PLAY, w->cycle_sound, SOUND_PLAYER) == 1);
@@ -508,7 +517,8 @@ static void test_rifle_fire_mode_toggles_on_k_keeping_its_rounds(void)
     press(ACTION_FIRE_MODE);
     CHECK(game.single_fire && game.player.shot.magazine == 15);
     CHECK(game.player.shot.burst == 1 && !game.player.shot.automatic);
-    CHECK(game.player.shot.rounds == 12 && plays("weapons/switch") == 1);
+    CHECK(game.player.shot.rounds == 12 && plays("weapons/fire_mode") == 1);
+    CHECK(plays("weapons/switch") == 0);
     bullets_clear(&game.bullets);
     CHECK(bullets_from_one_click() == 1 && game.player.shot.rounds == 11);
     press(ACTION_FIRE_MODE);
@@ -519,6 +529,7 @@ static void test_rifle_fire_mode_toggles_on_k_keeping_its_rounds(void)
     setup_weapon(WEAPON_SHOTGUN);
     press(ACTION_FIRE_MODE);
     CHECK(!game.single_fire && game.player.shot.magazine == weapon_def(WEAPON_SHOTGUN)->magazine);
+    CHECK(plays("weapons/fire_mode") == 0);
 }
 
 static void start_bleeding(void)
@@ -549,13 +560,13 @@ static void test_bandage_starts_once_and_stops_only_when_cancelled(void)
 
 static void test_player_volume_preview_uses_player_group(void)
 {
-    volumes_init(&volumes);
-    list_menu_init(&volume_menu, VOLUME_ROWS);
-    volume_menu.selected = VOLUME_PLAYER;
+    volumes_init(&options.volumes);
+    list_menu_init(&options.volume_menu, VOLUME_ROWS);
+    options.volume_menu.selected = VOLUME_PLAYER;
     clear_cues();
     InputState input = {0};
     input.pressed[ACTION_LEFT] = true;
-    CHECK(volume_step(&input));
+    CHECK(options_step(&options, &input));
     CHECK(cue_matches(CUE_PLAY, "player/shot", SOUND_PLAYER) == 1);
     CHECK(cue_matches(CUE_PLAY, "player/shot", SOUND_MASTER) == 0);
 }
@@ -572,14 +583,316 @@ static void test_field_guide_request_and_light_preserve_stage_state(void)
     CHECK(!game.flashlight); /* By day it starts off */
     press(ACTION_LIGHT);
     CHECK(game.flashlight && game.player.x == x && game.player.shot.rounds == 2);
+    CHECK(plays("player/flashlight_on") == 0); /* The switch is reached near the end of raising it. */
     press(ACTION_LIGHT);
     CHECK(!game.flashlight);
+    CHECK(cue_matches(CUE_PLAY, "player/flashlight_off", SOUND_PLAYER) == 1);
+    CHECK(plays("ui/confirm") == 0);
     game.paused = true;
     game.pause_view = PAUSE_VIEW_LIST;
     list_menu_init(&game.pause_menu, PAUSE_ITEMS);
     game.pause_menu.selected = PAUSE_ALMANAC;
     press(ACTION_CONFIRM);
     CHECK(game.request_almanac && game.paused);
+}
+
+static void test_flashlight_click_follows_the_beam_and_cancels_with_the_switch(void)
+{
+    for (int id = 0; id < WEAPON_COUNT; id++) {
+        setup_weapon((WeaponId)id);
+        float raise_time = stage_weapon(&game)->light_time;
+        float click_at = (raise_time > 0.0f ? raise_time : 1.0f) * PLAYER_LIGHT_CLICK;
+        press(ACTION_LIGHT);
+        CHECK(game.flashlight && plays("player/flashlight_on") == 0);
+        for (int guard = 0; guard < 240 && plays("player/flashlight_on") == 0; guard++)
+            idle();
+        CHECK(cue_matches(CUE_PLAY, "player/flashlight_on", SOUND_PLAYER) == 1);
+        CHECK_NEAR(game.flashlight_since, click_at, FIXED_DT * 1.1f);
+        for (int ticks = 0; ticks < 10; ticks++)
+            idle();
+        CHECK(plays("player/flashlight_on") == 1);
+        press(ACTION_LIGHT);
+        CHECK(!game.flashlight && plays("player/flashlight_off") == 1);
+    }
+
+    setup_weapon(WEAPON_RIFLE);
+    press(ACTION_LIGHT);
+    game.paused = true;
+    float paused_at = game.flashlight_since;
+    for (int ticks = 0; ticks < 120; ticks++)
+        idle();
+    CHECK(game.flashlight_since == paused_at && plays("player/flashlight_on") == 0);
+    game.paused = false;
+    press(ACTION_LIGHT); /* Off before reaching the switch: no delayed on-click. */
+    for (int ticks = 0; ticks < 180; ticks++)
+        idle();
+    CHECK(plays("player/flashlight_off") == 1 && plays("player/flashlight_on") == 0);
+}
+
+static void test_landing_uses_water_only_on_wet_ground(void)
+{
+    const TerrainKind ground[] = {TERRAIN_KINDS, TERRAIN_RIVER, TERRAIN_PUDDLE};
+    for (int i = 0; i < 3; i++) {
+        setup_weapon(WEAPON_REVOLVER);
+        if (i > 0)
+            terrain_add(&game.run.terrain, ground[i], game.player.x);
+        press(ACTION_JUMP);
+        CHECK(game.player.jump.airborne);
+        for (int guard = 0; guard < 120 && game.player.jump.airborne; guard++)
+            idle();
+        CHECK(!game.player.jump.airborne);
+        CHECK(plays("world/splash") == (i > 0 ? 1 : 0));
+        CHECK(plays("player/land") == (i == 0 ? 1 : 0));
+        for (int ticks = 0; ticks < 5; ticks++)
+            idle();
+        CHECK(plays("world/splash") + plays("player/land") == 1);
+    }
+}
+
+static void test_lightning_warning_starts_once_and_stops_on_impact_or_failure(void)
+{
+    for (int end = 0; end < 3; end++) {
+        setup_weapon(WEAPON_REVOLVER);
+        StageDef storm = *game.run.stage;
+        storm.weather = WEATHER_STORM;
+        game.run.stage = &storm;
+        weather_start(&game.weather, WEATHER_STORM, camera_left(game.player.x));
+        game.run.bolt_wait = 0.0f;
+        idle();
+        CHECK(game.run.bolt_warn > 0.0f && game.lightning_warning);
+        CHECK(cue_matches(CUE_PLAY, "weather/lightning_warn", SOUND_MASTER) == 1);
+        for (int ticks = 0; ticks < 5; ticks++)
+            idle();
+        CHECK(plays("weather/lightning_warn") == 1 && stops("weather/lightning_warn") == 0);
+        if (end == 0) {
+            for (int guard = 0; guard < 120 && !game.run.bolt_struck; guard++)
+                idle();
+            CHECK(game.run.bolt_struck && plays("weather/thunder") == 1);
+        } else {
+            game.run.phase = end == 1 ? RUN_FAILED : RUN_CLEARED;
+            idle();
+            CHECK(plays("weather/thunder") == 0);
+        }
+        CHECK(stops("weather/lightning_warn") == 1 && !game.lightning_warning);
+        idle();
+        CHECK(plays("weather/lightning_warn") == 1 && stops("weather/lightning_warn") == 1);
+    }
+}
+
+static float last_loop_gain(const char *name)
+{
+    for (int i = cue_count - 1; i >= 0; i--)
+        if (cues[i].kind == CUE_LOOP && strcmp(cues[i].name, name) == 0) {
+            CHECK(cues[i].group == SOUND_MASTER);
+            return cues[i].gain;
+        }
+    return 0.0f;
+}
+
+static void test_local_ambience_follows_distance_and_stops_with_the_stage(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    float x = game.player.x;
+    terrain_add(&game.run.terrain, TERRAIN_RIVER, x);
+    terrain_add(&game.run.terrain, TERRAIN_CAMPFIRE, x + 80.0f);
+    idle();
+    float near_river = last_loop_gain("world/river"), near_fire = last_loop_gain("world/fire");
+    CHECK(near_river > 0.0f && near_river <= 0.28f);
+    CHECK(near_fire > 0.0f && near_fire <= 0.24f);
+    game.player.x += 550.0f;
+    clear_cues();
+    idle();
+    CHECK(last_loop_gain("world/river") > 0.0f && last_loop_gain("world/river") < near_river);
+    CHECK(cue_matches(CUE_STOP_LOOP, "world/fire", -1) == 1);
+    game.player.x = x;
+    game.run.phase = RUN_CLEARED;
+    clear_cues();
+    idle();
+    CHECK(cue_matches(CUE_LOOP, "world/river", -1) == 0);
+    CHECK(cue_matches(CUE_LOOP, "world/fire", -1) == 0);
+    CHECK(cue_matches(CUE_STOP_LOOP, "world/river", -1) == 1);
+    CHECK(cue_matches(CUE_STOP_LOOP, "world/fire", -1) == 1);
+}
+
+static void book_step(AlmanacView *view, const InputState *input)
+{
+    AlmanacView before = *view;
+    bool open = almanac_view_update(view, input);
+    CHECK(play_almanac_sounds(SCREEN_ALMANAC, open ? SCREEN_ALMANAC : SCREEN_STAGE, &before, view));
+}
+
+static void test_book_mouse_and_keyboard_share_paper_cues_without_hover_repeats(void)
+{
+    AlmanacView view;
+    almanac_view_init(&view);
+    clear_cues();
+    CHECK(play_almanac_sounds(SCREEN_STAGE, SCREEN_ALMANAC, &view, &view));
+    CHECK(plays("ui/book_open") == 1);
+    InputState pointer = {.pointer_moved = true, .pointer_x = ALMANAC_GRID_X + 4,
+                          .pointer_y = ALMANAC_GRID_Y + 4};
+    book_step(&view, &pointer);
+    book_step(&view, &pointer);
+    CHECK(cue_count == 1); /* No rustle every frame while hovering. */
+    pointer.pointer_clicked = true;
+    book_step(&view, &pointer);
+    CHECK(view.detail && plays("ui/book_page") == 1);
+    InputState back = {.pressed = {[ACTION_QUIT] = true}};
+    book_step(&view, &back);
+    CHECK(!view.detail && plays("ui/book_page") == 2);
+    almanac_view_select(&view, ALMANAC_PAGE_SIZE - 1);
+    InputState next = {.pressed = {[ACTION_RIGHT] = true}};
+    book_step(&view, &next);
+    CHECK(view.scroll == ALMANAC_PAGE_SIZE && plays("ui/book_page") == 3);
+    book_step(&view, &next);
+    CHECK(plays("ui/move") == 1 && plays("ui/book_page") == 3);
+    book_step(&view, &back);
+    CHECK(plays("ui/book_close") == 1);
+    CHECK(plays("ui/confirm") == 0 && plays("ui/back") == 0);
+}
+
+static void test_bats_have_their_own_cues(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    Bat *bat = &game.bats.items[0];
+    *bat = (Bat){.alive = true, .x = game.player.x + 100.0f,
+                 .home = game.player.x + 100.0f, .height = 100.0f, .base = 100.0f};
+    idle();
+    CHECK(bat->fleeing && plays("bat/flee") == 1 && plays("crow/caw") == 0);
+    idle();
+    CHECK(plays("bat/flee") == 1);
+
+    setup_weapon(WEAPON_REVOLVER);
+    bat = &game.bats.items[0];
+    float x = game.player.x + 180.0f;
+    *bat = (Bat){.alive = true, .x = x, .home = x, .height = 100.0f, .base = 100.0f};
+    CHECK(bullets_spawn(&game.bullets, x - 20.0f, x,
+                       BASELINE - 100.0f - BAT_FRAME_H * SPRITE_SCALE / 2.0f, 1));
+    idle();
+    CHECK(bat->dead && plays("bat/death") == 1 && plays("crow/death") == 0);
+}
+
+static void nearby_colony(void)
+{
+    /* Opposite phases keep one of two naturally flitting bats in earshot,
+     * while neither enters the 300 px range that makes it flee. */
+    for (int i = 0; i < 2; i++) {
+        float x = game.player.x + 400.0f;
+        game.bats.items[i] = (Bat){.alive = true, .x = x, .home = x,
+                                  .height = 120.0f, .base = 120.0f,
+                                  .time = i ? 3.14159265f / 1.3f : 0.0f};
+    }
+}
+
+static void test_bat_calls_are_nearby_occasional_and_pause_with_the_stage(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    nearby_colony();
+    CHECK_NEAR(game.bat_chirp_wait, 2.0f, 1e-4f);
+    for (int i = 0; i < 90; i++)
+        idle();
+    CHECK(plays("bat/chirp") == 0);
+    game.paused = true;
+    float waiting = game.bat_chirp_wait;
+    for (int i = 0; i < 180; i++)
+        idle();
+    CHECK(game.bat_chirp_wait == waiting && plays("bat/chirp") == 0);
+    game.paused = false;
+    for (int guard = 0; guard < 120 && plays("bat/chirp") == 0; guard++)
+        idle();
+    CHECK(cue_matches(CUE_PLAY, "bat/chirp", SOUND_PLAYER) == 1);
+    int first = first_play_tick("bat/chirp");
+    for (int i = 0; i < 300; i++)
+        idle();
+    CHECK(plays("bat/chirp") == 1); /* A full call, never an every-frame chirp. */
+    for (int guard = 0; guard < 240 && plays("bat/chirp") < 2; guard++)
+        idle();
+    CHECK(plays("bat/chirp") == 2);
+    int second = -1;
+    for (int i = 0; i < cue_count; i++) {
+        if (cues[i].kind == CUE_PLAY && strcmp(cues[i].name, "bat/chirp") == 0) {
+            CHECK(cues[i].gain >= 0.20f && cues[i].gain <= 0.50f);
+            second = cues[i].tick;
+        }
+    }
+    CHECK((float)(second - first) * FIXED_DT >= 6.0f - FIXED_DT);
+    CHECK((float)(second - first) * FIXED_DT <= 9.0f + FIXED_DT);
+    game.run.phase = RUN_CLEARED;
+    clear_cues();
+    idle();
+    CHECK(plays("bat/chirp") == 0 && stops("bat/chirp") == 1);
+
+    setup_weapon(WEAPON_REVOLVER);
+    game.bats.items[0] = (Bat){.alive = true, .x = game.player.x + 700.0f,
+                              .home = game.player.x + 700.0f, .height = 120.0f, .base = 120.0f};
+    for (int i = 0; i < 240; i++)
+        idle();
+    CHECK(plays("bat/chirp") == 0); /* A distant colony stays quiet. */
+    game.bats.items[0].alive = false;
+    game.bats.items[0].dead = true;
+    game.bats.items[0].x = game.player.x + 350.0f;
+    idle();
+    CHECK(plays("bat/chirp") == 0);
+    nearby_colony();
+    idle();
+    CHECK(plays("bat/chirp") == 1); /* The elapsed wait does not create a loop. */
+}
+
+static void test_bat_disturbances_preserve_call_tails_and_restart_the_wait(void)
+{
+    for (int dies = 0; dies < 2; dies++) {
+        setup_weapon(WEAPON_REVOLVER);
+        float x = game.player.x + 350.0f;
+        Bat *bat = &game.bats.items[0];
+        *bat = (Bat){.alive = true, .x = x, .home = x, .height = 120.0f, .base = 120.0f};
+        game.bat_chirp_wait = 0.0f;
+        idle();
+        CHECK(plays("bat/chirp") == 1);
+        clear_cues();
+        if (dies) {
+            CHECK(bullets_spawn(&game.bullets, bat->x - 20.0f, bat->x,
+                               BASELINE - bat->height - BAT_FRAME_H * SPRITE_SCALE / 2.0f, 1));
+        } else {
+            bat->x = game.player.x + 100.0f;
+        }
+        idle();
+        CHECK(stops("bat/chirp") == 0 && plays("bat/chirp") == 0);
+        CHECK(plays(dies ? "bat/death" : "bat/flee") == 1);
+        CHECK(game.bat_chirp_wait >= 6.0f);
+        nearby_colony();
+        for (int i = 0; i < 120; i++)
+            idle();
+        CHECK(plays("bat/chirp") == 0);
+    }
+}
+
+static void test_grenade_bounces_and_each_glass_break_has_one_cue(void)
+{
+    setup_weapon(WEAPON_RIFLE);
+    game.run.grenades[0] = (Grenade){.active = true, .x = game.player.x + 250.0f,
+                                  .height = 1.0f, .vx = 80.0f, .vy = -180.0f, .fuse = 3.0f};
+    idle();
+    CHECK(plays("world/grenade_bounce") == 1);
+    game.run.grenades[0].height = game.run.grenades[0].vy = 0.0f;
+    for (int i = 0; i < 5; i++)
+        idle();
+    CHECK(plays("world/grenade_bounce") == 1);
+
+    const TerrainKind glass[] = {TERRAIN_BOTTLES, TERRAIN_LAMP};
+    for (int kind = 0; kind < 2; kind++) {
+        setup_weapon(WEAPON_REVOLVER);
+        float x = game.player.x + 220.0f;
+        Piece *piece = terrain_add(&game.run.terrain, glass[kind], x);
+        int count = kind == 0 ? BOTTLE_COUNT : 1;
+        for (int hit = 0; hit < count; hit++) {
+            CHECK(bullets_spawn(&game.bullets, x - 20.0f, x,
+                               BASELINE - LAMP_GLASS_ROWS * SPRITE_SCALE - 5.0f, 1));
+            idle();
+            CHECK(plays("world/glass") == hit + 1);
+            idle();
+            CHECK(plays("world/glass") == hit + 1);
+        }
+        CHECK(piece->spent);
+    }
 }
 
 static void test_discoveries_and_kills_survive_a_stage_restart(void)
@@ -595,7 +908,7 @@ static void test_discoveries_and_kills_survive_a_stage_restart(void)
     idle();
     idle();
     CHECK(profile.almanac.entries[entry].defeated == 1);
-    start_stage(&game, 0, &CHARACTERS[0], &profile.progress);
+    stage_start(&game, 0, &CHARACTERS[0], &profile.progress);
     CHECK(profile.almanac.entries[entry].discovered && profile.almanac.entries[entry].defeated == 1);
     CHECK(game.encounter.entry[0] == -1);
 }
@@ -612,7 +925,7 @@ static void test_heat_haze_is_subtle_and_stays_on_the_road(void)
     if (renderer) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_heat(renderer, 0.0f, .5);
+        stage_draw_heat(renderer, 0.0f, .5);
         SDL_RenderPresent(renderer);
         int changed = 0, highest = VIEW_HEIGHT, peak = 0;
         for (int y = 0; y < VIEW_HEIGHT; y++) {
@@ -657,6 +970,82 @@ static void test_canine_voices_do_not_replace_any_existing_zombie_voice(void)
             }
 }
 
+static void test_level_up_refills_health_for_each_character_without_curing_conditions(void)
+{
+    const WeaponId weapons[] = {WEAPON_REVOLVER, WEAPON_RIFLE, WEAPON_PLASMA};
+    for (int i = 0; i < 3; i++) {
+        setup_weapon(weapons[i]);
+        profile.progress.xp = xp_to_next(profile.progress.level) - 1;
+        game.player.health = 9;
+        game.player.bleeding = true;
+        game.player.bleed_tick = BLEED_TICK;
+        game.player.burned = true;
+        chest_place(&game.run.chests[0], game.player.x, 2);
+        idle();
+        CHECK(profile.progress.level == 2);
+        CHECK(game.player.health == progress_max_health(&profile.progress));
+        CHECK(game.player.health == game.player.max_health && game.player.heal_time > 0.0f);
+        CHECK(game.player.bleeding && game.player.burned);
+        CHECK(plays("world/level_up") == 1);
+    }
+}
+
+static void test_inventory_carries_between_levels_and_retry_restores_its_start(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    game.player.water = 4;
+    game.run.dynamite = 3;
+    idle();
+    CHECK(profile.inventory.water == 4 && profile.inventory.dynamite == 3);
+    stage_start_profile(&game, 1, &CHARACTERS[0], &profile);
+    CHECK(game.player.water == 4 && game.run.dynamite == 3);
+    CHECK(game.inventory_at_start.water == 4 && game.inventory_at_start.dynamite == 3);
+    game.player.water = 7;
+    game.run.dynamite = 5;
+    idle();
+    CHECK(profile.inventory.water == 7 && profile.inventory.dynamite == 5);
+    stage_pause(&game);
+    game.pause_menu.selected = PAUSE_RETRY;
+    press(ACTION_CONFIRM);
+    CHECK(game.player.water == 4 && game.run.dynamite == 3);
+    CHECK(profile.inventory.water == 4 && profile.inventory.dynamite == 3);
+}
+
+static void test_mission_clock_stops_in_pause_book_and_after_completion(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    idle();
+    CHECK(game.run.mission.ticks == 1);
+    game.paused = true;
+    for (int i = 0; i < 30; i++) idle();
+    CHECK(game.run.mission.ticks == 1);
+    game.paused = false;
+    press(ACTION_ALMANAC);
+    CHECK(game.run.mission.ticks == 1 && game.request_almanac);
+    game.request_almanac = false;
+    game.run.phase = RUN_CLEARED;
+    idle();
+    CHECK(game.run.mission.ticks == 1);
+}
+
+static void test_completion_pays_base_and_star_record_extras_exactly_once(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    game.run.defeated = game.run.stage->zombies;
+    game.player.x = game.run.goal_x;
+    int before_xp = profile.progress.xp, before_gold = profile.progress.gold;
+    for (int i = 0; i < 600 && game.run.phase == RUN_FIGHTING; i++) idle();
+    CHECK(game.run.phase == RUN_CLEARED && game.run.mission.claimed);
+    const MissionReport *m = &game.run.mission;
+    CHECK(m->stars == 3 && m->new_record && m->health_percent == 100);
+    CHECK(profile.progress.xp - before_xp == m->base_xp + m->star_xp + m->record_xp);
+    CHECK(profile.progress.gold - before_gold == m->base_gold + m->star_gold + m->record_gold);
+    CHECK(profile.record.stars[0] == 3 && profile.record.best_ticks[0] > 0);
+    int after_xp = profile.progress.xp, after_gold = profile.progress.gold;
+    for (int i = 0; i < 10; i++) idle();
+    CHECK(profile.progress.xp == after_xp && profile.progress.gold == after_gold);
+}
+
 int main(void)
 {
     printf("stage_audio (real application stage, recording audio boundary)\n");
@@ -678,8 +1067,21 @@ int main(void)
     RUN(test_bandage_starts_once_and_stops_only_when_cancelled);
     RUN(test_player_volume_preview_uses_player_group);
     RUN(test_field_guide_request_and_light_preserve_stage_state);
+    RUN(test_flashlight_click_follows_the_beam_and_cancels_with_the_switch);
+    RUN(test_landing_uses_water_only_on_wet_ground);
+    RUN(test_lightning_warning_starts_once_and_stops_on_impact_or_failure);
+    RUN(test_local_ambience_follows_distance_and_stops_with_the_stage);
+    RUN(test_book_mouse_and_keyboard_share_paper_cues_without_hover_repeats);
+    RUN(test_bats_have_their_own_cues);
+    RUN(test_bat_calls_are_nearby_occasional_and_pause_with_the_stage);
+    RUN(test_bat_disturbances_preserve_call_tails_and_restart_the_wait);
+    RUN(test_grenade_bounces_and_each_glass_break_has_one_cue);
     RUN(test_discoveries_and_kills_survive_a_stage_restart);
     RUN(test_heat_haze_is_subtle_and_stays_on_the_road);
     RUN(test_canine_voices_do_not_replace_any_existing_zombie_voice);
+    RUN(test_level_up_refills_health_for_each_character_without_curing_conditions);
+    RUN(test_inventory_carries_between_levels_and_retry_restores_its_start);
+    RUN(test_mission_clock_stops_in_pause_book_and_after_completion);
+    RUN(test_completion_pays_base_and_star_record_extras_exactly_once);
     return TEST_EXIT();
 }

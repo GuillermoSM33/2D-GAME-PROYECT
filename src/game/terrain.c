@@ -219,6 +219,7 @@ static void strike(Terrain *terrain, int index, bool blast)
         }
         break;
     case TERRAIN_BOTTLES:
+        terrain->sound_events |= TERRAIN_SOUND_GLASS;
         if (blast) { /* Shattered, but not by her aim: no reward */
             p->hits = BOTTLE_COUNT;
             p->spent = true;
@@ -230,6 +231,7 @@ static void strike(Terrain *terrain, int index, bool blast)
         }
         break;
     case TERRAIN_LAMP: /* Down it comes; the oil catches */
+        terrain->sound_events |= TERRAIN_SOUND_GLASS;
         p->spent = true;
         terrain_add(terrain, TERRAIN_FIRE, p->x);
         break;

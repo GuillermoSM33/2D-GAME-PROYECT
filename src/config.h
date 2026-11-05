@@ -7,7 +7,8 @@
 #define WINDOW_HEIGHT 540
 
 /* Simulation runs at a fixed step; rendering follows vsync. */
-#define FIXED_DT (1.0f / 60.0f)
+#define SIMULATION_HZ 60u
+#define FIXED_DT (1.0f / SIMULATION_HZ)
 #define MAX_FRAME_TIME 0.25f
 /* With vsync, a measured frame time this close to a whole number of steps
  * (or half a step, at 120 Hz) is taken as exact: the display really refreshes
@@ -667,10 +668,10 @@
 #define COLOR_HUD_LOCKED 0x5c5a63
 #define COLOR_MENU_SELECTED 0x2e2b33
 
-/* Audio: 8-bit effects from assets/sounds (regenerate with tools/make_sfx.py). */
+/* Audio: original PCM8 and recorded PCM16 effects from assets/sounds. */
 #define AUDIO_RATE 44100
 #define AUDIO_BUFFER 512   /* Samples per callback: small, so shots sound on time */
-#define AUDIO_CHANNELS 32  /* 30 overlapping effects and two weather loops */
+#define AUDIO_CHANNELS 32  /* 28 overlapping effects and four ambience loops */
 #define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME): every sound, before the volume menu */
 #define AUDIO_GROUPS 4     /* Volume groups (audio_play_in): see SoundGroup in settings.h */
 

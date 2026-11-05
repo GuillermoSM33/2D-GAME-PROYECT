@@ -1,0 +1,264 @@
+/* Real save codec and asynchronous file storage, isolated from user data.
+ * The Python runner supplies a temporary directory and also starts fresh
+ * writer/reader processes to test actual persistence between sessions. */
+#define SDL_MAIN_HANDLED
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <SDL.h>
+
+#include "app/autosave.h"
+#include "app/stage.h"
+#include "game/hud.h"
+#include "game/ui.h"
+#include "test.h"
+
+static SaveGame source, decoded;
+static StagePlay play, resumed;
+static AppOptions options;
+static unsigned char bytes[SAVE_GAME_CAPACITY];
+static const char *directory;
+
+static void fixture(int health, int gold)
+{
+    save_game_init(&source);
+    for (int i = 0; i < CHARACTER_COUNT; i++) {
+        for (int j = 0; j < i; j++)
+            progress_add_xp(&source.profiles[i].progress, xp_to_next(source.profiles[i].progress.level));
+        source.profiles[i].progress.xp = i + 2;
+        almanac_discover(&source.profiles[i].almanac, ZOMBIE_KIND_DOG, true, i + 1);
+    }
+    stage_start(&play, 0, &CHARACTERS[1], &source.profiles[1].progress);
+    InputState reload = {0};
+    reload.pressed[ACTION_RELOAD] = true;
+    play.player.shot.rounds = 1;
+    CHECK(stage_step(&play, &reload, &source.profiles[1], &options));
+    play.player.x += 190.0f;
+    play.player.health = health;
+    play.player.water = 4;
+    play.player.thirst = 70.0f;
+    play.player.wet = .4f;
+    play.player.bleeding = true;
+    play.player.bleed_tick = BLEED_TICK;
+    play.player.bleed_damage = 2.0f;
+    play.player.burned = true;
+    play.run.mission.ticks = 123 * SIMULATION_HZ + 17;
+    play.run.dynamite = 3;
+    source.profiles[1].progress.gold = gold;
+    source.profiles[1].record.cleared[1] = true;
+    source.profiles[1].record.stars[1] = 2;
+    source.profiles[1].record.best_ticks[1] = 220 * SIMULATION_HZ;
+    zombie_hit_through(&play.run.zombies[0], 1e6f, 0.0f);
+    play.run.beaten[0] = play.run.chest_done[0] = true;
+    play.run.defeated = 1;
+    play.encounter.entry[0] = almanac_index(ZOMBIE_KIND_RIOT, false);
+    play.encounter.defeated[0] = true;
+    chest_place(&play.run.chests[0], play.player.x + 400.0f, 3);
+    Piece *charge = terrain_add(&play.run.terrain, TERRAIN_CHARGE, play.player.x + 800.0f);
+    CHECK(charge != NULL);
+    if (charge) charge->fuse = .75f;
+    play.run.grenades[0] = (Grenade){true, play.player.x + 100.0f, 35.0f, 110.0f, -50.0f, .9f};
+    CHECK(bullets_spawn(&play.bullets, play.player.x, play.player.x + 80.0f, BASELINE - 90.0f, 1));
+    bullet_glance(&play.bullets, &play.bullets.items[0], &play.run.zombies[0], .7f);
+    CHECK(bullets_spawn(&play.bullets, play.player.x, play.player.x + 100.0f, BASELINE - 90.0f, 1));
+    bullet_glance(&play.bullets, &play.bullets.items[1], &play.run.terrain.items[0], .7f);
+    save_game_snapshot(&source, source.profiles, 1, &source.volumes, &play);
+}
+
+static void test_roundtrip_preserves_live_mission_and_rebinds_references(void)
+{
+    fixture(37, 111);
+    size_t size = 0;
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(size > 1000 && size < sizeof(bytes));
+    save_game_init(&decoded);
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(decoded.has_checkpoint && decoded.hero == 1);
+    CHECK(decoded.profiles[1].progress.gold == 111);
+    CHECK(decoded.profiles[2].progress.level == 3);
+    CHECK(almanac_count(&decoded.profiles[1].almanac) == almanac_count(&source.profiles[1].almanac));
+    CHECK(save_game_resume(&decoded, &resumed, 1, 0));
+    CHECK_NEAR(resumed.player.x, play.player.x, .001f);
+    CHECK(resumed.player.health == 37 && resumed.player.water == 4);
+    CHECK(resumed.run.mission.ticks == 123 * SIMULATION_HZ + 17);
+    CHECK(decoded.profiles[1].inventory.water == 4 && decoded.profiles[1].inventory.dynamite == 3);
+    CHECK(decoded.profiles[1].record.stars[1] == 2 && decoded.profiles[1].record.best_ticks[1] == 220 * SIMULATION_HZ);
+    CHECK(resumed.player.bleeding && resumed.player.burned);
+    CHECK(resumed.player.shot.mag_reload == play.player.shot.mag_reload);
+    CHECK(resumed.player.anim.def == play.player.anim.def);
+    CHECK(resumed.run.stage == &STAGES[0] && resumed.character == &CHARACTERS[1]);
+    CHECK(resumed.run.defeated == 1 && resumed.run.beaten[0] && resumed.run.chest_done[0]);
+    CHECK(resumed.run.zombies[0].stats == play.run.zombies[0].stats);
+    CHECK(resumed.run.chests[0].state == CHEST_CLOSED);
+    CHECK_NEAR(resumed.run.grenades[0].fuse, .9f, .0001f);
+    CHECK(resumed.run.terrain.count == play.run.terrain.count);
+    CHECK(resumed.bullets.items[0].glanced == &resumed.run.zombies[0]);
+    CHECK(resumed.bullets.items[1].glanced == &resumed.run.terrain.items[0]);
+    CHECK(resumed.progress_at_start.gold == play.progress_at_start.gold);
+    CHECK(resumed.encounter.defeated[0]);
+    CHECK(!save_game_resume(&decoded, &resumed, 0, 0));
+    const InputState idle = {0};
+    CHECK(stage_step(&resumed, &idle, &decoded.profiles[1], &options));
+}
+
+static void test_invalid_or_truncated_data_never_mutates_profiles(void)
+{
+    fixture(37, 111);
+    size_t size = 0;
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    save_game_init(&decoded);
+    decoded.profiles[0].progress.gold = 777;
+    for (size_t length = 0; length < size; length += 173) {
+        CHECK(!save_game_decode(bytes, length, &decoded));
+        CHECK(decoded.profiles[0].progress.gold == 777);
+    }
+    bytes[4] = 255; /* Unknown schema version, even with a valid storage CRC. */
+    CHECK(!save_game_decode(bytes, size, &decoded));
+    CHECK(decoded.profiles[0].progress.gold == 777);
+    bytes[4] = 2;
+    source.checkpoint.player.x = NAN;
+    CHECK(!save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(size == 0);
+}
+
+static void test_retry_cannot_bank_unearned_progress_or_duplicate_rewards(void)
+{
+    fixture(37, 111);
+    play.player.state = PLAYER_DEAD;
+    play.player.health = 0;
+    play.run.phase = RUN_FAILED;
+    save_game_snapshot(&source, source.profiles, 1, &source.volumes, &play);
+    CHECK(!source.has_checkpoint);
+    CHECK(source.profiles[1].progress.gold == play.progress_at_start.gold);
+    CHECK(almanac_count(&source.profiles[1].almanac) > 0);
+    fixture(37, 111);
+    play.run.phase = RUN_CLEARED;
+    source.profiles[1].record.cleared[0] = true;
+    save_game_snapshot(&source, source.profiles, 1, &source.volumes, &play);
+    CHECK(!source.has_checkpoint && source.profiles[1].progress.gold == 111);
+    CHECK(source.profiles[1].record.cleared[0]);
+}
+
+static void test_replacing_pending_mission_restores_its_entry_balance(void)
+{
+    fixture(37, 111);
+    CHECK(source.has_checkpoint && source.profiles[1].inventory.water == 4);
+    int discoveries = almanac_count(&source.profiles[1].almanac);
+    int other_gold = source.profiles[2].progress.gold;
+    save_game_abandon(&source, source.profiles);
+    CHECK(!source.has_checkpoint);
+    CHECK(source.profiles[1].progress.gold == play.progress_at_start.gold);
+    CHECK(source.profiles[1].inventory.water == play.inventory_at_start.water);
+    CHECK(source.profiles[1].inventory.dynamite == play.inventory_at_start.dynamite);
+    CHECK(almanac_count(&source.profiles[1].almanac) == discoveries);
+    CHECK(source.profiles[2].progress.gold == other_gold);
+    stage_start_profile(&resumed, 0, &CHARACTERS[1], &source.profiles[1]);
+    CHECK(resumed.player.water == play.inventory_at_start.water);
+    source.profiles[1].progress.gold = 777;
+    save_game_abandon(&source, source.profiles); /* No attempt: no rollback. */
+    CHECK(source.profiles[1].progress.gold == 777);
+}
+
+static void test_timer_counts_fifteen_minutes_of_active_play_only(void)
+{
+    static Autosave a;
+    CHECK(autosave_init(&a, true, directory) == STORAGE_EMPTY);
+    CHECK(!autosave_tick(&a, 899.0, true));
+    CHECK(!autosave_tick(&a, 10000.0, false)); /* Paused/book/menu time. */
+    CHECK_NEAR(a.elapsed, 899.0, .0001);
+    CHECK(autosave_tick(&a, 1.0, true));
+    CHECK(!autosave_tick(&a, NAN, true));
+    CHECK(!autosave_tick(&a, -1.0, true));
+    autosave_shutdown(&a);
+    autosave_init(&a, false, directory);
+    CHECK(!autosave_tick(&a, 100000.0, true));
+    CHECK(a.store == NULL && a.elapsed == 0.0);
+    autosave_shutdown(&a);
+}
+
+static void test_notice_and_indicator_do_not_leave_clicks_on_the_world(void)
+{
+    SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
+    CHECK(SDL_InitSubSystem(SDL_INIT_VIDEO) == 0);
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, SDL_PIXELFORMAT_ARGB8888);
+    SDL_Renderer *r = surface ? SDL_CreateSoftwareRenderer(surface) : NULL;
+    CHECK(r != NULL);
+    if (r) {
+        hud_zones_clear();
+        hud_draw_menu(r, "SWAT", &source.profiles[1].progress, &source.profiles[1].record, 0);
+        hud_draw_autosave_notice(r);
+        HudZone zone;
+        CHECK(!hud_zone_at(190, 124, &zone)); /* Underlying level row. */
+        CHECK(hud_zone_at(WINDOW_WIDTH / 2, 385, &zone) && zone.kind == HUD_ZONE_ACCEPT);
+        hud_zones_clear();
+        hud_draw_autosave_status(r, true, false, .4f);
+        CHECK(!hud_zone_at(420, 122, &zone)); /* Status never intercepts play. */
+        SDL_DestroyRenderer(r);
+    }
+    SDL_FreeSurface(surface);
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+}
+
+static int write_sessions(void)
+{
+    static Autosave a;
+    fixture(37, 111);
+    autosave_init(&a, true, directory);
+    CHECK(autosave_request(&a, source.profiles, 1, &source.volumes, &play));
+    autosave_shutdown(&a); /* Exit waits for the newest queued snapshot. */
+    CHECK(!a.failed);
+    CHECK(autosave_init(&a, true, directory) == STORAGE_LOADED);
+    CHECK(save_game_resume(&a.game, &resumed, 1, 0));
+    CHECK(resumed.player.health == 37);
+    resumed.player.health = 24;
+    a.game.profiles[1].progress.gold = 222;
+    CHECK(autosave_request(&a, a.game.profiles, 1, &a.game.volumes, &resumed));
+    autosave_shutdown(&a);
+    CHECK(!a.failed);
+    return TEST_EXIT();
+}
+
+int main(int argc, char **argv)
+{
+    SDL_SetMainReady();
+    if (argc < 3) return 2;
+    directory = argv[2];
+    if (strcmp(argv[1], "checks") == 0) {
+        RUN(test_roundtrip_preserves_live_mission_and_rebinds_references);
+        RUN(test_invalid_or_truncated_data_never_mutates_profiles);
+        RUN(test_retry_cannot_bank_unearned_progress_or_duplicate_rewards);
+        RUN(test_replacing_pending_mission_restores_its_entry_balance);
+        RUN(test_timer_counts_fifteen_minutes_of_active_play_only);
+        RUN(test_notice_and_indicator_do_not_leave_clicks_on_the_world);
+    } else if (strcmp(argv[1], "write") == 0) {
+        write_sessions();
+    } else if (strcmp(argv[1], "legacy") == 0) {
+        static Autosave a;
+        CHECK(autosave_init(&a, true, directory) == STORAGE_LOADED);
+        CHECK(!a.game.has_checkpoint && a.game.profiles[0].progress.level == 2);
+        CHECK(a.game.profiles[0].progress.gold == 77 && a.game.profiles[0].record.cleared[0]);
+        CHECK(a.game.profiles[0].inventory.water == 0 && a.game.profiles[0].record.stars[0] == 0);
+        autosave_shutdown(&a);
+    } else {
+        static Autosave a;
+        StorageLoad result = autosave_init(&a, true, directory);
+        CHECK(result == (strcmp(argv[1], "recover") == 0 ? STORAGE_RECOVERED : STORAGE_LOADED));
+        CHECK(a.game.has_checkpoint && a.game.hero == 1);
+        CHECK(save_game_resume(&a.game, &resumed, 1, 0));
+        int health = strcmp(argv[1], "recover") == 0 ? 37 : 24;
+        int gold = strcmp(argv[1], "recover") == 0 ? 111 : 222;
+        CHECK(resumed.player.health == health && a.game.profiles[1].progress.gold == gold);
+        CHECK(resumed.player.water == 4 && resumed.player.bleeding && resumed.player.burned);
+        CHECK(resumed.run.defeated == 1 && resumed.encounter.defeated[0]);
+        CHECK(resumed.run.mission.ticks == 123 * SIMULATION_HZ + 17);
+        CHECK(a.game.profiles[1].record.stars[1] == 2);
+        if (strcmp(argv[1], "recover") == 0 || strcmp(argv[1], "fail") == 0) {
+            CHECK(autosave_request(&a, a.game.profiles, 1, &a.game.volumes, &resumed));
+            bool expected_failure = strcmp(argv[1], "fail") == 0;
+            autosave_shutdown(&a);
+            CHECK(a.failed == expected_failure);
+        } else autosave_shutdown(&a);
+    }
+    SDL_Quit();
+    return TEST_EXIT();
+}

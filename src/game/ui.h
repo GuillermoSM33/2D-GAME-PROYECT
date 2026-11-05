@@ -33,6 +33,10 @@ typedef enum {
     ICON_COZY,   /* A campfire's flame */
     ICON_WATER,  /* A jug of water */
     ICON_FRESH,  /* Refreshed: a drop and a sparkle */
+    ICON_SAVE,   /* Automatic save: a brass-framed disk */
+    ICON_CLOCK,
+    ICON_MISSION_STAR,
+    ICON_MISSION_STAR_EMPTY,
     ICON_COUNT
 } UiIcon;
 

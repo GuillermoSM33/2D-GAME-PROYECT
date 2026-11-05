@@ -8,6 +8,7 @@
 #include "game/chest.h"
 #include "game/effects.h"
 #include "game/player.h"
+#include "game/mission.h"
 #include "game/progression.h"
 #include "game/stages.h"
 #include "game/terrain.h"
@@ -41,7 +42,9 @@ typedef enum {
     RUN_SOUND_HIT_ARMOR = 1u << 6,
     RUN_SOUND_TRAP_BEAR = 1u << 7,
     RUN_SOUND_TRAP_ROPE = 1u << 8,
-    RUN_SOUND_TRAP_SPIKES = 1u << 9
+    RUN_SOUND_TRAP_SPIKES = 1u << 9,
+    RUN_SOUND_GLASS = TERRAIN_SOUND_GLASS,
+    RUN_SOUND_GRENADE_BOUNCE = 1u << 11
 } RunSound;
 
 /* A thrown grenade: flying, bouncing, then going off. */
@@ -59,6 +62,7 @@ typedef struct {
     RunPhase phase;
     int defeated;
     int dynamite;    /* Charges she carries */
+    MissionReport mission;
     Zombie zombies[RUN_MAX_ZOMBIES]; /* In route order */
     int zombie_count;
     int group_of[RUN_MAX_ZOMBIES];   /* Which group each zombie belongs to */

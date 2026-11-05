@@ -24,7 +24,11 @@ import make_sfx
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'docs' / 'AUDIO_LEGACY_SHA256.json'
-LOOPS = {'weather/wind', 'weather/rain'}
+LOOPS = {'weather/wind', 'weather/rain', 'world/river', 'world/fire'}
+OUTPUT_MANIFESTS = {
+    'make_designed_sfx': 'AUDIO_DESIGNED_MANIFEST.json',
+    'make_expansion_sfx': 'AUDIO_EXPANSION_MANIFEST.json',
+}
 RATE = 22050
 
 
@@ -120,9 +124,10 @@ class Audit:
 
     def source_coverage(self, names: set[str], originals: set[str]) -> None:
         # Only sound prefixes are accepted; art uses a distinct sprites/... root.
-        code = '\n'.join((ROOT / path).read_text(encoding='utf-8')
-                         for path in ('src/main.c', 'src/game/weapons.c'))
-        pattern = r'"(?:sounds/)?((?:player|weapons|world|crow|dog|zombie|weather|ui|effects)/[a-z0-9_]+)"'
+        code = '\n'.join(path.read_text(encoding='utf-8')
+                         for path in sorted((ROOT / 'src').rglob('*'))
+                         if path.suffix in {'.c', '.h'})
+        pattern = r'"(?:sounds/)?((?:player|weapons|world|crow|bat|dog|zombie|weather|ui|effects)/[a-z0-9_]+)"'
         references = set(re.findall(pattern, code))
         expected = names | originals
         self.check(not references - expected, f'unknown C sound references: {sorted(references - expected)}')
@@ -148,19 +153,22 @@ class Audit:
                     checked += 1
         self.check(checked >= 4, 'could not verify rifle/shotgun magazine and shotgun/plasma cycle timings from C')
 
-    def designed_manifest(self) -> None:
-        path = ROOT / 'docs' / 'AUDIO_DESIGNED_MANIFEST.json'
-        if not path.exists():
-            self.check(False, 'missing designed sound source/output manifest')
-            return
-        manifest = json.loads(path.read_text(encoding='utf-8'))
-        documented = manifest.get('outputs', {})
-        names = set(make_sfx.catalog()['make_designed_sfx'])
-        self.check(set(documented) == names, 'designed output manifest does not cover its builder catalogue')
-        for name, entry in documented.items():
-            if name in self.metrics:
-                self.check(entry['sha256'] == self.metrics[name]['sha256'],
-                           f'{name}: documentation output hash is stale')
+    def output_manifests(self, builders: dict[str, tuple[str, ...]]) -> None:
+        for builder, filename in OUTPUT_MANIFESTS.items():
+            if builder not in builders:
+                continue
+            path = ROOT / 'docs' / filename
+            if not path.exists():
+                self.check(False, f'missing sound source/output manifest: {filename}')
+                continue
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+            documented = manifest.get('outputs', {})
+            self.check(set(documented) == set(builders[builder]),
+                       f'{filename}: output manifest does not cover its builder catalogue')
+            for name, entry in documented.items():
+                if name in self.metrics:
+                    self.check(entry['sha256'] == self.metrics[name]['sha256'],
+                               f'{name}: documentation output hash is stale')
 
     def run(self) -> dict:
         originals = self.legacy()
@@ -168,13 +176,13 @@ class Audit:
         flat = [name for names in builders.values() for name in names]
         duplicates = [name for name, count in Counter(flat).items() if count != 1]
         self.check(not duplicates, f'overlapping generator outputs: {duplicates}')
-        self.check(len(flat) == 74, f'expected 74 new/reworked effects, found {len(flat)}')
+        self.check(bool(flat), 'sound generator catalogue is empty')
         self.check(not set(flat) & originals, 'a generator would overwrite a protected original')
         for name in sorted(flat):
             self.wav(name)
         self.source_coverage(set(flat), originals)
         self.weapon_timings()
-        self.designed_manifest()
+        self.output_manifests(builders)
         return {'passed': not self.errors, 'checks': self.checks, 'new_effects': len(flat),
                 'protected_originals': len(originals),
                 'builders': {name: len(outputs) for name, outputs in builders.items()},

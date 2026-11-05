@@ -12,14 +12,16 @@ extensión**: `assets/sprites/zombies/riot/walk.png` es `"sprites/zombies/riot/w
 assets/
   fonts/                 Fuentes del texto (DejaVu Sans Mono) y su licencia
   sounds/<entidad>/      Efectos de sonido (.wav, .ogg)
-    player/              shot, reload (cañón original), drink, melee, empty, hurt, jump, land, bandage, death, faint
+    player/              shot, reload (cañón original), drink, melee, empty, hurt, jump, land, bandage, death, faint; flashlight_on, flashlight_off
     zombie/              spawn, idle, death
     crow/                caw, death (grabaciones de cuervo y alas)
-    weapons/             disparo, recarga, vacío y culatazo propios por arma; switch, grenade_throw, ricochet
-    weather/             wind, rain (bucles), thunder
+    bat/                 chirp, flee, death (chirridos de murciélagos reales)
+    dog/                 spawn, idle, death (voces caninas grabadas)
+    weapons/             disparo, recarga, vacío y culatazo propios por arma; switch, fire_mode, grenade_throw, ricochet
+    weather/             wind, rain (bucles), thunder, lightning_warn
     effects/             hit_flesh, hit_armor
-    ui/                  move, confirm, back
-    world/               explosion, supply, fuse, glass, wood, snap (originales), impactos, trampas, movimiento y avisos
+    ui/                  move, confirm, back; book_open, book_close, book_page
+    world/               explosion, supply, fuse, glass, wood, snap (originales), impactos, trampas, movimiento y avisos; grenade_bounce, splash, river y fire (bucles locales)
   sprites/<entidad>/     Hojas de animación e imágenes de cada cosa del juego
     characters/<id>/     walk, jump, shoot, sit (y shoot_dual, throw, sit_shotgun...) de cada personaje jugable (cowgirl, swat; hero cuando tenga arte),
                          y shoot_<arma> / reload_<arma> si un arma tiene hoja propia
@@ -109,6 +111,11 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `backgrounds/<tema>/*` | Dibujado; se revisa con `tools/check_landscape.py`; el sol de atardecer y pueblo fantasma lo pinta `tools/make_sun.py` | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/themes.c` |
 | Efectos nuevos de `sounds/` | `tools/make_sfx.py`, grabaciones CC0 y capas originales | [AUDIO.md](AUDIO.md), fuentes y generadores por familia | PCM16 mono, 22050 Hz |
 | Sonidos legacy de `player/` y `world/` | Originales conservados, sin regeneración automática | [AUDIO.md](AUDIO.md) y hashes de referencia | Sin cambios |
+
+`sprites/ui/icons.png` contiene 26 celdas de 12 × 12 px. Las primeras 22
+conservan el arte existente; las últimas son el disquete de autoguardado,
+reloj de bolsillo, estrella ganada y estrella vacía. Se dibujan en `make_icons`
+de `tools/make_ui.py` y usan los identificadores de `src/game/ui.h`.
 | `sounds/zombie/*` | Voz grabada, `tools/crush_sfx.py` | [README](../README.md#sonido) | — |
 
 `./build.sh` corre `--verify`, que falla si falta algo de lo que el código usa o si una
@@ -152,7 +159,7 @@ sus métricas de texto y pruebas de renderizado, sin crear retratos o fondos dup
 | Una animación del zombi | `sprites/zombies/<id>/<acción>.png` | Su `AnimationDef` en `zombie.c`, las medidas de [ZOMBIE.md](ZOMBIE.md) y las pruebas del catálogo |
 | Un decorado nuevo | `sprites/props/<nombre>.png` | Una fila en `props.c` y su peso en los temas que lo usen (`themes.c`) |
 | Un tema de paisaje | `backgrounds/<tema>/` con sus capas | Revisarlas con `tools/check_landscape.py`, un `ThemeDef` en `themes.c` y asignarlo a niveles en `stages.c` ([LANDSCAPE.md](LANDSCAPE.md#agregar-un-tema)) |
-| Un sonido | `sounds/<entidad>/<nombre>.wav` | `audio_play("<entidad>/<nombre>")` donde suene, y agregarlo a `--verify` en `main.c` |
+| Un sonido | `sounds/<entidad>/<nombre>.wav` | `audio_play("<entidad>/<nombre>")` donde suene, y agregarlo a `--verify` en `app/verify.c` |
 
 ## Cofre (`sprites/chest/open.png`)
 

@@ -606,6 +606,67 @@ static void draw_message(SDL_Renderer *renderer, const char *title, unsigned rgb
     draw_hints(renderer, hints, hint_count, y + 92);
 }
 
+static void draw_mission_clock(SDL_Renderer *renderer, const StageRun *run)
+{
+    int x = WEAPON_X, y = 116;
+    char time[24];
+    mission_format_time(run->mission.ticks, time, sizeof(time));
+    hud_plate(renderer, x, y, 96, 18);
+    ui_icon(renderer, ICON_CLOCK, x + 4, y + 3, 1);
+    hud_text_fit(renderer, time, x + 22, y - 1, 70, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    if (pointer_x < x || pointer_x >= x + 96 || pointer_y < y || pointer_y >= y + 18)
+        return;
+    MissionGoals goals = mission_goals(run->stage_index);
+    int w = 390, left = x, top = y + 24;
+    ui_panel(renderer, left, top, w, 132);
+    ui_text(renderer, "METAS DE ESTA MISIÓN", left + 20, top + 14, 2, COLOR_HUD_TITLE, ANCHOR_NW);
+    for (int stars = 3; stars > 0; stars--) {
+        int row = top + 44 + (3 - stars) * 26;
+        for (int i = 0; i < 3; i++)
+            ui_icon(renderer, i < stars ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY, left + 20 + i * 15, row, 1);
+        char limit[24], text[64];
+        mission_format_time(goals.seconds[stars - 1] * SIMULATION_HZ, limit, sizeof(limit));
+        snprintf(text, sizeof(text), "%s · %d%% DE VIDA", limit, goals.health_percent[stars - 1]);
+        ui_text(renderer, text, left + 82, row + 1, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    }
+}
+
+static void draw_mission_results(SDL_Renderer *renderer, const StageRun *run)
+{
+    const MissionReport *m = &run->mission;
+    int w = 660, h = 328, x = (WINDOW_WIDTH - w) / 2, y = 144;
+    char text[128], time[24];
+    ui_dim(renderer, 130);
+    ui_panel(renderer, x, y, w, h);
+    snprintf(text, sizeof(text), "¡NIVEL %s COMPLETADO!", run->stage->name);
+    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 24, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    int star_x = WINDOW_WIDTH / 2 - 66;
+    for (int i = 0; i < 3; i++)
+        ui_icon(renderer, i < m->stars ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY,
+                  star_x + i * 48, y + 67, 3);
+    snprintf(text, sizeof(text), "%d/3 ESTRELLAS", m->stars);
+    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 106, 1, COLOR_HUD_SECONDARY, ANCHOR_N);
+    mission_format_time(m->ticks, time, sizeof(time));
+    ui_icon(renderer, ICON_CLOCK, x + 118, y + 120, 2);
+    snprintf(text, sizeof(text), "%s%s", time, m->new_record ? " · NUEVO RÉCORD" : "");
+    ui_text(renderer, text, x + 152, y + 121, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    snprintf(text, sizeof(text), "VIDA AL LLEGAR: %d%%", m->health_percent);
+    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 155, 2, COLOR_HUD_SECONDARY, ANCHOR_N);
+    int total_xp = m->base_xp + m->star_xp + m->record_xp;
+    int total_gold = m->base_gold + m->star_gold + m->record_gold;
+    snprintf(text, sizeof(text), "+%d XP     +%d ORO", total_xp, total_gold);
+    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 193, 3, COLOR_HUD_XP, ANCHOR_N);
+    snprintf(text, sizeof(text), "BASE: %d XP / %d ORO  ·  ESTRELLAS: +%d XP / +%d ORO", m->base_xp, m->base_gold,
+               m->star_xp, m->star_gold);
+    ui_text(renderer, text, WINDOW_WIDTH / 2, y + 237, 1, COLOR_HUD_SECONDARY, ANCHOR_N);
+    if (m->record_xp || m->record_gold) {
+        snprintf(text, sizeof(text), "RÉCORD CON VIDA COMPLETA: +%d XP Y +%d ORO", m->record_xp, m->record_gold);
+        ui_text(renderer, text, WINDOW_WIDTH / 2, y + 258, 1, COLOR_HUD_TITLE, ANCHOR_N);
+    }
+    static const char *const hints[] = {"ENTER", "CONTINUAR"};
+    draw_hints(renderer, hints, 1, y + h - 47);
+}
+
 void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *zombies,
                     int zombie_count, const Progress *progress, const StageRun *run,
                     float camera_x, const HudWeapon *weapon)
@@ -619,16 +680,14 @@ void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *
     draw_power_panel(renderer, weapon);
     draw_states(renderer, player, run);
     draw_prompt(renderer, player, run);
+    draw_mission_clock(renderer, run);
 
     if (run->phase == RUN_FAILED) {
         static const char *const hints[] = {"R", "REINTENTAR", "ESC", "PAUSA"};
         draw_message(renderer, player->fainted ? "TE DESMAYASTE POR EL CALOR" : "TE ALCANZÓ EL ZOMBI",
                      COLOR_HUD_DANGER, hints, 2);
     } else if (run->phase == RUN_CLEARED) {
-        static const char *const hints[] = {"ENTER", "CONTINUAR"};
-        char str[48];
-        snprintf(str, sizeof(str), "¡NIVEL %s COMPLETADO!", run->stage->name);
-        draw_message(renderer, str, COLOR_HUD_XP, hints, 1);
+        draw_mission_results(renderer, run);
     }
 }
 
@@ -639,6 +698,55 @@ static bool layout_text_fits(const char *str, int width, int preferred_scale)
         return true;
     fprintf(stderr, "HUD: '%s' necesita %d px, dispone de %d.\n", str, measured, width);
     return false;
+}
+
+void hud_draw_autosave_notice(SDL_Renderer *renderer)
+{
+    /* Discard click targets belonging to the stage menu beneath the modal. */
+    hud_zones_clear();
+    ui_dim(renderer, 170);
+    int w = 660, h = 316, x = (WINDOW_WIDTH - w) / 2, y = (WINDOW_HEIGHT - h) / 2;
+    ui_panel(renderer, x, y, w, h);
+    ui_text(renderer, "GUARDADO AUTOMÁTICO", WINDOW_WIDTH / 2, y + 28, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    ui_icon(renderer, ICON_SAVE, x + 52, y + 82, 3);
+    ui_text(renderer, "CUIDAMOS TU AVANCE", x + 106, y + 91, 2, COLOR_HUD_XP, ANCHOR_NW);
+    ui_text(renderer, "GUARDAMOS CADA 15 MINUTOS DE JUEGO", WINDOW_WIDTH / 2, y + 142, 2,
+            COLOR_HUD_PRIMARY, ANCHOR_N);
+    ui_text(renderer, "TAMBIÉN AL COMPLETAR UN NIVEL Y AL SALIR", WINDOW_WIDTH / 2, y + 172, 2,
+            COLOR_HUD_PRIMARY, ANCHOR_N);
+    ui_text(renderer, "EL ICONO APARECE SIN DETENER LA PARTIDA", WINDOW_WIDTH / 2, y + 208, 2,
+            COLOR_HUD_SECONDARY, ANCHOR_N);
+    int bw = 354, bx = (WINDOW_WIDTH - bw) / 2, by = y + h - 66;
+    ui_button(renderer, bx, by, bw, 44, "ENTENDIDO, CONTINUAR", true, true);
+    add_zone(HUD_ZONE_ACCEPT, 0, bx, by, bw, 44);
+    ui_text(renderer, "ENTER: CONTINUAR   ESC: VOLVER", WINDOW_WIDTH / 2, y + h + 14, 1,
+            COLOR_HUD_SECONDARY, ANCHOR_N);
+}
+
+void hud_draw_autosave_status(SDL_Renderer *renderer, bool saving, bool failed, float age)
+{
+    int w = 192, h = 18, x = WEAPON_X + WEAPON_W - w, y = 116;
+    hud_plate(renderer, x, y, w, h);
+    ui_icon(renderer, ICON_SAVE, x + 4, y + 3, 1);
+    const char *text = saving ? "GUARDANDO..." : failed ? "NO SE PUDO GUARDAR" : "PARTIDA GUARDADA";
+    ui_text(renderer, text, x + 24, y + 5, 1,
+            failed && !saving ? COLOR_HUD_DANGER : COLOR_HUD_SECONDARY, ANCHOR_NW);
+    if (saving) {
+        int phase = (int)fmodf(fmaxf(0.0f, age) * 5.0f, 4.0f);
+        SDL_Rect dot = {x + w - 11, y + 4 + phase * 2, 3, 3};
+        SDL_SetRenderDrawColor(renderer, 205, 155, 91, 255);
+        SDL_RenderFillRect(renderer, &dot);
+    }
+}
+
+void hud_draw_resume_hint(SDL_Renderer *renderer, const char *stage_name)
+{
+    char text[80];
+    snprintf(text, sizeof(text), "PARTIDA GUARDADA EN %s · ENTER PARA REANUDAR", stage_name);
+    hud_plate(renderer, 180, 450, 600, 28);
+    ui_icon(renderer, ICON_SAVE, 190, 458, 1);
+    hud_text_fit(renderer, text, WINDOW_WIDTH / 2 + 8, 458, 548, 1,
+                  COLOR_HUD_XP, ANCHOR_N);
 }
 
 bool hud_verify_layout(void)
@@ -691,6 +799,17 @@ bool hud_verify_layout(void)
         ok = layout_text_fits(critical[i], LEFT_W - 16, 2) && ok;
     ok = layout_text_fits("GRANADA", 194 - 42 - 6 - UI_WEAPON_W - 6 - 8, 2) && ok;
     ok = layout_text_fits("999+", BADGE_W * BADGE_SCALE - 4, 1) && ok;
+    ok = layout_text_fits("GUARDADO AUTOMÁTICO", 612, 3) && ok;
+    ok = layout_text_fits("TAMBIÉN AL COMPLETAR UN NIVEL Y AL SALIR", 612, 2) && ok;
+    ok = layout_text_fits("NO SE PUDO GUARDAR", 156, 1) && ok;
+    ok = layout_text_fits("VIDA AL LLEGAR: 100%", 612, 2) && ok;
+    ok = layout_text_fits("06:45 · NUEVO RÉCORD", 460, 2) && ok;
+    SDL_Rect clock = {WEAPON_X, 116, 96, 18};
+    SDL_Rect saving = {WEAPON_X + WEAPON_W - 192, 116, 192, 18};
+    if (clock.y + clock.h > VIEW_TOP || saving.y + saving.h > VIEW_TOP || SDL_HasIntersection(&clock, &saving)) {
+        fprintf(stderr, "HUD: reloj y autoguardado fuera de su espacio.\n");
+        ok = false;
+    }
     /* The last of eighteen possible state cells stays above the world and
      * inside the life column, including when effects need a second row. */
     int columns = (RIGHT_W - 8) / 28;
@@ -851,9 +970,11 @@ void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Pro
         snprintf(str, sizeof(str), "%d M", (int)(run_road_length(i) / ROUTE_PX_PER_METER));
         ui_icon(renderer, ICON_FLAG, x + 384, y + 14, 2);
         ui_text(renderer, str, x + 414, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
-        if (record->cleared[i])
-            ui_icon(renderer, ICON_CHECK, x + w - 52, y + 14, 2);
-        else if (!open)
+        if (record->cleared[i]) {
+            for (int star = 0; star < 3; star++)
+                ui_icon(renderer, (unsigned)star < record->stars[i] ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY,
+                          x + w - 50 + star * 14, y + 22, 1);
+        } else if (!open)
             ui_icon(renderer, ICON_LOCK, x + w - 52, y + 14, 2);
     }
     static const char *const hints[] = {"W/S", "ELEGIR", "ENTER", "JUGAR", "ESC", "PERSONAJES"};

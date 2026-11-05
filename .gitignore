@@ -1,6 +1,8 @@
 build/
 dist/
-legacy/
 __pycache__/
 *.pyc
 recordings/
+.DS_Store
+Thumbs.db
+*.swp

@@ -99,4 +99,10 @@ void hud_popup(const char *utf8, unsigned rgb, float world_x, int y, bool big);
 void hud_update(float dt);
 void hud_clear_popups(void);
 
+/* First level entry of the session: the caller has not started simulation yet. */
+void hud_draw_autosave_notice(SDL_Renderer *renderer);
+/* Small status below the weapon panel; no modal, sound or input interception. */
+void hud_draw_autosave_status(SDL_Renderer *renderer, bool saving, bool failed, float age);
+void hud_draw_resume_hint(SDL_Renderer *renderer, const char *stage_name);
+
 #endif

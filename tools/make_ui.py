@@ -16,7 +16,7 @@ Writes, under sprites/ui/:
   pip.png      A notch of a volume bar, empty and full (2 frames of 6 x 10)
   bar.png      The frame of a health or XP bar (12 x 8, 9-slice with 3 px corners)
   icons.png    12 x 12 icons: heart, bullet, skull, flag, dynamite, speaker,
-               star, lock, check, shell
+               star, lock, check, shell, states, save, clock and mission stars
   weapons.png  The guns as they look in play, in WeaponId order (4 frames of
                36 x 14): the hand cannon cut from the cowgirl's shoot sheet,
                the SWAT's rifle and shotgun from tools/make_swat.py, and the
@@ -240,7 +240,7 @@ def icon(img: Image, frame: int, rows: list[str], colors: dict) -> None:
 
 
 def make_icons() -> Image:
-    img = Image(12 * 22, 12)
+    img = Image(12 * 26, 12)
     k = INK
     icon(img, 0, [  # Heart
         '............', '.kk....kk...', 'krrk..krrk..', 'krRrkkrrrk..', 'krRrrrrrrk..',
@@ -332,6 +332,27 @@ def make_icons() -> Image:
         '........w...', '....k..wWw..', '...kbk..w...', '...kbk......', '..kbBbk.....', '.kbBBBbk....',
         '.kbBwBbk....', '.kbBwBbk....', '..kbBbk.....', '...kkk......', '............',
         '............'], {'k': k, 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa), 'W': rgb(0xffffff)})
+    icon(img, 22, [  # Bevelled brass case, steel shutter, label and red ink
+        '.kkkkkkkkk..', 'kHBBBBBBBDk.', 'kBksswskBDk.', 'kBksswskBDk.', 'kBkkkkkkBDk.',
+        'kHBBBBBBBDk.', 'kBkpppppkDk.', 'kBkpprrpkDk.', 'kBkpppppkDk.', 'kBkpppppkDk.',
+        'kBDDDDDDDkk.', '.kkkkkkkkk..'],
+        {'k': k, 'H': BRASS[3], 'B': BRASS[2], 'D': BRASS[0],
+         's': IRON[2], 'w': IRON[3], 'p': rgb(0xead6b1), 'r': RED[1]})
+    # A pocket-watch face: ink outline, warm metal rim, ivory dial and hands.
+    for y in range(12):
+        for x in range(12):
+            distance = (x - 5.5) ** 2 + (y - 5.5) ** 2
+            if distance > 30:
+                continue
+            color = k if distance > 23 else (BRASS[3] if x + y < 10 else BRASS[1]) if distance > 14 else rgb(0xead6b1)
+            img.set(23 * 12 + x, y, color)
+    for x, y in ((5, 2), (9, 5), (6, 9), (2, 6), (5, 3), (5, 4), (5, 5), (6, 5), (7, 5), (8, 5)):
+        img.set(23 * 12 + x, y, k)
+    stars = ['.....kk.....', '....kHHk....', '....kHYk....', '.kkkHYYkkk..',
+             'kHHHYYYYyyk.', '.kHYYYYyyk..', '..kYYYYyk...', '..kYYyyyk...',
+             '.kYYYkYyyk..', '.kYYk.kYyk..', '.kkk...kkk..', '............']
+    icon(img, 24, stars, {'k': k, 'H': rgb(0xffedb0), 'Y': BRASS[3], 'y': BRASS[1]})
+    icon(img, 25, stars, {'k': rgb(0x65594c), 'H': rgb(0x514236), 'Y': rgb(0x362b25), 'y': rgb(0x261f1d)})
     return img
 
 

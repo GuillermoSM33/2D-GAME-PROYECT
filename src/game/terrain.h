@@ -48,7 +48,9 @@ typedef enum {
     TERRAIN_SOUND_HIT_METAL = 1u << 1,
     TERRAIN_SOUND_HIT_STONE = 1u << 2,
     TERRAIN_SOUND_HIT_WIRE = 1u << 3,
-    TERRAIN_SOUND_HIT_SAND = 1u << 4
+    TERRAIN_SOUND_HIT_SAND = 1u << 4,
+    /* Bits 5..9 are the stage's body impacts and traps (RunSound). */
+    TERRAIN_SOUND_GLASS = 1u << 10
 } TerrainSound;
 
 #define TERRAIN_EVENTS 8

@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Jugar con depurador",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/Vaquera2D",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Compilar para depurar",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                { "text": "-enable-pretty-printing", "ignoreFailures": true }
+            ],
+            "windows": {
+                "program": "${workspaceFolder}/build/debug/bin/Vaquera2D.exe",
+                "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+                "environment": [
+                    { "name": "PATH", "value": "C:\\msys64\\ucrt64\\bin;${env:PATH}" }
+                ]
+            }
+        },
+        {
+            "name": "Depurar la prueba abierta (tests/)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/tests/${fileBasenameNoExtension}",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Compilar prueba abierta para depurar",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                { "text": "-enable-pretty-printing", "ignoreFailures": true }
+            ],
+            "windows": {
+                "program": "${workspaceFolder}/build/debug/tests/${fileBasenameNoExtension}.exe",
+                "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+                "environment": [
+                    { "name": "PATH", "value": "C:\\msys64\\ucrt64\\bin;${env:PATH}" }
+                ]
+            }
+        }
+    ]
+}

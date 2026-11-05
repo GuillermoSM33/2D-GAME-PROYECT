@@ -213,7 +213,11 @@ void player_muzzle(const Player *player, float *x, float *y);
 /* Whether def is the magazine reload (drawn with the gun's reload sheet). */
 bool player_reload_animation(const AnimationDef *def);
 
-/* Every animation the player uses, so their sheets can be validated. */
+/* Shared physical sheets for resource validation; weapon-specific sheets
+ * are validated through the weapon catalogue. */
 const AnimationDef *const *player_animations(int *count);
+/* All state definitions, including logical templates drawn with the gun's
+ * own reload/throw sheet. Stable ordering for versioned checkpoints. */
+const AnimationDef *const *player_state_animations(int *count);
 
 #endif

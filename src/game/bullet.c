@@ -121,3 +121,12 @@ const AnimationDef *bullet_animation(void)
 {
     return &ANIM_BULLET;
 }
+
+const AnimationDef *const *bullet_animations(int *count)
+{
+    static const AnimationDef *const all[] = {
+        &ANIM_BULLET, &ANIM_RICOCHET_FLY, &ANIM_RICOCHET_SPIN, &ANIM_RICOCHET_BURST,
+    };
+    *count = (int)(sizeof(all) / sizeof(all[0]));
+    return all;
+}

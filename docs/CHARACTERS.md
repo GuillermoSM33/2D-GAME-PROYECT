@@ -284,5 +284,5 @@ cuadro siga sobre las líneas de las guías.
 2. Si necesita un arma nueva, su fila en `src/game/weapons.c`, dentro del 20 % de daño por
    segundo del cañón de mano.
 3. Si su habilidad es nueva, agrégala a `Ability` (`characters.h`) y aplícala donde actúe:
-   los cofres en `stage_run.c`, el arma en mano en `main.c` (`fire_weapon`, `swap_weapon`).
+   los cofres en `stage_run.c`, el arma en mano en `app/stage.c` (`stage_fire_weapon`, `stage_swap_weapon`).
 4. Sus hojas, cuando existan, como en *Entregar*.

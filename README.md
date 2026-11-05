@@ -95,8 +95,8 @@ candado hasta encontrarlos, y las fichas conocidas enseñan su animación, profe
 protección, encuentros, bajas y estadísticas de nivel 1 y del mayor nivel observado.
 `WASD` o flechas recorren la galería; clic o `Enter` abre la ficha; `Esc` vuelve primero
 a la galería y después a la pantalla anterior. Consultarlo detiene la partida y sus
-sonidos. Los registros pertenecen a cada personaje y duran toda la sesión, incluidos
-los reintentos; todavía no se guardan al cerrar el juego.
+sonidos. Los registros pertenecen a cada personaje y se conservan entre sesiones,
+incluidos los descubrimientos realizados durante los reintentos.
 
 El zombi antidisturbios entra cojeando por el borde de la pantalla más lejano a ella, siempre hacia la vaquera, y se
 detiene a 140 px de ella para atacarla con la garra (`attack.png`, 0.6 s): toma impulso
@@ -141,7 +141,24 @@ el nivel y `Esc` vuelve al menú.
 
 Al abrir el juego aparece el **menú** con los niveles 1-1 a 1-5: cuántos zombis tiene cada
 uno, de qué nivel, y si está completado o bloqueado. Cada nivel se abre al completar el
-anterior. El progreso dura mientras el juego está abierto (todavía no se guarda).
+anterior. El autoguardado conserva el progreso entre sesiones y permite continuar
+una misión pendiente con el mismo personaje.
+
+Antes de entrar a la primera misión de cada sesión aparece el aviso de autoguardado.
+Se guarda cada **15 minutos de juego activo**, al subir de nivel, al completar una
+misión y al cerrar el juego. Un pequeño icono de disquete indica el estado sin
+detener la partida. El agua y la dinamita sobrantes pasan al siguiente nivel;
+reiniciar o abandonar una misión devuelve el inventario a su estado de entrada.
+Cerrar la aplicación conserva la misión en curso, con su inventario y reloj.
+
+El **reloj** del HUD cuenta el tiempo activo de misión; pausa y almanaque lo detienen.
+Al pasar el cursor muestra los objetivos de tiempo y salud de ese nivel. Se pueden
+ganar hasta **3 estrellas**: los límites se ajustan al recorrido, enemigos y obstáculos.
+Al terminar se muestra la salud final, el tiempo, las estrellas y las recompensas.
+Cada estrella añade **25 % de la recompensa base** de XP y oro; mejorar el récord
+personal con **100 % de vida** añade otro **50 %**. La primera victoria establece
+el récord. Se conservan las mejores estrellas y el mejor tiempo de cada personaje.
+Consulta los valores y el formato del guardado en [docs/PROGRESS.md](docs/PROGRESS.md).
 
 Cada nivel es un **camino** hacia una salida (un portón con faroles) a 12–20 vistas de donde
 empieza el personaje (19 000–31 000 px); el HUD muestra cuántos metros faltan. El mundo se
@@ -299,13 +316,18 @@ arma y la armadura tienen su propio nivel (`weapon_level`, `armor_level`); por a
 al de la vaquera, pero las recompensas podrán subirlos aparte.
 
 **Experiencia:** pasar del nivel N al N + 1 pide `120 × N^1.5` (120, 339, 624, 960…).
+Subir de nivel rellena toda la vida hasta el nuevo máximo; no elimina sangrado ni quemaduras.
 
 - **Matar un zombi** da `16 × su nivel`, con +25 % por cada nivel que esté por encima de
   ella y −25 % por cada uno por debajo (entre ×0.25 y ×1.75). Así repetir niveles fáciles
   rinde poco.
 - **Un cofre** da una parte de lo que pide su nivel actual: `10 % × complejidad del nivel`,
   más cuanto más avanzada va la misión (×0.75 el primero, ×1.25 el último), con el mismo
-  ajuste por diferencia de niveles. El último cofre de la misión vale el doble.
+  ajuste por diferencia de niveles.
+- **Completar la misión** da una base fija según la dificultad: `25 % × XP para
+  subir desde el nivel de los zombis × complejidad`, y `25 × complejidad` de oro.
+  El cofre de salida entrega esa base una vez; al finalizar se suman los bonos
+  por estrellas y récord con vida completa.
 
 **Dificultad por nivel** (`src/game/stages.c`). No es lineal:
 
@@ -366,13 +388,22 @@ y reabre el juego con el cambio. Si algo falla, muestra el error y deja abierta 
 versión anterior. `Ctrl+C` lo detiene y cierra el juego. No toca `dist/`: cuando
 quieras publicar, usa `./build.sh`.
 
-### Windows (VS Code)
+### VS Code (Windows y Linux)
+
+La carpeta `.vscode/` ya trae tareas, depurador e IntelliSense para los dos sistemas. Al abrir
+el proyecto, VS Code ofrece instalar las extensiones recomendadas (C/C++ y Python). En Windows
+las tareas y la terminal usan MSYS2 UCRT64; para depurar instala también `gdb`:
+`pacman -S mingw-w64-ucrt-x86_64-gdb`.
 
 1. Editas código en `src/`.
 2. `Ctrl+Shift+B` (**Compilar**) para comprobar que compila.
-3. **Jugar** o `F5` para probarlo.
+3. Tarea **Jugar** para probarlo, o `F5` para abrirlo con el depurador (compila sin optimizar en
+   `build/debug/`). Con un archivo de `tests/` abierto, **Depurar la prueba abierta** hace lo mismo con él.
 4. Cuando quieras generar la versión final en `dist/`, corres la tarea
-   **Build completo (build.sh)**, que es el equivalente a `./build.sh` de Linux.
+   **Build completo (build.sh)**, que es el equivalente a `./build.sh`.
+
+Las demás están en *Terminal > Ejecutar tarea*: **Pruebas**, **Vigilar cambios (make watch)**,
+**Regenerar hojas de la vaquera** y las de sonido.
 
 ## Sonido
 
@@ -444,13 +475,26 @@ en [`docs/LANDSCAPE.md`](docs/LANDSCAPE.md).
 ```text
 Makefile, build.sh
 src/
-  main.c                 Arranque, ciclo del juego (paso fijo de 60 Hz), --verify, --smoke-test
+  main.c                 Entrada y opciones de línea de comandos
   config.h               Constantes: ventana, escala, velocidades, colores
+  app/                   Coordina motor, reglas y presentación
+    application.c/.h     Ciclo del juego (paso fijo de 60 Hz) y cambios de pantalla
+    state.h              Estado de partida y perfiles por personaje
+    autosave.c/.h        Calendario de autoguardado y señales del HUD
+    savegame.c/.h        Formato versionado, validación y recuperación de la misión
+    stage.c/.h           Entrada de la partida, armas, pausa y eventos de audio
+    stage_render.c/.h    Dibujo de la partida e interpolación visual
+    options.c/.h         Ajustes de ventana y volumen, con estado explícito por aplicación
+    navigation.c/.h      Pantallas y sonidos de navegación del almanaque
+    verify.c/.h          Recursos incrustados y contratos de --verify
+    smoke.c/.h           Entrada y observación de --smoke-test
+    capture.c/.h         Escenas de revisión de --capturas
   engine/                Motor reutilizable
     platform.c/.h        Ventana, renderer, vsync, lectura de teclado y mouse (SDL)
     input.c/.h           Acciones, flancos de tecla, prioridad de dirección (sin SDL)
     animation.c/.h       Animaciones por fotogramas en una hoja de sprites (sin SDL)
     assets.c/.h          Texturas a partir de los recursos incrustados
+    storage.c/.h         Escritura en segundo plano con dos copias y comprobación CRC
     text.c/.h            Texto pre-renderizado con SDL2_ttf
     audio.c/.h           Efectos de sonido con SDL2_mixer, con volumen general y por grupo (silencio si no hay audio)
     pixfont.c/.h         Fuente pixel propia (sprites/ui/font): mayúsculas con acentos, escalas enteras
@@ -483,6 +527,7 @@ src/
     ui.c/.h              Piezas de la interfaz: tableros, botones, teclas, iconos, barras y texto pixel
     settings.c/.h        Volúmenes por grupo y listas de menú (sin SDL)
     progression.c/.h     Niveles y experiencia: estadísticas por nivel, curva de XP y recompensas (sin SDL)
+    mission.c/.h         Reloj, metas por nivel, estrellas, récords y bonos (sin SDL)
     stages.c/.h          Los niveles 1-1 a 1-5: su camino (grupos, élite, terreno), nivel, cofres y complejidad (sin SDL)
     stage_run.c/.h       Una partida de un nivel: el camino, grupos que despiertan y detienen, cofres, XP y salida (sin SDL)
     terrain.c/.h         Barricadas, barriles de pólvora, carreta de provisiones y salida (sin SDL)
@@ -520,6 +565,8 @@ tools/make_powers.py     Arte de los poderes de nivel 3: las pistolas duales de 
 tools/make_zombies.py    Compone prendas editadas sobre el cuerpo nativo y exporta las siete hojas por familia
 tools/make_character_base.py  Genera la base (maniquí) de los personajes y sus guías
 tools/check_landscape.py Revisa las capas de un tema de paisaje antes de usarlas
+tools/check_architecture.py Comprueba capas, fuentes del Makefile y lógica sin SDL
+tools/clean_project.py   Elimina build/ y cachés; conserva dist/ y fuentes de recursos
 tests/                   Pruebas de la lógica pura
 docs/ASSETS.md           Mapa de recursos: carpetas, nombres, qué los genera y qué comprueba --verify
 docs/SPRITES.md          Especificación para dibujar sprites (tamaños, pivotes, paleta)
@@ -530,6 +577,12 @@ docs/templates/          La base de los personajes (la vaquera en grises), para 
 build/                   Generado (temporales)
 dist/                    Generado (ejecutable final)
 ```
+
+Las dependencias y las comprobaciones están en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+`make check-architecture` revisa los límites de las capas; `make test` y `./build.sh`
+también lo ejecutan. Para retirar temporales y cachés usa `make tidy`: conserva el
+juego de `dist/`, las grabaciones fuente, las plantillas y los ajustes del editor.
+`python3 tools/clean_project.py --dry-run` permite ver qué retiraría.
 
 ## Hojas de sprites: cómo se separan los fotogramas
 

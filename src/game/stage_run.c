@@ -632,13 +632,19 @@ static void move_grenades(StageRun *run, Player *player, const Progress *progres
         if (!n->active)
             continue;
         float next = n->x + n->vx * dt;
-        if (terrain_stops(&run->terrain, n->x, next, n->height))
+        if (terrain_stops(&run->terrain, n->x, next, n->height)) {
+            if (fabsf(n->vx) >= 60.0f)
+                run->sound_events |= RUN_SOUND_GRENADE_BOUNCE;
             n->vx = -n->vx * GRENADE_BOUNCE; /* Off the wall */
-        else
+        } else
             n->x = next;
         n->vy -= GRENADE_GRAVITY * dt;
         n->height += n->vy * dt;
         if (n->height <= 0.0f) { /* Off the ground, less each time, rolling out */
+            /* Resting grenades still receive gravity each tick. Only a
+             * real impact makes a cue; settling never rattles forever. */
+            if (-n->vy >= 60.0f)
+                run->sound_events |= RUN_SOUND_GRENADE_BOUNCE;
             n->height = 0.0f;
             n->vy = -n->vy * GRENADE_BOUNCE;
             n->vx *= GRENADE_BOUNCE + 0.25f;
@@ -963,6 +969,8 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
         return;
     }
 
+    mission_advance(&run->mission, dt);
+
     int holding = run->holding;
     spring_ambushes(run, player);
     run->omen = false;
@@ -1036,7 +1044,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     for (int k = 0; k < run->zombie_count; k++)
         all_gone &= run->chest_done[k];
     if (all_gone && run->mission_chest < 0) {
-        int xp = chest_xp(progress->level, run->stage->zombie_level, run->stage->complexity, 1.0f, true);
+        int xp = mission_base_xp(run->stage_index);
         place_chest(run, run->goal_x, xp, true);
     }
     for (int c = 0; c < RUN_MAX_CHESTS; c++) {
@@ -1047,7 +1055,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
         if (chest->just_opened) {
             run->opened_x[run->chests_opened++] = chest->x;
             give_xp(run, progress, chest->reward_xp);
-            int gold = c == run->mission_chest ? GOLD_MISSION : GOLD_CHEST;
+            int gold = c == run->mission_chest ? mission_base_gold(run->stage_index) : GOLD_CHEST;
             progress->gold += gold;
             run->gold_gained += gold;
         }

@@ -254,8 +254,14 @@ static void test_bottles_one_per_shot(void)
     for (int i = 0; i < BOTTLE_COUNT; i++) {
         CHECK(terrain_frame(&t.items[0]) == i);
         shoot_at(&t, 1000.0f);
+        CHECK(t.events.bottle_count == (i == BOTTLE_COUNT - 1 ? 1 : 0));
+        terrain_clear_events(&t);
+        CHECK(terrain_take_sound_events(&t) == TERRAIN_SOUND_GLASS);
+        CHECK(terrain_take_sound_events(&t) == 0);
     }
-    CHECK(t.items[0].spent && t.events.bottle_count == 1);
+    CHECK(t.items[0].spent);
+    shoot_at(&t, 1000.0f);
+    CHECK(terrain_take_sound_events(&t) == 0); /* Nothing left to break */
 }
 
 static void test_lamp_falls_into_fire(void)
@@ -270,6 +276,7 @@ static void test_lamp_falls_into_fire(void)
     bullets_update(&low, FIXED_DT, 500.0f);
     terrain_shoot(&t, &low);
     CHECK(!t.items[0].spent && t.count == 1 && bullets_active_count(&low) == 1);
+    CHECK(terrain_take_sound_events(&t) == 0); /* A post is not glass */
     /* ...only the glass itself brings it down. */
     Bullets high;
     bullets_clear(&high);
@@ -277,6 +284,8 @@ static void test_lamp_falls_into_fire(void)
     bullets_update(&high, FIXED_DT, 500.0f);
     terrain_shoot(&t, &high);
     CHECK(t.items[0].spent && t.count == 2 && t.items[1].kind == TERRAIN_FIRE);
+    CHECK(terrain_take_sound_events(&t) == TERRAIN_SOUND_GLASS);
+    CHECK(terrain_take_sound_events(&t) == 0);
     for (int i = 0; i < (int)(FIRE_TIME / FIXED_DT) + 2; i++)
         terrain_update(&t, FIXED_DT);
     CHECK(t.items[1].spent); /* Burnt out */

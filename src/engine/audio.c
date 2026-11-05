@@ -12,7 +12,7 @@
 #include "engine/assets.h"
 
 #define SOUNDS_PREFIX "sounds/"
-#define LOOP_CHANNELS 2 /* Wind and rain keep playing under the effects. */
+#define LOOP_CHANNELS 4 /* Wind, rain, river and fire keep playing under effects. */
 
 typedef struct {
     const char *name; /* Without SOUNDS_PREFIX */

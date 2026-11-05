@@ -60,5 +60,6 @@ const AnimationDef *bullet_animation(void);
 
 /* Where a ricochet bullet hits: pivot on the ball. */
 const AnimationDef *bullet_impact_animation(void);
+const AnimationDef *const *bullet_animations(int *count);
 
 #endif

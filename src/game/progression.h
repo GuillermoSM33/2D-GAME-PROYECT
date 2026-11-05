@@ -21,6 +21,12 @@ typedef struct {
     int gold;         /* From crates and chests, shown in the HUD */
 } Progress;
 
+/* Consumables carried by this character between missions. A retry restores
+ * the mission's starting balance, just like unearned XP and gold. */
+typedef struct {
+    int water, dynamite;
+} Inventory;
+
 void progress_init(Progress *progress);
 
 /* XP needed to go from this level to the next. */

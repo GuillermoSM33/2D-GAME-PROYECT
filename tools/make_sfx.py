@@ -229,7 +229,8 @@ def write_wav(path: Path, samples: list[float]) -> None:
 
 # Builders have disjoint output catalogues. The discarded simple pulse/noise
 # drafts cannot be restored accidentally by running the authoring command.
-BUILDERS = ('make_weapon_foley', 'make_foley_sfx', 'make_nature_sfx', 'make_designed_sfx')
+BUILDERS = ('make_weapon_foley', 'make_foley_sfx', 'make_nature_sfx', 'make_designed_sfx',
+            'make_expansion_sfx')
 LEGACY_SOUNDS = {
     'player/shot': shot, 'player/reload': reload,
     'world/explosion': explosion, 'world/supply': supply, 'world/fuse': fuse,

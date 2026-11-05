@@ -85,6 +85,8 @@ bool stage_chest_after(const StageDef *stage, int index);
 /* What the player keeps between stages besides her progress. */
 typedef struct {
     bool cleared[16];
+    unsigned stars[16];
+    unsigned best_ticks[16]; /* Zero until the first completion. */
 } StageRecord;
 
 void stage_record_init(StageRecord *record);

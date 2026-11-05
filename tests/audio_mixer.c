@@ -31,22 +31,24 @@ const int embedded_blob_count = (int)(sizeof(embedded_blobs) / sizeof(embedded_b
 static void loading_and_channels(void)
 {
     audio_play_in_gain("test/39", 1, 0.8f);
-    CHECK(Mix_Playing(2) == 1);
-    CHECK(Mix_Volume(2, -1) == 102);
+    CHECK(Mix_Playing(4) == 1);
+    CHECK(Mix_Volume(4, -1) == 102);
     audio_loop_in("test/00", 1, 0.5f);
     audio_loop_in("test/01", 2, 0.25f);
-    CHECK(Mix_Playing(-1) == 3);
+    audio_loop_in("test/02", 0, 0.5f);
+    audio_loop_in("test/03", 0, 0.5f);
+    CHECK(Mix_Playing(-1) == 5); /* Four beds under one effect */
     audio_loop_in("test/00", 1, 0.5f);
-    CHECK(Mix_Playing(-1) == 3);
-    audio_loop_in("test/02", 0, 1.0f); /* No third ambience channel. */
-    CHECK(Mix_Playing(-1) == 3);
+    CHECK(Mix_Playing(-1) == 5);
+    audio_loop_in("test/04", 0, 1.0f); /* No fifth ambience channel. */
+    CHECK(Mix_Playing(-1) == 5);
     for (int i = 0; i < AUDIO_CHANNELS; i++)
         audio_play("test/39");
     CHECK(Mix_Playing(-1) == AUDIO_CHANNELS);
-    CHECK(Mix_GetChunk(0) != Mix_GetChunk(2));
-    CHECK(Mix_GetChunk(1) != Mix_GetChunk(2));
+    for (int ch = 0; ch < 4; ch++)
+        CHECK(Mix_GetChunk(ch) != Mix_GetChunk(4));
     audio_stop("test/39");
-    CHECK(Mix_Playing(-1) == 2);
+    CHECK(Mix_Playing(-1) == 4);
 }
 
 static void live_volumes(void)
@@ -67,11 +69,11 @@ static void live_volumes(void)
     CHECK(Mix_Volume(0, -1) == 96);
     CHECK(Mix_Volume(1, -1) == 32);
     audio_play_in_gain("test/39", 1, 0.25f);
-    CHECK(Mix_Volume(2, -1) == 32);
+    CHECK(Mix_Volume(4, -1) == 32);
     audio_set_group(1, 0.5f);
-    CHECK(Mix_Volume(2, -1) == 16);
+    CHECK(Mix_Volume(4, -1) == 16);
     audio_set_master(NAN);
-    CHECK(Mix_Volume(2, -1) == 0);
+    CHECK(Mix_Volume(4, -1) == 0);
     audio_set_master(1.0f);
     audio_set_group(1, 1.0f);
 }
@@ -79,22 +81,22 @@ static void live_volumes(void)
 static void pause_and_stop(void)
 {
     audio_pause(true);
-    CHECK(Mix_Paused(0) == 1);
-    CHECK(Mix_Paused(1) == 1);
-    CHECK(Mix_Paused(2) == 1);
+    for (int ch = 0; ch <= 4; ch++)
+        CHECK(Mix_Paused(ch) == 1);
     audio_play("test/38"); /* Pause menu clicks still work. */
-    CHECK(Mix_Playing(3) == 1);
-    CHECK(Mix_Paused(3) == 0);
+    CHECK(Mix_Playing(5) == 1);
+    CHECK(Mix_Paused(5) == 0);
     audio_pause(true);
-    CHECK(Mix_Paused(3) == 0);
+    CHECK(Mix_Paused(5) == 0);
     audio_pause(false);
     CHECK(Mix_Paused(-1) == 0);
     audio_stop_loop("test/00");
     CHECK(Mix_Playing(0) == 0);
     CHECK(Mix_Playing(1) == 1);
     audio_stop("test/39");
-    CHECK(Mix_Playing(2) == 0);
-    CHECK(Mix_Playing(3) == 1);
+    CHECK(Mix_Playing(4) == 0);
+    CHECK(Mix_Playing(5) == 1);
+    CHECK(Mix_Playing(2) == 1 && Mix_Playing(3) == 1);
     audio_stop_all();
     CHECK(Mix_Playing(-1) == 0);
     audio_play("test/missing");
@@ -113,9 +115,9 @@ static void lifecycle(void)
     audio_pause(true);
     CHECK(audio_init());
     audio_play("test/39");
-    CHECK(Mix_Playing(2) == 1);
+    CHECK(Mix_Playing(4) == 1);
     CHECK(audio_init()); /* Repeated init leaves the current sound intact. */
-    CHECK(Mix_Playing(2) == 1);
+    CHECK(Mix_Playing(4) == 1);
     audio_shutdown();
     SDL_setenv("SDL_AUDIODRIVER", "missing_audio_driver_for_test", 1);
     CHECK(!audio_init());
@@ -129,8 +131,8 @@ static void lifecycle(void)
     SDL_setenv("SDL_AUDIODRIVER", "dummy", 1);
     CHECK(audio_init());
     audio_play("test/39");
-    CHECK(Mix_Playing(2) == 1);
-    CHECK(Mix_Volume(2, -1) == 64);
+    CHECK(Mix_Playing(4) == 1);
+    CHECK(Mix_Volume(4, -1) == 64);
     audio_shutdown();
 }
 

@@ -1,0 +1,52 @@
+{
+    // Estilo del proyecto: 4 espacios y LF (con CRLF los scripts dejan de funcionar).
+    // El Makefile conserva sus tabuladores: VS Code ya los usa en ese lenguaje.
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "files.eol": "\n",
+    "files.encoding": "utf8",
+    "files.insertFinalNewline": true,
+    "files.trimTrailingWhitespace": true,
+    "[markdown]": {
+        "files.trimTrailingWhitespace": false
+    },
+
+    // Sin esto, los .h se abren como C++ y el proyecto es C11.
+    "files.associations": {
+        "*.h": "c"
+    },
+    "C_Cpp.autoAddFileAssociations": false,
+
+    // build/generated/assets_data.c pesa más de 100 MB: fuera de búsquedas y vigilancia.
+    "files.exclude": {
+        "**/__pycache__": true
+    },
+    "search.exclude": {
+        "build/**": true,
+        "dist/**": true,
+        "legacy/**": true,
+        "recordings/**": true
+    },
+    "files.watcherExclude": {
+        "build/**": true,
+        "dist/**": true
+    },
+
+    // Los scripts de tools/ se importan entre sí.
+    "python.analysis.extraPaths": [
+        "tools"
+    ],
+
+    // Windows: la terminal integrada abre MSYS2 UCRT64, donde funcionan make y ./build.sh.
+    "terminal.integrated.profiles.windows": {
+        "MSYS2 UCRT64": {
+            "path": "C:\\msys64\\usr\\bin\\bash.exe",
+            "args": ["--login", "-i"],
+            "env": {
+                "MSYSTEM": "UCRT64",
+                "CHERE_INVOKING": "1"
+            }
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "MSYS2 UCRT64"
+}

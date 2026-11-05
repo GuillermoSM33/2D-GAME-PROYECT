@@ -132,11 +132,6 @@ static const AnimationDef ANIM_THROW = {
     .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
 };
 
-/* The sheets every character has (ANIM_RELOAD's belongs to some guns only). */
-static const AnimationDef *const ANIMATIONS[] = {
-    &ANIM_IDLE, &ANIM_WALK, &ANIM_JUMP_AIR, &ANIM_LAND, &ANIM_SHOOT, &ANIM_SIT,
-};
-
 static bool lose_blood(Player *player);
 
 void player_init(Player *player)
@@ -879,6 +874,20 @@ bool player_reload_animation(const AnimationDef *def)
 
 const AnimationDef *const *player_animations(int *count)
 {
+    static const AnimationDef *const shared[] = {
+        &ANIM_IDLE, &ANIM_WALK, &ANIM_JUMP_AIR, &ANIM_LAND, &ANIM_SHOOT, &ANIM_SIT,
+    };
+    *count = (int)(sizeof(shared) / sizeof(shared[0]));
+    return shared;
+}
+
+const AnimationDef *const *player_state_animations(int *count)
+{
+    static const AnimationDef *const ANIMATIONS[] = {
+        &ANIM_IDLE, &ANIM_WALK, &ANIM_JUMP_AIR, &ANIM_LAND, &ANIM_SHOOT, &ANIM_SIT,
+        &ANIM_RELOAD, &ANIM_FAINT, &ANIM_DRINK, &ANIM_SWAP, &ANIM_SWAP_LIT,
+        &ANIM_PLANT, &ANIM_BANDAGE, &ANIM_MELEE, &ANIM_THROW, &ANIM_LIGHT,
+    };
     *count = (int)(sizeof(ANIMATIONS) / sizeof(ANIMATIONS[0]));
     return ANIMATIONS;
 }

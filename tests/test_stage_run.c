@@ -1231,6 +1231,46 @@ static void test_wind_and_bandage(void)
     CHECK(player.bandage > 0.0f && fabsf((x0b - player.x) - free_step * BANDAGE_WALK) < 0.01f);
 }
 
+static void test_grenade_and_glass_sounds_are_events(void)
+{
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    terrain_clear(&run.terrain);
+    for (int k = 0; k < run.zombie_count; k++)
+        run.zombies[k].x = run.goal_x + 1e4f;
+    float x = player.x + 1000.0f;
+    run.grenades[0] = (Grenade){.active = true, .x = x, .height = 1.0f,
+                               .vx = 80.0f, .vy = -300.0f, .fuse = 10.0f};
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run_take_sound_events(&run) == RUN_SOUND_GRENADE_BOUNCE);
+    CHECK(run_take_sound_events(&run) == 0);
+
+    run.grenades[0].height = run.grenades[0].vy = run.grenades[0].vx = 0.0f;
+    for (int i = 0; i < 30; i++) {
+        run_update(&run, &player, &progress, FIXED_DT);
+        CHECK(run_take_sound_events(&run) == 0); /* Settled, no endless rattle */
+    }
+
+    terrain_add(&run.terrain, TERRAIN_WALL, x + 100.0f);
+    run.grenades[0].x = x + 100.0f - terrain_half_width(TERRAIN_WALL) - 2.0f;
+    run.grenades[0].height = 30.0f;
+    run.grenades[0].vx = 300.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.grenades[0].vx < 0.0f);
+    CHECK(run_take_sound_events(&run) == RUN_SOUND_GRENADE_BOUNCE);
+    run.grenades[0].active = false;
+
+    terrain_clear(&run.terrain);
+    terrain_add(&run.terrain, TERRAIN_BOTTLES, x);
+    CHECK(terrain_melee(&run.terrain, x - 2.0f, x + 2.0f) == 1);
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.bottles_hit == 0); /* Reward only after the last bottle */
+    CHECK(run_take_sound_events(&run) == RUN_SOUND_GLASS); /* First glass still sounds */
+    CHECK(run_take_sound_events(&run) == 0);
+}
+
 static void test_grenade_arcs_and_blows(void)
 {
     /* Thrown ahead, it goes off after its fuse: the zombie where it lands is
@@ -1511,6 +1551,7 @@ int main(void)
     RUN(test_river_slows_everyone);
     RUN(test_wind_and_bandage);
     RUN(test_grenade_arcs_and_blows);
+    RUN(test_grenade_and_glass_sounds_are_events);
     RUN(test_some_walls_are_buildings);
     RUN(test_dynamite_opens_the_wall);
     RUN(test_coffin_ambush);

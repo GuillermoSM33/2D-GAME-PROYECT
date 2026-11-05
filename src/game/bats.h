@@ -26,6 +26,7 @@ typedef struct {
 
 typedef struct {
     Bat items[BATS_MAX];
+    int pending_flee; /* Transitions since the sound consumer last drained them */
 } Bats;
 
 /* Colonies along the road from start_x to start_x + length, the same for a
@@ -34,6 +35,10 @@ void bats_start(Bats *bats, int stage_index, float start_x, float length, bool n
 
 /* She is at player_x: close enough, they go. */
 void bats_update(Bats *bats, float player_x, float dt);
+
+/* Takes all pending departures once, including those caused by a shot or
+ * blast before bats_update. No repeated cue while the same bat flies away. */
+int bats_take_flee_events(Bats *bats);
 
 /* Bullets against them: a hit kills it, the bullet is spent and the others
  * near it fly off. Returns the hits. */

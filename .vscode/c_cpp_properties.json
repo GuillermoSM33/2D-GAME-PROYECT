@@ -1,0 +1,44 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            "name": "Linux",
+            "compilerPath": "/usr/bin/gcc",
+            "intelliSenseMode": "linux-gcc-x64",
+            "cStandard": "c11",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/build/generated",
+                "/usr/include/SDL2"
+            ],
+            "defines": ["_REENTRANT"],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/src",
+                    "${workspaceFolder}/tests",
+                    "/usr/include/SDL2"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        },
+        {
+            "name": "Win32",
+            "compilerPath": "C:/msys64/ucrt64/bin/gcc.exe",
+            "intelliSenseMode": "windows-gcc-x64",
+            "cStandard": "c11",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/build/generated",
+                "C:/msys64/ucrt64/include/SDL2"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/src",
+                    "${workspaceFolder}/tests",
+                    "C:/msys64/ucrt64/include/SDL2"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ]
+}

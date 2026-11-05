@@ -2,6 +2,7 @@
 """Embed game assets into C source so the final binary is self-contained.
 
 Usage: embed_assets.py <assets_dir> <output_dir>
+       embed_assets.py --list <assets_dir> <list_file>
 
 - PNG files (8-bit RGBA, non-interlaced) are decoded to raw RGBA pixels and
   exposed as EmbeddedImage entries.
@@ -86,7 +87,20 @@ def c_array(name: str, payload: bytes) -> str:
     return f'static const unsigned char {name}[] = {{\n{body}\n}};\n'
 
 
+def write_asset_list(assets_dir: Path, output: Path) -> None:
+    """Update the build manifest only when supported asset paths change."""
+    paths = sorted(p.as_posix() for p in assets_dir.rglob('*')
+                   if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS | BLOB_EXTENSIONS)
+    content = '\n'.join(paths) + '\n'
+    if not output.exists() or output.read_text(encoding='utf-8') != content:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(content, encoding='utf-8')
+
+
 def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[1] == '--list':
+        write_asset_list(Path(sys.argv[2]), Path(sys.argv[3]))
+        return 0
     if len(sys.argv) != 3:
         print(__doc__, file=sys.stderr)
         return 2
