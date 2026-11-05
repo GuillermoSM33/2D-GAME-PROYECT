@@ -34,10 +34,16 @@ assets/
     chest/               open, sparks
     effects/             armor_sparks, explosion, heal, glow (efectos que no son de una sola entidad)
     characters/cowgirl/walk_dual, jump_dual  Caminar y saltar con las duales: una funda en cada cadera
-    characters/cowgirl/shoot_dual, shoot_dual_b  Las duales turnándose: una arriba disparando, la otra abajo en el muslo
+    characters/cowgirl/weapons/bullet  La bala del rebote (14 × 20 × 16, tools/make_ricochet.py): 0-3 en vuelo, 4-7 girando tras rebotar, 8-13 el impacto
+    characters/cowgirl/ricochet, ricochet_dual, y sus _lit  El rebote (F): 8 cuadros de plantilla de shoot, las dos manos juntas y dos balas, con una o con las dos armas
+    characters/cowgirl/weapons/pistol  Su pistola sola: el mismo dibujo en las dos manos y en todas las hojas; se cambia aquí y se regeneran con tools/rebuild_cowgirl.py. La mano la toma por la empuñadura (GRIP_AT en tools/cowgirl_arm.py)
+    characters/cowgirl/swap_far, light_dual_far  Solo su brazo lejano y su pistola, en los cuadros de swap y light_dual que la lleva: se dibujan enteros sobre las piernas al caminar
+    characters/cowgirl/legs, legs_dual  Su caminar sin brazos (8 cuadros como walk): las piernas bajo otra pose mientras camina
+    characters/cowgirl/stand, stand_dual  De pie, quieta: las manos en la cadera (1 cuadro del tamaño de walk; sin ella, el primer cuadro de walk)
+    characters/cowgirl/shoot_dual, shoot_dual_b  Las duales turnándose (16 cuadros de plantilla de shoot por turno, `PLAYER_PISTON_FRAMES`): la cercana dispara desde el hombro y sube en retroceso; la lejana baja junto a la pierna y dispara desde la cadera, cada brazo en un arco continuo a lo largo de los dos turnos
     characters/cowgirl/melee_lit, melee_dual_lit  El culatazo con la linterna en el arma; termina en la pose con linterna
     characters/cowgirl/shoot_dual_lit, shoot_dual_b_lit  Los mismos turnos con la linterna encendida: su pistola sigue arriba y la otra dispara desde la cadera
-    characters/cowgirl/swap, swap_lit  Sacar la segunda pistola (12 cuadros, plantilla de shoot; al revés, guardarla; swap_lit con la linterna puesta)
+    characters/cowgirl/swap, swap_lit  Sacar la segunda pistola de la funda, bajarla por fuera de la pierna y volver a guardarla (12 cuadros, plantilla de shoot; swap_lit con la linterna puesta)
     characters/*/light*  Encender la linterna (16 cuadros, plantilla de shoot; el último se mantiene), light_walk* caminando con ella (8) y de pie respirando (4); cowgirl/flashlight: la linterna sola sobre shoot
     terrain/             barricade, wall, wall_ruins, barrel, dynamite, charge, crate, bottles, trap, coffin,
                          lamp, fire, bench, campfire, supply, goal: lo que hay en el camino
@@ -79,9 +85,10 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | --- | --- | --- | --- |
 | `sprites/characters/<id>/*` (walk, jump, shoot, shoot_<arma>, reload_<arma>) | Dibujado sobre la base de `docs/templates/character_base/` | [CHARACTERS.md](CHARACTERS.md) | Los de la vaquera: 336 × 67, 432 × 82, 648 × 80 (shoot_<arma> y reload_<arma> como shoot) |
 | `sprites/weapons/bullet.png` | Dibujado | [SPRITES.md](SPRITES.md) | 4 cuadros de 8 × 6 |
-| `sprites/characters/cowgirl/shoot_dual.png`, `sprites/weapons/grenade.png` | `tools/make_powers.py` | el propio script | shoot_dual como shoot.png; granada 4 × 8 × 8 |
+| `sprites/characters/cowgirl/shoot_dual*.png` | `tools/make_flashlight.py` | el propio script | 16 × 81 × 80, plantilla de disparo |
+| `sprites/weapons/grenade.png` | `tools/make_powers.py` | el propio script | granada 4 × 8 × 8 |
 | `sprites/characters/swat/throw.png` | `tools/make_swat.py` | el propio script | 8 × 81 × 80, plantilla de disparo |
-| `sprites/characters/cowgirl/melee.png` | `tools/make_flashlight.py` (poses en `tools/make_melee.py`) | su hoja de disparo | 7 × 81 × 80, plantilla de disparo |
+| `sprites/characters/cowgirl/melee.png` | `tools/make_flashlight.py` (poses en `tools/make_melee.py`; brazo, guante y las dos pistolas en `tools/cowgirl_arm.py`) | su hoja de disparo | 7 × 81 × 80, plantilla de disparo |
 | `sprites/characters/cowgirl/melee_dual.png` | `tools/make_flashlight.py` | su hoja de disparo | 7 × 81 × 80; golpea con una pistola y la otra queda junto a su pierna |
 | `sprites/characters/cowgirl/drink.png`, `bandage.png` | `tools/make_care.py` | su hoja de disparo | 6 × 81 × 80, plantilla de disparo: beber del galón; vendarse el muslo (5 vueltas y la venda puesta) |
 | `sprites/characters/swat/drink.png`, `bandage.png` | `tools/make_swat.py` | el propio script | 6 × 81 × 80, igual |

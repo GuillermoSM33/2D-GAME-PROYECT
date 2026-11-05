@@ -320,8 +320,8 @@ static void test_q_takes_the_second_pistol_out_and_away(void)
 {
     /* The cowgirl: Q swaps gun and plays the hands; no shooting while they're busy. */
     setup_weapon(WEAPON_REVOLVER);
-    InputState input = {0};
 #if DUALS_FROM_ANY_LEVEL
+    InputState input = {0};
     input.pressed[ACTION_SWAP] = true;
     step(&input);
     input.pressed[ACTION_SWAP] = false;

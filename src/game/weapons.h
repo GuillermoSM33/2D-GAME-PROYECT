@@ -52,6 +52,10 @@ typedef struct {
     const char *walk_sheet;            /* Her own walk and jump with this gun, if any: its holsters */
     const char *jump_sheet;
     const char *melee_lit_sheet;       /* Its blow with the flashlight on: the beam swings with it */
+    const char *legs_sheet;            /* Its walk with no arms, for the legs under another pose */
+    const char *power_sheet;           /* Her ricochet with this gun, 8 frames of the shoot template... */
+    const char *power_lit_sheet;       /* ...and with the flashlight on */
+    const char *stand_sheet;           /* Stood still with this gun, one frame of the walk's size */
     const char *shoot_lit_sheet;       /* Both turns with the flashlight on: it stays up, lit */
     const char *shoot_other_lit_sheet;
     /* The character's sheet while putting a magazine in (needed with a

@@ -17,10 +17,7 @@ int combat_bullets_vs_zombie(Bullets *bullets, Zombie *zombie, Effects *effects)
         hits++;
         if (b->spec.ricochet) {
             /* It glances off on to the next one: weaker, unless this one fell. */
-            b->spec.ricochet = false;
-            b->spec.damage *= zombie_alive(zombie) ? RICOCHET_LOSS : RICOCHET_KILL_BONUS;
-            b->glanced = zombie;
-            effects_spawn(effects, effect_sparks(), zombie->x, b->y, zombie->facing);
+            bullet_glance(bullets, b, zombie, zombie_alive(zombie) ? RICOCHET_LOSS : RICOCHET_KILL_BONUS);
             continue;
         }
         b->active = false;

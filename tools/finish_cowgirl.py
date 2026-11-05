@@ -18,7 +18,7 @@ from make_powers import load  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'assets/sprites/characters/cowgirl'
 INK = (0x25, 0x20, 0x18, 255)
-WIDTHS = {'walk': 42, 'walk_dual': 42, 'jump': 54, 'jump_dual': 54, 'sit': 72, 'faint': 80}
+WIDTHS = {'walk': 42, 'walk_dual': 42, 'stand': 42, 'stand_dual': 42, 'legs': 42, 'legs_dual': 42, 'jump': 54, 'jump_dual': 54, 'sit': 72, 'faint': 80}
 SKIP = {'flashlight'}             # Drawn over the others
 DARK = 70                         # As good as an outline already: its brightest channel under this
 SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))

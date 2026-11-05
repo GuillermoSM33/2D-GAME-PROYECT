@@ -905,8 +905,9 @@ static void draw_card(SDL_Renderer *renderer, const CharacterSkin *skin, const P
     add_zone(HUD_ZONE_ITEM, index, left, CARD_TOP, CARD_W, CARD_H);
     ui_panel(renderer, left, CARD_TOP, CARD_W, CARD_H);
 
-    /* Standing frame of its walk sheet, a little smaller than in play. */
-    SDL_Texture *walk = skin->sheets[0];
+    /* Stood still, in its own pose if it has one, else its walk's first frame; a little
+     * smaller than in play. */
+    SDL_Texture *walk = skin->stand_sheet ? skin->stand_sheet : skin->sheets[0];
     int portrait_top = CARD_TOP + 2;
     if (walk) {
         SDL_Rect src = {0, 0, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H};

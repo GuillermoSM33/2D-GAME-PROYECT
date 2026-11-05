@@ -107,7 +107,7 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
     const AnimationDef *walk_def = player->anim.def;
     bool walking = (player->state == PLAYER_WALK || player->state == PLAYER_RUN) && walk_def != NULL &&
                    walk_def->frame_w == PLAYER_WALK_FRAME_W;
-    SDL_Texture *walk = walking ? skin_sheet(skin, walk_def->sheet, gun) : NULL;
+    SDL_Texture *walk = walking ? skin_legs(skin, gun, skin_sheet(skin, walk_def->sheet, gun)) : NULL;
     int split = care->frame_h;
     if (walk) {
         int waist = PLAYER_WAIST_ROW + (care->ground_y - walk_def->ground_y);
@@ -119,6 +119,11 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
     tint(sheet, player);
     draw_rows(renderer, sheet, care, frame, 0, split, player, camera_x);
     untint(sheet);
+    if (walk && player->swap_time > 0.0f && skin->swap_far_sheet) { /* Her pistol, whole over the legs */
+        tint(skin->swap_far_sheet, player);
+        draw_rows(renderer, skin->swap_far_sheet, care, frame, 0, care->frame_h, player, camera_x);
+        untint(skin->swap_far_sheet);
+    }
     return true;
 }
 
@@ -195,6 +200,10 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     int gun = guns[weapon_slot];
     SDL_Texture *sheet = def ? skin_sheet(skin, def->sheet, gun) : NULL;
     int frame = player->anim.frame;
+    if (player->state == PLAYER_IDLE && def && def->frame_w == PLAYER_WALK_FRAME_W && skin_stand(skin, gun)) {
+        sheet = skin_stand(skin, gun); /* Stood still: its own pose, if it has one */
+        frame = 0;
+    }
     if (sheet == NULL && def && player_reload_animation(def)) {
         /* No reload art (a stand-in skin): hold the recoil frame, same template. */
         sheet = skin_sheet(skin, "shoot", gun);
@@ -236,6 +245,16 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     if (player->state == PLAYER_SHOOT && player->light_on && !lit_duals && player_light_progress(player) >= 1.0f &&
         !shot_reloading(&player->shot) && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_light[gun])
         frame = player_lit_shoot_frame(frame);
+    if (player->state == PLAYER_SHOOT && player->shot.piston) /* Two guns: their own, finer sheets */
+        frame = player->shot.active ? shot_piston_frame(&player->shot) : frame * PLAYER_PISTON_FRAMES / PLAYER_SHOOT_FRAMES;
+    if (player->state == PLAYER_SHOOT && player->power_shot && gun >= 0 && gun < WEAPON_COUNT) { /* Her ricochet */
+        SDL_Texture *power = player->light_on ? skin->weapon_power_lit[gun] : skin->weapon_power[gun];
+        if (power) {
+            sheet = power;
+            frame = player->anim.frame;
+            lit_duals = true; /* The flashlight, if on, is on this sheet */
+        }
+    }
 
     /* The flashlight up: her gun held level with it, on legs that go on walking. */
     int light_frame = 0;
@@ -258,12 +277,18 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         int split = light->frame_h;
         if (walking) {
             split = PLAYER_WAIST_ROW + (light->ground_y - def->ground_y);
-            tint(sheet, player);
-            draw_rows(renderer, sheet, def, frame, PLAYER_WAIST_ROW, def->frame_h, player, camera_x);
-            untint(sheet);
+            SDL_Texture *under = skin_legs(skin, gun, sheet);
+            tint(under, player);
+            draw_rows(renderer, under, def, frame, PLAYER_WAIST_ROW, def->frame_h, player, camera_x);
+            untint(under);
         }
         tint(light_sheet, player);
         draw_rows(renderer, light_sheet, light, light_frame, 0, split, player, camera_x);
+        if (walking && player->shot.piston && skin->light_far_sheet) { /* Her other pistol, whole over the legs */
+            tint(skin->light_far_sheet, player);
+            draw_rows(renderer, skin->light_far_sheet, light, light_frame, 0, light->frame_h, player, camera_x);
+            untint(skin->light_far_sheet);
+        }
         untint(light_sheet);
         heal_glow(renderer, player, camera_x);
         draw_drips(renderer, player, camera_x);
@@ -271,7 +296,7 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     }
 
     const AnimationDef *legs = player->legs.def;
-    SDL_Texture *walk = legs ? skin_sheet(skin, legs->sheet, gun) : NULL;
+    SDL_Texture *walk = legs ? skin_legs(skin, gun, skin_sheet(skin, legs->sheet, gun)) : NULL;
     if (player->reload_walk && walk) {
         /* Walking while reloading: the walk's legs below her waist, the
          * reload above it. Every sheet shares the ground row, so the waist is

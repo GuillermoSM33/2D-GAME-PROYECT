@@ -349,10 +349,8 @@ int terrain_shoot(Terrain *terrain, Bullets *bullets)
             terrain->sound_events |= impact_sound(p);
             if (target && bullet->spec.ricochet) {
                 /* The cowgirl's ricochet: it breaks through on to the next. */
-                bullet->spec.ricochet = false;
-                bullet->glanced = p;
                 strike(terrain, i, false);
-                bullet->spec.damage *= p->spent ? RICOCHET_KILL_BONUS : RICOCHET_LOSS;
+                bullet_glance(bullets, bullet, p, p->spent ? RICOCHET_KILL_BONUS : RICOCHET_LOSS);
                 if (p->spent)
                     break;
                 continue;

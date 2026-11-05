@@ -7,14 +7,13 @@
 
 void bullets_render(SDL_Renderer *renderer, const Bullets *bullets, float camera_x)
 {
-    const AnimationDef *def = bullet_animation();
-    SDL_Texture *sheet = assets_texture(def->sheet);
-    if (sheet == NULL)
-        return;
-
     for (int i = 0; i < BULLET_MAX; i++) {
         const Bullet *b = &bullets->items[i];
         if (!b->active)
+            continue;
+        const AnimationDef *def = b->anim.def; /* A plain ball, or a ricochet's own sprite */
+        SDL_Texture *sheet = def ? assets_texture(def->sheet) : NULL;
+        if (sheet == NULL)
             continue;
         bool left = b->dir < 0;
         float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;

@@ -373,6 +373,13 @@ int run_bullets(StageRun *run, Bullets *bullets, Effects *effects)
             }
         }
     }
+    for (int i = 0; i < BULLET_MAX; i++) { /* A ricochet's impact, where it left the body */
+        Bullet *b = &bullets->items[i];
+        if (b->burst) {
+            effects_spawn(effects, bullet_impact_animation(), b->x, b->bounce_y, b->dir);
+            b->burst = false;
+        }
+    }
     return hits;
 }
 

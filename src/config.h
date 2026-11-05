@@ -61,9 +61,16 @@
 #define PLAYER_SHOOT_FIRE_FRAME 4 /* The bullet leaves on this frame */
 #define PLAYER_SHOOT_FPS 16.0f
 #define PLAYER_PISTON_FPS 20.0f    /* Two guns taking turns: a whole turn each shot, 0.4 s */
-#define PLAYER_FAR_GUN_BACK 10     /* Her far gun's muzzle is this many art px behind the near one's (her arm's length)... */
-#define PLAYER_FAR_GUN_ROWS 5      /* ...and this many under it... */
-#define PLAYER_LIT_FAR_GUN_ROWS 9  /* ...or this many with the flashlight up on the other, from her hip */
+#define PLAYER_PISTON_FRAMES 16    /* ...drawn in this many frames: the arms swing, they don't jump */
+/* Her ricochet: both hands together, its muzzles off the aim's (tools/make_flashlight.py prints them) */
+#define PLAYER_POWER_BACK 10
+#define PLAYER_POWER_ROWS 10
+#define PLAYER_POWER_FAR_BACK 13
+#define PLAYER_POWER_FAR_ROWS 6
+#define PLAYER_POWER_GAP 2         /* With one gun: its two bullets, either side of its line */
+#define POWER_LENS {{-5.6f, 14.1f}, {-6.7f, 9.7f}, {-8.4f, 6.4f}, {-9.5f, 6.0f}, {-9.5f, 6.0f}, {-10.0f, 2.7f}, {-9.7f, 5.1f}, {-7.4f, 7.8f}}
+#define PLAYER_FAR_GUN_BACK 20     /* Her far gun's muzzle is this many art px behind the near one's (it fires from her hip)... */
+#define PLAYER_FAR_GUN_ROWS 10     /* ...and this many under it, flashlight or not */
 #define PLAYER_SHOOT_RELOAD_FRAME 6 /* Recoil frame held while the next ball goes in */
 /* Seconds from a bullet until the next shot can start. With the aim frame
  * a follow-up fires 1/16 s later: one bullet every 0.445 s. */
@@ -327,7 +334,7 @@
 #define POWER_LEVEL 3             /* Each character's level-3 power: dual pistols, grenades */
 /* TEMPORARY, to see the art in play: Q swaps to the duals from level 1. Set to
  * 0 for the real rule, from POWER_LEVEL. */
-#define DUALS_FROM_ANY_LEVEL 1
+#define DUALS_FROM_ANY_LEVEL 0
 #define GRENADE_SPEED_X 430.0f    /* Window px/s ahead when thrown */
 #define GRENADE_SPEED_Y 560.0f    /* ...and up */
 #define GRENADE_GRAVITY 1500.0f
@@ -340,7 +347,16 @@
 #define POWER_COOLDOWN 15.0f      /* Seconds between uses of a level-3 power (F) */
 #define RICOCHET_LOSS 0.55f       /* A ricochet's second hit: 45% less damage... */
 #define RICOCHET_KILL_BONUS 1.30f /* ...or 30% more if the first target died */
-#define RICOCHET_TINT 0xffd060    /* Its bullets glow gold */
+#define RICOCHET_SHARE 0.6f       /* She fires two: each carries this share of a shot's damage */
+#define RICOCHET_BOUNCE 28.0f     /* Window px it rises glancing off, and falls back: light */
+#define RICOCHET_BOUNCE_TIME 0.24f /* ...in this long */
+#define RICOCHET_REACH 520.0f     /* Window px it goes on looking for the next body, then it's spent */
+#define RICOCHET_FRAME_W 20       /* characters/cowgirl/weapons/bullet: tools/make_ricochet.py */
+#define RICOCHET_FRAME_H 16
+#define RICOCHET_FLY_FRAMES 4     /* In flight... */
+#define RICOCHET_SPIN_FRAMES 4    /* ...glanced off, spinning... */
+#define RICOCHET_BURST_FRAMES 6   /* ...and the impact */
+#define RICOCHET_FPS 18.0f
 #define GRENADE_FRAME 8           /* weapons/grenade: 4 frames tumbling */
 #define HOUSE_FRAME_W 80          /* Buildings off the road, behind it (props/houses) */
 #define HOUSE_FRAME_H 64

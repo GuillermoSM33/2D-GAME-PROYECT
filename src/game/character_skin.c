@@ -82,6 +82,10 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_shoot[guns[g]] = own_sheet(character, def->shoot_sheet);
             skin->weapon_walk[guns[g]] = own_sheet(character, def->walk_sheet);
             skin->weapon_jump[guns[g]] = own_sheet(character, def->jump_sheet);
+            skin->weapon_stand[guns[g]] = own_sheet(character, def->stand_sheet);
+            skin->weapon_legs[guns[g]] = own_sheet(character, def->legs_sheet);
+            skin->weapon_power[guns[g]] = own_sheet(character, def->power_sheet);
+            skin->weapon_power_lit[guns[g]] = own_sheet(character, def->power_lit_sheet);
             skin->weapon_shoot_other[guns[g]] = own_sheet(character, def->shoot_other_sheet);
             skin->weapon_shoot_lit[guns[g]] = own_sheet(character, def->shoot_lit_sheet);
             skin->weapon_shoot_other_lit[guns[g]] = own_sheet(character, def->shoot_other_lit_sheet);
@@ -93,6 +97,10 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_light_walk[guns[g]] = own_sheet(character, def->light_walk_sheet);
         }
     }
+    skin->stand_sheet = own_sheet(character, "stand");
+    skin->legs_sheet = own_sheet(character, "legs");
+    skin->swap_far_sheet = own_sheet(character, "swap_far");
+    skin->light_far_sheet = own_sheet(character, "light_dual_far");
     skin->throw_sheet = own_sheet(character, "throw");
     skin->melee_sheet = own_sheet(character, "melee");
     skin->flashlight_sheet = own_sheet(character, "flashlight");
@@ -111,6 +119,20 @@ void skin_free(CharacterSkin *skin)
             SDL_DestroyTexture(skin->sheets[s]);
     }
     memset(skin, 0, sizeof(*skin));
+}
+
+SDL_Texture *skin_stand(const CharacterSkin *skin, int gun)
+{
+    if (gun >= 0 && gun < WEAPON_COUNT && skin->weapon_stand[gun])
+        return skin->weapon_stand[gun];
+    return skin->stand_sheet;
+}
+
+SDL_Texture *skin_legs(const CharacterSkin *skin, int gun, SDL_Texture *walk)
+{
+    if (gun >= 0 && gun < WEAPON_COUNT && skin->weapon_legs[gun])
+        return skin->weapon_legs[gun];
+    return skin->legs_sheet ? skin->legs_sheet : walk;
 }
 
 SDL_Texture *skin_sheet(const CharacterSkin *skin, const char *template_sheet, int gun)

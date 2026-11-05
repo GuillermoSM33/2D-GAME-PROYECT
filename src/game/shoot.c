@@ -222,3 +222,9 @@ int shot_frame(const Shot *shot)
     int frame = raw_frame(shot);
     return frame < PLAYER_SHOOT_FRAMES ? frame : PLAYER_SHOOT_FRAMES - 1;
 }
+
+int shot_piston_frame(const Shot *shot)
+{
+    int frame = (int)(shot->time * shot_fps(shot) * PLAYER_PISTON_FRAMES / PLAYER_SHOOT_FRAMES);
+    return frame < PLAYER_PISTON_FRAMES ? frame : PLAYER_PISTON_FRAMES - 1;
+}

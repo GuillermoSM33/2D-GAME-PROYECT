@@ -22,13 +22,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cowgirl_arm import GLOVE, arm_limb as bent_arm, glove  # noqa: E402
 from make_melee import AIM, HOLSTER, LOW, SHOULDER, frame, body_without_arm, sleeve, turn  # noqa: E402
-from make_powers import INK, SLEEVE, load  # noqa: E402
+from make_powers import INK, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 81, 80
-GLOVE = [rgb(0x684833), rgb(0x463322)]           # The same as on her gun hand
 JUG_COLORS = {'c': rgb(0x9a643a), 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)}
 JUG = ['.cc.', 'bccb', 'BBBB', 'BwBB', 'BwBB', 'BBBB', 'bbbb']
 BANDAGE = [rgb(0xb8ac94), rgb(0xe6dcc0), rgb(0xf4ecd8)]
@@ -56,7 +56,7 @@ def jug() -> dict:
 
 
 def hand(at: tuple) -> dict:
-    return {(at[0] + i, at[1] + j): GLOVE[j] for i in (0, 1) for j in (0, 1)}
+    return glove(at)
 
 
 def bent_to(top: tuple, at: tuple, under: bool = False) -> dict:
@@ -65,39 +65,12 @@ def bent_to(top: tuple, at: tuple, under: bool = False) -> dict:
     d = math.hypot(at[0] - top[0], at[1] - top[1])
     out = math.sqrt(max(0.0, BONE * BONE - d * d / 4.0))
     mx, my = (top[0] + at[0]) / 2, (top[1] + at[1]) / 2
-    return bent_arm(top, (round(mx), round(my + out)) if under else (round(mx + out), round(my)), at, 0.3)
+    return bent_arm(top, (round(mx), round(my + out)) if under else (round(mx + out), round(my)), at)
 
 
 def arm(at: tuple) -> dict:
     """Her arm hanging from the shoulder, reaching down to her thigh."""
     return bent_to(ARM_TOP, at)
-
-
-def bent_arm(top: tuple, elbow: tuple, at: tuple, thick: float = 0.0) -> dict:
-    """An arm from top through the elbow to the hand at at: as slim as the one on
-    her hip, narrowing to the wrist, outlined."""
-    def limb(a: tuple, b: tuple, r0: float, r1: float) -> dict:
-        n = max(abs(b[0] - a[0]), abs(b[1] - a[1]), 1)
-        out = {}
-        for t in range(n * 2 + 1):
-            k = t / (n * 2)
-            cx, cy = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
-            r = r0 + (r1 - r0) * k
-            for y in range(int(cy - 3), int(cy + 4)):
-                for x in range(int(cx - 3), int(cx + 4)):
-                    d = x + 0.5 - cx
-                    if d * d + (y + 0.5 - cy) ** 2 <= r * r:
-                        out[(x, y)] = SLEEVE[0] if d < -0.4 else SLEEVE[1] if d < 0.5 else SLEEVE[2]
-        return out
-
-    px = limb(top, elbow, 1.7 + thick, 1.5 + thick)
-    px.update(limb(elbow, at, 1.5 + thick, 1.1 + thick))
-    edged = dict(px)
-    for (x, y) in px:
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            if (x + dx, y + dy) not in px:
-                edged[(x + dx, y + dy)] = INK
-    return edged
 
 
 def wraps(body: dict, turns: int, done: bool) -> dict:

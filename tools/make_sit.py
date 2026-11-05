@@ -111,7 +111,7 @@ COWGIRL_FACE = 22              # First column right of her face's middle
 # left one (column 0 the outer edge, at COWGIRL_ARM_OUTER columns from the
 # middle) and its mirror, coming out of her shoulders, as wide as them.
 COWGIRL_BODY_ROWS = (31, WAIST)
-COWGIRL_BODY = 20              # First column right of the pivot (19.5)
+COWGIRL_BODY = 22              # First column right of her middle, on her neck and buckle
 COWGIRL_ARM_ROWS = [           # Her walk rows 29..: the sleeve down to the wrist, her glove
     "..omno.",
     ".ommnno",
@@ -503,13 +503,15 @@ def neckline_front(img: Image, ox: int, nod: int) -> None:
                 if img.get(ox + x, y)[3]:
                     img.set(ox + x, y, c)
     for x in (CX - 1, CX):
-        img.set(ox + x, choker + 1 + nod, rgb(0xb8903a)) # The pendant
+        img.set(ox + x, choker + nod, rgb(0xecc868))     # The pendant, on her choker as when she stands
+        img.set(ox + x, choker + 1 + nod, rgb(0xb8903a))
 
 
 def make_sit(name: str, gun: int, kind: str) -> Image:
     char = CHARS[name]
     weapons = load(ROOT / 'assets/sprites/ui/weapons.png')
-    walk = load(ROOT / 'assets/sprites/characters' / name / 'walk.png')
+    # Her walk with no arms: hers are drawn here, none of the swinging ones on her
+    walk = load(ROOT / 'assets/sprites/characters' / name / ('legs.png' if name == 'cowgirl' else 'walk.png'))
     out = Image(W * 14, H)
     for f in range(14):
         ox = f * W

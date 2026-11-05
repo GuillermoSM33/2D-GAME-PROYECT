@@ -410,8 +410,8 @@ int player_lit_shoot_frame(int frame)
 void player_light_kick(const Player *player, float *dx, float *dy, float *tilt)
 {
     /* The lens on each sheet, as tools/make_flashlight.py draws and prints it. */
-    static const float BLOW[PLAYER_MELEE_FRAMES][3] = {{-6.0f, -16.0f, -.6f}, {-22.0f, -26.0f, -.6f}, {-5.5f, -20.5f, -.6f},
-                                                       {0.0f, -1.0f, .18f}, {-4.5f, 10.5f, .6f}, {-1.0f, 3.5f, .27f}, {0.0f, 0.0f, 0.0f}};
+    static const float BLOW[PLAYER_MELEE_FRAMES][3] = {{-6.2f, -21.6f, -.6f}, {-24.2f, -29.7f, -.6f}, {-7.3f, -22.8f, -.6f},
+                                                       {0.1f, -2.7f, .18f}, {-3.5f, 8.4f, .6f}, {-0.3f, 0.4f, .27f}, {0.0f, 0.0f, 0.0f}};
     *dx = *dy = *tilt = 0.0f;
     int frame = player->anim.frame;
     if (player->state == PLAYER_MELEE) {
@@ -419,6 +419,14 @@ void player_light_kick(const Player *player, float *dx, float *dy, float *tilt)
             *dx = BLOW[frame][0];
             *dy = BLOW[frame][1];
             *tilt = BLOW[frame][2];
+        }
+        return;
+    }
+    if (player->state == PLAYER_SHOOT && player->power_shot) { /* Both hands together: the lens on her ricochet sheets */
+        static const float POWER[PLAYER_SHOOT_FRAMES][2] = POWER_LENS;
+        if (frame >= 0 && frame < PLAYER_SHOOT_FRAMES) {
+            *dx = POWER[frame][0];
+            *dy = POWER[frame][1];
         }
         return;
     }

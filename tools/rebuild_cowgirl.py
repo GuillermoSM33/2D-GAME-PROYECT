@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
-STEPS = [['rework_cowgirl.py'], ['make_faint.py', 'cowgirl'], ['make_care.py'], ['make_plant.py'],
+STEPS = [['make_ricochet.py'], ['rework_cowgirl.py'], ['make_faint.py', 'cowgirl'], ['make_care.py'], ['make_plant.py'],
          ['make_sit.py'], ['make_flashlight.py'], ['finish_cowgirl.py']]
 
 

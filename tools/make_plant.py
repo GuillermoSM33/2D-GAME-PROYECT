@@ -73,6 +73,7 @@ GROUND_ROW = 67
 TROUSER = [rgb(0x5e5650), rgb(0x48423e), rgb(0x423c38)]
 FAR_TROUSER = [rgb(0x423c38), rgb(0x322e2c), rgb(0x322e2c)]
 BOOT = [rgb(0x684833), rgb(0x463322), rgb(0x2c2c2c)]
+STRAP_AT, STRAP_HALF = 0.72, 0.9  # Her thigh strap: how far down the thigh, and half its width in px
 SASH_COLORS = {(0x64, 0x18, 0x2a), (0x8a, 0x24, 0x38), (0x46, 0x10, 0x1e)}
 # The SWAT's, in his walk-frame points (make_swat's at() shifts them).
 SWAT = [((24, 37), True, 0), ((27, 38), True, 0), ((30, 39), True, 1),
@@ -118,9 +119,13 @@ def leg(hip: tuple, foot: tuple, tones: list, toe: int, strap: bool = False) -> 
     ankle = (kn[0] + (foot[0] - kn[0]) * 0.6, kn[1] + (foot[1] - kn[1]) * 0.6)
     px = capsule(hip, kn, 2.5, 1.9, cloth)
     px.update(capsule(kn, ankle, 1.9, 1.5, cloth))
-    if strap:
-        px.update({p: BOOT[1] for p in capsule((hip[0] + (kn[0] - hip[0]) * 0.55, hip[1] + (kn[1] - hip[1]) * 0.55),
-                                               (hip[0] + (kn[0] - hip[0]) * 0.65, hip[1] + (kn[1] - hip[1]) * 0.65), 2.1, 2.0, cloth)})
+    if strap:                                            # Round her thigh, a thin band across it: not along it
+        tx, ty = kn[0] - hip[0], kn[1] - hip[1]
+        length = max(math.hypot(tx, ty), 1.0)
+        for (x, y) in capsule(hip, kn, 2.5, 1.9, cloth):
+            along = ((x + 0.5 - hip[0]) * tx + (y + 0.5 - hip[1]) * ty) / length
+            if abs(along - length * STRAP_AT) <= STRAP_HALF:
+                px[(x, y)] = BOOT[1]
     px.update(capsule(ankle, foot, 1.7, 1.5, leather))
     for x in range(min(foot[0], foot[0] + toe), max(foot[0], foot[0] + toe) + 1):  # The foot, flat on the ground
         for y in (foot[1], foot[1] + 1):
@@ -162,7 +167,7 @@ def reaching(at: tuple, drop: int) -> dict:
     out = math.sqrt(max(0.0, ARM_BONE * ARM_BONE - d * d / 4.0))
     ux, uy = (at[0] - top[0]) / max(d, 1.0), (at[1] - top[1]) / max(d, 1.0)
     elbow = (round((top[0] + at[0]) / 2 - uy * out), round((top[1] + at[1]) / 2 + ux * out))
-    return bent_arm(top, elbow, at, 0.3)
+    return bent_arm(top, elbow, at)
 
 
 def big_hand(at: tuple) -> dict:

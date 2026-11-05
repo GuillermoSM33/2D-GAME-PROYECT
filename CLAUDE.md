@@ -36,15 +36,23 @@ Solo para `tools/crush_sfx.py` (grabar/convertir sonidos, no para compilar): **f
   `$env:MSYSTEM="UCRT64"; $env:CHERE_INVOKING="1"; C:\msys64\usr\bin\bash.exe --login -c "./build.sh"`
 - En ambos sistemas sirven `make`, `make test`, `make run` y `make watch`.
 
-## Arte de la vaquera: pendiente
+## Arte de la vaquera
 
-**Sus medidas todavía no quedan como deberían**; no des su arte por terminado. La referencia es
-`walk`, y la meta es una silueta de reloj de arena en todas las poses: hombros y cadera de ancho
-parecido, cintura marcada y sin escalón entre cinturón y pierna. Regenera todas sus hojas con
+El usuario lo aprobó el 2026-11-05: consérvalo así salvo que pida cambios. Tiene **un solo cuerpo**
+en todas las poses de pie: torso y cinturón salen de las tablas de `tools/rework_cowgirl.py`
+(`TORSO_FRONT`, `BELT_FRONT`, `BACK_SIDE`), relativas a la hebilla, que va bajo su barbilla. Cámbialo
+ahí, nunca en una sola hoja. La meta es una silueta de reloj de arena: hombros y cadera de ancho
+parecido, cintura marcada y sin escalón entre cinturón y pierna; la curva va en tramos de dos filas
+para que no salga en escalera.
+Sus brazos no vienen de la plantilla: se dibujan aparte sobre el cuerpo completo, con un solo modelo
+de brazo y guante (`tools/cowgirl_arm.py`) y **un solo dibujo de pistola**,
+`assets/sprites/characters/cowgirl/weapons/pistol.png`, para las dos manos; las poses están en `walk_arms`, `jump_arms`
+y `ON_HIPS`. Al caminar se balancean los dos, casi rectos y con aire junto a la cintura; solo parada
+lleva las manos en la cadera.
+Regenera todas sus hojas con
 `python3 tools/rebuild_cowgirl.py` y revísalas ampliadas antes de reportarlas.
 
-`DUALS_FROM_ANY_LEVEL` en `src/config.h` está en 1 solo para probar ese arte: vuelve a ponerlo en
-0 al terminar.
+`DUALS_FROM_ANY_LEVEL` en `src/config.h` está en 0; ponlo en 1 solo para probar las duales desde el nivel 1.
 
 ## Repositorio
 

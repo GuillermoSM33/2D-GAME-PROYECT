@@ -58,6 +58,7 @@ typedef struct {
     float bandage;        /* Seconds of holding U toward stopping the bleeding */
     bool bandaged;        /* The bleeding stopped on this update */
     float bandage_shown;  /* Seconds left of the done bandage on her leg */
+    bool power_shot;      /* This shot is her ricochet: both hands together */
     float swap_time;      /* Seconds left of taking her second pistol out or away (player_swap) */
     bool swap_back;       /* ...away: the same frames backwards */
     float plant_time;     /* Seconds left of setting a charge (player_plant): she stands to it */

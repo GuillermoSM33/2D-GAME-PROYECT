@@ -523,6 +523,29 @@ static void test_ricochet_glances_on(void)
     CHECK(!bullets.items[0].active);
 }
 
+static void test_ricochet_bounces_lightly(void)
+{
+    /* Glancing off, it rises a little and comes back to its line, once, and is spent further on. */
+    Bullets bullets;
+    bullets_clear(&bullets);
+    BulletSpec spec = {30.0f, 1000.0f, 0.0f, 0.0f, 0xffffff, 0.0f, true};
+    bullets_fire(&bullets, 100.0f, 100.0f, 300.0f, 1, &spec);
+    Bullet *b = &bullets.items[0];
+    int body = 0;
+    bullet_glance(&bullets, b, &body, 1.0f);
+    CHECK(bullets.glances == 1 && b->burst && !b->spec.ricochet);
+    float highest = b->y;
+    for (int i = 0; i < 30; i++) {
+        bullets_update(&bullets, FIXED_DT, 0.0f);
+        highest = fminf(highest, b->y);
+    }
+    CHECK(highest < 300.0f && highest >= 300.0f - RICOCHET_BOUNCE - 0.01f);
+    CHECK(fabsf(b->y - 300.0f) < 0.01f);
+    for (int i = 0; i < 60 && b->active; i++)
+        bullets_update(&bullets, FIXED_DT, 0.0f);
+    CHECK(!b->active);
+}
+
 static void test_ricochet_breaks_through_crates(void)
 {
     /* The ricochet goes through the first crate on to the next: one hit each. */
@@ -1461,6 +1484,7 @@ int main(void)
     RUN(test_supply_heals_once);
     RUN(test_barrel_blast);
     RUN(test_ricochet_glances_on);
+    RUN(test_ricochet_bounces_lightly);
     RUN(test_ricochet_breaks_through_crates);
     RUN(test_shut_in_stay_hidden);
     RUN(test_a_bullet_wakes_a_sleeping_group);

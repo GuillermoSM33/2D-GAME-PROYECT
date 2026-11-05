@@ -169,7 +169,16 @@ static int verify_characters(void)
                 snprintf(name, sizeof(name), "sprites/characters/%s/swap", CHARACTERS[c].id);
                 failures += !verify_image(name, PLAYER_SWAP_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
                 snprintf(name, sizeof(name), "sprites/characters/%s/shoot_dual_b", CHARACTERS[c].id);
-                failures += !verify_image(name, PLAYER_SHOOT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+                failures += !verify_image(name, PLAYER_PISTON_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+                const char *ricochets[] = {"ricochet", "ricochet_lit", "ricochet_dual", "ricochet_dual_lit"};
+                for (int k = 0; k < 4; k++) {
+                    snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, ricochets[k]);
+                    failures += !verify_image(name, PLAYER_SHOOT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+                }
+                snprintf(name, sizeof(name), "sprites/characters/%s/stand_dual", CHARACTERS[c].id);
+                failures += !verify_image(name, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H);
+                snprintf(name, sizeof(name), "sprites/characters/%s/stand", CHARACTERS[c].id);
+                failures += !verify_image(name, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H);
                 snprintf(name, sizeof(name), "sprites/characters/%s/swap_lit", CHARACTERS[c].id);
                 failures += !verify_image(name, PLAYER_SWAP_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
             }
@@ -192,7 +201,7 @@ static int verify_characters(void)
                 if (sheets[k] == NULL)
                     continue;
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, sheets[k]);
-                failures += !verify_image(name, shoot->width, shoot->height);
+                failures += !verify_image(name, k == 0 && def->piston ? PLAYER_PISTON_FRAMES * PLAYER_SHOOT_FRAME_W : shoot->width, shoot->height);
             }
             if (def->sit_sheet) { /* ...and its sit sheet, the size of sit.png */
                 const EmbeddedImage *sit = assets_find_image("sprites/characters/cowgirl/sit");
@@ -644,6 +653,7 @@ typedef struct {
     bool duals_out;  /* Its power's second pistol in hand (Q takes it out and away) */
     float power_cooldown; /* Seconds until F works again */
     bool ricochet_armed;  /* The next shot's bullets glance on to a second target */
+    bool ricochet_fired;  /* ...and it has gone: her hands part when the shot ends */
     int rounds[CHARACTER_MAX_WEAPONS]; /* Shots left in each gun's magazine while put away */
     Player player;
     Bullets bullets;
@@ -750,6 +760,7 @@ static void start_stage(StagePlay *play, int index, const CharacterDef *characte
     play->single_fire = false;
     play->power_cooldown = 0.0f;
     play->ricochet_armed = false;
+    play->ricochet_fired = false;
     play->duals_out = progress->level >= POWER_LEVEL;
     for (int d = 0; d < BLOOD_DROPS; d++)
         play->blood_age[d] = BLOOD_LIFE; /* None yet */
@@ -819,15 +830,31 @@ static void fire_weapon(StagePlay *play, const Progress *progress)
     player_muzzle(player, &mx, &my);
     if (player->shot.other_gun && w->shoot_other_sheet) { /* Her far gun is nearer and lower than the near one */
         mx -= (float)player->facing * PLAYER_FAR_GUN_BACK * SPRITE_SCALE;
-        my += (play->flashlight && w->shoot_other_lit_sheet ? PLAYER_LIT_FAR_GUN_ROWS : PLAYER_FAR_GUN_ROWS) * SPRITE_SCALE;
+        my += PLAYER_FAR_GUN_ROWS * SPRITE_SCALE;
     }
     BulletSpec spec = {progress_damage(progress) * w->damage_mult, w->speed, w->range,
                        w->armor_share, w->tint, 0.0f, false};
-    if (play->ricochet_armed) { /* F: these glance on to a second target */
+    if (play->ricochet_armed) { /* F: both hands together, two bullets that glance on to a second target */
         spec.ricochet = true;
-        spec.tint = RICOCHET_TINT;
+        spec.tint = 0xffffff; /* Gold on her own sprite */
+        spec.damage *= RICOCHET_SHARE;
         play->ricochet_armed = false;
-        play_sound("weapons/ricochet");
+        play->ricochet_fired = true;
+        float nx, ny;
+        player_muzzle(player, &nx, &ny);
+        bool both = w->shoot_other_sheet != NULL;
+        for (int k = 0; k < 2; k++) {
+            int back = both && k ? PLAYER_POWER_FAR_BACK : PLAYER_POWER_BACK;
+            int rows = both ? (k ? PLAYER_POWER_FAR_ROWS : PLAYER_POWER_ROWS)
+                            : PLAYER_POWER_ROWS + (k ? PLAYER_POWER_GAP : -PLAYER_POWER_GAP);
+            float x = nx - (float)player->facing * (float)(back * SPRITE_SCALE);
+            float y = ny + (float)(rows * SPRITE_SCALE);
+            bullets_fire(&play->bullets, player->x, x, y, player->facing, &spec);
+            smoke_emit(&play->smoke, x, y, player->facing, w->smoke_puffs, w->smoke_scale);
+        }
+        if (w->shot_sound)
+            play_sound(w->shot_sound);
+        return;
     }
     for (int p = 0; p < w->pellets; p++) {
         float side = (float)p - (float)(w->pellets - 1) / 2.0f;
@@ -957,6 +984,7 @@ static void use_power(StagePlay *play, InputState *input, const Progress *progre
         if (player->shot.active || player->jump.airborne)
             return;
         play->ricochet_armed = true;
+        player->power_shot = true;
         play->power_cooldown = POWER_COOLDOWN;
         input->pressed[ACTION_SHOOT] = true;
     }
@@ -1179,6 +1207,15 @@ static bool stage_step(StagePlay *play, const InputState *input, Profile *profil
         play_sound("crow/death"); /* A screech and wings: it serves a bat too */
     hallucination_shoot(&play->visions, &play->bullets); /* A bullet wasted on nothing */
     run_bullets(&play->run, &play->bullets, &play->effects);
+    if (play->bullets.glances > 0) {
+        play_sound("weapons/ricochet");
+        play->bullets.glances = 0;
+    }
+    /* Her ricochet over: her hands part, for the shot that ended or the next turn. */
+    if (player->power_shot && !play->ricochet_armed && (!player->shot.active || (play->ricochet_fired && !player->shot.fired))) {
+        player->power_shot = false;
+        play->ricochet_fired = false;
+    }
     effects_update(&play->effects, FIXED_DT);
     smoke_update(&play->smoke, FIXED_DT);
 
@@ -2133,6 +2170,47 @@ static void capture_screens(Platform *platform, const char *dir, CharacterSkin *
     }
     draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
     save_capture(r, dir, "31_duales_caminando");
+    /* Her ricochet, in the engine, on two zombies: with both guns, then one. */
+    for (int guns_out = 1; guns_out >= 0; guns_out--) {
+        Progress kept = profiles[0].progress;
+        start_stage(&play, 0, &CHARACTERS[0], &profiles[0].progress);
+        terrain_clear(&play.run.terrain);
+        weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+        profiles[0].progress.level = POWER_LEVEL;
+        play.duals_out = guns_out;
+        set_guns(&play, POWER_LEVEL);
+        equip_weapon(&play);
+        play.flashlight = false;
+        play.flashlight_since = 10.0f;
+        play.run.zombie_count = 2;
+        for (int k = 0; k < 2; k++) {
+            zombie_spawn(&play.run.zombies[k], &ZOMBIE_RIOT, play.player.x + 300.0f + (float)k * 170.0f);
+            play.run.zombies[k].awake = false;
+        }
+        bool power[ACTION_COUNT] = {0};
+        for (int i = 0; i < 40; i++) {
+            power[ACTION_POWER] = i == 0;
+            input_update(&input, power);
+            stage_step(&play, &input, &profiles[0]);
+            if (i % 4 == 3) {
+                char shot_name[64];
+                draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+                snprintf(shot_name, sizeof(shot_name), "33_rebote_%d_%02d", guns_out, i);
+                save_capture(r, dir, shot_name);
+            }
+        }
+        profiles[0].progress = kept;
+    }
+    /* ...and taking the second out on the way: only her far hand and pistol over the legs. */
+    for (int f = 0; f < 4; f++) {
+        char swap_name[64];
+        play.player.swap_time = PLAYER_SWAP_TIME * (1.0f - (float)(3 + 2 * f) / (float)PLAYER_SWAP_FRAMES);
+        play.player.swap_back = false;
+        draw_stage(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f);
+        snprintf(swap_name, sizeof(swap_name), "32_cambio_caminando_%d", f);
+        save_capture(r, dir, swap_name);
+    }
+    play.player.swap_time = 0.0f;
 
     /* The cowgirl with it on, one gun and two: her blow, and the duals' turns. */
     start_stage(&play, 3, &CHARACTERS[0], &profiles[0].progress);

@@ -13,7 +13,7 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .shot_sound = "player/shot", .cycle_sound = "player/reload", .reload_sound = "player/reload",
         .empty_sound = "player/empty", .melee_sound = "player/melee",
         .smoke_puffs = SMOKE_PUFFS_PER_SHOT, .smoke_scale = 1.0f,
-        .melee_lit_sheet = "melee_lit",
+        .melee_lit_sheet = "melee_lit", .power_sheet = "ricochet", .power_lit_sheet = "ricochet_lit",
         .light_sheet = "light", .light_walk_sheet = "light_walk", .light_time = 2.0f, .light_rows = 27.0f,
     },
     [WEAPON_RIFLE] = {
@@ -52,7 +52,8 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .empty_sound = "weapons/dual_empty", .melee_sound = "weapons/dual_melee",
         .smoke_puffs = SMOKE_PUFFS_PER_SHOT, .smoke_scale = 1.0f,
         .shoot_sheet = "shoot_dual", .shoot_other_sheet = "shoot_dual_b",
-        .walk_sheet = "walk_dual", .jump_sheet = "jump_dual",
+        .walk_sheet = "walk_dual", .jump_sheet = "jump_dual", .stand_sheet = "stand_dual", .legs_sheet = "legs_dual",
+        .power_sheet = "ricochet_dual", .power_lit_sheet = "ricochet_dual_lit",
         .shoot_lit_sheet = "shoot_dual_lit", .shoot_other_lit_sheet = "shoot_dual_b_lit", .melee_sheet = "melee_dual",
         .melee_lit_sheet = "melee_dual_lit",
         .light_sheet = "light_dual", .light_walk_sheet = "light_walk_dual", .light_time = 2.6f, .light_rows = 27.0f,

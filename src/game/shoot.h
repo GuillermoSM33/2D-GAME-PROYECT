@@ -69,6 +69,8 @@ float shot_fps(const Shot *shot);
 
 /* Sheet frame to show, 0 .. PLAYER_SHOOT_FRAMES - 1. */
 int shot_frame(const Shot *shot);
+/* The same, on a two-gun sheet: 0 .. PLAYER_PISTON_FRAMES - 1. */
+int shot_piston_frame(const Shot *shot);
 
 /* R: a new magazine now, if the gun has one and it isn't full (one round
  * left is enough). A shot in progress is dropped. Returns whether it started. */

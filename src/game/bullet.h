@@ -24,6 +24,9 @@ typedef struct {
     int dir;    /* -1 left, +1 right */
     float flown;  /* Window px since it left the muzzle */
     const void *glanced; /* The body a ricochet glanced off (not hit twice), or NULL */
+    float bounce_y;      /* Glancing off: the height it left, and comes back to... */
+    float bounce_left;   /* ...and the seconds left of that arc */
+    bool burst;          /* It just glanced: an impact to show, once */
     BulletSpec spec;
     Animation anim;
 } Bullet;
@@ -31,6 +34,7 @@ typedef struct {
 /* Fixed pool: no allocation while playing. */
 typedef struct {
     Bullet items[BULLET_MAX];
+    int glances;  /* Ricochets since the last read (a sound for them) */
 } Bullets;
 
 void bullets_clear(Bullets *bullets);
@@ -47,8 +51,14 @@ bool bullets_spawn(Bullets *bullets, float from_x, float x, float y, int dir);
  * view_left (see camera_left). */
 void bullets_update(Bullets *bullets, float dt, float view_left);
 
+/* A ricochet bullet leaves this body for the next, on a light arc, with its damage times mult. */
+void bullet_glance(Bullets *bullets, Bullet *bullet, const void *body, float mult);
+
 int bullets_active_count(const Bullets *bullets);
 
 const AnimationDef *bullet_animation(void);
+
+/* Where a ricochet bullet hits: pivot on the ball. */
+const AnimationDef *bullet_impact_animation(void);
 
 #endif

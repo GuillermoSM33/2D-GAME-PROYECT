@@ -103,7 +103,8 @@ def make(walk: Image) -> Image:
 
 def main() -> int:
     for who in sys.argv[1:] or ('cowgirl', 'swat'):
-        walk = load(ROOT / f'assets/sprites/characters/{who}/walk.png')
+        folder = ROOT / f'assets/sprites/characters/{who}'
+        walk = load(folder / ('stand.png' if (folder / 'stand.png').exists() else 'walk.png'))
         img = make(walk)
         path = ROOT / f'assets/sprites/characters/{who}/faint.png'
         img.save(path)

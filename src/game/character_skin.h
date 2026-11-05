@@ -24,6 +24,14 @@ typedef struct {
     SDL_Texture *weapon_shoot[WEAPON_COUNT];
     SDL_Texture *weapon_walk[WEAPON_COUNT];        /* Its own walk with this gun (WeaponDef.walk_sheet)... */
     SDL_Texture *weapon_jump[WEAPON_COUNT];        /* ...and jump */
+    SDL_Texture *weapon_stand[WEAPON_COUNT];       /* ...and stood still (WeaponDef.stand_sheet) */
+    SDL_Texture *weapon_power[WEAPON_COUNT];       /* ...and its ricochet (WeaponDef.power_sheet), */
+    SDL_Texture *weapon_power_lit[WEAPON_COUNT];   /* ...with the flashlight on */
+    SDL_Texture *weapon_legs[WEAPON_COUNT];        /* ...and its walk with no arms (WeaponDef.legs_sheet) */
+    SDL_Texture *swap_far_sheet;                   /* Her far arm and pistol alone, over walking legs: swap... */
+    SDL_Texture *light_far_sheet;                  /* ...and the flashlight going on with both guns */
+    SDL_Texture *legs_sheet;                       /* Its walk with no arms, if it has one */
+    SDL_Texture *stand_sheet;                      /* Stood still, if it has its own: else the walk's first frame */
     SDL_Texture *weapon_shoot_other[WEAPON_COUNT]; /* Its other gun's turn (WeaponDef.shoot_other_sheet) */
     SDL_Texture *weapon_shoot_lit[WEAPON_COUNT];   /* Both, with the flashlight on (shoot_lit_sheet)... */
     SDL_Texture *weapon_shoot_other_lit[WEAPON_COUNT]; /* ...(shoot_other_lit_sheet) */
@@ -57,6 +65,10 @@ void skin_free(CharacterSkin *skin);
 /* This character's texture for one of the template's sheets
  * ("sprites/characters/cowgirl/walk" and so on, ".../reload" or ".../throw")
  * with gun (a WeaponId, or -1) in hand, or NULL. */
+/* Its sheet for standing still with this gun, or NULL (then the walk's first frame). */
+SDL_Texture *skin_stand(const CharacterSkin *skin, int gun);
+/* What to draw its walking legs from under another pose: no arms if it has that, else walk. */
+SDL_Texture *skin_legs(const CharacterSkin *skin, int gun, SDL_Texture *walk);
 SDL_Texture *skin_sheet(const CharacterSkin *skin, const char *template_sheet, int gun);
 
 /* The template's sheet file names, in skin order. */
