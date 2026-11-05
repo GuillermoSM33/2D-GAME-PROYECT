@@ -467,4 +467,26 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
                       play.player.health, play.player.max_health);
     stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
     save_capture(r, dir, "37_estrellas_y_recompensas");
+
+    /* An ambush just sprung: its arrows, at the edge the zombies come from. */
+    stage_start(&play, 0, &CHARACTERS[0], &profiles[0].progress);
+    for (int k = 0; k < play.run.zombie_count; k++) {
+        if (play.run.ambush_x[k] > 0.0f) {
+            play.player.x = play.run.ambush_x[k] + 1.0f;
+            break;
+        }
+    }
+    idle_steps(&play, &profiles[0], &input, 2, options);
+    stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+    save_capture(r, dir, "38_emboscada_flechas");
+
+    /* The last blow at a trap: her strike still plays, on the ropes. */
+    stage_start(&play, 1, &CHARACTERS[0], &profiles[0].progress);
+    player_catch(&play.player, CATCH_NET, play.player.x, BASELINE - 200.0f);
+    while (!player_struggle(&play.player)) {
+    }
+    for (int i = 0; i < 12; i++)
+        player_update(&play.player, &input, FIXED_DT);
+    stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+    save_capture(r, dir, "39_ultimo_golpe_trampa");
 }

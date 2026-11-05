@@ -37,6 +37,8 @@ typedef enum {
     ICON_CLOCK,
     ICON_MISSION_STAR,
     ICON_MISSION_STAR_EMPTY,
+    ICON_ARROW_LEFT,  /* An ambush coming, out of sight */
+    ICON_ARROW_RIGHT,
     ICON_COUNT
 } UiIcon;
 

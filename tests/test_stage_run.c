@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "game/hallucination.h"
+#include "game/camera.h"
 #include "game/stage_run.h"
 #include "test.h"
 
@@ -771,6 +772,40 @@ static void test_wire_bites_zombies_too(void)
     CHECK(in->health + in->armor < once);
 }
 
+/* The arrows: only a sprung ambush still out of sight, on the side it comes from. */
+static void test_ambush_arrows_point_to_it_until_it_is_in_sight(void)
+{
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 0, true);
+    int k = -1;
+    for (int i = 0; i < run.zombie_count && k < 0; i++)
+        k = run.ambush_x[i] > 0.0f ? i : -1;
+    CHECK(k >= 0);
+    for (int i = 0; i < k; i++) /* The groups before are beaten */
+        run.zombies[i].health = 0, run.zombies[i].state = ZOMBIE_DEAD;
+    bool left = true, right = true;
+    run_incoming(&run, 0.0f, 1e6f, &left, &right);
+    CHECK(!left && !right); /* Nothing sprung, nothing to point at */
+    player.x = run.ambush_x[k] + 1.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(!run.zombies[k].hidden);
+    float view = camera_left(player.x);
+    run_incoming(&run, view, view + VIEW_WIDTH, &left, &right);
+    CHECK(left); /* The first comes from behind, past the edge of the view */
+    CHECK(run.zombies[k].x < view);
+    for (int i = 0; i < run.zombie_count; i++)
+        if (run.ambush_x[i] > 0.0f && i != k)
+            run.zombies[i].hidden = true;
+    run_incoming(&run, run.zombies[k].x - 1.0f, view + VIEW_WIDTH, &left, &right);
+    CHECK(!left); /* In sight: the arrow goes */
+    run.zombies[k].x = view - 100.0f;
+    zombie_hit(&run.zombies[k], 1e6f);
+    run_incoming(&run, view, view + VIEW_WIDTH, &left, &right);
+    CHECK(!left); /* Dead: nothing coming */
+}
+
 static void test_ambush_walks_in(void)
 {
     /* 1-1's ambush at its first wall: unseen until she gets there, then it
@@ -965,7 +1000,17 @@ static void test_net_hangs_her_till_she_cuts_free(void)
     CHECK(player.x == x);
     for (int b = 1; b < NET_BLOWS; b++)
         CHECK(!player_struggle(&player));
-    CHECK(player_struggle(&player) && player.state != PLAYER_CAUGHT && player.jump.airborne);
+    CHECK(player_struggle(&player));
+    CHECK(player.state == PLAYER_CAUGHT && player.catch_kind != CATCH_NONE); /* Its swing plays first */
+    CHECK(!player_struggle(&player)); /* Another blow meanwhile counts for nothing */
+    const InputState none = {0};
+    for (float t = 0.0f; t < CATCH_SHAKE_TIME - 2 * FIXED_DT; t += FIXED_DT) {
+        player_update(&player, &none, FIXED_DT);
+        CHECK(player.state == PLAYER_CAUGHT);
+    }
+    for (int i = 0; i < 4; i++)
+        player_update(&player, &none, FIXED_DT);
+    CHECK(player.state != PLAYER_CAUGHT && player.catch_kind == CATCH_NONE && player.jump.airborne);
 }
 
 static void test_snare_hangs_a_zombie(void)
@@ -1542,6 +1587,7 @@ int main(void)
     RUN(test_barricade_kinds_hold_differently);
     RUN(test_net_hangs_her_till_she_cuts_free);
     RUN(test_snare_hangs_a_zombie);
+    RUN(test_ambush_arrows_point_to_it_until_it_is_in_sight);
     RUN(test_spikes_come_up);
     RUN(test_wet_dries_by_the_weather);
     RUN(test_sits_though_still_walking);

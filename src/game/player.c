@@ -275,18 +275,20 @@ bool player_catch(Player *player, CatchKind kind, float anchor_x, float anchor_y
 
 bool player_struggle(Player *player)
 {
-    if (player->state != PLAYER_CAUGHT || !player_alive(player))
+    if (player->state != PLAYER_CAUGHT || !player_alive(player) || player->catch_blows <= 0)
         return false;
     player->catch_shake = CATCH_SHAKE_TIME;
-    if (--player->catch_blows > 0)
-        return false;
-    /* Cut free: down she drops from where she hung. */
+    return --player->catch_blows == 0;
+}
+
+/* Cut free, once the last blow has played: down she drops from where she hung. */
+static void drop_from_trap(Player *player)
+{
     player->state = PLAYER_JUMP;
     player->jump.height = player->catch_kind == CATCH_NET ? NET_LIFT : SNARE_LIFT;
     jump_fall(&player->jump);
     player->catch_kind = CATCH_NONE;
     animation_play(&player->anim, &ANIM_IDLE);
-    return true;
 }
 
 int player_thirst_level(const Player *player)
@@ -635,6 +637,10 @@ void player_update(Player *player, const InputState *input, float dt)
     if (player->state == PLAYER_CAUGHT) {
         player->catch_time += dt;
         player->catch_shake = fmaxf(0.0f, player->catch_shake - dt);
+        if (player->catch_blows <= 0 && player->catch_shake <= 0.0f) {
+            drop_from_trap(player);
+            return;
+        }
         animation_update(&player->anim, dt * 0.7f);
         return;
     }

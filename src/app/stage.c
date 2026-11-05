@@ -612,9 +612,12 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     if (input->pressed[ACTION_VAULT])
         run_vault(&play->run, player);
     if (input->pressed[ACTION_MELEE] && play->run.phase == RUN_FIGHTING) {
-        if (player->state == PLAYER_CAUGHT) { /* At the ropes */
-            play_sound(stage_weapon(play)->melee_sound);
-            play_sound(player_struggle(player) ? "world/trap_escape" : "world/rope");
+        if (player->state == PLAYER_CAUGHT) { /* At the ropes, unless the last blow is under way */
+            if (player->catch_blows > 0) {
+                play_sound(stage_weapon(play)->melee_sound);
+                player_struggle(player);
+                play_sound("world/rope");
+            }
         } else {
             if (player_melee(player))
                 play_sound(stage_weapon(play)->melee_sound);
@@ -935,6 +938,8 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
      * player_update has already run. Check after all those events as well. */
     if (was_reloading && !shot_reloading(&player->shot))
         audio_stop(weapon->reload_sound);
+    if (previous_state == PLAYER_CAUGHT && player->state == PLAYER_JUMP)
+        play_sound("world/trap_escape"); /* The last blow has played: it gives way */
     if (player->state == PLAYER_CAUGHT && previous_state != PLAYER_CAUGHT) {
         audio_stop(weapon->reload_sound);
         audio_stop(weapon->cycle_sound);

@@ -703,6 +703,18 @@ static void spring_ambushes(StageRun *run, const Player *player)
     }
 }
 
+void run_incoming(const StageRun *run, float view_left, float view_right, bool *left, bool *right)
+{
+    *left = *right = false;
+    for (int k = 0; k < run->zombie_count; k++) {
+        const Zombie *z = &run->zombies[k];
+        if (run->ambush_x[k] <= 0.0f || z->hidden || !zombie_alive(z))
+            continue;
+        *left = *left || z->x < view_left;
+        *right = *right || z->x > view_right;
+    }
+}
+
 /* Zombies on the same side of her closer than this one: they queue up
  * instead of piling on one spot. */
 static int queue_rank(const StageRun *run, int k)

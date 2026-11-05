@@ -78,6 +78,9 @@ static const SDL_Rect HUD_REGIONS[] = {
 #define MISSION_GOALS_W 452
 #define MISSION_GOALS_H 174
 
+#define INCOMING_HEIGHT 150 /* View px above the road: about a zombie's chest */
+#define INCOMING_PULSE 0.2f  /* Radians per tick of its nudge toward the edge */
+
 #define POPUP_MAX 6
 #define POPUP_TIME 1.4f
 #define POPUP_RISE 40.0f /* px it climbs over its life */
@@ -655,8 +658,10 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
     if (run->phase != RUN_FIGHTING)
         return;
     if (player->state == PLAYER_CAUGHT) { /* First things first */
-        snprintf(str, sizeof(str), "GOLPEA LA CUERDA · %d RESTANTES", player->catch_blows);
-        draw_context(renderer, "V", str, COLOR_HUD_DANGER);
+        if (player->catch_blows > 0) {
+            snprintf(str, sizeof(str), "GOLPEA LA CUERDA · %d RESTANTES", player->catch_blows);
+            draw_context(renderer, "V", str, COLOR_HUD_DANGER);
+        }
         return;
     }
     int kind = terrain_sign_ahead(&run->terrain, player->x, player->facing, SIGN_WARN_RANGE);
@@ -684,6 +689,22 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
     } else if (run->defeated >= run->stage->zombies) {
         draw_context(renderer, NULL, "EL COFRE TE ESPERA EN LA SALIDA →", COLOR_HUD_TITLE);
     }
+}
+
+/* An ambush walking in from out of sight: which way to look, at the window's
+ * edge, at the height of what is coming. */
+static void draw_incoming(SDL_Renderer *renderer, const StageRun *run, float camera_x)
+{
+    bool left, right;
+    if (run->phase != RUN_FIGHTING)
+        return;
+    run_incoming(run, camera_x, camera_x + VIEW_WIDTH, &left, &right);
+    int size = UI_ICON_SIZE * 4, y = view_y(BASELINE - INCOMING_HEIGHT) - size / 2;
+    int nudge = (int)lroundf(5.0f * sinf((float)run->mission.ticks * INCOMING_PULSE));
+    if (left)
+        ui_icon(renderer, ICON_ARROW_LEFT, HUD_MARGIN + nudge, y, 4);
+    if (right)
+        ui_icon(renderer, ICON_ARROW_RIGHT, WINDOW_WIDTH - HUD_MARGIN - size - nudge, y, 4);
 }
 
 /* A message board in the middle: title, then key hints. */
@@ -806,6 +827,7 @@ void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *
     draw_power_panel(renderer, weapon);
     draw_states(renderer, player, run);
     draw_prompt(renderer, player, run);
+    draw_incoming(renderer, run, camera_x);
     draw_mission_goals(renderer, run);
 
     if (run->phase == RUN_FAILED) {
@@ -1025,7 +1047,8 @@ void hud_draw_controls(SDL_Renderer *renderer)
         {{"U", NULL}, "VENDAR / BEBER", "MANTÉN: VENDAR · PULSA: BEBER"},
         {{"L", NULL}, "LINTERNA", NULL},
         {{"B", NULL}, "ALMANAQUE", NULL},
-        {{"ESC", NULL}, "PAUSA", "OPCIONES: VOLUMEN Y MÚSICA"},
+        {{"ESC", NULL}, "PAUSA", NULL},
+        {{"A", "D"}, "VOLUMEN Y MÚSICA", "EN OPCIONES: BAJAR / SUBIR"},
     };
     enum { LEFT_ROWS = 8, PITCH = 48, KEYS_W = 186 };
     int count = (int)(sizeof(rows) / sizeof(rows[0]));

@@ -174,4 +174,8 @@ int run_crate_gold(const StageRun *run);
 /* Zombies still to beat in the group holding her, or 0. */
 int run_fight_left(const StageRun *run);
 
+/* Whether a sprung ambush is still walking in from beyond the part of the road
+ * between view_left and view_right, on either side. */
+void run_incoming(const StageRun *run, float view_left, float view_right, bool *left, bool *right);
+
 #endif

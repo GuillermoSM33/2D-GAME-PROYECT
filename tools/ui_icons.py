@@ -3,7 +3,7 @@
 
 Everything under sprites/ui and sprites/weapons takes its colors from the
 materials below. tools/make_ui.py writes the icons (24 x 24, UiIcon order) to
-sprites/ui/icons_hd.png and the guns to sprites/ui/weapons*.png. Each is built
+sprites/ui/icons_hd.png and the guns to sprites/ui/weapons_hd.png. Each is built
 from Art layers, so the rules hold by construction: each shape gets a closed
 ink outline, the light comes from the top left, and its volume uses a five-tone
 ramp. Only details (rivets, stitches, glints) are placed by hand.
@@ -41,8 +41,7 @@ UNLIT = ramp(0x9c8c76, 0x7e705e, 0x64584a, 0x4e443a, 0x3a322c)
 FEATHER = ramp(0x7a7a9c, 0x5a5a7a, 0x40405c, 0x2c2c44, 0x1e1e30)
 GUNMETAL = ramp(0xb4bac4, 0x868c98, 0x5c606c, 0x40434c, 0x2a2c32)
 OLIVE = ramp(0xc8d48a, 0xa0ac62, 0x7a8644, 0x565e30, 0x34381e)
-PLASMA = ramp(0xc8fff0, 0x80ffd8, 0x3aa08a, 0x1e5a50, 0x143c36)
-GLOW = ramp(0xffffff, 0xd8fff4, 0x80ffd8, 0x3ad0b0, 0x1e8a78)
+BLACK = ramp(0x7c808a, 0x565962, 0x3a3c44, 0x28292f, 0x1a1b1f)
 
 
 def hex_of(color: tuple) -> int:
@@ -405,9 +404,21 @@ def clock(a: Art) -> None:
     a.flat({(7, 8), (6, 9), (5, 10)}, BRASS[0])
 
 
+def arrow_left(a: Art) -> None:
+    a.fill(poly([(1, 12), (11.5, 2), (11.5, 8), (23, 8), (23, 16), (11.5, 16), (11.5, 22)]), RED)
+    a.flat({(10, 5), (9, 6), (8, 7), (7, 8), (6, 9), (5, 10)} | rect(12, 9, 21, 9), RED[0])
+    a.flat(rect(12, 15, 22, 15) | {(9, 18), (8, 17), (7, 16)}, RED[4])
+
+
+def arrow_right(a: Art) -> None:
+    a.fill(poly([(23, 12), (12.5, 2), (12.5, 8), (1, 8), (1, 16), (12.5, 16), (12.5, 22)]), RED)
+    a.flat({(14, 5), (15, 6), (16, 7), (17, 8)} | rect(2, 9, 12, 9), RED[0])
+    a.flat(rect(2, 15, 12, 15) | {(14, 18), (15, 17), (16, 16), (17, 15), (18, 14)}, RED[4])
+
+
 ICONS = [heart, bullet, skull, flag, dynamite, speaker, star, lock, check, shell, blood, slow, gold,
          wind, current, heat, omen, cold, wet, cozy, water, fresh, save, clock, mission_star,
-         mission_star_empty]
+         mission_star_empty, arrow_left, arrow_right]
 
 
 def draw_all() -> list:
@@ -421,81 +432,106 @@ def draw_all() -> list:
     return drawn
 
 
-# ---- The guns, on a 72 x 28 grid, the muzzle to the right ----------------
+# ---- The guns, 72 x 28: each traced over its sprite in play ---------------
+#
+# In coordinates of that sprite: _Trace places them on the bigger grid, part by
+# part, so the shape stays the game's. Her hand cannon is pistol.png (17 x 11);
+# the SWAT's guns are tools/make_swat.py's templates, with the flashlight fixed
+# under both barrels and the rifle's bayonet.
 
 GUN_W, GUN_H = 72, 28
 
 
-def _cannon(a: Art, ox: float = 0, oy: float = 0, s: float = 1.0) -> None:
-    """The hand cannon: wooden grip, iron frame and cylinder, brass fittings."""
-    at = lambda x, y: (ox + x * s, oy + y * s)
-    box = lambda x0, y0, x1, y1: poly([at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)])
-    a.fill(poly([at(14, 14), at(27, 14), at(22, 26), at(7, 26)]), WOOD)
-    a.fill(poly([at(6, 24), at(22, 24), at(21, 27), at(5, 27)]), BRASS)
-    a.fill(stroke([at(25, 17), at(26, 21), at(32, 21), at(33, 17)], 1.8 * s), BRASS)
-    a.fill(poly([at(12, 2), at(20, 6), at(18, 9)]), IRON)
-    a.fill(box(36, 12, 58, 15), WOOD)
-    a.fill(box(32, 6, 66, 12), IRON)
-    a.fill(box(64, 4.5, 68, 13), BRASS)
-    a.fill(box(16, 6, 26, 17), IRON)
-    a.fill(box(25, 4, 36, 17), IRON)
-    a.flat(box(28, 6, 29, 15) | box(32, 6, 33, 15), IRON[4])
-    a.fill(box(38, 3.5, 42, 6), BRASS)
-    a.flat(box(11, 18, 20, 19) | box(10, 21, 18, 22), WOOD[4])
+class _Trace:
+    def __init__(self, art: Art, scale: float, ox: float = 0.0, oy: float = 0.0) -> None:
+        self.art, self.scale, self.ox, self.oy = art, scale, ox, oy
+
+    def at(self, x: float, y: float) -> tuple:
+        return self.ox + x * self.scale, self.oy + y * self.scale
+
+    def box(self, x0: float, y0: float, x1: float, y1: float) -> set:
+        return poly([self.at(x0, y0), self.at(x1, y0), self.at(x1, y1), self.at(x0, y1)])
+
+    def shape(self, *points: tuple) -> set:
+        return poly([self.at(x, y) for x, y in points])
+
+
+def _cannon(trace: _Trace) -> None:
+    """Her hand cannon: thin wooden grip, grey frame, wood along the barrel over
+    a brass band, the rod under it and the flared brass muzzle."""
+    a, box, shape = trace.art, trace.box, trace.shape
+    a.fill(shape((3.4, 6.8), (5.6, 7), (2.4, 10.8), (0, 10.8)), WOOD)
+    a.flat(shape((3.6, 7.6), (4.4, 7.6), (1.8, 10.2), (1, 10.2)), WOOD[3])
+    a.fill(shape((0, 9.6), (2.4, 9.6), (2.2, 11), (.2, 11)), BRASS)
+    a.fill(box(7, 6, 13, 7), GUNMETAL)
+    a.fill(box(13, 6, 14, 7), BRASS)
+    a.fill(box(6.6, 6, 7.8, 8), BRASS)
+    a.fill(box(3, 1, 6, 4), GUNMETAL)
+    a.fill(box(3, 4, 6, 7), IRON)
+    a.flat(box(3.8, 4.8, 4.2, 6.2), IRON[3])
+    a.flat(box(5, 4.8, 5.4, 6.2), IRON[3])
+    a.fill(box(6, 4, 9, 6), GUNMETAL)
+    a.fill(box(6, 1, 13.4, 2), IRON)
+    a.fill(box(6.6, 2, 13.4, 4), WOOD)
+    a.flat(box(9, 2.1, 13.2, 2.8), WOOD[4])
+    a.fill(box(7.8, 3, 9, 4), BRASS, outline=False)
+    a.fill(box(9, 4, 14, 5), BRASS)
+    a.fill(box(13.4, 1, 15, 5), GUNMETAL)
+    a.fill(box(15, 0.6, 16, 5.4), BRASS)
+    a.fill(box(16, 1.4, 17, 4.6), GUNMETAL)
+    a.fill(box(14.8, 0, 15.8, 1), GUNMETAL)
 
 
 def gun_cannon(a: Art) -> None:
-    _cannon(a, 1, 0)
+    _cannon(_Trace(a, 2.5, 2, .4))
+
+
+def _mounted_light(trace: _Trace) -> None:
+    """The flashlight fixed under the barrel: its switch, and its glass."""
+    a, box = trace.art, trace.box
+    a.fill(box(22, 5, 27, 7), BLACK)
+    a.flat(box(24, 6, 25, 6.6), RED[1])
+    a.fill(box(26, 5, 27, 7), ICE, outline=False)
 
 
 def gun_rifle(a: Art) -> None:
-    a.fill(poly([(2, 7), (8, 7), (16, 11), (16, 18), (8, 18), (2, 21)]), GUNMETAL)
-    a.fill(poly([(24, 16), (31, 16), (33, 27), (26, 27)]), GUNMETAL)
-    a.fill(poly([(16, 15), (22, 15), (20, 24), (14, 24)]), GUNMETAL)
-    a.fill(rect(44, 15, 49, 21), GUNMETAL)
-    a.fill(rect(36, 8, 58, 15), GUNMETAL)
-    a.fill(rect(15, 7, 38, 16), GUNMETAL)
-    a.fill(rect(57, 10, 69, 12), IRON)
-    a.fill(rect(66, 8, 70, 14), GUNMETAL)
-    a.fill(rect(20, 2, 34, 5), GUNMETAL)
-    a.fill(ellipse(34.5, 3.5, 2, 2.8), WATER)
-    a.fill(rect(25, 5, 28, 7), GUNMETAL)
-    a.flat(rect(40, 10, 41, 13) | rect(44, 10, 45, 13) | rect(48, 10, 49, 13) | rect(52, 10, 53, 13), GUNMETAL[4])
-    a.flat(rect(19, 9, 31, 10), GUNMETAL[0])
-    a.flat(rect(26, 19, 31, 19) | rect(27, 22, 31, 22), GUNMETAL[4])
+    trace = _Trace(a, 1.92, .7, 3)
+    box, shape = trace.box, trace.shape
+    a.fill(box(0, 2, 5, 4), GUNMETAL)                                   # Folded stock
+    a.fill(box(0, 4, 2, 6), GUNMETAL)
+    a.fill(shape((7, 6), (9, 6), (8.6, 9), (6, 9)), BLACK)              # Grip
+    a.fill(shape((11, 6), (14, 6), (15, 10), (12, 10)), GUNMETAL)       # Magazine
+    a.flat(box(12, 7.6, 14, 8.1), GUNMETAL[4])
+    a.fill(box(5, 1, 17, 6), GUNMETAL)                                  # Receiver
+    a.flat(box(6.5, 2, 11, 2.6), GUNMETAL[0])
+    a.flat(box(13, 3, 16, 3.5), GUNMETAL[4])
+    a.fill(box(8, -1, 14, 1), BLACK)                                    # Optic
+    a.fill(box(12.4, -.6, 14, .6), WATER, outline=False)
+    a.fill(box(17, 2, 24, 5), GUNMETAL)                                 # Handguard
+    a.flat(box(18.4, 3, 18.9, 4.2) | box(20, 3, 20.5, 4.2) | box(21.6, 3, 22.1, 4.2), GUNMETAL[4])
+    a.fill(box(24, 3, 29, 4), IRON)                                     # Barrel
+    a.fill(box(26, 2, 28, 5), GUNMETAL)                                 # Muzzle brake
+    _mounted_light(trace)
+    a.fill(shape((29, 3.8), (34, 3.8), (36.4, 4.6), (33.6, 6), (30, 6), (30, 5), (29, 5)), IRON)  # Bayonet
+    a.flat(box(30.4, 4.1, 34, 4.5), IRON[0])
+    a.fill(box(28, 3.6, 29.6, 5.6), BLACK)
 
 
 def gun_shotgun(a: Art) -> None:
-    a.fill(poly([(1, 8), (8, 8), (19, 11), (19, 18), (10, 18), (1, 23)]), WOOD)
-    a.fill(poly([(20, 15), (26, 15), (24, 24), (18, 24)]), WOOD)
-    a.fill(stroke([(26, 17), (27, 21), (33, 21), (34, 17)], 1.8), IRON)
-    a.fill(rect(36, 13, 66, 16), GUNMETAL)
-    a.fill(rect(34, 8, 70, 12), GUNMETAL)
-    a.fill(rect(18, 8, 36, 17), GUNMETAL)
-    a.fill(rect(68, 6, 70, 8), IRON)
-    a.fill(rect(44, 12, 58, 18), WOOD)
-    a.flat(rect(46, 13, 46, 17) | rect(49, 13, 49, 17) | rect(52, 13, 52, 17) | rect(55, 13, 55, 17), WOOD[4])
-    a.fill(rect(22, 10, 29, 13), RED)
-    a.flat(rect(23, 10, 26, 10), RED[0])
-    a.flat(rect(4, 13, 13, 13) | rect(3, 17, 11, 17), WOOD[4])
-
-
-def gun_plasma(a: Art) -> None:
-    a.fill(poly([(5, 14), (20, 14), (16, 26), (3, 26)]), GUNMETAL)
-    a.fill(rect(10, 5, 28, 17), PLASMA)
-    a.fill(rect(24, 8, 62, 14), GUNMETAL)
-    a.fill(rect(28, 9, 60, 13), GLOW, outline=False)
-    for x in (30, 38, 46, 54):
-        a.fill(rect(x, 6, x + 3, 16), PLASMA)
-    a.fill(poly([(60, 5), (70, 2), (70, 20), (60, 17)]), PLASMA)
-    a.fill(rect(66, 7, 70, 15), GLOW, outline=False)
-    a.fill(ellipse(16, 10, 3.6, 3.6), GLOW)
-    a.flat(rect(7, 18, 15, 19) | rect(6, 21, 14, 22), GUNMETAL[4])
-
-
-def gun_dual(a: Art) -> None:
-    _cannon(a, 26, 0, .62)
-    _cannon(a, 1, 10, .62)
+    trace = _Trace(a, 2.05, 8.6, 1)
+    box, shape = trace.box, trace.shape
+    a.fill(shape((-4, 3), (-3, 2), (2, 2), (5, 3), (5, 6), (1, 7), (-4, 7)), BLACK)  # Full stock
+    a.flat(box(-3, 3.6, 2, 4.1), BLACK[0])
+    a.fill(shape((5, 6), (7, 6), (6.4, 9), (4, 9)), BLACK)              # Grip
+    a.fill(box(5, 2, 13, 6), GUNMETAL)                                  # Receiver
+    a.flat(box(6.5, 3, 10, 3.5), GUNMETAL[0])
+    a.fill(box(13, 4, 25, 5), BLACK)                                    # Magazine tube
+    a.fill(box(13, 2, 29, 4), GUNMETAL)                                 # Barrel
+    a.flat(box(15, 2.4, 19, 2.9), GUNMETAL[0])
+    a.fill(box(27, 1, 28, 2), IRON)                                     # Bead sight
+    _mounted_light(trace)
+    a.fill(box(15, 4, 22, 6), BLACK)                                    # Ribbed pump
+    a.flat(box(16, 4.4, 16.4, 5.6) | box(18, 4.4, 18.4, 5.6) | box(20, 4.4, 20.4, 5.6), BLACK[0])
 
 
 def gun_grenade(a: Art) -> None:
@@ -506,19 +542,39 @@ def gun_grenade(a: Art) -> None:
     a.flat({p for p in ellipse(36, 17, 9.6, 9.6) if (p[0] - 30) % 5 == 0 or (p[1] - 10) % 5 == 0}, OLIVE[4])
 
 
-GUNS = [gun_cannon, gun_rifle, gun_shotgun, gun_plasma, gun_dual, gun_grenade]
+def tinted(pixels: dict, tint: int) -> dict:
+    """The recolor of a stand-in character (character_skin.c): every color a
+    shade of the tint by its brightness."""
+    out = {}
+    for xy, c in pixels.items():
+        shade = (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 150.0
+        out[xy] = tuple(min(255, round(((tint >> (8 * k)) & 0xFF) * shade)) for k in (2, 1, 0)) + (c[3],)
+    return out
 
 
-def draw_guns(scale: float = 1.0) -> list:
+def paired(pixels: dict, dx: int, dy: int) -> dict:
+    """Her duals as her shoot_dual sheet has them: a second gun up and behind,
+    darker, and the near one over it."""
+    out = {xy: tuple(round(v * .72) for v in c[:3]) + (c[3],) for xy, c in pixels.items()}
+    out.update({(x + dx, y + dy): c for (x, y), c in pixels.items()})
+    return out
+
+
+HERO_TINT = 0x70c8b0  # The Hero's stand-in tint (src/game/characters.c): his gun in play
+
+
+def draw_guns() -> list:
     """One {(x, y): color} per gun, in WeaponId order and then the grenade."""
-    drawn = []
-    for draw in GUNS:
-        canvas(round(GUN_W * scale), round(GUN_H * scale), scale)
+    canvas(GUN_W, GUN_H)
+    def drawn(draw, *args) -> dict:
         art = Art()
-        draw(art)
-        drawn.append(art.finish())
+        draw(art, *args)
+        return art.finish()
+    near = drawn(lambda a: _cannon(_Trace(a, 2.1, 0, 0)))
+    guns = [drawn(gun_cannon), drawn(gun_rifle), drawn(gun_shotgun), tinted(drawn(gun_cannon), HERO_TINT),
+            paired(near, 8, 5), drawn(gun_grenade)]
     canvas(SIZE, SIZE)
-    return drawn
+    return guns
 
 
 def grenade_frames() -> list:

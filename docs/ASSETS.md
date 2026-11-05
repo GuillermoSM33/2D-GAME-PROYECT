@@ -123,8 +123,10 @@ carpetas toma sus colores de ahí, no de una paleta propia.
 `ui_icon` las usa desde la escala 2 (se ven nítidas en 2, 4 y 6). `sprites/ui/icons.png` son los
 mismos iconos en 12 × 12 para los huecos sin espacio (escala 1); `make_icons` de `tools/make_ui.py`
 rechaza uno descentrado o con el contorno abierto. Ambas usan el orden de `UiIcon` en
-`src/game/ui.h`. Las armas del HUD van igual: `weapons_hd.png` en 72 × 28 y `weapons.png`, el mismo
-dibujo, en 36 × 14. Son una ilustración de cada arma, independiente de las hojas de los personajes.
+`src/game/ui.h`. Las armas del HUD son **las del juego**: `weapons.png` (36 × 14) son los propios sprites
+(`cowgirl/weapons/pistol.png` y las plantillas de `tools/make_swat.py`, con la linterna y la
+bayoneta), y `weapons_hd.png` (72 × 28) los traza con detalle en `tools/ui_icons.py`, pieza por
+pieza y en las coordenadas de esos sprites. Si un arma cambia en el juego, cambia en los dos.
 
 `./build.sh` corre `--verify`, que falla si falta algo de lo que el código usa o si una
 imagen no tiene su tamaño exacto: las hojas de animación (por su `AnimationDef`), las placas

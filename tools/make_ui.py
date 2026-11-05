@@ -19,11 +19,13 @@ Writes, under sprites/ui/:
                tools/ui_icons.py. What ui_icon draws from scale 2 up
   icons.png    The same icons at 12 x 12, for the few places with no room for
                more, under the same rules: see ICONS and check_icon
-  weapons_hd.png  The guns, 72 x 28, in WeaponId order and then the grenade:
-               tools/ui_icons.py. What ui_weapon draws from scale 2 up
-  weapons.png  The same design at 36 x 14, for the compact shortcuts
+  weapons_hd.png  The guns traced over their sprites in play, 72 x 28, in WeaponId
+               order and then the grenade: tools/ui_icons.py. What ui_weapon draws
+               from scale 2 up
+  weapons.png  The sprites themselves, 36 x 14: pistol.png and the SWAT's templates
+               in tools/make_swat.py, for the compact shortcuts
 
-Everything takes its colors from the materials in tools/ui_icons.py.
+Everything else takes its colors from the materials in tools/ui_icons.py.
 
 Deterministic; uses only the standard library.
 """
@@ -34,6 +36,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ui_icons as KIT  # noqa: E402
+from embed_assets import decode_png_rgba  # noqa: E402
+from make_swat import INK as SWAT_INK, METAL as SWAT_METAL  # noqa: E402
+from make_swat import rifle as swat_rifle, shotgun as swat_shotgun  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
 from ui_icons import SIZE as ICON_HD_SIZE, draw_all as draw_icons_hd  # noqa: E402
 
@@ -614,6 +619,32 @@ ICONS = [
         '..kk....kk..',
         '............',
         '............'], materials(UNLIT_ICON)),
+    ('arrow_left', [  # An ambush coming, out of sight
+        '............',
+        '.....kk.....',
+        '....kHk.....',
+        '...kHMkkkkk.',
+        '..kHMMMMMMk.',
+        '.kHMMMMMMSk.',
+        '..kMMMMMSSk.',
+        '...kMSkkkkk.',
+        '....kSk.....',
+        '.....kk.....',
+        '............',
+        '............'], materials(RED_ICON)),
+    ('arrow_right', [
+        '............',
+        '.....kk.....',
+        '.....kMk....',
+        '.kkkkkHMk...',
+        '.kHHHHMMMk..',
+        '.kHMMMMMMSk.',
+        '.kMMMMMMSk..',
+        '.kkkkkMSk...',
+        '.....kSk....',
+        '.....kk.....',
+        '............',
+        '............'], materials(RED_ICON)),
 ]
 
 
@@ -650,18 +681,62 @@ def make_icons_hd() -> Image:
     return img
 
 
-def make_guns(scale: float) -> Image:
-    """The guns (tools/ui_icons.py), centered in their frames, in WeaponId order
-    and then the grenade (UI_GRENADE)."""
-    w, h = round(KIT.GUN_W * scale), round(KIT.GUN_H * scale)
-    guns = KIT.draw_guns(scale)
+def pistol_pixels() -> dict:
+    """Her hand cannon exactly as in play (one drawing for both hands)."""
+    w, h, px = decode_png_rgba(ROOT / 'assets/sprites/characters/cowgirl/weapons/pistol.png')
+    return {(x, y): tuple(px[(y * w + x) * 4:(y * w + x) * 4 + 4])
+            for y in range(h) for x in range(w) if px[(y * w + x) * 4 + 3]}
+
+
+def swat_pixels(gun: dict) -> dict:
+    """A SWAT gun template (tools/make_swat.py) in its metal colors, outlined
+    like on his shoot sheets: flashlight, and on the rifle the bayonet, included."""
+    xs, ys = [x for x, _ in gun], [y for _, y in gun]
+    inked = {(x - min(xs) + 1, y - min(ys) + 1): SWAT_METAL[key] for (x, y), key in gun.items()}
+    out = dict(inked)
+    for x, y in inked:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (x + dx, y + dy) not in inked:
+                out[(x + dx, y + dy)] = SWAT_INK
+    return out
+
+
+def grenade_pixels() -> dict:
+    """The SWAT's hand grenade (weapons/grenade.png frame 0), twice as big."""
+    w, h, px = decode_png_rgba(ROOT / 'assets/sprites/weapons/grenade.png')
+    out = {}
+    for y in range(8):
+        for x in range(8):
+            i = (y * w + x) * 4
+            if px[i + 3]:
+                for dx in range(2):
+                    for dy in range(2):
+                        out[(2 * x + dx, 2 * y + dy)] = tuple(px[i:i + 4])
+    return out
+
+
+def gun_sheet(guns: list, w: int, h: int) -> Image:
+    """Centered in w x h frames."""
     img = Image(w * len(guns), h)
     for f, pixels in enumerate(guns):
         xs, ys = [x for x, _ in pixels], [y for _, y in pixels]
         ox, oy = (w - 1 - max(xs) - min(xs)) // 2, (h - 1 - max(ys) - min(ys)) // 2
         for (x, y), c in pixels.items():
-            img.set(f * w + x + ox, y + oy, c)
+            if 0 <= x + ox < w and 0 <= y + oy < h:  # The rifle's outline is wider than its frame
+                img.set(f * w + x + ox, y + oy, c)
     return img
+
+
+def make_weapons() -> Image:
+    """The guns as sprites in play, in WeaponId order and then the grenade.
+    Run tools/make_powers.py first."""
+    pistol = pistol_pixels()
+    return gun_sheet([pistol, swat_pixels(swat_rifle()[0]), swat_pixels(swat_shotgun()[0]),
+                      KIT.tinted(pistol, KIT.HERO_TINT), KIT.paired(pistol, 3, 3), grenade_pixels()], 36, 14)
+
+
+def make_weapons_hd() -> Image:
+    return gun_sheet(KIT.draw_guns(), KIT.GUN_W, KIT.GUN_H)
 
 
 def main() -> int:
@@ -669,7 +744,7 @@ def main() -> int:
     out = {
         'font': make_font(), 'panel': make_panel(), 'button': make_button(), 'key': make_key(),
         'pip': make_pip(), 'bar': make_bar(), 'icons': make_icons(), 'icons_hd': make_icons_hd(),
-        'weapons': make_guns(.5), 'weapons_hd': make_guns(1.0),
+        'weapons': make_weapons(), 'weapons_hd': make_weapons_hd(),
     }
     for name, img in out.items():
         path = assets / 'sprites' / 'ui' / f'{name}.png'
