@@ -35,6 +35,14 @@ void audio_stop_all(void);
  * may still play while the current stage's channels are paused. */
 void audio_pause(bool paused);
 
+/* One looping background track at a time, from the embedded "music/..." files:
+ * "music/ruta_1_1" is assets/music/ruta_1_1.ogg. Pass a string that lasts, such
+ * as a literal. Asking for the track already playing leaves it undisturbed. It carries on under a pause, so its volume can
+ * be set there by ear. audio_stop_all leaves it alone: only this stops it. */
+void audio_music_play(const char *name);
+void audio_music_stop(int fade_ms);
+void audio_set_music(float volume);
+
 /* Volumes, 0 (silent) to 1 (as recorded): one for everything, and one per
  * group on top of it. They also update effects and loops already playing. */
 void audio_set_master(float volume);

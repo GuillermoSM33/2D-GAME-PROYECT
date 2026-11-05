@@ -51,13 +51,14 @@ static int view_y(float y)
 #define CHIP_Y (HUD_TOP + TOP_H + 4)
 #define CHIP_H 28
 #define HUD_KEY_SIZE 28 /* ui_key_compact with a one-letter label */
+#define SUPPLY_ICON_W 27 /* A supply's icon at scale two and the gap after it */
 #define SWAP_W 84
 #define POWER_W 232
 
 /* Third row: her conditions from the left, the save status on the right. */
 #define STATE_Y (CHIP_Y + CHIP_H + 4)
-#define STATE_H 24
-#define STATE_GAP 4
+#define STATE_H 28
+#define STATE_GAP 3
 #define STATES_W (VITALS_W + HUD_GAP + MISSION_W)
 #define STATE_TIP_W 600
 #define STATE_TIP_H 62
@@ -371,18 +372,18 @@ static void draw_supplies(SDL_Renderer *renderer, const Player *player, const Pr
     do {
         width = 0;
         for (int i = 0; i < count; i++)
-            width += 16 + ui_text_width(values[i], scale) + (i ? 14 : 0);
-        if (width <= VITALS_W - 20 || scale == 1)
+            width += SUPPLY_ICON_W + ui_text_width(values[i], scale) + (i ? 12 : 0);
+        if (width <= VITALS_W - 12 || scale == 1)
             break;
         scale--;
     } while (true);
-    hud_plate(renderer, VITALS_X, CHIP_Y, width + 20, CHIP_H);
-    int x = VITALS_X + 10;
+    hud_plate(renderer, VITALS_X, CHIP_Y, width + 12, CHIP_H);
+    int x = VITALS_X + 6;
     for (int i = 0; i < count; i++) {
-        ui_icon(renderer, icons[i], x, CHIP_Y + (CHIP_H - UI_ICON_SIZE) / 2, 1);
-        x += 16;
+        ui_icon(renderer, icons[i], x, CHIP_Y + (CHIP_H - UI_ICON_SIZE * 2) / 2, 2);
+        x += SUPPLY_ICON_W;
         x += ui_text(renderer, values[i], x, hud_centered_y(CHIP_Y, CHIP_H, scale), scale,
-                     i == 0 ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW) + 14;
+                     i == 0 ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW) + 12;
     }
 }
 
@@ -448,7 +449,7 @@ static void draw_vitals(SDL_Renderer *renderer, const Player *player, const Prog
     int scale = hud_text_scale(str, w - 8, 2), text_y = hud_centered_y(bar_y, bar_h, scale);
     ui_text(renderer, str, x + w / 2 + 1, text_y + 1, scale, 0x140e0c, ANCHOR_N); /* Legible on any fill */
     ui_text(renderer, str, x + w / 2, text_y, scale, COLOR_HUD_TITLE, ANCHOR_N);
-    ui_icon(renderer, ICON_STAR, x0 + 52, y0 + 38, 1);
+    ui_icon(renderer, ICON_STAR, x0 + 46, y0 + 33, 2);
     int need = xp_to_next(progress->level);
     hud_meter(renderer, x, y0 + 39, XP_BAR_W, 10, need > 0 ? (float)progress->xp / (float)need : 1.0f,
               COLOR_HUD_XP, 0xb0e090);
@@ -523,22 +524,22 @@ static void draw_states(SDL_Renderer *renderer, const Player *player, const Stag
             snprintf(times[i], sizeof(times[i]), "99+");
         else if (states[i].time > 0.0f)
             snprintf(times[i], sizeof(times[i]), "%d", (int)ceilf(states[i].time));
-        total += STATE_H + STATE_GAP + (times[i][0] ? ui_text_width(times[i], 2) + 2 : 0);
+        total += STATE_H + STATE_GAP + (times[i][0] ? ui_text_width(times[i], 2) + 4 : 0);
     }
     bool compact = total > STATES_W;
     int x = VITALS_X, open = -1, open_x = 0;
     for (int i = 0; i < count; i++) {
         if (!states[i].on)
             continue;
-        int w = STATE_H + (!compact && times[i][0] ? ui_text_width(times[i], 2) + 2 : 0);
+        int w = STATE_H + (!compact && times[i][0] ? ui_text_width(times[i], 2) + 4 : 0);
         bool hover = pointer_x >= x && pointer_x < x + w && pointer_y >= STATE_Y && pointer_y < STATE_Y + STATE_H;
         hud_plate(renderer, x, STATE_Y, w, STATE_H);
-        ui_icon(renderer, states[i].icon, x + 6, STATE_Y + 5, 1);
+        ui_icon(renderer, states[i].icon, x + 2, STATE_Y + 1, 2);
         if (!compact && times[i][0])
-            ui_text(renderer, times[i], x + 22, hud_centered_y(STATE_Y, STATE_H - 2, 2), 2,
+            ui_text(renderer, times[i], x + STATE_H, hud_centered_y(STATE_Y, STATE_H - 3, 2), 2,
                     COLOR_HUD_PRIMARY, ANCHOR_NW);
         unsigned rgb = states[i].good ? COLOR_HUD_XP : COLOR_HUD_DANGER;
-        SDL_Rect mark = {x + 4, STATE_Y + STATE_H - 4, w - 8, 2};
+        SDL_Rect mark = {x + 3, STATE_Y + STATE_H - 3, w - 6, 2};
         SDL_SetRenderDrawColor(renderer, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb, 255);
         SDL_RenderFillRect(renderer, &mark);
         if (hover) {
@@ -594,14 +595,14 @@ static void draw_weapon_panel(SDL_Renderer *renderer, const HudWeapon *weapon)
     hud_well(renderer, x0 + 8, y0 + 10, UI_WEAPON_W * 2 + 8, UI_WEAPON_H * 2 + 12);
     ui_weapon(renderer, weapon->id, x0 + 12, y0 + 16, 2);
     hud_text_fit(renderer, weapon->name, x, y0 + 5, w, 2, COLOR_HUD_TITLE, ANCHOR_NW);
-    ui_icon(renderer, weapon->id == WEAPON_SHOTGUN ? ICON_SHELL : ICON_BULLET, x, y0 + 35, 1);
+    ui_icon(renderer, weapon->id == WEAPON_SHOTGUN ? ICON_SHELL : ICON_BULLET, x, y0 + 30, 2);
     bool reload_label = weapon_readout(weapon, str, sizeof(str));
-    int scale = hud_text_scale(str, w - 18, 2);
-    int used = ui_text(renderer, str, x + 18, y0 + 30, scale,
+    int scale = hud_text_scale(str, w - 26, 2);
+    int used = ui_text(renderer, str, x + 26, y0 + 30, scale,
                        weapon->reloading || (weapon->magazine > 0 && weapon->rounds == 0)
                            ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NW);
-    if (reload_label && 18 + used + 10 + ui_text_width("RECARGANDO", 2) <= w)
-        ui_text(renderer, "RECARGANDO", x + 18 + used + 10, y0 + 30, 2, COLOR_HUD_DANGER, ANCHOR_NW);
+    if (reload_label && 26 + used + 10 + ui_text_width("RECARGANDO", 2) <= w)
+        ui_text(renderer, "RECARGANDO", x + 26 + used + 10, y0 + 30, 2, COLOR_HUD_DANGER, ANCHOR_NW);
     if (weapon->can_swap) {
         hud_plate(renderer, x0, CHIP_Y, SWAP_W, CHIP_H);
         ui_key_compact(renderer, x0, CHIP_Y, "Q");
@@ -733,9 +734,9 @@ static void draw_mission_goals(SDL_Renderer *renderer, const StageRun *run)
         draw_stars(renderer, stars, left + 20, row, 2, 4);
         char limit[24], text[24];
         mission_format_time(goals.seconds[stars - 1] * SIMULATION_HZ, limit, sizeof(limit));
-        ui_icon(renderer, ICON_CLOCK, left + 124, row + 6, 1);
+        ui_icon(renderer, ICON_CLOCK, left + 114, row, 2);
         ui_text(renderer, limit, left + 144, row + 2, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
-        ui_icon(renderer, ICON_HEART, left + 314, row + 6, 1);
+        ui_icon(renderer, ICON_HEART, left + 304, row, 2);
         snprintf(text, sizeof(text), "%d%%", goals.health_percent[stars - 1]);
         ui_text(renderer, text, left + 334, row + 2, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
     }
@@ -843,8 +844,12 @@ void hud_draw_autosave_notice(SDL_Renderer *renderer)
     int w = 660, h = 316, x = (WINDOW_WIDTH - w) / 2, y = (WINDOW_HEIGHT - h) / 2;
     ui_panel(renderer, x, y, w, h);
     ui_text(renderer, "GUARDADO AUTOMÁTICO", WINDOW_WIDTH / 2, y + 28, 3, COLOR_HUD_TITLE, ANCHOR_N);
-    ui_icon(renderer, ICON_SAVE, x + 52, y + 82, 3);
-    ui_text(renderer, "CUIDAMOS TU AVANCE", x + 106, y + 91, 2, COLOR_HUD_XP, ANCHOR_NW);
+    /* The icon and its line centered together, as one group. */
+    const char *care = "CUIDAMOS TU AVANCE";
+    int icon_w = UI_ICON_SIZE * 4, care_w = icon_w + 16 + ui_text_width(care, 2);
+    int care_x = (WINDOW_WIDTH - care_w) / 2;
+    ui_icon(renderer, ICON_SAVE, care_x, y + 78, 4);
+    ui_text(renderer, care, care_x + icon_w + 16, hud_centered_y(y + 78, icon_w, 2), 2, COLOR_HUD_XP, ANCHOR_NW);
     ui_text(renderer, "GUARDAMOS CADA 15 MINUTOS DE JUEGO", WINDOW_WIDTH / 2, y + 142, 2,
             COLOR_HUD_PRIMARY, ANCHOR_N);
     ui_text(renderer, "TAMBIÉN AL COMPLETAR UN NIVEL Y AL SALIR", WINDOW_WIDTH / 2, y + 172, 2,
@@ -854,7 +859,7 @@ void hud_draw_autosave_notice(SDL_Renderer *renderer)
     int bw = 354, bx = (WINDOW_WIDTH - bw) / 2, by = y + h - 66;
     ui_button(renderer, bx, by, bw, 44, "ENTENDIDO, CONTINUAR", true, true);
     add_zone(HUD_ZONE_ACCEPT, 0, bx, by, bw, 44);
-    ui_text(renderer, "ENTER: CONTINUAR   ESC: VOLVER", WINDOW_WIDTH / 2, y + h + 14, 1,
+    ui_text(renderer, "ENTER: CONTINUAR   ESC: VOLVER", WINDOW_WIDTH / 2, y + h + 12, 2,
             COLOR_HUD_SECONDARY, ANCHOR_N);
 }
 
@@ -862,11 +867,11 @@ void hud_draw_autosave_notice(SDL_Renderer *renderer)
 void hud_draw_autosave_status(SDL_Renderer *renderer, bool saving, bool failed, float age)
 {
     const char *text = saving ? "GUARDANDO..." : failed ? "NO SE PUDO GUARDAR" : "PARTIDA GUARDADA";
-    int w = 30 + ui_text_width(text, 2) + 10, h = STATE_H;
+    int w = 38 + ui_text_width(text, 2) + 10, h = STATE_H;
     int x = WINDOW_WIDTH - HUD_MARGIN - w, y = STATE_Y;
     hud_plate(renderer, x, y, w, h);
-    ui_icon(renderer, ICON_SAVE, x + 8, y + (h - UI_ICON_SIZE) / 2, 1);
-    ui_text(renderer, text, x + 30, hud_centered_y(y, h, 2), 2,
+    ui_icon(renderer, ICON_SAVE, x + 8, y + (h - UI_ICON_SIZE * 2) / 2, 2);
+    ui_text(renderer, text, x + 38, hud_centered_y(y, h, 2), 2,
             failed && !saving ? COLOR_HUD_DANGER : COLOR_HUD_SECONDARY, ANCHOR_NW);
     if (saving) {
         int phase = (int)fmodf(fmaxf(0.0f, age) * 5.0f, 4.0f);
@@ -881,7 +886,7 @@ void hud_draw_resume_hint(SDL_Renderer *renderer, const char *stage_name)
     char text[80];
     snprintf(text, sizeof(text), "PARTIDA GUARDADA EN %s · ENTER PARA REANUDAR", stage_name);
     hud_plate(renderer, 180, 450, 600, 28);
-    ui_icon(renderer, ICON_SAVE, 190, 458, 1);
+    ui_icon(renderer, ICON_SAVE, 186, 452, 2);
     hud_text_fit(renderer, text, WINDOW_WIDTH / 2 + 8, 458, 548, 1,
                   COLOR_HUD_XP, ANCHOR_N);
 }
@@ -929,7 +934,7 @@ bool hud_verify_layout(void)
         ok = layout_text_stays_large(str, xp_w) && ok;
     }
     snprintf(str, sizeof(str), "%d", INT_MAX);
-    if (3 * (16 + ui_text_width(str, 1)) + 28 > VITALS_W - 20) {
+    if (3 * (SUPPLY_ICON_W + ui_text_width(str, 1)) + 24 > VITALS_W - 12) {
         fprintf(stderr, "HUD: suministros máximos exceden su columna.\n");
         ok = false;
     }
@@ -939,11 +944,11 @@ bool hud_verify_layout(void)
         HudWeapon weapon = {.id = id, .name = def->name, .rounds = INT_MAX,
                             .magazine = INT_MAX, .reloading = true};
         weapon_readout(&weapon, str, sizeof(str));
-        ok = layout_text_fits(str, gun_w - 18, 2) && ok;
+        ok = layout_text_fits(str, gun_w - 26, 2) && ok;
     }
     /* What a player reads in play stays at scale two with ordinary values. */
     ok = layout_text_stays_large("SALIDA 9999 M", EXIT_W) && ok;
-    ok = layout_text_stays_large("0/99 RECARGANDO", gun_w - 18) && ok;
+    ok = layout_text_stays_large("0/99 RECARGANDO", gun_w - 26) && ok;
     ok = layout_text_stays_large("¡ALÉJATE DEL FUEGO!", MISSION_W - 12) && ok;
     ok = layout_text_stays_large("VENDANDO 100%", MISSION_W - 12) && ok;
     if (ui_text_width("SED GRAVE", 2) + 10 + ui_text_width("BEBE", 2) + 6 + HUD_KEY_SIZE > MISSION_W - 12 ||
@@ -966,7 +971,7 @@ bool hud_verify_layout(void)
     ok = layout_text_stays_large("TE CURAS Y CAMINAS MÁS LENTO. MANTÉN U: VÉNDATE", STATE_TIP_W - 56) && ok;
     /* The longest save message stays right of the conditions and inside the
      * sky band, and every condition at once still fits as bare icons. */
-    int save_x = WINDOW_WIDTH - HUD_MARGIN - (30 + ui_text_width("NO SE PUDO GUARDAR", 2) + 10);
+    int save_x = WINDOW_WIDTH - HUD_MARGIN - (38 + ui_text_width("NO SE PUDO GUARDAR", 2) + 10);
     if (save_x < VITALS_X + STATES_W || STATE_Y + STATE_H > VIEW_TOP) {
         fprintf(stderr, "HUD: autoguardado fuera de su espacio.\n");
         ok = false;
@@ -1020,7 +1025,7 @@ void hud_draw_controls(SDL_Renderer *renderer)
         {{"U", NULL}, "VENDAR / BEBER", "MANTÉN: VENDAR · PULSA: BEBER"},
         {{"L", NULL}, "LINTERNA", NULL},
         {{"B", NULL}, "ALMANAQUE", NULL},
-        {{"ESC", NULL}, "PAUSA", NULL},
+        {{"ESC", NULL}, "PAUSA", "OPCIONES: VOLUMEN Y MÚSICA"},
     };
     enum { LEFT_ROWS = 8, PITCH = 48, KEYS_W = 186 };
     int count = (int)(sizeof(rows) / sizeof(rows[0]));
@@ -1049,37 +1054,37 @@ void hud_draw_controls(SDL_Renderer *renderer)
 
 void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes *volumes)
 {
-    static const char *const names[] = {"GENERAL", "PERSONAJE", "ZOMBIS"};
-    const int values[] = {volumes->master, volumes->player, volumes->zombie};
-    int w = 620, h = 386, x = (WINDOW_WIDTH - w) / 2, y = 70;
+    static const char *const names[] = {"GENERAL", "MÚSICA", "PERSONAJE", "ZOMBIS"};
+    const int values[] = {volumes->master, volumes->music, volumes->player, volumes->zombie};
+    int w = 620, h = 386, x = (WINDOW_WIDTH - w) / 2, y = 70, row_h = 44, step = 48;
     ui_panel(renderer, x, y, w, h);
     ui_text(renderer, "OPCIONES", WINDOW_WIDTH / 2, y + 22, 3, COLOR_HUD_TITLE, ANCHOR_N);
-    for (int i = 0; i < 3; i++) {
-        int ry = y + 82 + i * 56;
+    for (int i = 0; i < VOLUME_FULLSCREEN; i++) {
+        int ry = y + 76 + i * step;
         bool selected = menu->selected == i;
-        add_zone(HUD_ZONE_ITEM, i, x + 24, ry - 10, w - 48, 50);
+        add_zone(HUD_ZONE_ITEM, i, x + 24, ry - 8, w - 48, row_h);
         if (selected)
-            ui_button(renderer, x + 24, ry - 10, w - 48, 50, "", true, true);
-        ui_icon(renderer, ICON_SPEAKER, x + 44, ry, 2);
+            ui_button(renderer, x + 24, ry - 8, w - 48, row_h, "", true, true);
+        ui_icon(renderer, ICON_SPEAKER, x + 44, ry + 1, 2);
         ui_text(renderer, names[i], x + 80, ry + 4, 2, selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY,
                 ANCHOR_NW);
         int bar_w = ui_pips(renderer, x + 270, ry - 1, values[i], VOLUME_STEPS);
-        add_zone(HUD_ZONE_VOLUME, i, x + 270, ry - 10, bar_w, 50);
+        add_zone(HUD_ZONE_VOLUME, i, x + 270, ry - 8, bar_w, row_h);
     }
     /* Not a volume: window or full screen, switched with A/D, Enter, a click or F11. */
-    int ry = y + 82 + VOLUME_FULLSCREEN * 56;
+    int ry = y + 76 + VOLUME_FULLSCREEN * step;
     bool selected = menu->selected == VOLUME_FULLSCREEN;
-    add_zone(HUD_ZONE_ITEM, VOLUME_FULLSCREEN, x + 24, ry - 10, w - 48, 50);
+    add_zone(HUD_ZONE_ITEM, VOLUME_FULLSCREEN, x + 24, ry - 8, w - 48, row_h);
     if (selected)
-        ui_button(renderer, x + 24, ry - 10, w - 48, 50, "", true, true);
+        ui_button(renderer, x + 24, ry - 8, w - 48, row_h, "", true, true);
     ui_text(renderer, "PANTALLA", x + 80, ry + 4, 2, selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY,
             ANCHOR_NW);
     ui_text(renderer, volumes->fullscreen ? "COMPLETA" : "VENTANA", x + 270, ry + 4, 2,
             selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW);
     ui_key(renderer, x + w - 92, ry - 3, "F11");
-    ui_button(renderer, WINDOW_WIDTH / 2 - 110, y + h - 70, 220, 44, "VOLVER",
+    ui_button(renderer, WINDOW_WIDTH / 2 - 110, y + h - 60, 220, 44, "VOLVER",
               menu->selected == VOLUME_BACK, true);
-    add_zone(HUD_ZONE_ITEM, VOLUME_BACK, WINDOW_WIDTH / 2 - 110, y + h - 70, 220, 44);
+    add_zone(HUD_ZONE_ITEM, VOLUME_BACK, WINDOW_WIDTH / 2 - 110, y + h - 60, 220, 44);
     static const char *const hints[] = {"W/S", "ELEGIR", "A/D", "BAJAR/SUBIR", "ESC", "VOLVER"};
     draw_hints(renderer, hints, 3, WINDOW_HEIGHT - 52);
 }

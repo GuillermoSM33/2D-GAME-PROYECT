@@ -85,11 +85,11 @@ static const StageSpot ROUTE_1_5[] = {
 };
 
 const StageDef STAGES[] = {
-    {"1-1", 1, 0, 10, 1, 1.00f, &THEME_ATARDECER, 19000.0f, SPOTS(ROUTE_1_1), WEATHER_WIND, true, false},
-    {"1-2", 2, 0, 14, 1, 1.10f, &THEME_ATARDECER, 21500.0f, SPOTS(ROUTE_1_2), WEATHER_RAIN, false, false},
-    {"1-3", 3, 0, 13, 1, 1.20f, &THEME_CEMENTERIO, 25000.0f, SPOTS(ROUTE_1_3), WEATHER_RAIN, false, true},
-    {"1-4", 4, 0, 19, 1, 1.35f, &THEME_NOCHE, 26500.0f, SPOTS(ROUTE_1_4), WEATHER_WIND, false, true},
-    {"1-5", 5, 1, 22, 1, 1.50f, &THEME_PUEBLO_FANTASMA, 31000.0f, SPOTS(ROUTE_1_5), WEATHER_STORM, false, false},
+    {"1-1", 1, 0, 10, 1, 1.00f, &THEME_ATARDECER, 19000.0f, SPOTS(ROUTE_1_1), WEATHER_WIND, true, false, "music/ruta_1_1"},
+    {"1-2", 2, 0, 14, 1, 1.10f, &THEME_ATARDECER, 21500.0f, SPOTS(ROUTE_1_2), WEATHER_RAIN, false, false, "music/ruta_1_2"},
+    {"1-3", 3, 0, 13, 1, 1.20f, &THEME_CEMENTERIO, 25000.0f, SPOTS(ROUTE_1_3), WEATHER_RAIN, false, true, "music/ruta_1_3"},
+    {"1-4", 4, 0, 19, 1, 1.35f, &THEME_NOCHE, 26500.0f, SPOTS(ROUTE_1_4), WEATHER_WIND, false, true, "music/ruta_1_4"},
+    {"1-5", 5, 1, 22, 1, 1.50f, &THEME_PUEBLO_FANTASMA, 31000.0f, SPOTS(ROUTE_1_5), WEATHER_STORM, false, false, "music/ruta_1_5"},
 };
 
 const int STAGE_COUNT = (int)(sizeof(STAGES) / sizeof(STAGES[0]));

@@ -170,6 +170,23 @@ class Audit:
                     self.check(entry['sha256'] == self.metrics[name]['sha256'],
                                f'{name}: documentation output hash is stale')
 
+    def music(self) -> None:
+        """The menu and every stage name a track, and each track is the composed one shipped."""
+        manifest = json.loads((ROOT / 'docs' / 'AUDIO_MUSIC_MANIFEST.json').read_text(encoding='utf-8'))['tracks']
+        code = (ROOT / 'src/game/stages.c').read_text(encoding='utf-8')
+        named = re.findall(r'"music/([a-z0-9_]+)"', code)
+        self.check(len(named) == len(set(named)), 'two stages share one music track')
+        self.check('MENU_MUSIC "music/menu"' in (ROOT / 'src/config.h').read_text(encoding='utf-8'),
+                   'the menu no longer plays music/menu')
+        self.check(set(named) | {'menu'} == set(manifest), f'music differs from the manifest: {sorted(named)}')
+        for name, entry in manifest.items():
+            path = self.assets / 'music' / f'{name}.ogg'
+            if not path.exists():
+                self.check(False, f'music/{name}: missing OGG')
+                continue
+            self.check(path.read_bytes()[:4] == b'OggS', f'music/{name}: not an OGG file')
+            self.check(digest(path) == entry['sha256'], f'music/{name}: differs from its manifest')
+
     def run(self) -> dict:
         originals = self.legacy()
         builders = make_sfx.catalog()
@@ -183,6 +200,7 @@ class Audit:
         self.source_coverage(set(flat), originals)
         self.weapon_timings()
         self.output_manifests(builders)
+        self.music()
         return {'passed': not self.errors, 'checks': self.checks, 'new_effects': len(flat),
                 'protected_originals': len(originals),
                 'builders': {name: len(outputs) for name, outputs in builders.items()},

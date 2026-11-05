@@ -20,6 +20,7 @@ void options_set_fullscreen(AppOptions *options, bool on)
 static void apply_volumes(AppOptions *options)
 {
     audio_set_master(volume_share(options->volumes.master));
+    audio_set_music(volume_share(options->volumes.music));
     audio_set_group(SOUND_PLAYER, volume_share(options->volumes.player));
     audio_set_group(SOUND_ZOMBIE, volume_share(options->volumes.zombie));
 }
@@ -39,7 +40,7 @@ bool options_step(AppOptions *options, const InputState *input)
             audio_play_in("zombie/idle", SOUND_ZOMBIE);
         else if (row == VOLUME_PLAYER)
             audio_play_in("player/shot", SOUND_PLAYER);
-        else
+        else if (row != VOLUME_MUSIC) /* The music itself is the sample */
             audio_play("ui/confirm");
     }
     return true;
@@ -76,7 +77,7 @@ void options_apply_pointer(AppOptions *options, InputState *input, int *selected
                 audio_play_in("zombie/idle", SOUND_ZOMBIE);
             else if (zone.index == VOLUME_PLAYER)
                 audio_play_in("player/shot", SOUND_PLAYER);
-            else
+            else if (zone.index != VOLUME_MUSIC)
                 audio_play("ui/confirm");
         }
         break;
@@ -97,6 +98,7 @@ void options_init(AppOptions *options, Platform *display, bool remember_display)
 void options_restore_volumes(AppOptions *options, const Volumes *volumes)
 {
     options->volumes.master = volumes->master;
+    options->volumes.music = volumes->music;
     options->volumes.player = volumes->player;
     options->volumes.zombie = volumes->zombie;
     apply_volumes(options);

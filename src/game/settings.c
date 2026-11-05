@@ -5,6 +5,7 @@
 void volumes_init(Volumes *volumes)
 {
     volumes->master = 8;
+    volumes->music = 7;
     volumes->player = VOLUME_STEPS;
     volumes->zombie = VOLUME_STEPS;
     volumes->fullscreen = false;
@@ -29,6 +30,7 @@ static int *volume_of(Volumes *volumes, int row)
 {
     switch (row) {
     case VOLUME_MASTER: return &volumes->master;
+    case VOLUME_MUSIC: return &volumes->music;
     case VOLUME_PLAYER: return &volumes->player;
     case VOLUME_ZOMBIE: return &volumes->zombie;
     default: return NULL;

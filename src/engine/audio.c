@@ -33,6 +33,10 @@ static bool ready;
 static bool stage_paused;
 static float master = 1.0f;
 static float groups[AUDIO_GROUPS] = {1.0f, 1.0f, 1.0f, 1.0f};
+static float music_level = 1.0f;
+static Mix_Music *music;
+static const char *music_name;
+static const char *music_failed; /* Asked for every frame in menus: only say so once */
 
 static float clamp01(float v)
 {
@@ -138,11 +142,71 @@ void audio_pause(bool paused)
     }
 }
 
+static void music_volume(void)
+{
+    Mix_VolumeMusic((int)(MUSIC_VOLUME * master * music_level + 0.5f));
+}
+
+static void music_release(void)
+{
+    if (music == NULL)
+        return;
+    Mix_HaltMusic(); /* First: freeing a track that is fading would wait for the fade */
+    Mix_FreeMusic(music);
+    music = NULL;
+    music_name = NULL;
+}
+
+void audio_music_play(const char *name)
+{
+    if (!ready || name == NULL)
+        return;
+    if (music_name && strcmp(music_name, name) == 0 && Mix_PlayingMusic() && Mix_FadingMusic() != MIX_FADING_OUT)
+        return;
+    if (music_failed && strcmp(music_failed, name) == 0)
+        return;
+    music_release();
+    const EmbeddedBlob *blob = NULL;
+    for (int i = 0; i < embedded_blob_count && blob == NULL; i++)
+        if (strcmp(embedded_blobs[i].name, name) == 0)
+            blob = &embedded_blobs[i];
+    SDL_RWops *rw = blob && blob->size <= INT_MAX ? SDL_RWFromConstMem(blob->data, (int)blob->size) : NULL;
+    music = rw ? Mix_LoadMUS_RW(rw, 1) : NULL;
+    if (music == NULL || Mix_PlayMusic(music, -1) != 0) {
+        fprintf(stderr, "No se pudo reproducir '%s': %s\n", name, Mix_GetError());
+        music_release();
+        music_failed = name;
+        return;
+    }
+    music_name = blob->name;
+    music_volume();
+}
+
+void audio_music_stop(int fade_ms)
+{
+    if (!ready || music == NULL)
+        return;
+    if (fade_ms > 0 && Mix_PlayingMusic()) {
+        if (Mix_FadingMusic() != MIX_FADING_OUT)
+            Mix_FadeOutMusic(fade_ms);
+    } else {
+        music_release();
+    }
+}
+
+void audio_set_music(float volume)
+{
+    music_level = clamp01(volume);
+    if (ready)
+        music_volume();
+}
+
 void audio_shutdown(void)
 {
     if (!ready)
         return;
     audio_stop_all();
+    music_release();
     for (int i = 0; i < sound_count; i++)
         Mix_FreeChunk(sounds[i].chunk);
     free(sounds);
@@ -233,6 +297,8 @@ void audio_stop_loop(const char *name)
 void audio_set_master(float volume)
 {
     master = clamp01(volume);
+    if (ready)
+        music_volume();
     if (ready)
         for (int ch = 0; ch < AUDIO_CHANNELS; ch++)
             if (channels[ch].sound != NULL && Mix_Playing(ch))

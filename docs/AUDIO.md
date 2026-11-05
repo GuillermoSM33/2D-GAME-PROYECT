@@ -30,6 +30,11 @@ verificaron en las páginas primarias. No se extrajo audio de otros juegos.
 Plasma, recompensas y algunos avisos son composiciones; no se presentan como
 grabaciones literales de un objeto real.
 
+## Música
+
+Cada nivel tiene su tema, compuesto y sintetizado en el propio repositorio, sin material de
+terceros: [AUDIO_MUSIC.md](AUDIO_MUSIC.md).
+
 ## Generación reproducible
 
 `tools/make_sfx.py` coordina los generadores por familia y comprueba que no

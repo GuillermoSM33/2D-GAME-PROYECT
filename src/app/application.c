@@ -285,9 +285,10 @@ int app_run(bool smoke_mode, const char *capture_dir)
             }
             bool now_paused = (screen == SCREEN_STAGE && play.paused) ||
                               (screen == SCREEN_ALMANAC && almanac_return == SCREEN_STAGE);
-            if (previous_screen == SCREEN_STAGE && screen != SCREEN_STAGE && screen != SCREEN_ALMANAC)
+            if (previous_screen == SCREEN_STAGE && screen != SCREEN_STAGE && screen != SCREEN_ALMANAC) {
                 audio_stop_all();
-            else if (was_paused != now_paused)
+                audio_music_stop(0);
+            } else if (was_paused != now_paused)
                 audio_pause(now_paused);
             bool menu_input = previous_screen != SCREEN_STAGE || was_paused || now_paused;
             /* The click that started or resumed the stage is not a shot. */
@@ -345,6 +346,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
             stage_draw(&platform, &play, &skins[hero], &profiles[hero].progress,
                        accumulator / FIXED_DT, prev_player_x, prev_jump, &options);
         }
+        if (!has_live_stage(screen, almanac_return))
+            audio_music_play(MENU_MUSIC); /* Keeps playing from one menu to the next */
         if (screen == SCREEN_STAGE && (save.saving || save.feedback_time > 0.0f))
             hud_draw_autosave_status(platform.renderer, save.saving, save.failed, save.feedback_age);
         platform_present(&platform);

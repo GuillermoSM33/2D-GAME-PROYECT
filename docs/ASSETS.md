@@ -11,6 +11,7 @@ extensión**: `assets/sprites/zombies/riot/walk.png` es `"sprites/zombies/riot/w
 ```text
 assets/
   fonts/                 Fuentes del texto (DejaVu Sans Mono) y su licencia
+  music/                 El tema de los menús (menu.ogg) y el de cada nivel (ruta_1_1.ogg ... ruta_1_5.ogg, en stages.c)
   sounds/<entidad>/      Efectos de sonido (.wav, .ogg)
     player/              shot, reload (cañón original), drink, melee, empty, hurt, jump, land, bandage, death, faint; flashlight_on, flashlight_off
     zombie/              spawn, idle, death
@@ -86,7 +87,7 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | Recurso | Origen | Especificación | Tamaño exacto |
 | --- | --- | --- | --- |
 | `sprites/characters/<id>/*` (walk, jump, shoot, shoot_<arma>, reload_<arma>) | Dibujado sobre la base de `docs/templates/character_base/` | [CHARACTERS.md](CHARACTERS.md) | Los de la vaquera: 336 × 67, 432 × 82, 648 × 80 (shoot_<arma> y reload_<arma> como shoot) |
-| `sprites/weapons/bullet.png` | Dibujado | [SPRITES.md](SPRITES.md) | 4 cuadros de 8 × 6 |
+| `sprites/weapons/bullet.png` | `tools/make_powers.py` y `tools/ui_icons.py` | [SPRITES.md](SPRITES.md) | 4 cuadros de 8 × 6 |
 | `sprites/characters/cowgirl/shoot_dual*.png` | `tools/make_flashlight.py` | el propio script | 16 × 81 × 80, plantilla de disparo |
 | `sprites/weapons/grenade.png` | `tools/make_powers.py` | el propio script | granada 4 × 8 × 8 |
 | `sprites/characters/swat/throw.png` | `tools/make_swat.py` | el propio script | 8 × 81 × 80, plantilla de disparo |
@@ -102,7 +103,8 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `sprites/chest/open.png` | Dibujado | este documento | 6 cuadros de 72 × 72 |
 | `sprites/effects/armor_sparks.png` | Recortado de `zombies/riot/hurt.png` | [ZOMBIE.md](ZOMBIE.md) | 2 cuadros de 20 × 12 |
 | `sprites/characters/swat/*` | `tools/make_swat.py`, a partir de `docs/templates/swat/walk_source.png` | [CHARACTERS.md](CHARACTERS.md#el-swat) | Los de la vaquera |
-| `sprites/ui/{font,panel,button,key,pip,bar,icons,weapons}.png` | `tools/make_ui.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
+| `music/*.ogg` | `tools/make_music.py`, compuesta y sintetizada aquí | [AUDIO_MUSIC.md](AUDIO_MUSIC.md) | Vorbis estéreo, 22050 Hz, bucle continuo |
+| `sprites/ui/{font,panel,button,key,pip,bar,icons,icons_hd,weapons,weapons_hd}.png` | `tools/make_ui.py` y `tools/ui_icons.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
 | `sprites/ui/badge_*.png`, `sprites/chest/sparks.png` | `tools/make_sprites.py` | el propio script | 17 × 19; 8 cuadros de 72 × 72 |
 | `sprites/props/*` | Dibujado | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/props.c` |
 | `sprites/props/houses.png` | `tools/make_terrain.py`, en los colores de los props (cada tema los recolorea) | el propio script | 13 × 80 × 64 (5 casas, las 5 estructuras con el banco, y el almacén, la casa de adobe y el silo caído); casas de fondo, `HOUSE_*` en `config.h`, `house_chance` por tema |
@@ -112,11 +114,17 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | Efectos nuevos de `sounds/` | `tools/make_sfx.py`, grabaciones CC0 y capas originales | [AUDIO.md](AUDIO.md), fuentes y generadores por familia | PCM16 mono, 22050 Hz |
 | Sonidos legacy de `player/` y `world/` | Originales conservados, sin regeneración automática | [AUDIO.md](AUDIO.md) y hashes de referencia | Sin cambios |
 
-`sprites/ui/icons.png` contiene 26 celdas de 12 × 12 px. Las primeras 22
-conservan el arte existente; las últimas son el disquete de autoguardado,
-reloj de bolsillo, estrella ganada y estrella vacía. Se dibujan en `make_icons`
-de `tools/make_ui.py` y usan los identificadores de `src/game/ui.h`.
-| `sounds/zombie/*` | Voz grabada, `tools/crush_sfx.py` | [README](../README.md#sonido) | — |
+Todo `sprites/ui` y `sprites/weapons` sigue una sola regla, para que parezca de la misma mano:
+los materiales de `tools/ui_icons.py` (rampas de cinco tonos: latón, hierro, madera, hueso...),
+contorno de tinta de 1 px y luz siempre desde arriba a la izquierda. Un recurso nuevo para estas
+carpetas toma sus colores de ahí, no de una paleta propia.
+
+`sprites/ui/icons_hd.png` tiene 26 celdas de 24 × 24 px, dibujadas en `tools/ui_icons.py`;
+`ui_icon` las usa desde la escala 2 (se ven nítidas en 2, 4 y 6). `sprites/ui/icons.png` son los
+mismos iconos en 12 × 12 para los huecos sin espacio (escala 1); `make_icons` de `tools/make_ui.py`
+rechaza uno descentrado o con el contorno abierto. Ambas usan el orden de `UiIcon` en
+`src/game/ui.h`. Las armas del HUD van igual: `weapons_hd.png` en 72 × 28 y `weapons.png`, el mismo
+dibujo, en 36 × 14. Son una ilustración de cada arma, independiente de las hojas de los personajes.
 
 `./build.sh` corre `--verify`, que falla si falta algo de lo que el código usa o si una
 imagen no tiene su tamaño exacto: las hojas de animación (por su `AnimationDef`), las placas

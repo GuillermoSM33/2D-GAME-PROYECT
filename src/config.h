@@ -673,6 +673,9 @@
 #define AUDIO_BUFFER 512   /* Samples per callback: small, so shots sound on time */
 #define AUDIO_CHANNELS 32  /* 28 overlapping effects and four ambience loops */
 #define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME): every sound, before the volume menu */
+#define MUSIC_VOLUME 52    /* 0-128: the stage's music at full, under the effects */
+#define MENU_MUSIC "music/menu"
+#define MUSIC_FADE_MS 1800 /* How long it fades when a stage ends */
 #define AUDIO_GROUPS 4     /* Volume groups (audio_play_in): see SoundGroup in settings.h */
 
 #endif

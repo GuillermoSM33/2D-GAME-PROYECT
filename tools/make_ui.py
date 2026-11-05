@@ -15,13 +15,15 @@ Writes, under sprites/ui/:
   key.png      A key cap for the controls (14 x 14, 9-slice with 4 px corners)
   pip.png      A notch of a volume bar, empty and full (2 frames of 6 x 10)
   bar.png      The frame of a health or XP bar (12 x 8, 9-slice with 3 px corners)
-  icons.png    12 x 12 icons: heart, bullet, skull, flag, dynamite, speaker,
-               star, lock, check, shell, states, save, clock and mission stars
-  weapons.png  The guns as they look in play, in WeaponId order (4 frames of
-               36 x 14): the hand cannon cut from the cowgirl's shoot sheet,
-               the SWAT's rifle and shotgun from tools/make_swat.py, and the
-               plasma cannon as the Hero's stand-in shows it (the hand cannon
-               in his tint). Re-run it after changing those sheets.
+  icons_hd.png The detailed icons, 24 x 24, in UiIcon order (src/game/ui.h):
+               tools/ui_icons.py. What ui_icon draws from scale 2 up
+  icons.png    The same icons at 12 x 12, for the few places with no room for
+               more, under the same rules: see ICONS and check_icon
+  weapons_hd.png  The guns, 72 x 28, in WeaponId order and then the grenade:
+               tools/ui_icons.py. What ui_weapon draws from scale 2 up
+  weapons.png  The same design at 36 x 14, for the compact shortcuts
+
+Everything takes its colors from the materials in tools/ui_icons.py.
 
 Deterministic; uses only the standard library.
 """
@@ -31,10 +33,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from embed_assets import decode_png_rgba  # noqa: E402
+import ui_icons as KIT  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
-from make_swat import INK as SWAT_INK, METAL as SWAT_METAL  # noqa: E402
-from make_swat import rifle as swat_rifle, shotgun as swat_shotgun  # noqa: E402
+from ui_icons import SIZE as ICON_HD_SIZE, draw_all as draw_icons_hd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -135,15 +136,15 @@ def make_font() -> Image:
     return img
 
 
-INK = rgb(0x1a1210)
-WOOD = [rgb(0x3a2316), rgb(0x56351f), rgb(0x76492a), rgb(0x9a643a), rgb(0xbf8650)]
+# The shared materials (tools/ui_icons.py), here darkest first.
+INK = KIT.INK
+WOOD = list(reversed(KIT.WOOD))
 LEATHER = [rgb(0x1e1614), rgb(0x2a201c), rgb(0x362a24)]
-BRASS = [rgb(0x6a4e1e), rgb(0x9c7a32), rgb(0xd0a848), rgb(0xf0d27a)]
-IRON = [rgb(0x24242a), rgb(0x3c3c44), rgb(0x5c5c66), rgb(0x8a8a94), rgb(0xb8b8c0)]
-RED = [rgb(0x5a1c16), rgb(0x9c3424), rgb(0xd0503a), rgb(0xf08a6a)]
-BONE = [rgb(0x8a7e68), rgb(0xcfc4a8), rgb(0xf6efdc)]
-GREEN = [rgb(0x2e4a26), rgb(0x4f7a3a), rgb(0x7fb069)]
-TEAL = [rgb(0x1e5a50), rgb(0x3aa08a), rgb(0x80ffd8)]
+BRASS = list(reversed(KIT.BRASS))[:4]
+IRON = list(reversed(KIT.IRON))
+RED = list(reversed(KIT.RED))[1:]
+BONE = list(reversed(KIT.BONE))[1:]
+GREEN = list(reversed(KIT.GREEN))[1:]
 CLEAR = (0, 0, 0, 0)
 
 
@@ -187,7 +188,9 @@ def make_button() -> Image:
         rect(img, ox + 1, 1, ox + s - 2, s - 2, edge[2])
         rect(img, ox + 1, 1, ox + s - 2, 1, edge[3])
         rect(img, ox + 1, s - 2, ox + s - 2, s - 2, edge[0])
-        fill = [WOOD[1], WOOD[2], WOOD[3]] if not f else [WOOD[2], WOOD[3], WOOD[4]]
+        rect(img, ox + 1, 2, ox + 1, s - 3, edge[3])
+        rect(img, ox + s - 2, 2, ox + s - 2, s - 3, edge[1])
+        fill = [WOOD[0], WOOD[1], WOOD[2]] if not f else [WOOD[1], WOOD[2], WOOD[3]]
         rect(img, ox + 3, 3, ox + s - 4, s - 4, fill[1])
         rect(img, ox + 3, 3, ox + s - 4, 3, fill[2])
         rect(img, ox + 3, s - 4, ox + s - 4, s - 4, fill[0])
@@ -203,7 +206,9 @@ def make_key() -> Image:
     rect(img, 0, 0, s - 1, s - 1, INK)
     rect(img, 1, 1, s - 2, s - 2, BONE[0])
     rect(img, 1, 1, s - 2, s - 4, BONE[1])
-    rect(img, 2, 1, s - 3, 1, BONE[2])
+    rect(img, 1, 1, s - 3, 1, BONE[2])
+    rect(img, 1, 1, 1, s - 4, BONE[2])
+    rect(img, s - 2, 2, s - 2, s - 4, BONE[0])
     return img
 
 
@@ -217,8 +222,11 @@ def make_pip() -> Image:
             rect(img, ox + 1, 1, ox + 3, h - 2, BRASS[2])
             rect(img, ox + 1, 1, ox + 3, 2, BRASS[3])
             rect(img, ox + 1, h - 3, ox + 3, h - 2, BRASS[1])
+            rect(img, ox + 1, 1, ox + 1, h - 3, BRASS[3])
         else:
-            rect(img, ox + 1, 1, ox + 3, h - 2, LEATHER[2])
+            rect(img, ox + 1, 1, ox + 3, h - 2, LEATHER[1])
+            rect(img, ox + 1, 1, ox + 3, 1, LEATHER[0])
+            rect(img, ox + 1, h - 2, ox + 3, h - 2, LEATHER[2])
     return img
 
 
@@ -239,217 +247,420 @@ def icon(img: Image, frame: int, rows: list[str], colors: dict) -> None:
                 img.set(frame * 12 + x, y, colors[c])
 
 
+# One hand for every icon: a 12 x 12 cell with the drawing centered in it, a
+# closed one-pixel ink outline, the light from the top left, and three tones
+# of a shared material (H light, M base, S shade) bright enough to read on the
+# dark leather. check_icon enforces what can be measured.
+BRASS_ICON = {'H': rgb(0xffe9a0), 'M': BRASS[3], 'S': BRASS[1]}
+RED_ICON = {'H': RED[3], 'M': rgb(0xdc4a34), 'S': RED[1]}
+BONE_ICON = {'H': BONE[2], 'M': BONE[1], 'S': BONE[0]}
+IRON_ICON = {'H': rgb(0xe4e4ea), 'M': IRON[4], 'S': IRON[3]}
+WOOD_ICON = {'H': rgb(0xe0a870), 'M': WOOD[4], 'S': WOOD[3]}
+WATER_ICON = {'H': rgb(0xd8f0fa), 'M': rgb(0x62b4e6), 'S': rgb(0x2f76aa)}
+ICE_ICON = {'H': rgb(0xffffff), 'M': rgb(0xc8e4f4), 'S': rgb(0x7fb0cc)}
+GREEN_ICON = {'H': rgb(0xcfeeb0), 'M': rgb(0x8ccc70), 'S': GREEN[1]}
+FIRE_ICON = {'H': rgb(0xffe08a), 'M': rgb(0xf49a2c), 'S': rgb(0xd0502a)}
+UNLIT_ICON = {'H': rgb(0x8a7a66), 'M': rgb(0x64574a), 'S': rgb(0x4c4238)}
+
+
+def materials(main: dict, **others: dict) -> dict:
+    """A palette: main's tones as H M S, others' as <letter>, <letter upper>..."""
+    colors = {'k': INK, **main}
+    for key, (light, base, shade) in others.items():
+        colors[key[0]], colors[key[1]], colors[key[2]] = light, base, shade
+    return colors
+
+
+def tones(material: dict) -> tuple:
+    return material['H'], material['M'], material['S']
+
+
+ICONS = [
+    ('heart', [  # Life
+        '............',
+        '..kkk..kkk..',
+        '.kHHMkkMMSk.',
+        '.kHMMMMMMSk.',
+        '.kHMMMMMMSk.',
+        '.kMMMMMMMSk.',
+        '..kMMMMMSk..',
+        '...kMMMSk...',
+        '....kMSk....',
+        '.....kk.....',
+        '............',
+        '............'], materials(RED_ICON)),
+    ('bullet', [  # A round: copper head, brass case
+        '............',
+        '.....kk.....',
+        '....kabk....',
+        '...kaabck...',
+        '...kaabck...',
+        '...kkkkkk...',
+        '...kHMMSk...',
+        '...kHMMSk...',
+        '...kHMMSk...',
+        '...kHMSSk...',
+        '...kkkkkk...',
+        '............'], materials(BRASS_ICON, abc=(rgb(0xf6b48a), rgb(0xd67a4a), rgb(0x9a4f2c)))),
+    ('skull', [  # Zombies
+        '............',
+        '...kkkkkk...',
+        '..kHHMMMSk..',
+        '.kHMMMMMMSk.',
+        '.kHkkMMkkSk.',
+        '.kMkkMMkkSk.',
+        '.kMMMkkMMSk.',
+        '..kMMMMMSk..',
+        '..kMkMkSkk..',
+        '...kkkkkk...',
+        '............',
+        '............'], materials(BONE_ICON)),
+    ('flag', [  # The road's end
+        '............',
+        '..kk........',
+        '.kabkkkkkkk.',
+        '.kabHHMMMSk.',
+        '.kabHMMMMSk.',
+        '.kabMMMMSSk.',
+        '.kabkkkkkkk.',
+        '.kabk.......',
+        '.kabk.......',
+        '.kabk.......',
+        '..kkk.......',
+        '............'], materials(RED_ICON, abc=tones(WOOD_ICON))),
+    ('dynamite', [  # A bundle, its fuse lit
+        '........kk..',
+        '.......kabk.',
+        '......kckk..',
+        '..kkkkkkkk..',
+        '.kHSkHSkHSk.',
+        '.kHSkHSkHSk.',
+        '.kddddddddk.',
+        '.kHSkHSkHSk.',
+        '.kHSkHSkHSk.',
+        '.kMSkMSkMSk.',
+        '..kkkkkkkk..',
+        '............'], materials(RED_ICON, abc=tones(FIRE_ICON), def_=tones(BONE_ICON))),
+    ('speaker', [  # A horn, and one wave of sound
+        '............',
+        '.....kk..k..',
+        '....kHk.kSk.',
+        '.kkkHMk..kSk',
+        '.kHHMMk..kSk',
+        '.kHMMMk..kSk',
+        '.kMMMMk..kSk',
+        '.kkkMSk.kSk.',
+        '....kSk..k..',
+        '.....kk.....',
+        '............',
+        '............'], materials(BONE_ICON)),
+    ('star', [  # Experience
+        '.....kk.....',
+        '....kHMk....',
+        '.kkkkHMkkkk.',
+        '.kHHMMMMMSk.',
+        '..kHMMMMSk..',
+        '...kMMMMk...',
+        '...kMMMSk...',
+        '..kMSkkSSk..',
+        '..kSk..kSk..',
+        '..kk....kk..',
+        '............',
+        '............'], materials(GREEN_ICON)),
+    ('lock', [  # Not yet: iron shackle, brass body
+        '............',
+        '....kkkk....',
+        '...kabbck...',
+        '...kbkkck...',
+        '...kbkkck...',
+        '..kkkkkkkk..',
+        '..kHMMMMSk..',
+        '..kHMkkMSk..',
+        '..kMMkkMSk..',
+        '..kMMMMSSk..',
+        '..kkkkkkkk..',
+        '............'], materials(BRASS_ICON, abc=tones(IRON_ICON))),
+    ('check', [  # Done
+        '............',
+        '.........kk.',
+        '........kHMk',
+        '.......kHMk.',
+        '.kk...kHMk..',
+        'kHMk.kHMk...',
+        '.kMMkHMk....',
+        '..kMMMk.....',
+        '...kMSk.....',
+        '....kk......',
+        '............',
+        '............'], materials(GREEN_ICON)),
+    ('shell', [  # A shotgun shell: red hull, brass head
+        '............',
+        '....kkkk....',
+        '...kHMMSk...',
+        '...kHMMSk...',
+        '...kHMMSk...',
+        '...kHMMSk...',
+        '...kHMSSk...',
+        '...kkkkkk...',
+        '...kabbck...',
+        '...kabcck...',
+        '...kkkkkk...',
+        '............'], materials(RED_ICON, abc=tones(BRASS_ICON))),
+    ('blood', [  # Bleeding: the same drop as water, in red
+        '.....kk.....',
+        '....kHSk....',
+        '....kHSk....',
+        '...kHMMSk...',
+        '..kHMMMMSk..',
+        '..kHMMMMSk..',
+        '..kMMMMMSk..',
+        '..kMMMMSSk..',
+        '...kMMSSk...',
+        '....kkkk....',
+        '............',
+        '............'], materials(RED_ICON)),
+    ('slow', [  # A boot held back by an iron ball
+        '...kkkkk....',
+        '...kHMSk....',
+        '...kHMSk....',
+        '...kHMSk....',
+        '...kHMMkkk..',
+        '...kHMMMMSk.',
+        '...kMMMMMSk.',
+        '.kkkkkkkkkk.',
+        'kabck.......',
+        'kbcck.......',
+        '.kkk........',
+        '............'], materials(WOOD_ICON, abc=tones(IRON_ICON))),
+    ('gold', [  # A coin: the same disc as the watch
+        '............',
+        '...kkkkkk...',
+        '..kHHHMMSk..',
+        '.kHHMkkMMSk.',
+        '.kHMMkMMMSk.',
+        '.kHMMkMMMSk.',
+        '.kMMMkMMMSk.',
+        '.kMMkkkMSSk.',
+        '..kMMMMSSk..',
+        '...kkkkkk...',
+        '............',
+        '............'], materials(BRASS_ICON)),
+    ('wind', [  # Gusts: two curling bands
+        '......kkk...',
+        '.....kHMSk..',
+        '.....kkkSk..',
+        'kkkkkkkkSk..',
+        'kHHHHHMMSk..',
+        'kkkkkkkkkkk.',
+        '.kHHHHHHMMSk',
+        '.kkkkkkkkkSk',
+        '.....kkkkkSk',
+        '.....kHMMSSk',
+        '.....kkkkkk.',
+        '............'], materials(IRON_ICON)),
+    ('current', [  # Waves: two bands of water
+        '............',
+        '..kk....kk..',
+        '.kHHk..kHHk.',
+        'kHMMSkkHMMSk',
+        'kSkkMMMMkkSk',
+        '.k..kkkk..k.',
+        '..kk....kk..',
+        '.kHHk..kHHk.',
+        'kHMMSkkHMMSk',
+        'kSkkMMMMkkSk',
+        '.k..kkkk..k.',
+        '............'], materials(WATER_ICON)),
+    ('heat', [  # A blazing sun
+        '.....kk.....',
+        '....kHSk....',
+        '...kkkkkk...',
+        '..kHHMMMSk..',
+        '.kkHMMMMSkk.',
+        'kHkHMMMMSkSk',
+        'kSkMMMMSSkSk',
+        '.kkMMMMSSkk.',
+        '..kMMSSSSk..',
+        '...kkkkkk...',
+        '....kHSk....',
+        '.....kk.....'], materials(FIRE_ICON)),
+    ('omen', [  # A crow's eye
+        '............',
+        '............',
+        '...kkkkkk...',
+        '..kHHMMMSk..',
+        '.kHMkaakMSk.',
+        '.kHMkabkMSk.',
+        '.kMMkkkkMSk.',
+        '..kMMMMSSk..',
+        '...kkkkkk...',
+        '............',
+        '............',
+        '............'], materials(BONE_ICON, abc=tones(RED_ICON))),
+    ('cold', [  # A snowflake
+        '.....kk.....',
+        '..k.kHMk.k..',
+        '.kHkkHMkkMk.',
+        '..kHkHMkMk..',
+        '.kkkHHMMkkk.',
+        'kHHHHMMMMMSk',
+        'kMMMMMMSSSSk',
+        '.kkkHMSSkkk.',
+        '..kHkMSkSk..',
+        '.kMkkMSkkSk.',
+        '..k.kMSk.k..',
+        '.....kk.....'], materials(ICE_ICON)),
+    ('wet', [  # Drops: the same drop, twice
+        '............',
+        '...kk.......',
+        '..kHSk......',
+        '.kHMMSk.....',
+        '.kHMMSk.kk..',
+        '.kHMMSkkHSk.',
+        '.kMMSSkHMMSk',
+        '..kkkkkHMMSk',
+        '......kMMSSk',
+        '.......kkkk.',
+        '............',
+        '............'], materials(WATER_ICON)),
+    ('cozy', [  # A campfire over two logs
+        '.....kk.....',
+        '....kHSk....',
+        '...kHMSk.k..',
+        '..kkHMMSkSk.',
+        '..kHHMMMMSk.',
+        '.kHHMMMMMSk.',
+        '.kHMMMMMMSk.',
+        '..kkMMMSkk..',
+        '.kkabkkabkk.',
+        'kabbbkkbbbck',
+        '.kkkkkkkkkk.',
+        '............'], materials(FIRE_ICON, abc=tones(WOOD_ICON))),
+    ('water', [  # A canteen: wooden stopper, water behind glass
+        '....kkkk....',
+        '....kabk....',
+        '...kkkkkk...',
+        '..kHHMMSSk..',
+        '.kHHMMMMSSk.',
+        '.kHMMMMMMSk.',
+        '.kHMMMMMMSk.',
+        '.kMMMMMMSSk.',
+        '..kMMMMSSk..',
+        '...kkkkkk...',
+        '............',
+        '............'], materials(WATER_ICON, abc=tones(WOOD_ICON))),
+    ('fresh', [  # Refreshed: the drop, and a sparkle
+        '........kk..',
+        '....kk.kaak.',
+        '...kHSkkaak.',
+        '...kHSk.kk..',
+        '..kHMMSk....',
+        '.kHMMMMSk...',
+        '.kHMMMMSk...',
+        '.kMMMMMSk...',
+        '.kMMMMSSk...',
+        '..kMMSSk....',
+        '...kkkk.....',
+        '............'], materials(WATER_ICON, abc=tones(ICE_ICON))),
+    ('save', [  # A disk: brass case, iron shutter, paper label
+        '............',
+        '.kkkkkkkkkk.',
+        '.kHHabbckMk.',
+        '.kHMabkckMk.',
+        '.kHMabbckMk.',
+        '.kHMkkkkMSk.',
+        '.kMkdddekSk.',
+        '.kMkddeekSk.',
+        '.kMkdeeekSk.',
+        '.kkkkkkkkkk.',
+        '............',
+        '............'], materials(BRASS_ICON, abc=tones(IRON_ICON), def_=tones(BONE_ICON))),
+    ('clock', [  # A pocket watch: the same disc as the coin
+        '.....kk.....',
+        '...kkkkkk...',
+        '..kHHabbSk..',
+        '.kHaabkbbSk.',
+        '.kHabbkbbSk.',
+        '.kHabbkkkSk.',
+        '.kMabbbbbSk.',
+        '.kMbbbbbcSk.',
+        '..kMbbbcSk..',
+        '...kkkkkk...',
+        '............',
+        '............'], materials(BRASS_ICON, abc=tones(BONE_ICON))),
+    ('mission_star', [  # A star earned
+        '.....kk.....',
+        '....kHMk....',
+        '.kkkkHMkkkk.',
+        '.kHHMMMMMSk.',
+        '..kHMMMMSk..',
+        '...kMMMMk...',
+        '...kMMMSk...',
+        '..kMSkkSSk..',
+        '..kSk..kSk..',
+        '..kk....kk..',
+        '............',
+        '............'], materials(BRASS_ICON)),
+    ('mission_star_empty', [  # A star still to earn: the same star, unlit
+        '.....kk.....',
+        '....kHMk....',
+        '.kkkkHMkkkk.',
+        '.kHHMMMMMSk.',
+        '..kHMMMMSk..',
+        '...kMMMMk...',
+        '...kMMMSk...',
+        '..kMSkkSSk..',
+        '..kSk..kSk..',
+        '..kk....kk..',
+        '............',
+        '............'], materials(UNLIT_ICON)),
+]
+
+
+def check_icon(name: str, rows: list[str]) -> None:
+    """Refuse an icon that breaks the shared rules, rather than ship it."""
+    if len(rows) != 12 or any(len(row) != 12 for row in rows):
+        raise ValueError(f'icon {name}: not 12 x 12')
+    drawn = {(x, y) for y, row in enumerate(rows) for x, c in enumerate(row) if c != '.'}
+    xs, ys = [x for x, _ in drawn], [y for _, y in drawn]
+    if abs(min(xs) - (11 - max(xs))) > 1 or abs(min(ys) - (11 - max(ys))) > 2:
+        raise ValueError(f'icon {name}: not centered in its cell')
+    for x, y in drawn:
+        if rows[y][x] == 'k':
+            continue
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if (nx, ny) not in drawn:
+                raise ValueError(f'icon {name}: outline open at {x},{y}')
+
+
 def make_icons() -> Image:
-    img = Image(12 * 26, 12)
-    k = INK
-    icon(img, 0, [  # Heart
-        '............', '.kk....kk...', 'krrk..krrk..', 'krRrkkrrrk..', 'krRrrrrrrk..',
-        'krrrrrrrrk..', '.krrrrrrk...', '..krrrrk....', '...krrk.....', '....kk......',
-        '............', '............'], {'k': k, 'r': RED[1], 'R': RED[3]})
-    icon(img, 1, [  # Bullet
-        '............', '.....kk.....', '....kYYk....', '....kYyk....', '....kYyk....',
-        '...kbbbbk...', '...kBbbbk...', '...kBbbbk...', '...kBbbbk...', '...kbbbbk...',
-        '...kkkkkk...', '............'],
-        {'k': k, 'Y': BRASS[3], 'y': BRASS[2], 'b': BRASS[1], 'B': BRASS[2]})
-    icon(img, 2, [  # Skull
-        '............', '...kkkkk....', '..kwwwwwk...', '.kwWwwwwwk..', '.kwkkwkkwk..',
-        '.kwkkwkkwk..', '.kwwwkwwwk..', '..kwwwwwk...', '..kwkwkwk...', '...kkkkk....',
-        '............', '............'], {'k': k, 'w': BONE[1], 'W': BONE[2]})
-    icon(img, 3, [  # Flag
-        '............', '.kk.........', '.kgkkkkk....', '.kgRRRRRk...', '.kgRrRrRk...',
-        '.kgRRRRRk...', '.kgkkkkk....', '.kgk........', '.kgk........', '.kgk........',
-        'kkkkk.......', '............'], {'k': k, 'g': WOOD[3], 'R': RED[2], 'r': RED[3]})
-    icon(img, 4, [  # Dynamite
-        '.......y....', '......Y.y...', '.....kk.....', '..kkkkkkk...', '.krrkrrkrk..',
-        '.kRrkRrkRk..', '.kwwwwwwwk..', '.kRrkRrkRk..', '.krrkrrkrk..', '.krrkrrkrk..',
-        '..kkkkkkk...', '............'],
-        {'k': k, 'r': RED[1], 'R': RED[2], 'w': WOOD[3], 'y': BRASS[2], 'Y': BRASS[3]})
-    icon(img, 5, [  # Speaker
-        '............', '.....k......', '....kk...k..', '.kkkwk.k..k.', '.kwwwk..k.k.',
-        '.kwwwk..k.k.', '.kkkwk.k..k.', '....kk...k..', '.....k......', '............',
-        '............', '............'], {'k': k, 'w': BONE[1]})
-    icon(img, 6, [  # Star
-        '.....k......', '....kYk.....', '....kYk.....', 'kkkkYYYkkkk.', '.kYYYYYYYk..',
-        '..kYYyYYk...', '..kYykyYk...', '.kYyk.kyYk..', '.kkk...kkk..', '............',
-        '............', '............'], {'k': k, 'Y': BRASS[3], 'y': BRASS[2]})
-    icon(img, 7, [  # Lock
-        '............', '...kkkk.....', '..kiiiik....', '..ki..ik....', '..ki..ik....',
-        '.kkkkkkkk...', '.kbbbbbbk...', '.kbbkkbbk...', '.kbbkkbbk...', '.kbbbbbbk...',
-        '.kkkkkkkk...', '............'], {'k': k, 'i': IRON[3], 'b': BRASS[2]})
-    icon(img, 8, [  # Check
-        '............', '.........kk.', '........kgk.', '.......kgk..', '.kk...kgk...',
-        'kgk..kgk....', '.kgkkgk.....', '..kggk......', '...kk.......', '............',
-        '............', '............'], {'k': k, 'g': GREEN[2]})
-    icon(img, 9, [  # Shotgun shell
-        '............', '....kkk.....', '...kRRrk....', '...kRrrk....', '...kRrrk....',
-        '...kRrrk....', '...kRrrk....', '...kYYyk....', '...kYyyk....', '...kkkkk....',
-        '............', '............'], {'k': k, 'R': RED[3], 'r': RED[2], 'Y': BRASS[3], 'y': BRASS[2]})
-    icon(img, 10, [  # Blood drop: bleeding
-        '.....k......', '....krk.....', '....krk.....', '...krrrk....', '...kRrrk....',
-        '..kRrrrrk...', '..kRrrrrk...', '..krrrrrk...', '...krrrk....', '....kkk.....',
-        '............', '............'], {'k': k, 'r': RED[1], 'R': RED[2]})
-    icon(img, 11, [  # Boot and shackle: slowed down
-        '............', '...kkkk.....', '...kbbk.....', '...kbbk.....', '...kbbk.....',
-        '...kbbkkkk..', '...kbbbbbbk.', '...kkkkkkkk.', '..kiik......', '.kik.kik....',
-        '..kiik......', '............'], {'k': k, 'b': WOOD[2], 'i': IRON[3]})
-    icon(img, 12, [  # Gold coin
-        '............', '...kkkkk....', '..kYYYYyk...', '.kYYyyyYyk..', '.kYyYYYyyk..', '.kYyYyyyyk..',
-        '.kYyYyyyyk..', '.kYyyyyyyk..', '..kyyyyyk...', '...kkkkk....', '............',
-        '............'], {'k': k, 'Y': BRASS[3], 'y': BRASS[2]})
-    icon(img, 13, [  # Wind: gusts
-        '............', '.kkkkkk.....', '.wwwwwwk....', '.kkkkkkwk...', '......kwk...', 'kkkkkkkkkk..',
-        'wwwwwwwwwwk.', 'kkkkkkkkkk..', '...kkkkk....', '...wwwwwk...', '...kkkkkk...',
-        '............'], {'k': k, 'w': IRON[4]})
-    icon(img, 14, [  # Current: waves
-        '............', '............', '.kk...kk....', 'kbbk.kbbk.k.', 'b..bkb..bkb.', '.....k...k..',
-        '.kk...kk....', 'kbbk.kbbk.k.', 'b..bkb..bkb.', '.....k...k..', '............',
-        '............'], {'k': k, 'b': rgb(0x6ab0d0)})
-    icon(img, 15, [  # Heat: a blazing sun
-        '.....r......', '..r..r..r...', '...kkkkk....', '..kyyyyyk...', 'rrkyYYYykrr.', '..kyYYYyk...',
-        '..kyyyyyk...', '...kkkkk....', '..r..r..r...', '.....r......', '............',
-        '............'], {'k': k, 'y': BRASS[2], 'Y': BRASS[3], 'r': RED[2]})
-    icon(img, 16, [  # Omen: a crow's eye
-        '............', '..kkkkkkk...', '.kkbbbbbkk..', 'kkbbwwwbbkk.', 'kbbwwrrwbbk.', 'kbbwwrrwbbk.',
-        'kkbbwwwbbkk.', '.kkbbbbbkk..', '..kkkkkkk...', '............', '............',
-        '............'], {'k': k, 'b': rgb(0x22242c), 'w': rgb(0xd8d4c8), 'r': RED[2]})
-    icon(img, 17, [  # Cold: a snowflake
-        '.....k......', '..k.kwk.k...', '.kwkkwkkwk..', '..kwkwkwk...', 'kkkkwwwkkkk.', 'kwwwwiwwwwk.',
-        'kkkkwwwkkkk.', '..kwkwkwk...', '.kwkkwkkwk..', '..k.kwk.k...', '.....k......',
-        '............'], {'k': k, 'w': rgb(0xc8e4f4), 'i': rgb(0xffffff)})
-    icon(img, 18, [  # Wet: drops
-        '...k........', '..kbk.......', '.kbbbk...k..', '.kbwbk..kbk.', '.kbbbk.kbbbk', '..kkk..kbwbk',
-        '.......kbbbk', '...k....kkk.', '..kbk.......', '.kbwbk......', '.kbbbk......',
-        '..kkk.......'], {'k': k, 'b': rgb(0x5aa0c8), 'w': rgb(0xc8e4f4)})
-    icon(img, 19, [  # Cozy: a campfire's flame over logs
-        '.....k......', '....kyk.....', '...kyyk.k...', '..kyoyykok..', '..kyooyooyk.', '.kyoorroook.',
-        '.kyorrrrook.', '..kooroook..', '.kkkkkkkkkk.', 'kwwkwwwkwwk.', '.kkkkkkkkk..',
-        '............'], {'k': k, 'y': BRASS[3], 'o': rgb(0xf08a24), 'r': RED[2], 'w': WOOD[3]})
-    icon(img, 20, [  # Water: a jug
-        '....kkk.....', '...kccck....', '...kkckk....', '..kbbbbbk...', '.kbBBBBBbk..', '.kBwBBBBBk..',
-        '.kBwBBBBBk..', '.kBBBBBBBk..', '.kbBBBBBbk..', '..kbbbbbk...', '...kkkkk....',
-        '............'], {'k': k, 'c': WOOD[3], 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa)})
-    icon(img, 21, [  # Refreshed: a drop and a sparkle
-        '........w...', '....k..wWw..', '...kbk..w...', '...kbk......', '..kbBbk.....', '.kbBBBbk....',
-        '.kbBwBbk....', '.kbBwBbk....', '..kbBbk.....', '...kkk......', '............',
-        '............'], {'k': k, 'b': rgb(0x2a5a86), 'B': rgb(0x5aa0d0), 'w': rgb(0xd8f0fa), 'W': rgb(0xffffff)})
-    icon(img, 22, [  # Bevelled brass case, steel shutter, label and red ink
-        '.kkkkkkkkk..', 'kHBBBBBBBDk.', 'kBksswskBDk.', 'kBksswskBDk.', 'kBkkkkkkBDk.',
-        'kHBBBBBBBDk.', 'kBkpppppkDk.', 'kBkpprrpkDk.', 'kBkpppppkDk.', 'kBkpppppkDk.',
-        'kBDDDDDDDkk.', '.kkkkkkkkk..'],
-        {'k': k, 'H': BRASS[3], 'B': BRASS[2], 'D': BRASS[0],
-         's': IRON[2], 'w': IRON[3], 'p': rgb(0xead6b1), 'r': RED[1]})
-    # A pocket-watch face: ink outline, warm metal rim, ivory dial and hands.
-    for y in range(12):
-        for x in range(12):
-            distance = (x - 5.5) ** 2 + (y - 5.5) ** 2
-            if distance > 30:
-                continue
-            color = k if distance > 23 else (BRASS[3] if x + y < 10 else BRASS[1]) if distance > 14 else rgb(0xead6b1)
-            img.set(23 * 12 + x, y, color)
-    for x, y in ((5, 2), (9, 5), (6, 9), (2, 6), (5, 3), (5, 4), (5, 5), (6, 5), (7, 5), (8, 5)):
-        img.set(23 * 12 + x, y, k)
-    stars = ['.....kk.....', '....kHHk....', '....kHYk....', '.kkkHYYkkk..',
-             'kHHHYYYYyyk.', '.kHYYYYyyk..', '..kYYYYyk...', '..kYYyyyk...',
-             '.kYYYkYyyk..', '.kYYk.kYyk..', '.kkk...kkk..', '............']
-    icon(img, 24, stars, {'k': k, 'H': rgb(0xffedb0), 'Y': BRASS[3], 'y': BRASS[1]})
-    icon(img, 25, stars, {'k': rgb(0x65594c), 'H': rgb(0x514236), 'Y': rgb(0x362b25), 'y': rgb(0x261f1d)})
+    img = Image(12 * len(ICONS), 12)
+    for frame, (name, rows, colors) in enumerate(ICONS):
+        check_icon(name, rows)
+        icon(img, frame, rows, colors)
     return img
 
 
-WEAPON_W, WEAPON_H = 36, 14
-HERO_TINT = 0x70c8b0  # The Hero's stand-in tint (src/game/characters.c): his gun in play
+def make_icons_hd() -> Image:
+    icons = draw_icons_hd()
+    img = Image(ICON_HD_SIZE * len(icons), ICON_HD_SIZE)
+    for frame, pixels in enumerate(icons):
+        for (x, y), color in pixels.items():
+            img.set(frame * ICON_HD_SIZE + x, y, color)
+    return img
 
 
-def revolver_pixels() -> dict:
-    """The cowgirl's hand cannon as she aims it (shoot.png, frame 3), her hand
-    and sleeve left out: (x, y) -> RGBA, from (0, 0)."""
-    w, h, px = decode_png_rgba(ROOT / 'assets/sprites/characters/cowgirl/shoot.png')
-    ox, x0, y0, x1, y1 = 81 * 3, 44, 29, 64, 38
-    out = {}
-    for y in range(y0, y1 + 1):
-        for x in range(x0, x1 + 1):
-            i = (y * w + ox + x) * 4
-            c = tuple(px[i:i + 4])
-            r, g, bl = c[:3]
-            skin = r > 150 and g > 90 and r > bl + 40     # Her hand
-            sleeve = x < 50 and y >= 37 and not (r > 90 and g > 90 and bl > 90)
-            if c[3] and not skin and not sleeve:
-                out[(x - x0, y - y0)] = c
-    # Bits of her fingers' outline left on their own.
-    lone = [xy for xy in out
-            if sum((xy[0] + dx, xy[1] + dy) in out for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))) == 0]
-    for xy in lone:
-        del out[xy]
-    return out
-
-
-def swat_pixels(gun: dict) -> dict:
-    """A SWAT gun template (tools/make_swat.py) in its metal colors, outlined
-    like on his shoot sheets."""
-    inked = {}
-    xs = [x for x, _ in gun]
-    ys = [y for _, y in gun]
-    for (x, y), key in gun.items():
-        inked[(x - min(xs) + 1, y - min(ys) + 1)] = SWAT_METAL[key]
-    out = dict(inked)
-    for (x, y) in inked:
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            if (x + dx, y + dy) not in inked:
-                out[(x + dx, y + dy)] = SWAT_INK
-    return out
-
-
-def tinted(pixels: dict, tint: int) -> dict:
-    """The same recolor as a stand-in character (character_skin.c): every
-    color a shade of the tint by its brightness."""
-    out = {}
-    for xy, c in pixels.items():
-        lum = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
-        shade = lum / 150.0
-        out[xy] = tuple(min(255, round(((tint >> (8 * k)) & 0xFF) * shade)) for k in (2, 1, 0)) + (255,)
-    return out
-
-
-def dual_pixels(revolver: dict) -> dict:
-    """The cowgirl's dual pistols: a second hand cannon up and behind, darker
-    (as on her shoot_dual sheet)."""
-    out = {}
-    for (x, y), c in revolver.items():
-        out[(x, y)] = tuple(round(v * 0.72) for v in c[:3]) + (255,)
-    shifted = {(x + 3, y + 4): c for (x, y), c in revolver.items()}
-    out = {(x, y + 0): c for (x, y), c in out.items()}
-    out.update(shifted)
-    return out
-
-
-def grenade_pixels() -> dict:
-    """The SWAT's hand grenade (weapons/grenade.png frame 0), twice as big."""
-    w, h, px = decode_png_rgba(ROOT / 'assets/sprites/weapons/grenade.png')
-    out = {}
-    for y in range(8):
-        for x in range(8):
-            i = (y * w + x) * 4
-            if px[i + 3]:
-                for dy in range(2):
-                    for dx in range(2):
-                        out[(x * 2 + dx, y * 2 + dy)] = tuple(px[i:i + 4])
-    return out
-
-
-def make_weapons() -> Image:
-    """The guns as they look in play, centered in 36 x 14 frames, in WeaponId
-    order: hand cannon, rifle, shotgun, plasma cannon, dual pistols; then the
-    grenade (UI_GRENADE). Run tools/make_powers.py first."""
-    revolver = revolver_pixels()
-    guns = [revolver, swat_pixels(swat_rifle()[0]), swat_pixels(swat_shotgun()[0]),
-            tinted(revolver, HERO_TINT), dual_pixels(revolver), grenade_pixels()]
-    img = Image(WEAPON_W * len(guns), WEAPON_H)
+def make_guns(scale: float) -> Image:
+    """The guns (tools/ui_icons.py), centered in their frames, in WeaponId order
+    and then the grenade (UI_GRENADE)."""
+    w, h = round(KIT.GUN_W * scale), round(KIT.GUN_H * scale)
+    guns = KIT.draw_guns(scale)
+    img = Image(w * len(guns), h)
     for f, pixels in enumerate(guns):
-        w = max(x for x, _ in pixels) + 1
-        h = max(y for _, y in pixels) + 1
-        ox, oy = (WEAPON_W - w) // 2, (WEAPON_H - h) // 2
+        xs, ys = [x for x, _ in pixels], [y for _, y in pixels]
+        ox, oy = (w - 1 - max(xs) - min(xs)) // 2, (h - 1 - max(ys) - min(ys)) // 2
         for (x, y), c in pixels.items():
-            img.set(f * WEAPON_W + ox + x, oy + y, c)
+            img.set(f * w + x + ox, y + oy, c)
     return img
 
 
@@ -457,7 +668,8 @@ def main() -> int:
     assets = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / 'assets'
     out = {
         'font': make_font(), 'panel': make_panel(), 'button': make_button(), 'key': make_key(),
-        'pip': make_pip(), 'bar': make_bar(), 'icons': make_icons(), 'weapons': make_weapons(),
+        'pip': make_pip(), 'bar': make_bar(), 'icons': make_icons(), 'icons_hd': make_icons_hd(),
+        'weapons': make_guns(.5), 'weapons_hd': make_guns(1.0),
     }
     for name, img in out.items():
         path = assets / 'sprites' / 'ui' / f'{name}.png'

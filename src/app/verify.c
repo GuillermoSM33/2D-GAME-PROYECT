@@ -228,7 +228,8 @@ int app_verify_assets(void)
         {"sprites/ui/panel", 24, 24}, {"sprites/ui/button", 32, 16}, {"sprites/ui/key", 14, 14},
         {"sprites/ui/pip", 12, 10}, {"sprites/ui/bar", 12, 8},
         {"sprites/ui/icons", ICON_COUNT * UI_ICON_SIZE, UI_ICON_SIZE},
-        {"sprites/ui/weapons", (WEAPON_COUNT + 1) * UI_WEAPON_W, UI_WEAPON_H}, /* + the grenade */
+        {"sprites/ui/icons_hd", ICON_COUNT * UI_ICON_HD_SIZE, UI_ICON_HD_SIZE},
+        {"sprites/ui/weapons", (WEAPON_COUNT + 1) * UI_WEAPON_W, UI_WEAPON_H}, {"sprites/ui/weapons_hd", (WEAPON_COUNT + 1) * UI_WEAPON_W * 2, UI_WEAPON_H * 2}, /* + the grenade */
     };
     for (size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++)
         failures += !verify_image(kit[i].name, kit[i].w, kit[i].h);
@@ -241,6 +242,15 @@ int app_verify_assets(void)
         failures++;
     }
     failures += verify_characters();
+    if (assets_find_blob(MENU_MUSIC) == NULL) {
+        fprintf(stderr, "FALTA: %s\n", MENU_MUSIC);
+        failures++;
+    }
+    for (int s = 0; s < STAGE_COUNT; s++)
+        if (assets_find_blob(STAGES[s].music) == NULL) {
+            fprintf(stderr, "FALTA: %s\n", STAGES[s].music);
+            failures++;
+        }
     const char *blobs[] = {"fonts/DejaVuSansMono", "fonts/DejaVuSansMono-Bold",
                            "sounds/player/shot", "sounds/player/reload", "sounds/zombie/spawn",
                            "sounds/zombie/idle", "sounds/zombie/death", "sounds/world/explosion",

@@ -25,6 +25,7 @@ const EmbeddedBlob embedded_blobs[] = {
     BLOB("25"), BLOB("26"), BLOB("27"), BLOB("28"), BLOB("29"),
     BLOB("30"), BLOB("31"), BLOB("32"), BLOB("33"), BLOB("34"),
     BLOB("35"), BLOB("36"), BLOB("37"), BLOB("38"), BLOB("39"),
+    {"music/test", sizeof(wave), wave}, /* Not an effect: never loaded as one */
 };
 const int embedded_blob_count = (int)(sizeof(embedded_blobs) / sizeof(embedded_blobs[0]));
 
@@ -104,6 +105,59 @@ static void pause_and_stop(void)
     CHECK(Mix_Playing(-1) == 0);
 }
 
+/* The stage tracks as shipped: this is what proves the OGG decoder is there. */
+static void shipped_tracks_decode(void)
+{
+    static const char *const paths[] = {"assets/music/ruta_1_1.ogg", "assets/music/ruta_1_2.ogg",
+                                        "assets/music/ruta_1_3.ogg", "assets/music/ruta_1_4.ogg",
+                                        "assets/music/ruta_1_5.ogg", "assets/music/menu.ogg"};
+    for (int i = 0; i < 6; i++) {
+        SDL_RWops *rw = SDL_RWFromFile(paths[i], "rb");
+        CHECK(rw != NULL);
+        Mix_Music *track = rw ? Mix_LoadMUS_RW(rw, 1) : NULL;
+        CHECK(track != NULL);
+        if (track) {
+            CHECK(Mix_GetMusicType(track) == MUS_OGG);
+            CHECK(Mix_PlayMusic(track, -1) == 0);
+            CHECK(Mix_PlayingMusic() == 1);
+            Mix_HaltMusic();
+            Mix_FreeMusic(track);
+        }
+    }
+}
+
+static void music(void)
+{
+    audio_set_master(1.0f);
+    audio_set_music(1.0f);
+    audio_music_play("music/test");
+    CHECK(Mix_PlayingMusic() == 1);
+    CHECK(Mix_VolumeMusic(-1) == MUSIC_VOLUME);
+    CHECK(Mix_Playing(-1) == 0); /* It takes none of the effects' channels */
+    audio_set_music(0.5f);
+    CHECK(Mix_VolumeMusic(-1) == (int)(MUSIC_VOLUME * 0.5f + 0.5f));
+    audio_set_master(0.0f);
+    CHECK(Mix_VolumeMusic(-1) == 0);
+    audio_set_master(1.0f);
+    audio_set_music(1.0f);
+    audio_music_play("music/test"); /* The same one: left alone */
+    CHECK(Mix_PlayingMusic() == 1 && Mix_FadingMusic() == MIX_NO_FADING);
+    audio_stop_all(); /* Clearing a stage's sounds leaves the music */
+    audio_pause(true);
+    CHECK(Mix_PlayingMusic() == 1 && Mix_PausedMusic() == 0);
+    audio_pause(false);
+    audio_music_stop(200);
+    CHECK(Mix_FadingMusic() == MIX_FADING_OUT);
+    audio_music_play("music/test"); /* A retry during the fade starts over, in full */
+    CHECK(Mix_PlayingMusic() == 1 && Mix_FadingMusic() == MIX_NO_FADING);
+    audio_music_stop(0);
+    CHECK(Mix_PlayingMusic() == 0);
+    audio_music_play("music/missing");
+    audio_music_play(NULL);
+    audio_music_stop(0);
+    CHECK(Mix_PlayingMusic() == 0);
+}
+
 static void lifecycle(void)
 {
     audio_shutdown();
@@ -154,6 +208,8 @@ int main(void)
     RUN(loading_and_channels);
     RUN(live_volumes);
     RUN(pause_and_stop);
+    RUN(music);
+    RUN(shipped_tracks_decode);
     RUN(lifecycle);
     return TEST_EXIT();
 }

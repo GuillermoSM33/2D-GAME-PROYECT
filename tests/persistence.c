@@ -215,6 +215,19 @@ static void test_next_mission_saves_after_clearing_the_first(void)
     CHECK(save_game_resume(&decoded, &resumed, 0, 1));
 }
 
+static void test_music_volume_is_kept(void)
+{
+    save_game_init(&source);
+    CHECK(source.volumes.music > 0); /* On by default, also for older saves */
+    source.volumes.music = 2;
+    size_t size = 0;
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(decoded.volumes.music == 2);
+    source.volumes.music = VOLUME_STEPS + 1;
+    CHECK(!save_game_encode(&source, bytes, sizeof(bytes), &size));
+}
+
 static void test_retry_cannot_bank_unearned_progress_or_duplicate_rewards(void)
 {
     fixture(37, 111);
@@ -346,6 +359,7 @@ int main(int argc, char **argv)
         RUN(test_level_up_checkpoint_roundtrip_for_every_character);
         RUN(test_combat_checkpoints_through_first_level_up);
         RUN(test_next_mission_saves_after_clearing_the_first);
+        RUN(test_music_volume_is_kept);
         RUN(test_retry_cannot_bank_unearned_progress_or_duplicate_rewards);
         RUN(test_replacing_pending_mission_restores_its_entry_balance);
         RUN(test_timer_counts_fifteen_minutes_of_active_play_only);

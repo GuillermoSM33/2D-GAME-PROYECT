@@ -6,6 +6,7 @@ Usage: tools/make_powers.py
 Writes:
   assets/sprites/weapons/grenade.png  The SWAT's hand grenade, tumbling
       (4 frames of 8 x 8): olive body, its lever and the pin's ring.
+  assets/sprites/weapons/bullet.png   The round every gun fires (4 frames of 8 x 6)
 
 Her duals are made by tools/make_flashlight.py, the SWAT's throwing sheet with his other sheets (tools/make_swat.py).
 Uses only the standard library.
@@ -18,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+import ui_icons as KIT  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SHOOT_W, SHOOT_H, FRAMES = 81, 80, 8
@@ -165,38 +167,28 @@ LEVER = rgb(0xa7a8a8)
 GRENADE_INK = rgb(0x140e0e)
 
 
-def make_grenade() -> Image:
-    """4 frames of 8 x 8, a quarter turn each."""
-    body = [
-        "..ooo...",
-        ".oLLso..",
-        "o3332o..",
-        "o3221o..",
-        "o3221o..",
-        "o2211o..",
-        ".o11o...",
-        "..oo....",
-    ]
-    keys = {'o': GRENADE_INK, '1': GRENADE[0], '2': GRENADE[1], '3': GRENADE[2], 'L': LEVER, 's': GRENADE[3]}
-    img = Image(8 * 4, 8)
-    for f in range(4):
-        for y, row in enumerate(body):
-            for x, k in enumerate(row):
-                if k == '.':
-                    continue
-                # A quarter turn per frame about the middle.
-                rx, ry = x - 3.5, y - 3.5
-                for _ in range(f):
-                    rx, ry = -ry, rx
-                tx, ty = int(round(rx + 3.5)), int(round(ry + 3.5))
-                if 0 <= tx < 8 and 0 <= ty < 8:
-                    img.set(f * 8 + tx, ty, keys[k])
+def _strip(frames: list, size_w: int, size_h: int) -> Image:
+    img = Image(size_w * len(frames), size_h)
+    for f, pixels in enumerate(frames):
+        for (x, y), color in pixels.items():
+            img.set(f * size_w + x, y, color)
     return img
+
+
+def make_grenade() -> Image:
+    """4 frames of 8 x 8, a quarter turn each (tools/ui_icons.py)."""
+    return _strip(KIT.grenade_frames(), 8, 8)
+
+
+def make_bullet() -> Image:
+    """4 frames of 8 x 6, in greys the game tints per gun (tools/ui_icons.py)."""
+    return _strip(KIT.bullet_frames(), 8, 6)
 
 
 def main() -> int:
     out = {
         'assets/sprites/weapons/grenade.png': make_grenade(),
+        'assets/sprites/weapons/bullet.png': make_bullet(),
     }
     for name, img in out.items():
         img.save(ROOT / name)

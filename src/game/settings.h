@@ -15,15 +15,16 @@ typedef enum {
 #define VOLUME_STEPS 10
 
 /* The options menu's volumes, 0 to VOLUME_STEPS each: everything, then the
- * character's and the zombies' sounds on top of it. Kept for the session.
+ * music's, the character's and the zombies' sounds on top of it. Kept for the session.
  * The same screen also switches the window to full screen and back. */
 typedef struct {
-    int master, player, zombie;
+    int master, music, player, zombie;
     bool fullscreen;
 } Volumes;
 
 typedef enum {
     VOLUME_MASTER,
+    VOLUME_MUSIC,
     VOLUME_PLAYER,
     VOLUME_ZOMBIE,
     VOLUME_FULLSCREEN, /* Window or full screen; not a volume */

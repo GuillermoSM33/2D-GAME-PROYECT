@@ -40,7 +40,8 @@ typedef enum {
     ICON_COUNT
 } UiIcon;
 
-#define UI_ICON_SIZE 12   /* Art px */
+#define UI_ICON_SIZE 12   /* Window px at scale 1: its small version */
+#define UI_ICON_HD_SIZE 24 /* Art px of the detailed version, from scale 2 up */
 #define UI_WEAPON_W 36
 #define UI_WEAPON_H 14
 #define UI_GRENADE WEAPON_COUNT /* ui_weapon: the grenade's picture, after the guns */
@@ -61,7 +62,8 @@ int ui_key_compact(SDL_Renderer *renderer, int x, int y, const char *label);
 int ui_key_width(const char *label);
 int ui_key_height(void);
 
-/* An icon or a gun's picture at a whole-number scale, top-left at x, y. */
+/* An icon or a gun's picture at a whole-number scale, top-left at x, y.
+ * Icons stay crisp at scales 1, 2, 4 and 6: the detailed art is twice as fine. */
 void ui_icon(SDL_Renderer *renderer, UiIcon icon, int x, int y, int scale);
 void ui_weapon(SDL_Renderer *renderer, int weapon, int x, int y, int scale);
 

@@ -94,7 +94,7 @@ static void preview(SDL_Renderer *r, int entry, int center_x, int baseline,
 
 static void unknown(SDL_Renderer *r, int center_x, int y, bool big)
 {
-    ui_icon(r, ICON_LOCK, center_x - (big ? 24 : 18), y, big ? 4 : 3);
+    ui_icon(r, ICON_LOCK, center_x - (big ? 24 : 12), y + (big ? 0 : 6), big ? 4 : 2);
     ui_text(r, "????", center_x, y + (big ? 72 : 54), big ? 3 : 2,
              COLOR_HUD_LOCKED, ANCHOR_N);
 }

@@ -10,7 +10,9 @@
 #define PIP_SHEET "sprites/ui/pip"
 #define BAR_SHEET "sprites/ui/bar"
 #define ICON_SHEET "sprites/ui/icons"
+#define ICON_SHEET_HD "sprites/ui/icons_hd"
 #define WEAPON_SHEET "sprites/ui/weapons"
+#define WEAPON_SHEET_HD "sprites/ui/weapons_hd"
 
 #define PANEL_SIZE 24
 #define PANEL_CORNER 8
@@ -112,20 +114,24 @@ int ui_key_compact(SDL_Renderer *renderer, int x, int y, const char *label)
 
 void ui_icon(SDL_Renderer *renderer, UiIcon icon, int x, int y, int scale)
 {
-    SDL_Texture *sheet = assets_texture(ICON_SHEET);
+    /* Scale two and up draw the detailed art; scale one, the small version. */
+    int size = scale >= 2 ? UI_ICON_HD_SIZE : UI_ICON_SIZE;
+    SDL_Texture *sheet = assets_texture(scale >= 2 ? ICON_SHEET_HD : ICON_SHEET);
     if (sheet == NULL)
         return;
-    SDL_Rect src = {(int)icon * UI_ICON_SIZE, 0, UI_ICON_SIZE, UI_ICON_SIZE};
+    SDL_Rect src = {(int)icon * size, 0, size, size};
     SDL_Rect dst = {x, y, UI_ICON_SIZE * scale, UI_ICON_SIZE * scale};
     SDL_RenderCopy(renderer, sheet, &src, &dst);
 }
 
 void ui_weapon(SDL_Renderer *renderer, int weapon, int x, int y, int scale)
 {
-    SDL_Texture *sheet = assets_texture(WEAPON_SHEET);
+    /* As with the icons: the detailed art from scale two up. */
+    int detail = scale >= 2 ? 2 : 1;
+    SDL_Texture *sheet = assets_texture(scale >= 2 ? WEAPON_SHEET_HD : WEAPON_SHEET);
     if (sheet == NULL)
         return;
-    SDL_Rect src = {weapon * UI_WEAPON_W, 0, UI_WEAPON_W, UI_WEAPON_H};
+    SDL_Rect src = {weapon * UI_WEAPON_W * detail, 0, UI_WEAPON_W * detail, UI_WEAPON_H * detail};
     SDL_Rect dst = {x, y, UI_WEAPON_W * scale, UI_WEAPON_H * scale};
     SDL_RenderCopy(renderer, sheet, &src, &dst);
 }

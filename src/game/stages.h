@@ -57,6 +57,7 @@ typedef struct {
     Weather weather;        /* Rain, wind, a storm, or clear */
     bool hot;               /* Heat haze over the road; her blows come slower */
     bool cold;              /* A cold night: slower blows and steps, slower to dry */
+    const char *music;      /* Its background track (tools/make_music.py) */
 } StageDef;
 
 extern const StageDef STAGES[];

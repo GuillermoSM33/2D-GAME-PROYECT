@@ -10,7 +10,7 @@
 
 /* Increment this schema when changing field order, enum/catalogue order or
  * the meaning of saved data. Never serialize native padding or addresses. */
-#define SAVE_SCHEMA 2u
+#define SAVE_SCHEMA 3u
 #define SAVE_MAGIC 0x31535156u
 #define ANIMATION_LIMIT 512
 
@@ -269,7 +269,7 @@ static void game_codec(Codec *c, SaveGame *game)
 {
     uint32_t magic = SAVE_MAGIC, version = SAVE_SCHEMA;
     u32(c, &magic); u32(c, &version);
-    CHECK(magic == SAVE_MAGIC && (version == 1 || version == SAVE_SCHEMA));
+    CHECK(magic == SAVE_MAGIC && version >= 1 && version <= SAVE_SCHEMA);
     c->schema = version;
     int stages = STAGE_COUNT, entries = ALMANAC_ENTRIES, count = CHARACTER_COUNT;
     I(stages); I(entries); I(count);
@@ -285,8 +285,11 @@ static void game_codec(Codec *c, SaveGame *game)
         profile(c, &game->profiles[index]);
     }
     character(c, &game->hero);
-    I(game->volumes.master); I(game->volumes.player); I(game->volumes.zombie);
+    I(game->volumes.master);
+    if (c->schema >= 3) I(game->volumes.music); /* Older saves keep the default */
+    I(game->volumes.player); I(game->volumes.zombie);
     CHECK(game->volumes.master >= 0 && game->volumes.master <= VOLUME_STEPS);
+    CHECK(game->volumes.music >= 0 && game->volumes.music <= VOLUME_STEPS);
     CHECK(game->volumes.player >= 0 && game->volumes.player <= VOLUME_STEPS);
     CHECK(game->volumes.zombie >= 0 && game->volumes.zombie <= VOLUME_STEPS);
     B(game->has_checkpoint);

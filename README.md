@@ -410,7 +410,10 @@ Las demás están en *Terminal > Ejecutar tarea*: **Pruebas**, **Vigilar cambios
 
 ## Sonido
 
-Audio con SDL2_mixer: los once sonidos legacy se conservan y los efectos nuevos se
+**Música:** los menús y cada nivel tienen su tema original, compuesto y sintetizado en el
+repositorio, sin material de terceros, con su barra de volumen en Opciones ([docs/AUDIO_MUSIC.md](docs/AUDIO_MUSIC.md)).
+
+**Efectos:** Audio con SDL2_mixer: los once sonidos legacy se conservan y los efectos nuevos se
 montan con grabaciones CC0 y capas de los originales. `tools/make_sfx.py` coordina su
 generación; fuentes, edición y comprobaciones en [docs/AUDIO.md](docs/AUDIO.md).
 Todos se incrustan en el ejecutable. La vaquera conserva el disparo (`player/shot`) y la

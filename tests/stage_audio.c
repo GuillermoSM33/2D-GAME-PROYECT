@@ -17,7 +17,7 @@
 #include "test.h"
 
 typedef enum { CUE_PLAY, CUE_STOP, CUE_LOOP, CUE_STOP_LOOP, CUE_CLEAR,
-               CUE_PAUSE, CUE_MASTER, CUE_GROUP } CueKind;
+               CUE_PAUSE, CUE_MASTER, CUE_GROUP, CUE_MUSIC, CUE_MUSIC_STOP } CueKind;
 typedef struct {
     CueKind kind;
     const char *name;
@@ -63,6 +63,9 @@ void audio_stop(const char *name)
         record_cue(CUE_STOP, name, 0, 0.0f);
 }
 void audio_stop_all(void) { record_cue(CUE_CLEAR, NULL, 0, 0.0f); }
+void audio_music_play(const char *name) { record_cue(CUE_MUSIC, name, 0, 0.0f); }
+void audio_music_stop(int fade_ms) { record_cue(CUE_MUSIC_STOP, NULL, fade_ms, 0.0f); }
+void audio_set_music(float volume) { record_cue(CUE_GROUP, NULL, -1, volume); }
 void audio_pause(bool paused) { record_cue(CUE_PAUSE, NULL, paused ? 1 : 0, 0.0f); }
 void audio_set_master(float volume) { record_cue(CUE_MASTER, NULL, 0, volume); }
 void audio_set_group(int group, float volume) { record_cue(CUE_GROUP, NULL, group, volume); }
@@ -132,6 +135,34 @@ static void press(Action action)
     InputState input = {0};
     input.pressed[action] = input.down[action] = true;
     step(&input);
+}
+
+static int music_cues(CueKind kind)
+{
+    int count = 0;
+    for (int i = 0; i < cue_count; i++)
+        count += cues[i].kind == kind;
+    return count;
+}
+
+static void test_each_stage_has_its_own_music_and_it_fades_when_over(void)
+{
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        CHECK(STAGES[s].music != NULL);
+        for (int other = 0; other < s; other++)
+            CHECK(strcmp(STAGES[s].music, STAGES[other].music) != 0);
+        clear_cues();
+        stage_start(&game, s, &CHARACTERS[0], &profile.progress);
+        CHECK(cue_matches(CUE_MUSIC, STAGES[s].music, -1) == 1);
+        clear_cues();
+        idle();
+        CHECK(music_cues(CUE_MUSIC_STOP) == 0); /* Still fighting: it plays on */
+        game.run.phase = s % 2 ? RUN_CLEARED : RUN_FAILED;
+        clear_cues();
+        idle();
+        idle();
+        CHECK(music_cues(CUE_MUSIC_STOP) == 1); /* Once, however long the ending lasts */
+    }
 }
 
 static void test_every_weapon_fires_its_own_cues(void)
@@ -1049,6 +1080,7 @@ static void test_completion_pays_base_and_star_record_extras_exactly_once(void)
 int main(void)
 {
     printf("stage_audio (real application stage, recording audio boundary)\n");
+    RUN(test_each_stage_has_its_own_music_and_it_fades_when_over);
     RUN(test_every_weapon_fires_its_own_cues);
     RUN(test_magazine_reload_and_jump_cancellation);
     RUN(test_last_round_gives_one_empty_cue);

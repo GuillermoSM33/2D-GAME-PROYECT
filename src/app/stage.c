@@ -116,6 +116,8 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
                         const Progress *progress)
 {
     audio_stop_all();
+    audio_music_play(STAGES[index].music);
+    play->music_on = true;
     play->character = character;
     play->weapon_slot = 0;
     play->single_fire = false;
@@ -680,6 +682,10 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     StageRun *run = &play->run;
     float previous_bolt_warning = run->bolt_warn;
     run_update(run, player, progress, FIXED_DT);
+    if (run->phase != RUN_FIGHTING && play->music_on) { /* Won or lost: it makes room */
+        audio_music_stop(MUSIC_FADE_MS);
+        play->music_on = false;
+    }
     if (run->cleared_now && mission_finish(&run->mission, &profile->record, run->stage_index,
                                             player->health, player->max_health)) {
         int xp = run->mission.star_xp + run->mission.record_xp;

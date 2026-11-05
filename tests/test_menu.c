@@ -60,6 +60,7 @@ static void test_fullscreen_row_switches_display(void)
     CHECK(volumes.fullscreen);
     CHECK(volumes.master == 8 && volumes.player == VOLUME_STEPS); /* Volumes untouched */
     CHECK(!volume_set(&volumes, VOLUME_FULLSCREEN, 1)); /* Not a volume */
+    CHECK(volume_set(&volumes, VOLUME_MUSIC, 3) && volumes.music == 3);
 }
 
 static void test_options_still_reach_back(void)

@@ -24,6 +24,10 @@ import sys
 import zlib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ui_icons as KIT  # noqa: E402
+from ui_icons import hex_of  # noqa: E402
+
 Color = tuple[int, int, int, int]
 CLEAR: Color = (0, 0, 0, 0)
 
@@ -71,19 +75,20 @@ BADGE_W, BADGE_H = 17, 19
 BAND_BOTTOM = 10   # Row of the divider between the number band and the pyramid
 CENTER = BADGE_W // 2
 
+# The shared materials (tools/ui_icons.py): brass and leather, iron and blood.
 BADGE_STYLES = {
-    'player': {  # Brass and dark leather
-        'outline': 0x17100b, 'rim': 0xcf9a45, 'rim_dark': 0x8a5e24,
-        'band': 0x4f2e16, 'band_light': 0x6e4422, 'band_shade': 0x3a2210,
-        'facet_light': 0xc08a40, 'facet_dark': 0x7a4f22, 'ridge': 0xf0c870,
-        'icon': 0xffe7a0, 'icon_dark': 0x17100b, 'rivet': 0xffe7a0,
+    'player': {
+        'outline': hex_of(KIT.INK), 'rim': hex_of(KIT.BRASS[1]), 'rim_dark': hex_of(KIT.BRASS[3]),
+        'band': hex_of(KIT.WOOD[4]), 'band_light': hex_of(KIT.WOOD[3]), 'band_shade': 0x3a2210,
+        'facet_light': hex_of(KIT.BRASS[2]), 'facet_dark': hex_of(KIT.BRASS[3]), 'ridge': hex_of(KIT.BRASS[1]),
+        'icon': hex_of(KIT.BRASS[0]), 'icon_dark': hex_of(KIT.INK), 'rivet': hex_of(KIT.BRASS[0]),
         'icon_rows': ['..#..', '#####', '.###.', '.#.#.'],  # Star
     },
-    'zombie': {  # Rusted iron and dried blood
-        'outline': 0x120c0e, 'rim': 0x8d929c, 'rim_dark': 0x55585f,
-        'band': 0x45191b, 'band_light': 0x642626, 'band_shade': 0x2c0f11,
-        'facet_light': 0x9c4a42, 'facet_dark': 0x5a2424, 'ridge': 0xc4705f,
-        'icon': 0xe8e0d0, 'icon_dark': 0x120c0e, 'rivet': 0xb8bcc4,
+    'zombie': {
+        'outline': hex_of(KIT.INK), 'rim': hex_of(KIT.IRON[2]), 'rim_dark': hex_of(KIT.IRON[3]),
+        'band': hex_of(KIT.RED[4]), 'band_light': hex_of(KIT.RED[3]), 'band_shade': 0x3e0f0c,
+        'facet_light': hex_of(KIT.RED[3]), 'facet_dark': hex_of(KIT.RED[4]), 'ridge': hex_of(KIT.RED[1]),
+        'icon': hex_of(KIT.BONE[0]), 'icon_dark': hex_of(KIT.INK), 'rivet': hex_of(KIT.IRON[1]),
         'icon_rows': ['.###.', '#o#o#', '.###.', '.#.#.'],  # Skull: eyes, jaw, teeth
     },
 }

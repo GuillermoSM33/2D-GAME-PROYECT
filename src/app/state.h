@@ -68,6 +68,7 @@ typedef struct {
     Progress progress_at_start;
     Inventory inventory_at_start;
     bool paused;     /* Esc: the pause menu, the stage frozen behind it */
+    bool music_on;   /* Its track still playing, not yet faded by the ending */
     ListMenu pause_menu;
     PauseView pause_view;
     bool request_almanac;
