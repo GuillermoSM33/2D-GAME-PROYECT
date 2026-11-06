@@ -52,7 +52,7 @@ assets/
                          lamp, fire, bench, campfire, supply, goal: lo que hay en el camino
     props/               Decorados del paisaje, compartidos por todos los temas
     ui/                  badge_player, badge_zombie (placas de nivel); font, panel, button, key,
-                         pip, bar, icons, weapons (la interfaz)
+                         pip, bar, icons, weapons, notice_dev (la interfaz)
   backgrounds/<tema>/    Capas del fondo de un tema: sky, far, hills_far, hills_near, ground (y fog)
     atardecer/  cementerio/  noche/  pueblo_fantasma/
 ```
@@ -104,7 +104,7 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `sprites/effects/armor_sparks.png` | Recortado de `zombies/riot/hurt.png` | [ZOMBIE.md](ZOMBIE.md) | 2 cuadros de 20 × 12 |
 | `sprites/characters/swat/*` | `tools/make_swat.py`, a partir de `docs/templates/swat/walk_source.png` | [CHARACTERS.md](CHARACTERS.md#el-swat) | Los de la vaquera |
 | `music/*.ogg` | `tools/make_music.py`, compuesta y sintetizada aquí | [AUDIO_MUSIC.md](AUDIO_MUSIC.md) | Vorbis estéreo, 22050 Hz, bucle continuo |
-| `sprites/ui/{font,panel,button,key,pip,bar,icons,icons_hd,weapons,weapons_hd}.png` | `tools/make_ui.py` y `tools/ui_icons.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
+| `sprites/ui/{font,panel,button,key,pip,bar,icons,icons_hd,weapons,weapons_hd,notice_dev}.png` | `tools/make_ui.py` y `tools/ui_icons.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
 | `sprites/ui/badge_*.png`, `sprites/chest/sparks.png` | `tools/make_sprites.py` | el propio script | 17 × 19; 8 cuadros de 72 × 72 |
 | `sprites/props/*` | Dibujado | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/props.c` |
 | `sprites/props/houses.png` | `tools/make_terrain.py`, en los colores de los props (cada tema los recolorea) | el propio script | 13 × 80 × 64 (5 casas, las 5 estructuras con el banco, y el almacén, la casa de adobe y el silo caído); casas de fondo, `HOUSE_*` en `config.h`, `house_chance` por tema |
@@ -119,7 +119,7 @@ los materiales de `tools/ui_icons.py` (rampas de cinco tonos: latón, hierro, ma
 contorno de tinta de 1 px y luz siempre desde arriba a la izquierda. Un recurso nuevo para estas
 carpetas toma sus colores de ahí, no de una paleta propia.
 
-`sprites/ui/icons_hd.png` tiene 26 celdas de 24 × 24 px, dibujadas en `tools/ui_icons.py`;
+`sprites/ui/icons_hd.png` tiene 29 celdas de 24 × 24 px, dibujadas en `tools/ui_icons.py`;
 `ui_icon` las usa desde la escala 2 (se ven nítidas en 2, 4 y 6). `sprites/ui/icons.png` son los
 mismos iconos en 12 × 12 para los huecos sin espacio (escala 1); `make_icons` de `tools/make_ui.py`
 rechaza uno descentrado o con el contorno abierto. Ambas usan el orden de `UiIcon` en

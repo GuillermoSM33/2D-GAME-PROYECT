@@ -39,6 +39,7 @@ typedef enum {
     ICON_MISSION_STAR_EMPTY,
     ICON_ARROW_LEFT,  /* An ambush coming, out of sight */
     ICON_ARROW_RIGHT,
+    ICON_CONSTRUCTION, /* In development: a striped barrier */
     ICON_COUNT
 } UiIcon;
 
@@ -47,6 +48,8 @@ typedef enum {
 #define UI_WEAPON_W 36
 #define UI_WEAPON_H 14
 #define UI_GRENADE WEAPON_COUNT /* ui_weapon: the grenade's picture, after the guns */
+#define UI_NOTICE_W 280 /* The "in development" sign, in art px: drawn at twice that */
+#define UI_NOTICE_H 48
 
 /* A board for a window or a group of readouts (wood frame, leather inside). */
 void ui_panel(SDL_Renderer *renderer, int x, int y, int w, int h);
@@ -68,6 +71,9 @@ int ui_key_height(void);
  * Icons stay crisp at scales 1, 2, 4 and 6: the detailed art is twice as fine. */
 void ui_icon(SDL_Renderer *renderer, UiIcon icon, int x, int y, int scale);
 void ui_weapon(SDL_Renderer *renderer, int weapon, int x, int y, int scale);
+
+/* The "in development" sign with its icon on its plank, top-left at x, y. */
+void ui_notice_dev(SDL_Renderer *renderer, int x, int y);
 
 /* A volume bar: max notches, value of them full. Returns its width. */
 int ui_pips(SDL_Renderer *renderer, int x, int y, int value, int max);

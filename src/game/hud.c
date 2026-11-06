@@ -1218,15 +1218,19 @@ static void draw_card(SDL_Renderer *renderer, const CharacterSkin *skin, const P
         SDL_Rect src = {0, 0, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H};
         SDL_Rect dst = {cx - PLAYER_WALK_FRAME_W * PORTRAIT_SCALE / 2, portrait_top,
                         PLAYER_WALK_FRAME_W * PORTRAIT_SCALE, PLAYER_WALK_FRAME_H * PORTRAIT_SCALE};
-        Uint8 shade = selected ? 255 : 140;
+        Uint8 shade = c->in_development ? 90 : selected ? 255 : 140;
         SDL_SetTextureColorMod(walk, shade, shade, shade);
         SDL_RenderCopy(renderer, walk, &src, &dst);
         SDL_SetTextureColorMod(walk, 255, 255, 255);
     }
     draw_badge(renderer, left + 40, CARD_TOP + 64, progress->level, BADGE_PLAYER, !selected);
-    if (skin->placeholder)
-        ui_text(renderer, "ARTE PROVISIONAL", cx, portrait_top + PLAYER_WALK_FRAME_H * PORTRAIT_SCALE - 22,
-                2, COLOR_HUD_LOCKED, ANCHOR_N);
+    int portrait_bottom = portrait_top + PLAYER_WALK_FRAME_H * PORTRAIT_SCALE;
+    if (c->in_development) {
+        ui_icon(renderer, ICON_CONSTRUCTION, cx - UI_ICON_SIZE * 4 / 2, portrait_bottom - 80, 4);
+        ui_text(renderer, "EN DESARROLLO", cx, portrait_bottom - 24, 2, COLOR_HUD_LEVEL, ANCHOR_N);
+    } else if (skin->placeholder) {
+        ui_text(renderer, "ARTE PROVISIONAL", cx, portrait_bottom - 22, 2, COLOR_HUD_LOCKED, ANCHOR_N);
+    }
 
     /* Name, its guns as they look in play, then its ability. */
     int y = portrait_top + PLAYER_WALK_FRAME_H * PORTRAIT_SCALE + 4;
@@ -1247,14 +1251,29 @@ static void draw_card(SDL_Renderer *renderer, const CharacterSkin *skin, const P
                 progress->level >= POWER_LEVEL ? COLOR_HUD_LEVEL : COLOR_HUD_LOCKED, ANCHOR_N);
 }
 
+/* Refuses a character in development: its own sign, low enough to leave the
+ * portraits and names in view. */
+static void draw_dev_notice(SDL_Renderer *renderer, const char *name)
+{
+    int x = (WINDOW_WIDTH - UI_NOTICE_W * 2) / 2, y = 392;
+    ui_notice_dev(renderer, x, y);
+    char line[80];
+    snprintf(line, sizeof(line), "%s se encuentra en desarrollo", name);
+    int text_x = x + 68, text_w = UI_NOTICE_W * 2 - 68 - 16;
+    hud_text_fit(renderer, "EN CONSTRUCCIÓN", text_x + text_w / 2, y + 20, text_w, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    hud_text_fit(renderer, line, text_x + text_w / 2, y + 54, text_w, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
+}
+
 void hud_draw_characters(SDL_Renderer *renderer, const CharacterSkin *skins,
-                         const Progress *progress, int selected)
+                         const Progress *progress, int selected, bool dev_notice)
 {
     ui_text(renderer, "ELIGE TU PERSONAJE", WINDOW_WIDTH / 2, 26, 4, COLOR_HUD_TITLE, ANCHOR_N);
     for (int i = 0; i < CHARACTER_COUNT && i < 8; i++)
         draw_card(renderer, &skins[i], &progress[i], i, i == selected);
     static const char *const hints[] = {"A/D", "ELEGIR", "ENTER", "CONTINUAR", "ESC", "VOLVER"};
     draw_hints(renderer, hints, 3, WINDOW_HEIGHT - 50);
+    if (dev_notice)
+        draw_dev_notice(renderer, CHARACTERS[selected].name);
 }
 
 void hud_popup(const char *utf8, unsigned rgb, float world_x, int y, bool big)

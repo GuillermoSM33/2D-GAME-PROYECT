@@ -29,10 +29,21 @@ const CharacterDef CHARACTERS[] = {
         .weapons = {WEAPON_PLASMA}, .weapon_count = 1,
         .armor = PLAYER_ARMOR, .armor_per_level = PLAYER_ARMOR_PER_LEVEL,
         .placeholder_tint = 0x70c8b0,
+        .in_development = true,
     },
 };
 
 const int CHARACTER_COUNT = (int)(sizeof(CHARACTERS) / sizeof(CHARACTERS[0]));
+
+int character_playable(int index)
+{
+    if (index >= 0 && index < CHARACTER_COUNT && !CHARACTERS[index].in_development)
+        return index;
+    for (int c = 0; c < CHARACTER_COUNT; c++)
+        if (!CHARACTERS[c].in_development)
+            return c;
+    return 0;
+}
 
 int character_drops_chests(const CharacterDef *character)
 {

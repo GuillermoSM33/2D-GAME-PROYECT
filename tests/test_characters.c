@@ -154,6 +154,35 @@ static void test_select_wraps_and_confirms(void)
     CHECK(select.selected == 0);
 }
 
+static void test_character_in_development_cannot_be_picked(void)
+{
+    CHECK(CHARACTERS[2].in_development && !CHARACTERS[0].in_development && !CHARACTERS[1].in_development);
+    CharSelect select;
+    char_select_init(&select, 2);
+    InputState input;
+    input_init(&input);
+    input.pressed[ACTION_CONFIRM] = true;
+    CHECK(char_select_update(&select, &input) == -1);
+    CHECK(select.denied && select.notice_time == CHAR_SELECT_NOTICE_TIME);
+    input.pressed[ACTION_CONFIRM] = false;
+    CHECK(char_select_update(&select, &input) == -1);
+    CHECK(!select.denied && select.notice_time > 0.0f && select.notice_time < CHAR_SELECT_NOTICE_TIME);
+    /* Stepping off the card takes the notice with it, and the next one can be picked. */
+    input.pressed[ACTION_RIGHT] = true;
+    char_select_update(&select, &input);
+    CHECK(select.selected == 0 && select.notice_time == 0.0f);
+    input.pressed[ACTION_RIGHT] = false;
+    input.pressed[ACTION_CONFIRM] = true;
+    CHECK(char_select_update(&select, &input) == 0 && !select.denied);
+}
+
+static void test_a_save_on_a_character_in_development_falls_back(void)
+{
+    CHECK(character_playable(2) == 0);
+    CHECK(character_playable(1) == 1);
+    CHECK(character_playable(99) == 0);
+}
+
 static void test_each_weapon_has_its_own_sound(void)
 {
     const WeaponDef *cowgirl = weapon_def(WEAPON_REVOLVER);
@@ -187,6 +216,8 @@ int main(void)
     RUN(test_dual_pistols_are_a_reward);
     RUN(test_armor_by_character);
     RUN(test_select_wraps_and_confirms);
+    RUN(test_character_in_development_cannot_be_picked);
+    RUN(test_a_save_on_a_character_in_development_falls_back);
     RUN(test_each_weapon_has_its_own_sound);
     return TEST_EXIT();
 }

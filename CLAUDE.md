@@ -35,6 +35,8 @@ Solo para `tools/crush_sfx.py` (grabar/convertir sonidos, no para compilar): **f
   `./build.sh`. Desde PowerShell:
   `$env:MSYSTEM="UCRT64"; $env:CHERE_INVOKING="1"; C:\msys64\usr\bin\bash.exe --login -c "./build.sh"`
 - En ambos sistemas sirven `make`, `make test`, `make run` y `make watch`.
+- **Zip para jugadores:** `./dist.sh` pide la versión y deja el zip del sistema actual en
+  `dist/linux/` o `dist/windows/`.
 
 ## Arte de la vaquera
 

@@ -9,11 +9,14 @@ de cuadros, mirando a la derecha) y el estilo de la vaquera descrito en
 | --- | --- | --- | --- |
 | **La Vaquera** (`cowgirl`) | **Botín:** los zombis que vence sueltan cofres | Cañón de mano | Hecho |
 | **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Hecho |
-| **El Héroe** (`hero`) | **Prototipo:** arma experimental que atraviesa la armadura | Cañón de plasma | Provisional |
+| **El Héroe** (`hero`) | **Prototipo:** arma experimental que atraviesa la armadura | Cañón de plasma | En desarrollo |
 
-**Provisional** quiere decir que el juego usa a la vaquera teñida de un color (verde azulado
-el héroe) mientras no existan sus hojas. Se pueden jugar y probar sus
-habilidades desde ya; cuando lleguen sus PNG, el juego los usa solo, sin tocar código.
+**En desarrollo** quiere decir que su tarjeta se ve en «Elige tu personaje», pero al confirmarla
+con Enter o clic aparece un aviso y no se puede jugar. Se activa con `.in_development = true` en
+`src/game/characters.c`; al quitarlo vuelve a ser jugable. Una partida guardada con él como último
+personaje abre con el primero jugable, y sus datos se conservan. Mientras no existan sus hojas, el
+juego usa a la vaquera teñida de un color (verde azulado); cuando lleguen sus PNG, los usa solo, sin
+tocar código.
 
 ## En el juego
 

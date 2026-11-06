@@ -60,8 +60,11 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     hud_draw_volume(r, &options->volume_menu, &options->volumes);
     save_capture(r, dir, "3_volumen");
     stage_draw_backdrop(platform, menu_world, 0.45f);
-    hud_draw_characters(r, skins, progress, 1);
+    hud_draw_characters(r, skins, progress, 1, false);
     save_capture(r, dir, "4_personajes");
+    stage_draw_backdrop(platform, menu_world, 0.45f);
+    hud_draw_characters(r, skins, progress, 2, true);
+    save_capture(r, dir, "4_personajes_en_desarrollo");
     profiles[1].record.cleared[0] = true;
     stage_draw_backdrop(platform, menu_world, 0.45f);
     hud_draw_menu(r, CHARACTERS[1].name, &profiles[1].progress, &profiles[1].record, 1);

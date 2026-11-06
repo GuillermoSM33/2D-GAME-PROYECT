@@ -13,6 +13,7 @@
 #define ICON_SHEET_HD "sprites/ui/icons_hd"
 #define WEAPON_SHEET "sprites/ui/weapons"
 #define WEAPON_SHEET_HD "sprites/ui/weapons_hd"
+#define NOTICE_SHEET "sprites/ui/notice_dev"
 
 #define PANEL_SIZE 24
 #define PANEL_CORNER 8
@@ -122,6 +123,16 @@ void ui_icon(SDL_Renderer *renderer, UiIcon icon, int x, int y, int scale)
     SDL_Rect src = {(int)icon * size, 0, size, size};
     SDL_Rect dst = {x, y, UI_ICON_SIZE * scale, UI_ICON_SIZE * scale};
     SDL_RenderCopy(renderer, sheet, &src, &dst);
+}
+
+void ui_notice_dev(SDL_Renderer *renderer, int x, int y)
+{
+    SDL_Texture *sheet = assets_texture(NOTICE_SHEET);
+    if (sheet != NULL) {
+        SDL_Rect dst = {x, y, UI_NOTICE_W * 2, UI_NOTICE_H * 2};
+        SDL_RenderCopy(renderer, sheet, NULL, &dst);
+    }
+    ui_icon(renderer, ICON_CONSTRUCTION, x + 12, y + 24, 4);
 }
 
 void ui_weapon(SDL_Renderer *renderer, int weapon, int x, int y, int scale)

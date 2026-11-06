@@ -39,10 +39,16 @@ typedef struct {
     WeaponId power_weapon;   /* POWER_DUAL_PISTOLS: what weapons[0] becomes */
     /* Until its own sheets exist, the cowgirl's art in this one tint stands in. */
     unsigned placeholder_tint;
+    /* Shown on the select screen, but it can't be picked yet. */
+    bool in_development;
 } CharacterDef;
 
 extern const CharacterDef CHARACTERS[];
 extern const int CHARACTER_COUNT;
+
+/* index if it is a character that can be played, else the first that can
+ * (a save may name one that went into development). */
+int character_playable(int index);
 
 /* Whether the zombies this character beats can leave chests (not only the
  * mission's last one). */

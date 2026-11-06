@@ -91,7 +91,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
     for (int c = 0; c < CHARACTER_COUNT; c++) {
         profiles[c] = save.game.profiles[c];
     }
-    int hero = save.game.hero;
+    int hero = character_playable(save.game.hero);
     CharSelect char_select;
     Menu menu;
     char_select_init(&char_select, hero);
@@ -296,7 +296,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
                 platform_block_mouse(&platform);
             bool book_input = play_almanac_sounds(previous_screen, screen, &previous_almanac, &almanac_view);
             if (menu_input && !book_input) {
-                if (input.pressed[ACTION_QUIT])
+                if (input.pressed[ACTION_QUIT] ||
+                    (previous_screen == SCREEN_CHARACTER && char_select.denied))
                     audio_play("ui/back");
                 else if (input.pressed[ACTION_CONFIRM])
                     audio_play("ui/confirm");
@@ -329,7 +330,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
             for (int c = 0; c < CHARACTER_COUNT; c++)
                 progress_view[c] = profiles[c].progress;
             stage_draw_backdrop(&platform, &menu_world, 0.45f);
-            hud_draw_characters(platform.renderer, skins, progress_view, char_select.selected);
+            hud_draw_characters(platform.renderer, skins, progress_view, char_select.selected,
+                                char_select.notice_time > 0.0f);
         } else if (screen == SCREEN_MENU || screen == SCREEN_AUTOSAVE_NOTICE) {
             stage_draw_backdrop(&platform, &menu_world, 0.45f);
             hud_draw_menu(platform.renderer, CHARACTERS[hero].name, &profiles[hero].progress,

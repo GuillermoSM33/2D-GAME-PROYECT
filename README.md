@@ -61,7 +61,8 @@ combate, obstáculos, pausa, derrota, clima, farol, linterna y destello de explo
 además de las siete páginas completas del catálogo (`23_catalogo_01` a `23_catalogo_07`).
 
 Hay **tres personajes**: la Vaquera (sus zombis sueltan cofres), el SWAT (cambia entre rifle
-y escopeta) y el Héroe (cañón de plasma que atraviesa la armadura). Cada uno tiene su propio
+y escopeta) y el Héroe (cañón de plasma que atraviesa la armadura; aún en desarrollo, todavía no
+se puede jugar). Cada uno tiene su propio
 nivel y progreso. Detalles, armas y la plantilla para dibujarlos en
 [`docs/CHARACTERS.md`](docs/CHARACTERS.md).
 
@@ -378,6 +379,22 @@ Los sprites, fuentes y sonidos van **dentro** del ejecutable: `dist/Vaquera2D` e
 
 `./build.sh --clean` compila desde cero. Durante el desarrollo también sirven
 `make`, `make test`, `make run` y `make clean`.
+
+### Zip para jugadores
+
+```bash
+./dist.sh
+```
+
+Pide la versión, corre `build.sh` completo y deja el zip del sistema actual en
+`dist/linux/` o `dist/windows/`, reemplazando el que hubiera en esa carpeta. Cada zip
+se genera en su propio sistema; si algo falla, el anterior se conserva. Solo contiene el
+ejecutable y sus bibliotecas (`lib/` en Linux, las DLL en Windows). En VS Code es la
+tarea *Generar zip para jugadores*.
+
+Las partidas no viajan en el zip: el juego las guarda en la carpeta de datos del usuario
+(`~/.local/share/Vaquera2D/Vaquera2D` en Linux, `%APPDATA%\Vaquera2D\Vaquera2D` en
+Windows), así que cada cuenta de cada computadora tiene su propio avance.
 
 ### Desarrollo con recarga automática
 

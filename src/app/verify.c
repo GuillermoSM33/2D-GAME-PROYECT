@@ -227,6 +227,7 @@ int app_verify_assets(void)
     } kit[] = {
         {"sprites/ui/panel", 24, 24}, {"sprites/ui/button", 32, 16}, {"sprites/ui/key", 14, 14},
         {"sprites/ui/pip", 12, 10}, {"sprites/ui/bar", 12, 8},
+        {"sprites/ui/notice_dev", UI_NOTICE_W, UI_NOTICE_H},
         {"sprites/ui/icons", ICON_COUNT * UI_ICON_SIZE, UI_ICON_SIZE},
         {"sprites/ui/icons_hd", ICON_COUNT * UI_ICON_HD_SIZE, UI_ICON_HD_SIZE},
         {"sprites/ui/weapons", (WEAPON_COUNT + 1) * UI_WEAPON_W, UI_WEAPON_H}, {"sprites/ui/weapons_hd", (WEAPON_COUNT + 1) * UI_WEAPON_W * 2, UI_WEAPON_H * 2}, /* + the grenade */

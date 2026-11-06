@@ -90,9 +90,10 @@ void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Pro
                    const StageRecord *record, int selected);
 
 /* "Elige tu personaje": a card per character with its look, level, ability
- * and guns. progress holds each character's, in CHARACTERS order. */
+ * and guns. progress holds each character's, in CHARACTERS order. dev_notice
+ * shows the sign saying the selected one is still in development. */
 void hud_draw_characters(SDL_Renderer *renderer, const CharacterSkin *skins,
-                         const Progress *progress, int selected);
+                         const Progress *progress, int selected, bool dev_notice);
 
 /* A short message that rises and fades above a point of the world. */
 void hud_popup(const char *utf8, unsigned rgb, float world_x, int y, bool big);

@@ -24,6 +24,8 @@ Writes, under sprites/ui/:
                from scale 2 up
   weapons.png  The sprites themselves, 36 x 14: pistol.png and the SWAT's templates
                in tools/make_swat.py, for the compact shortcuts
+  notice_dev.png  The "in development" notice, 280 x 48: a site sign with hazard
+               stripes and a plank for its icon
 
 Everything else takes its colors from the materials in tools/ui_icons.py.
 
@@ -180,6 +182,33 @@ def make_panel() -> Image:
         rect(img, cx, cy, cx + 1, cy + 1, BRASS[2])
         img.set(cx, cy, BRASS[3])
         img.set(cx + 1, cy + 1, BRASS[1])
+    return img
+
+
+def make_notice_dev() -> Image:
+    """The "in development" notice: a site sign with hazard-striped bands and, on
+    the left, a plank for its icon (24 x 24 art px at x 6, y 12)."""
+    w, h = 280, 48
+    img = Image(w, h)
+    rect(img, 0, 0, w - 1, h - 1, INK)
+    rect(img, 1, 1, w - 2, h - 2, WOOD[2])                  # Wooden frame
+    rect(img, 1, 1, w - 2, 1, WOOD[4])
+    rect(img, 1, 1, 1, h - 2, WOOD[3])
+    rect(img, 1, h - 2, w - 2, h - 2, WOOD[0])
+    rect(img, w - 2, 1, w - 2, h - 2, WOOD[1])
+    rect(img, 3, 2, w - 4, h - 3, INK)
+    for top in (3, h - 7):                                  # Hazard stripes
+        for y in range(top, top + 4):
+            for x in range(4, w - 4):
+                img.set(x, y, KIT.FIRE[1] if (x + y) // 4 % 2 else KIT.BLACK[3])
+    rect(img, 4, 8, w - 5, h - 9, LEATHER[1])               # Leather inside
+    rect(img, 4, 8, w - 5, 8, LEATHER[2])
+    rect(img, 4, 8, 31, h - 9, WOOD[1])                     # The icon's plank
+    rect(img, 4, 8, 31, 8, WOOD[3])
+    rect(img, 32, 8, 32, h - 9, INK)
+    for k in range(36, w - 6, 2):                           # Stitching along the edge
+        img.set(k, 10, LEATHER[0])
+        img.set(k, h - 11, LEATHER[0])
     return img
 
 
@@ -645,6 +674,20 @@ ICONS = [
         '.....kk.....',
         '............',
         '............'], materials(RED_ICON)),
+    ('construction', [  # In development: a striped barrier with its red lamp
+        '............',
+        '.....kk.....',
+        '....kHSk....',
+        '.kkkkkkkkkk.',
+        '.kMMMkMMMkk.',
+        '.kMMkMMMkMk.',
+        '.kMkMMMkMMk.',
+        '.kkkkkkkkkk.',
+        '..kbk..kbk..',
+        '..kbk..kbk..',
+        '.kkkk..kkkk.',
+        '............'], materials({'H': KIT.RED[1], 'M': KIT.FIRE[1], 'S': KIT.RED[3]},
+                                   abc=tones(IRON_ICON))),
 ]
 
 
@@ -744,7 +787,7 @@ def main() -> int:
     out = {
         'font': make_font(), 'panel': make_panel(), 'button': make_button(), 'key': make_key(),
         'pip': make_pip(), 'bar': make_bar(), 'icons': make_icons(), 'icons_hd': make_icons_hd(),
-        'weapons': make_weapons(), 'weapons_hd': make_weapons_hd(),
+        'weapons': make_weapons(), 'weapons_hd': make_weapons_hd(), 'notice_dev': make_notice_dev(),
     }
     for name, img in out.items():
         path = assets / 'sprites' / 'ui' / f'{name}.png'

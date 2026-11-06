@@ -416,9 +416,20 @@ def arrow_right(a: Art) -> None:
     a.flat(rect(2, 15, 12, 15) | {(14, 18), (15, 17), (16, 16), (17, 15), (18, 14)}, RED[4])
 
 
+def construction(a: Art) -> None:
+    """A roadworks barrier: hazard-striped board on two iron legs, red lamp on top."""
+    a.fill(rect(4, 13, 6, 21) | rect(17, 13, 19, 21), IRON)
+    a.fill(rect(1, 21, 9, 23) | rect(14, 21, 22, 23), GUNMETAL)
+    board = rect(1, 6, 22, 14)
+    a.fill(board, FIRE)
+    a.flat({(x, y) for x, y in rect(2, 7, 21, 13) if (x + y) // 4 % 2 == 0}, BLACK[3])
+    a.fill(ellipse(12, 3, 3.4, 3.2), RED)
+    a.flat({(11, 1), (10, 2)}, RED[0])
+
+
 ICONS = [heart, bullet, skull, flag, dynamite, speaker, star, lock, check, shell, blood, slow, gold,
          wind, current, heat, omen, cold, wet, cozy, water, fresh, save, clock, mission_star,
-         mission_star_empty, arrow_left, arrow_right]
+         mission_star_empty, arrow_left, arrow_right, construction]
 
 
 def draw_all() -> list:

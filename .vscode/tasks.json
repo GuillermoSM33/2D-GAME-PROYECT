@@ -41,6 +41,13 @@
             "problemMatcher": "$gcc"
         },
         {
+            "label": "Generar zip para jugadores (dist.sh)",
+            "type": "shell",
+            "command": "./dist.sh",
+            "problemMatcher": "$gcc",
+            "presentation": { "focus": true }
+        },
+        {
             "label": "Vigilar cambios (make watch)",
             "type": "shell",
             "command": "make watch",
