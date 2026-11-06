@@ -13,6 +13,31 @@
 #include "game/ui.h"
 #include "test.h"
 
+#ifdef _WIN32
+#include <wchar.h>
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
+/* Storage takes UTF-8, as SDL_GetPrefPath returns it. On Windows argv uses the
+ * ANSI code page, so a path with accents has to be read from the wide command
+ * line. The copy lives as long as this short test process. */
+static const char *directory_argument(const char *fallback)
+{
+#ifdef _WIN32
+    int count = 0;
+    LPWSTR *wide = CommandLineToArgvW(GetCommandLineW(), &count);
+    char *utf8 = wide && count > 2
+        ? SDL_iconv_string("UTF-8", "UTF-16LE", (const char *)wide[2],
+                           (wcslen(wide[2]) + 1) * sizeof(wchar_t))
+        : NULL;
+    if (wide) LocalFree(wide);
+    return utf8 ? utf8 : fallback;
+#else
+    return fallback;
+#endif
+}
+
 static SaveGame source, decoded;
 static StagePlay play, resumed;
 static AppOptions options;
@@ -329,7 +354,7 @@ int main(int argc, char **argv)
 {
     SDL_SetMainReady();
     if (argc < 3) return 2;
-    directory = argv[2];
+    directory = directory_argument(argv[2]);
     if (strcmp(argv[1], "levelup-write") == 0 || strcmp(argv[1], "levelup-read") == 0) {
         if (argc != 4) return 2;
         int hero = atoi(argv[3]);
