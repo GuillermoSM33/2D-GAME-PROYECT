@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "app/state.h"
+#include "game/casefile.h"
 
 #define SAVE_GAME_CAPACITY (128u * 1024u)
 
@@ -18,6 +19,7 @@ typedef struct {
     int checkpoint_hero;
     StagePlay checkpoint;
     int bullet_targets[BULLET_MAX];
+    CaseFile case_file; /* The clues and cases: one story for every character */
 } SaveGame;
 
 void save_game_init(SaveGame *game);

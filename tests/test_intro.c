@@ -90,10 +90,100 @@ static void test_short_is_only_the_title_with_its_music(void)
         int n = intro_update(&intro, STEP, false, fired, 8);
         for (int k = 0; k < n; k++) {
             CHECK(fired[k]->scene == INTRO_TITLE);
+            CHECK(fired[k]->kind != CUE_PLAY && fired[k]->kind != CUE_LOOP);
             music = music || fired[k]->kind == CUE_MUSIC;
         }
     }
     CHECK(music);
+}
+
+static void test_lab_ambiences_fit_the_mixer_and_leave_the_sample_in_silence(void)
+{
+    Intro intro;
+    intro_start(&intro, INTRO_FULL);
+    const char *loops[4] = {0};
+    bool heard_hum = false, heard_heartbeat = false, heard_alarm = false;
+    bool sample_seen = false;
+    while (!intro.done) {
+        const IntroCue *fired[8];
+        int n = intro_update(&intro, STEP, false, fired, 8);
+        for (int k = 0; k < n; k++) {
+            const IntroCue *cue = fired[k];
+            if (cue->scene == INTRO_SAMPLE)
+                CHECK(cue->kind == CUE_STOP || cue->kind == CUE_STOP_LOOP);
+            if (cue->kind == CUE_LOOP) {
+                int slot = -1;
+                for (int i = 0; i < 4; i++)
+                    if (loops[i] && strcmp(loops[i], cue->sound) == 0) slot = i;
+                for (int i = 0; i < 4 && slot < 0; i++)
+                    if (!loops[i]) slot = i;
+                CHECK(slot >= 0); /* The game's four reserved loop channels suffice. */
+                if (slot >= 0) loops[slot] = cue->sound;
+                heard_hum |= strcmp(cue->sound, "cinematic/lab_hum") == 0;
+                heard_heartbeat |= strcmp(cue->sound, "cinematic/heartbeat") == 0;
+                heard_alarm |= strcmp(cue->sound, "cinematic/lab_alarm") == 0;
+            } else if (cue->kind == CUE_STOP_LOOP || cue->kind == CUE_STOP) {
+                for (int i = 0; i < 4; i++)
+                    if (loops[i] && strcmp(loops[i], cue->sound) == 0) loops[i] = NULL;
+            }
+        }
+        if (intro_scene(&intro, NULL) == INTRO_SAMPLE) {
+            sample_seen = true;
+            for (int i = 0; i < 4; i++) CHECK(loops[i] == NULL);
+        }
+    }
+    CHECK(heard_hum && heard_heartbeat && heard_alarm && sample_seen);
+    for (int i = 0; i < 4; i++) CHECK(loops[i] == NULL);
+}
+
+static void test_cinematic_recordings_end_with_their_picture_without_repeats(void)
+{
+    Intro intro;
+    intro_start(&intro, INTRO_FULL);
+    bool camera = false, siren = false, breath = false;
+    int shots = 0, glass = 0, falls = 0, camera_starts = 0, sirens = 0, breaths = 0;
+    while (!intro.done) {
+        const IntroCue *fired[8];
+        int n = intro_update(&intro, STEP, false, fired, 8);
+        for (int k = 0; k < n; k++) {
+            const IntroCue *cue = fired[k];
+            if (strcmp(cue->sound, "cinematic/camera_static") == 0) {
+                camera = cue->kind == CUE_PLAY;
+                if (camera) camera_starts++;
+            }
+            if (strcmp(cue->sound, "cinematic/ambulance_siren") == 0) {
+                siren = cue->kind == CUE_PLAY;
+                if (siren) sirens++;
+            }
+            if (strcmp(cue->sound, "cinematic/breath") == 0) {
+                breath = cue->kind == CUE_PLAY;
+                if (breath) breaths++;
+            }
+            if (cue->scene == INTRO_SHOT && cue->kind == CUE_PLAY) {
+                if (strcmp(cue->sound, "weapons/rifle_shot") == 0) {
+                    shots++;
+                    CHECK_NEAR(cue->at, 0.35f, 0.0001f); /* Visible muzzle flash. */
+                } else if (strcmp(cue->sound, "world/glass") == 0) {
+                    glass++;
+                } else if (strcmp(cue->sound, "world/hit_metal") == 0) {
+                    falls++;
+                    CHECK_NEAR(cue->at, 1.3f, 0.0001f); /* Camera reaches the floor. */
+                }
+            }
+        }
+        float local;
+        IntroScene scene = intro_scene(&intro, &local);
+        if (scene == INTRO_SHOT) {
+            /* The static starts with the tumble, ends when NO SIGNAL settles. */
+            CHECK(camera == (local >= 0.6f && local < 2.7f));
+        } else {
+            CHECK(!camera);
+        }
+        CHECK(siren == (scene == INTRO_ROAD));
+        CHECK(breath == (scene == INTRO_REC && local >= 1.2f));
+    }
+    CHECK(shots == 1 && glass == 1 && falls == 1 && camera_starts == 1 && sirens == 1 && breaths == 1);
+    CHECK(!camera && !siren && !breath);
 }
 
 static void test_captions_type_then_fade(void)
@@ -168,6 +258,8 @@ int main(void)
     RUN(test_cues_are_in_order_and_inside_their_scene);
     RUN(test_skip_ends_at_once_without_noises);
     RUN(test_short_is_only_the_title_with_its_music);
+    RUN(test_lab_ambiences_fit_the_mixer_and_leave_the_sample_in_silence);
+    RUN(test_cinematic_recordings_end_with_their_picture_without_repeats);
     RUN(test_captions_type_then_fade);
     RUN(test_dialog_is_marked);
     RUN(test_fades_reach_black_between_scenes);

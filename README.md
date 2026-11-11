@@ -510,7 +510,8 @@ src/
     stage.c/.h           Entrada de la partida, armas, pausa y eventos de audio
     stage_render.c/.h    Dibujo de la partida e interpolación visual
     options.c/.h         Ajustes de ventana y volumen, con estado explícito por aplicación
-    navigation.c/.h      Pantallas y sonidos de navegación del almanaque
+    navigation.c/.h      Sonidos de navegación del almanaque y del Expediente
+    story_audio.c/.h     Audio sincronizado de las cintas; limpia efectos al saltar
     verify.c/.h          Recursos incrustados y contratos de --verify
     smoke.c/.h           Entrada y observación de --smoke-test
     capture.c/.h         Escenas de revisión de --capturas

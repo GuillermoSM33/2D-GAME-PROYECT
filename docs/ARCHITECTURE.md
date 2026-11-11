@@ -46,8 +46,16 @@ interpolado. Mantiene las copias visuales del jugador y de los zombis.
 
 `options.c` conecta los ajustes puros de `game/settings.c` con ventana,
 preferencias y audio. `navigation.c` maneja los sonidos de las transiciones
-del almanaque. `verify.c`, `smoke.c` y `capture.c` contienen las herramientas
+del almanaque y del Expediente. `verify.c`, `smoke.c` y `capture.c` contienen las herramientas
 de diagnóstico, separadas de la entrada y de la partida normal.
+
+La intro declara su secuencia sonora en `game/intro.c`; la aplicación reproduce
+sus comandos de efecto, bucle, parada y música. `app/story_audio.c` acompaña el
+reloj y los cambios de toma de `Story`, con eventos propios de las cuatro cintas.
+Los renderizadores de cinemáticas no reproducen sonidos. Los saltos de tiempo de
+Enter no disparan acciones omitidas, y salir limpia las colas y bucles del relato.
+Las pruebas de intro y `tests/story_audio.c` verifican esta secuencia sin abrir
+ventanas ni reproducir audio real.
 
 `game/mission.c` calcula las metas según recorrido, combate y obstáculos,
 lleva el reloj de simulación y liquida estrellas y bonos una sola vez.

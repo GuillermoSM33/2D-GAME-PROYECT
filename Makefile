@@ -27,20 +27,21 @@ CORE_SRC := src/engine/input.c src/engine/animation.c src/game/movement.c src/ga
             src/game/menu.c src/game/weapons.c src/game/characters.c src/game/char_select.c \
             src/game/terrain.c src/game/settings.c src/game/crows.c src/game/bats.c src/game/weather.c \
             src/game/hallucination.c src/game/almanac.c src/game/lighting.c src/game/mission.c \
-            src/game/intro.c
+            src/game/intro.c src/game/casefile.c
 APP_SRC  := src/main.c src/app/application.c src/app/capture.c src/app/navigation.c src/app/options.c \
-            src/app/smoke.c src/app/stage.c src/app/stage_render.c src/app/intro_render.c src/app/verify.c src/app/savegame.c src/app/autosave.c \
+            src/app/smoke.c src/app/stage.c src/app/stage_render.c src/app/intro_render.c src/app/story_render.c src/app/story_audio.c src/app/verify.c src/app/savegame.c src/app/autosave.c \
             src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c src/engine/pixfont.c src/engine/prefs.c src/engine/storage.c \
             src/game/controls.c src/game/scene.c src/game/hud.c src/game/player_render.c \
             src/game/bullet_render.c src/game/zombie_render.c src/game/effects_render.c \
             src/game/health_bar.c src/game/smoke_render.c src/game/chest_render.c \
             src/game/character_skin.c src/game/terrain_render.c src/game/ui.c src/game/hang_render.c \
-            src/game/weather_render.c src/game/almanac_render.c
+            src/game/weather_render.c src/game/almanac_render.c src/game/casefile_render.c
 TESTS    := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/test_*.c))
 AUDIO_TEST := $(BUILD)/tests/audio_mixer
 ASSETS_LOADER_TEST := $(BUILD)/tests/assets_loader
 WEATHER_RENDER_TEST := $(BUILD)/tests/weather_render
 STAGE_AUDIO_TEST := $(BUILD)/tests/stage_audio
+STORY_AUDIO_TEST := $(BUILD)/tests/story_audio
 PERSISTENCE_TEST := $(BUILD)/tests/persistence
 LIGHTING_RENDER_TEST := $(BUILD)/tests/lighting_render
 ZOMBIE_RENDER_TEST := $(BUILD)/tests/zombie_render
@@ -107,6 +108,11 @@ $(STAGE_AUDIO_TEST): tests/stage_audio.c tests/test.h $(CORE_OBJ) $(filter-out $
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(filter-out -Dmain=SDL_main,$(SDL_CFLAGS)) $(CFLAGS) tests/stage_audio.c $(CORE_OBJ) $(filter-out $(BUILD)/obj/src/main.o $(BUILD)/obj/src/engine/audio.o,$(APP_OBJ)) -o $@ $(filter-out -lmingw32 -mwindows -lSDL2main,$(SDL_LIBS)) $(LDLIBS)
 
+# Cinematic timing against a recording boundary; no SDL, window or real audio.
+$(STORY_AUDIO_TEST): tests/story_audio.c tests/test.h src/app/story_audio.c src/app/story_audio.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/story_audio.c src/app/story_audio.c -o $@ $(LDLIBS)
+
 $(PERSISTENCE_TEST): tests/persistence.c tests/test.h $(CORE_OBJ) $(filter-out $(BUILD)/obj/src/main.o,$(APP_OBJ))
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(filter-out -Dmain=SDL_main,$(SDL_CFLAGS)) $(CFLAGS) tests/persistence.c $(CORE_OBJ) $(filter-out $(BUILD)/obj/src/main.o,$(APP_OBJ)) -o $@ $(filter-out -lmingw32 -mwindows -lSDL2main,$(SDL_LIBS)) $(LDLIBS)
@@ -126,8 +132,8 @@ $(SCENE_LIGHTING_TEST): tests/scene_lighting.c tests/test.h src/game/scene.c src
 check-architecture:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tools/check_architecture.py
 
-test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(PERSISTENCE_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST)
-	@set -e; for t in $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST); do $$t; done
+test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(STORY_AUDIO_TEST) $(PERSISTENCE_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST)
+	@set -e; for t in $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(STORY_AUDIO_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST); do $$t; done
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/audio_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_zombie_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/project_tools.py

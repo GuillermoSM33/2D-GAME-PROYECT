@@ -9,7 +9,7 @@ archivos legacy de `world/`, `player/shot` y `player/reload`. Estos dos últimos
 son exclusivos del cañón de mano de la vaquera. En la ampliación anterior
 se reemplazaron `player/drink`, `crow/caw` y `crow/death`.
 
-Los 88 efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
+Los efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
 conservan las colas suaves sin añadir hiss. No se reexportan los originales.
 La ampliación de noviembre añade catorce efectos y conserva byte por byte los
 85 WAV que ya estaban en el juego.
@@ -23,6 +23,7 @@ La ampliación de noviembre añade catorce efectos y conserva byte por byte los
 | Beber, cuervos y clima | [AUDIO_NATURE_SOURCES.md](AUDIO_NATURE_SOURCES.md) |
 | Explosiones, plasma, cofres, avisos y menús | [AUDIO_DESIGNED_SOURCES.md](AUDIO_DESIGNED_SOURCES.md) |
 | Linterna, selector, rebotes, chapoteos, murciélagos, almanaque y ambiente local | [AUDIO_EXPANSION_SOURCES.md](AUDIO_EXPANSION_SOURCES.md) |
+| Respiración, laboratorio, latido, radio/cámara, ambulancia y sello del Expediente | [AUDIO_CINEMATIC_SOURCES.md](AUDIO_CINEMATIC_SOURCES.md) |
 
 Las fuentes crudas quedan en `recordings/`, ignoradas por Git y fuera del
 ejecutable. Cada generador registra sus URLs y hashes. Las licencias se
@@ -71,6 +72,9 @@ existentes. `tools/crush_sfx.py` sigue disponible para grabación manual.
 | Almanaque | Apertura, cierre y paso de página discretos, además de los clics de navegación existentes |
 | Aviso de rayo | Señal física breve durante la advertencia previa al impacto |
 | Interfaz y progreso | Clics mecánicos discretos, cofre, emboscada, nivel y victoria |
+| Intro | Respiración discreta, zumbido de maquinaria, latido real y alarma grabada; radio sin voz, interferencia al caer la cámara y sirena de ambulancia. La muestra conserva su silencio de tensión |
+| Cintas de historia | Ataúdes, tierra, zombis, pasos, cuervos y apagado de faroles siguen el reloj de cada toma. El laboratorio tiene sus propios ambientes |
+| Expediente | Papel al abrir, examinar y cerrar; navegación y respuestas con una sola señal; golpe de sello a los 0.55 s, sin rotura de madera |
 
 Las armas con munición ilimitada no producen falsos avisos de cargador vacío.
 Las recargas de banco retrasan el inicio del sonido para que su cierre
@@ -78,6 +82,13 @@ coincida con la animación, manteniendo la velocidad natural del mecanismo.
 El volumen afecta inmediatamente a los canales activos. Pausar congela los
 sonidos de la partida y permite los clics del menú; salir o reiniciar limpia
 los sonidos anteriores.
+
+La ampliación de cinemáticas añade **ocho efectos** y conserva los **99 WAV anteriores y las seis músicas**
+sin reexportarlos. Los sonidos nuevos usan grabaciones reales y montajes discretos,
+sin añadir voces ni doblaje. Los cues dependen de la simulación, no de cuántas veces
+se dibuja una imagen. Saltar la intro limpia sus efectos y bucles; acelerar una frase
+de una cinta omite los sonidos de las acciones saltadas. Cada cambio de toma termina
+los sonidos anteriores, y el fin de la cinta conserva la música del menú.
 
 ## Comprobaciones
 
@@ -100,6 +111,7 @@ Para generar comparaciones de fuentes y resultados fuera de `assets/`:
 python3 tools/make_nature_sfx.py --review build/nature_review
 python3 tools/make_designed_sfx.py --review
 python3 tools/make_expansion_sfx.py --review build/expansion_review
+python3 tools/make_cinematic_sfx.py build/cinematic_review --only cinematic/heartbeat ui/stamp
 ```
 
 La revisión considera correspondencia física, ausencia de pitidos genéricos,

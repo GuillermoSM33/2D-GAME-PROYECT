@@ -5,7 +5,7 @@
 
 const CharacterDef CHARACTERS[] = {
     {
-        .id = "cowgirl", .name = "La Vaquera",
+        .id = "cowgirl", .name = "La Sheriff", /* Dolores Vega (docs/LORE.md) */
         .ability = ABILITY_CHEST_DROPS, .ability_name = "Botín",
         .ability_lines = {"Los zombis que vence", "sueltan cofres con XP."},
         .weapons = {WEAPON_REVOLVER}, .weapon_count = 1,

@@ -49,7 +49,7 @@ Solo para `tools/crush_sfx.py` (grabar/convertir sonidos, no para compilar): **f
 - **Zip para jugadores:** `./dist.sh` pide la versión y deja el zip del sistema actual en
   `dist/linux/` o `dist/windows/`.
 
-## Arte de la vaquera
+## Arte de la vaquera (la sheriff Dolores Vega)
 
 El usuario lo aprobó el 2026-11-05: consérvalo así salvo que pida cambios. Tiene **un solo cuerpo**
 en todas las poses de pie: torso y cinturón salen de las tablas de `tools/rework_cowgirl.py`
@@ -64,6 +64,11 @@ y `ON_HIPS`. Al caminar se balancean los dos, casi rectos y con aire junto a la 
 lleva las manos en la cadera.
 Regenera todas sus hojas con
 `python3 tools/rebuild_cowgirl.py` y revísalas ampliadas antes de reportarlas.
+
+Es la sheriff del pueblo: lleva una **placa** (estrella de latón) en el pecho, definida una sola
+vez en `tools/rework_cowgirl.py` (`BADGE`, `sheriff_badge`) y usada por todas sus poses: `dress`,
+`body_without_arm` de `make_melee.py` (disparo, culatazo, linterna, rebote) y `make_sit.py`.
+Solo se pinta sobre el corsé, así que un brazo por delante la tapa.
 
 `DUALS_FROM_ANY_LEVEL` en `src/config.h` está en 0; ponlo en 1 solo para probar las duales desde el nivel 1.
 

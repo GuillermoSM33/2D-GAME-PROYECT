@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cowgirl_arm import arm_limb, glove, pistol_pointing  # noqa: E402
 from make_powers import INK, SLEEVE, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
-from rework_cowgirl import ON_HIPS, draw_arm, fit_back, fit_torso, no_art_arms  # noqa: E402
+from rework_cowgirl import BELT_UNDER_FACE, ON_HIPS, draw_arm, fit_back, fit_torso, no_art_arms, sheriff_badge  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 81, 80
@@ -122,6 +122,7 @@ def body_without_arm(aim: dict, low: dict, rest: dict, hand_on_hip: bool = True)
     fit_torso(body, SHOOT_BELT, SHOOT_MID)
     fit_back(body, SHOOT_BELT, SHOOT_MID)
     no_art_arms(body, SHOOT_BELT, SHOOT_MID)
+    sheriff_badge(body, SHOOT_MID, SHOOT_BELT - BELT_UNDER_FACE)  # Her badge, as on every pose
     body = {p: c for p, c in body.items()                  # No loose speck left where the arm was
             if any((p[0] + a, p[1] + b) in body for a in (-1, 0, 1) for b in (-1, 0, 1) if a or b)}
     if hand_on_hip:

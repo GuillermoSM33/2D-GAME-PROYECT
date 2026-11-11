@@ -1,0 +1,295 @@
+{
+  "format": {
+    "channels": 1,
+    "rate": 22050,
+    "bits": 16
+  },
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "file_sources": {
+    "alarm": {
+      "filename": "alarm.mp3",
+      "title": "Fire alarm",
+      "author": "pushkin",
+      "page": "https://freesound.org/people/pushkin/sounds/319413/",
+      "url": "https://cdn.freesound.org/previews/319/319413_336074-hq.mp3",
+      "sha256": "0a89258cb93066e9d12d58e44d85aac0c28a073b95a734a2daac4040ef66438e",
+      "license": "CC0-1.0",
+      "recording": "A real building fire alarm."
+    },
+    "ambulance": {
+      "filename": "ambulance.mp3",
+      "title": "Ambulance siren",
+      "author": "stereobrother",
+      "page": "https://freesound.org/people/stereobrother/sounds/445344/",
+      "url": "https://cdn.freesound.org/previews/445/445344_1601280-hq.mp3",
+      "sha256": "57c0581d5b93cb4d175da5cc9d3078d4ac1fc8e0b6cb20387d7beeffeb5dffec",
+      "license": "CC0-1.0",
+      "recording": "Manhattan ambulance recorded with Zoom H2n."
+    },
+    "book": {
+      "filename": "book.mp3",
+      "title": "Book Page Turn",
+      "author": "Kodack",
+      "page": "https://freesound.org/people/Kodack/sounds/256475/",
+      "url": "https://cdn.freesound.org/previews/256/256475_2276808-hq.mp3",
+      "sha256": "99c0ffb127dfc64214c6ecd5d30f2a5deb3f2419328e5a54f7c070f2e341cd71",
+      "license": "CC0-1.0",
+      "recording": "Book pages recorded with Sony HDR PJ260V; existing source."
+    },
+    "breath": {
+      "filename": "breath.mp3",
+      "title": "Breath_Woman.wav",
+      "author": "audione",
+      "page": "https://freesound.org/people/audione/sounds/108160/",
+      "url": "https://cdn.freesound.org/previews/108/108160_631427-hq.mp3",
+      "sha256": "4f097a9146f131fbae3d22da41a1801576d9d70bd6e6288476c1966f48440350",
+      "license": "CC0-1.0",
+      "recording": "A woman breathing; no spoken narration."
+    },
+    "heartbeat": {
+      "filename": "heartbeat.mp3",
+      "title": "Real Heartbeat (DIY Stethoscope recording)",
+      "author": "modusmogulus",
+      "page": "https://freesound.org/people/modusmogulus/sounds/831630/",
+      "url": "https://cdn.freesound.org/previews/831/831630_15956618-hq.mp3",
+      "sha256": "359e09aa506c6add034980a8c09fb4a73612334545d921f68c3e9db98997f479",
+      "license": "CC0-1.0",
+      "recording": "The author's actual heartbeat, DIY stethoscope."
+    },
+    "radio": {
+      "filename": "radio.mp3",
+      "title": "Walkie Talkie radio static",
+      "author": "SEF7",
+      "page": "https://freesound.org/people/SEF7/sounds/701330/",
+      "url": "https://cdn.freesound.org/previews/701/701330_15203576-hq.mp3",
+      "sha256": "c790c33bc45f8d438eab03b9e26a55fb22c60ce8b40b8fb56de5e9b0877c4703",
+      "license": "CC0-1.0",
+      "recording": "Cobra walkie-talkie static, Zoom H4n."
+    }
+  },
+  "archives": {
+    "v2": {
+      "filename": "sfx_100_v2.zip",
+      "url": "https://opengameart.org/sites/default/files/sfx_100_v2.zip",
+      "sha256": "0fc61b4494e2e893c0c015ced4877b3f689c7d84a48cb61daecd7ddb52db797b",
+      "license": "CC0-1.0",
+      "credits": "docs/AUDIO_FOLEY_SOURCES.md",
+      "members": {
+        "sfx100v2_loop_machine_01.ogg": "18aa96bda8feb81ffa4158545749a4fddbd419124025832d0014bb0ddfaecc8a"
+      }
+    },
+    "wm": {
+      "filename": "100-CC0-wood-metal-SFX.zip",
+      "url": "https://opengameart.org/sites/default/files/100-CC0-wood-metal-SFX.zip",
+      "sha256": "be6eba63b03409ac0c77787a956b1503a7c186403d04aef9725c52644a4b7878",
+      "license": "CC0-1.0",
+      "credits": "docs/AUDIO_FOLEY_SOURCES.md",
+      "members": {
+        "wood_hit_06.ogg": "6224beb74c930ac6b88358ced7c024b23a50d71acfe565e83cc29ffbe383676e"
+      }
+    }
+  },
+  "processing": "Natural speed and pitch; mono; source-specific filtering; 1s loop crossfade or edge fades; RMS target with peak ceiling; receding siren gain.",
+  "limits": "Freesound HQ MP3 previews, not lossless masters. Camera interference adapts real walkie-talkie static; lab ambience adapts real machine foley. No voice-over.",
+  "subjective_listening_verified": false,
+  "outputs": {
+    "cinematic/breath": {
+      "sha256": "0ab7faa30bf9ab7c598e5b46c88c33a8e9ff00acf84bd644c69970da395f3afd",
+      "seconds": 5.8,
+      "rms": 0.01953,
+      "peak": 0.220001,
+      "dc": 2e-08,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 5.8,
+        "rms": 0.035,
+        "peak": 0.22,
+        "filter": "highpass=f=80,lowpass=f=4200",
+        "cuts": [
+          [
+            "breath",
+            0.0,
+            5.8,
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "cinematic/lab_hum": {
+      "sha256": "815fd35a169abdd10c5610e0b7db45ddf1b7da092b4d29abfe231b7197fe5e56",
+      "seconds": 12.0,
+      "rms": 0.044999,
+      "peak": 0.172974,
+      "dc": 4e-08,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 12.0,
+        "rms": 0.045,
+        "peak": 0.3,
+        "filter": "highpass=f=50,lowpass=f=1800",
+        "cuts": [
+          [
+            "v2:sfx100v2_loop_machine_01.ogg",
+            0.35,
+            7.35,
+            0.0,
+            1.0
+          ],
+          [
+            "v2:sfx100v2_loop_machine_01.ogg",
+            0.35,
+            7.35,
+            6.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "cinematic/heartbeat": {
+      "sha256": "106aabf28d3c4ea3136702ff36d206fbba77edcc872cf1121f6b467de90e3afc",
+      "seconds": 12.0,
+      "rms": 0.059998,
+      "peak": 0.326019,
+      "dc": 1e-08,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 12.0,
+        "rms": 0.06,
+        "peak": 0.35,
+        "filter": "highpass=f=22,lowpass=f=950",
+        "cuts": [
+          [
+            "heartbeat",
+            4.0,
+            17.0,
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "cinematic/lab_alarm": {
+      "sha256": "dac27dbb9da3fc85d55c07993d5da906b6417f92f326c538aee5d2e4e9a5b74e",
+      "seconds": 12.0,
+      "rms": 0.048361,
+      "peak": 0.349976,
+      "dc": 0.0,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 12.0,
+        "rms": 0.06,
+        "peak": 0.35,
+        "filter": "highpass=f=110,lowpass=f=5000",
+        "cuts": [
+          [
+            "alarm",
+            4.0,
+            17.0,
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "cinematic/radio_static": {
+      "sha256": "331b66ad9405fcf036104c57556093dc280207737a5beab3fdb66a3bd20d1541",
+      "seconds": 1.4,
+      "rms": 0.040034,
+      "peak": 0.319977,
+      "dc": 5.9e-07,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 1.4,
+        "rms": 0.045,
+        "peak": 0.32,
+        "filter": "highpass=f=300,lowpass=f=4200",
+        "cuts": [
+          [
+            "radio",
+            0.25,
+            1.65,
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "cinematic/camera_static": {
+      "sha256": "fe61d2ebbe9068792ce30efb8150671c0c990ff90d51d2e227333bb1ec26247c",
+      "seconds": 2.6,
+      "rms": 0.022382,
+      "peak": 0.379974,
+      "dc": 8.9e-07,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 2.6,
+        "rms": 0.055,
+        "peak": 0.38,
+        "filter": "highpass=f=200,lowpass=f=5200",
+        "cuts": [
+          [
+            "radio",
+            0.4,
+            3.0,
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "cinematic/ambulance_siren": {
+      "sha256": "93833197f6a5324a2f651d46fb8e2aeca5c7e79ed43b5ac51c8a6bf5994f8186",
+      "seconds": 8.0,
+      "rms": 0.052099,
+      "peak": 0.459991,
+      "dc": 3e-08,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 8.0,
+        "rms": 0.07,
+        "peak": 0.46,
+        "filter": "highpass=f=180,lowpass=f=3800",
+        "cuts": [
+          [
+            "ambulance",
+            13.7,
+            21.7,
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    },
+    "ui/stamp": {
+      "sha256": "5fffb90f430482e0b140e3f2d4abce316092108fb15e7c866d241b3ab80122be",
+      "seconds": 0.24,
+      "rms": 0.027831,
+      "peak": 0.399994,
+      "dc": 1.5e-07,
+      "seam_delta": 0.0,
+      "recipe": {
+        "seconds": 0.24,
+        "rms": 0.05,
+        "peak": 0.4,
+        "filter": "highpass=f=75,lowpass=f=4200",
+        "cuts": [
+          [
+            "wm:wood_hit_06.ogg",
+            0.0,
+            0.15,
+            0.025,
+            1.0
+          ],
+          [
+            "book",
+            6.02,
+            6.2,
+            0.0,
+            0.12
+          ]
+        ]
+      }
+    }
+  }
+}

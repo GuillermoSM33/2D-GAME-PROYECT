@@ -666,6 +666,14 @@
 #define COLOR_HUD_ENEMY 0xe0a090
 #define COLOR_HUD_XP 0x7fb069
 #define COLOR_HUD_LOCKED 0x5c5a63
+/* The story's text (captions, clues, reports): the narrator, what it
+ * stresses (names, places, key facts between '*'), what someone says; and
+ * ink on paper with its own stress. */
+#define COLOR_STORY_TEXT 0xe6ddd0
+#define COLOR_STORY_EMPHASIS 0xf2a83a
+#define COLOR_STORY_DIALOG 0x9fe0c8
+#define COLOR_PAPER_INK 0x2e2824
+#define COLOR_PAPER_EMPHASIS 0x902004
 #define COLOR_MENU_SELECTED 0x2e2b33
 
 /* Audio: original PCM8 and recorded PCM16 effects from assets/sounds. */

@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "app/application.h"
 #include "app/autosave.h"
@@ -9,11 +10,14 @@
 #include "app/smoke.h"
 #include "app/stage.h"
 #include "app/stage_render.h"
+#include "app/story_render.h"
+#include "app/story_audio.h"
 #include "engine/assets.h"
 #include "engine/audio.h"
 #include "engine/prefs.h"
 #include "engine/text.h"
 #include "game/almanac_render.h"
+#include "game/casefile_render.h"
 #include "game/char_select.h"
 #include "game/controls.h"
 #include "game/hud.h"
@@ -43,9 +47,19 @@ static float snap_frame_time(float frame_time)
     return frame_time;
 }
 
-static bool has_live_stage(Screen screen, Screen book_return)
+/* The almanac and the case file (and a case's report on it) open over a
+ * paused stage too (book_return). */
+static bool over_stage(Screen screen, Screen book_return, Screen story_return)
 {
-    return screen == SCREEN_STAGE || (screen == SCREEN_ALMANAC && book_return == SCREEN_STAGE);
+    (void)story_return;
+    return book_return == SCREEN_STAGE &&
+           (screen == SCREEN_ALMANAC || screen == SCREEN_CASEFILE || screen == SCREEN_REPORT ||
+            screen == SCREEN_EXAMINE);
+}
+
+static bool has_live_stage(Screen screen, Screen book_return, Screen story_return)
+{
+    return screen == SCREEN_STAGE || over_stage(screen, book_return, story_return);
 }
 
 /* Once the whole cinematic has been seen, the game opens on its short end. */
@@ -66,6 +80,9 @@ static void play_intro_cue(const IntroCue *cue)
         break;
     case CUE_MUSIC:
         audio_music_play(cue->sound);
+        break;
+    case CUE_STOP:
+        audio_stop(cue->sound);
         break;
     }
 }
@@ -130,7 +147,18 @@ int app_run(bool smoke_mode, const char *capture_dir)
     SmokeTest smoke = {.enabled = smoke_mode};
     input_init(&input);
     Screen screen = SCREEN_TITLE;
-    Screen almanac_return = SCREEN_TITLE;
+    Screen book_return = SCREEN_TITLE;   /* Where the almanac or the case file goes back to */
+    Screen story_return = SCREEN_MENU;   /* ...and a story beat */
+    BoardView board;
+    board_view_init(&board);
+    Report report = {0, 0.0f};
+    ClueExam exam = {0, 0.0f};
+    TapeView tapes = {0};
+    Screen intro_return = SCREEN_TITLE; /* The intro from HISTORIA's tapes goes back to them */
+    Story story;
+    memset(&story, 0, sizeof(story));
+    story.done = true;
+    double story_since = 0.0;
     /* The whole cinematic the first time the game opens; afterwards only the
      * title rising out of the dust. Never in the scripted or capture runs. */
     Intro intro;
@@ -212,8 +240,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
             RunPhase previous_phase = play.run.phase;
             int previous_level = profiles[hero].progress.level;
             AlmanacView previous_almanac = almanac_view;
-            bool was_paused = (screen == SCREEN_STAGE && play.paused) ||
-                              (screen == SCREEN_ALMANAC && almanac_return == SCREEN_STAGE);
+            BoardView previous_board = board;
+            bool was_paused = (screen == SCREEN_STAGE && play.paused) || over_stage(screen, book_return, story_return);
             int previous_selection = selected ? *selected : -1;
             options_apply_pointer(&options, &input, selected);
 
@@ -230,8 +258,10 @@ int app_run(bool smoke_mode, const char *capture_dir)
                         prefs_set_bool(PREF_INTRO_SEEN, true);
                     audio_stop_all(); /* Its noises and the wind; the title's music plays on */
                     stage_backdrop_restart();
-                    list_menu_init(&title, TITLE_ITEMS);
-                    screen = SCREEN_TITLE;
+                    if (intro_return == SCREEN_TITLE)
+                        list_menu_init(&title, TITLE_ITEMS);
+                    screen = intro_return;
+                    intro_return = SCREEN_TITLE;
                 }
             } else if (screen == SCREEN_TITLE) {
                 switch (list_menu_update(&title, &input)) {
@@ -240,12 +270,23 @@ int app_run(bool smoke_mode, const char *capture_dir)
                     screen = SCREEN_CHARACTER;
                     break;
                 case TITLE_STORY:
-                    intro_start(&intro, INTRO_FULL);
-                    audio_music_stop(400);
-                    screen = SCREEN_INTRO;
+                    /* Only the intro yet: straight to it; more, the shelf of tapes */
+                    if (tapes_unlocked(&save.game.case_file) > 1) {
+                        screen = SCREEN_TAPES;
+                    } else {
+                        intro_start(&intro, INTRO_FULL);
+                        intro_return = SCREEN_TITLE;
+                        audio_music_stop(400);
+                        screen = SCREEN_INTRO;
+                    }
+                    break;
+                case TITLE_CASEFILE:
+                    book_return = SCREEN_TITLE;
+                    board_view_init(&board);
+                    screen = SCREEN_CASEFILE;
                     break;
                 case TITLE_ALMANAC:
-                    almanac_return = SCREEN_TITLE;
+                    book_return = SCREEN_TITLE;
                     almanac_view_init(&almanac_view);
                     screen = SCREEN_ALMANAC;
                     break;
@@ -310,12 +351,87 @@ int app_run(bool smoke_mode, const char *capture_dir)
                 }
             } else if (screen == SCREEN_ALMANAC) {
                 if (!almanac_view_update(&almanac_view, &input))
-                    screen = almanac_return;
+                    screen = book_return;
+            } else if (screen == SCREEN_CASEFILE) {
+                BoardResult result = board_view_update(&board, &save.game.case_file, &input, FIXED_DT);
+                if (result == BOARD_BACK) {
+                    screen = book_return;
+                } else if (result == BOARD_EXAMINE) {
+                    exam_open(&exam, board.examined);
+                    screen = SCREEN_EXAMINE;
+                } else if (result == BOARD_REVEAL) {
+                    report_open(&report, board.revealed);
+                    screen = SCREEN_REPORT;
+                    autosave_request(&save, profiles, hero, &options.volumes,
+                                     book_return == SCREEN_STAGE ? &play : NULL);
+                }
+            } else if (screen == SCREEN_EXAMINE) {
+                if (!exam_update(&exam, &input, FIXED_DT)) {
+                    screen = SCREEN_CASEFILE;
+                }
+            } else if (screen == SCREEN_REPORT) {
+                bool stamped = false;
+                if (!report_update(&report, &input, FIXED_DT, &stamped)) {
+                    screen = SCREEN_CASEFILE;
+                }
+                if (stamped && screen == SCREEN_REPORT)
+                    audio_play_in_gain("ui/stamp", SOUND_MASTER, 0.8f);
+            } else if (screen == SCREEN_TAPES) {
+                TapeView previous_tapes = tapes;
+                int tape = tape_view_update(&tapes, &save.game.case_file, &input);
+                play_tape_sounds(&previous_tapes, &tapes, &save.game.case_file, &input, tape);
+                if (tape == TAPE_BACK) {
+                    screen = SCREEN_TITLE;
+                } else if (tape == TAPE_INTRO) {
+                    intro_start(&intro, INTRO_FULL);
+                    intro_return = SCREEN_TAPES;
+                    audio_music_stop(400);
+                    screen = SCREEN_INTRO;
+                } else if (tape > 0) {
+                    story_start(&story, story_after_stage(TAPES[tape].stage));
+                    story_since = platform_time();
+                    story_return = SCREEN_TAPES;
+                    screen = SCREEN_STORY;
+                }
+            } else if (screen == SCREEN_STORY) {
+                Story previous_story = story;
+                story_update(&story, input.pressed[ACTION_CONFIRM] || input.pointer_clicked,
+                             input.pressed[ACTION_QUIT], FIXED_DT);
+                story_audio_update(&previous_story, &story, FIXED_DT);
+                if (story.done)
+                    screen = story_return;
             } else if (!stage_step(&play, &input, &profiles[hero], &options)) {
                 save.game.has_checkpoint = false;
-                autosave_request(&save, profiles, hero, &options.volumes, NULL);
                 menu_init(&menu, &profiles[hero].record);
                 screen = SCREEN_MENU;
+                /* A stage cleared for the first time: what its end means, before the menu */
+                int cleared = play.run.stage_index;
+                const StoryBeat *beat = play.run.phase == RUN_CLEARED ? story_after_stage(cleared) : NULL;
+                if (beat && !(save.game.case_file.beats_seen & (1u << cleared))) {
+                    save.game.case_file.beats_seen |= 1u << cleared;
+                    story_start(&story, beat);
+                    story_since = platform_time();
+                    story_return = SCREEN_MENU;
+                    screen = SCREEN_STORY;
+                }
+                autosave_request(&save, profiles, hero, &options.volumes, NULL);
+            }
+            if (screen == SCREEN_STAGE) { /* The clues it turned up, kept for good */
+                bool found_clue = false;
+                for (int k = 0; k < play.clue_count; k++) {
+                    if (casefile_take(&save.game.case_file, play.clues_now[k])) {
+                        play.clue_toast = play.clues_now[k];
+                        play.clue_toast_time = CLUE_TOAST_SECONDS;
+                        found_clue = true;
+                    }
+                }
+                if (found_clue) { /* A batch has one rustle, not stacked copies. */
+                    audio_play("ui/book_page");
+                    autosave_request(&save, profiles, hero, &options.volumes, &play);
+                }
+                play.clue_count = 0;
+                if (!play.paused && play.clue_toast_time > 0.0f)
+                    play.clue_toast_time -= FIXED_DT;
             }
             if (previous_screen == SCREEN_STAGE && screen == SCREEN_STAGE &&
                 (play.run.phase != previous_phase || profiles[hero].progress.level != previous_level))
@@ -329,15 +445,20 @@ int app_run(bool smoke_mode, const char *capture_dir)
                     play.run.phase != RUN_CLEARED)
                     stage_pause(&play);
             }
+            if (screen == SCREEN_STAGE && play.request_casefile) {
+                play.request_casefile = false;
+                book_return = SCREEN_STAGE;
+                board_view_init(&board);
+                screen = SCREEN_CASEFILE;
+            }
             if (screen == SCREEN_STAGE && play.request_almanac) {
                 play.request_almanac = false;
-                almanac_return = SCREEN_STAGE;
+                book_return = SCREEN_STAGE;
                 almanac_view_init(&almanac_view);
                 screen = SCREEN_ALMANAC;
             }
-            bool now_paused = (screen == SCREEN_STAGE && play.paused) ||
-                              (screen == SCREEN_ALMANAC && almanac_return == SCREEN_STAGE);
-            if (previous_screen == SCREEN_STAGE && screen != SCREEN_STAGE && screen != SCREEN_ALMANAC) {
+            bool now_paused = (screen == SCREEN_STAGE && play.paused) || over_stage(screen, book_return, story_return);
+            if (previous_screen == SCREEN_STAGE && !has_live_stage(screen, book_return, story_return)) {
                 audio_stop_all();
                 audio_music_stop(0);
             } else if (was_paused != now_paused)
@@ -346,8 +467,12 @@ int app_run(bool smoke_mode, const char *capture_dir)
             /* The click that started or resumed the stage is not a shot. */
             if (screen == SCREEN_STAGE && !now_paused && menu_input)
                 platform_block_mouse(&platform);
-            bool book_input = play_almanac_sounds(previous_screen, screen, &previous_almanac, &almanac_view);
-            if (menu_input && !book_input && previous_screen != SCREEN_INTRO) {
+            if (previous_screen != SCREEN_STORY && screen == SCREEN_STORY)
+                story_audio_start(&story);
+            bool book_input = play_almanac_sounds(previous_screen, screen, &previous_almanac, &almanac_view) ||
+                              play_casefile_sounds(previous_screen, screen, &previous_board, &board);
+            if (menu_input && !book_input && previous_screen != SCREEN_INTRO && previous_screen != SCREEN_STORY &&
+                previous_screen != SCREEN_TAPES) {
                 if (input.pressed[ACTION_QUIT] ||
                     (previous_screen == SCREEN_CHARACTER && char_select.denied))
                     audio_play("ui/back");
@@ -366,7 +491,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
 
         if (save_due && save.elapsed >= AUTOSAVE_SECONDS)
             autosave_request(&save, profiles, hero, &options.volumes,
-                               has_live_stage(screen, almanac_return) ? &play : NULL);
+                               has_live_stage(screen, book_return, story_return) ? &play : NULL);
 
         hud_zones_clear();
         if (screen == SCREEN_INTRO) {
@@ -399,12 +524,34 @@ int app_run(bool smoke_mode, const char *capture_dir)
         } else if (screen == SCREEN_ALMANAC) {
             stage_draw_backdrop(&platform, &menu_world, 0.70f);
             almanac_render(platform.renderer, &profiles[hero].almanac, &almanac_view, (float)platform_time());
+        } else if (screen == SCREEN_CASEFILE) {
+            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            casefile_render(platform.renderer, &save.game.case_file, &board, (float)platform_time());
+        } else if (screen == SCREEN_EXAMINE) {
+            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            casefile_render(platform.renderer, &save.game.case_file, &board, (float)platform_time());
+            exam_render(platform.renderer, &exam, &save.game.case_file);
+        } else if (screen == SCREEN_REPORT) {
+            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            casefile_render(platform.renderer, &save.game.case_file, &board, (float)platform_time());
+            report_render(platform.renderer, &report, &save.game.case_file);
+        } else if (screen == SCREEN_TAPES) {
+            stage_draw_backdrop(&platform, &menu_world, 0.15f);
+            intro_draw_title_dust(platform.renderer, stage_backdrop_seconds());
+            tapes_render(platform.renderer, &tapes, &save.game.case_file);
+        } else if (screen == SCREEN_STORY) {
+            story_render(&platform, &story, &save.game.case_file, (float)(platform_time() - story_since), &skins[0]);
         } else {
+            hud_set_stage_clues(casefile_stage_found(&save.game.case_file, play.run.stage_index), STAGE_CLUES);
             stage_draw(&platform, &play, &skins[hero], &profiles[hero].progress,
                        accumulator / FIXED_DT, prev_player_x, prev_jump, &options);
         }
-        if (!has_live_stage(screen, almanac_return) && screen != SCREEN_INTRO)
+        if (!has_live_stage(screen, book_return, story_return) && screen != SCREEN_INTRO)
             audio_music_play(MENU_MUSIC); /* Keeps playing from one menu to the next */
+        if (screen == SCREEN_STAGE && !play.paused)
+            casefile_draw_toast(platform.renderer, play.clue_toast,
+                                casefile_stage_found(&save.game.case_file, play.run.stage_index),
+                                play.clue_toast_time);
         if (screen == SCREEN_STAGE && (save.saving || save.feedback_time > 0.0f))
             hud_draw_autosave_status(platform.renderer, save.saving, save.failed, save.feedback_age);
         platform_present(&platform);
@@ -412,7 +559,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
             SDL_Delay(1);
     }
     autosave_request(&save, profiles, hero, &options.volumes,
-                       has_live_stage(screen, almanac_return) ? &play : NULL);
+                       has_live_stage(screen, book_return, story_return) ? &play : NULL);
     status = (smoke.enabled && !smoke.passed) ? 1 : 0;
 
 cleanup:
@@ -422,6 +569,7 @@ cleanup:
         skin_free(&skins[c]);
     scene_shutdown();
     terrain_render_shutdown();
+    story_audio_stop();
     audio_shutdown();
     hud_shutdown();
     if (text_ready)

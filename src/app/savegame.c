@@ -10,7 +10,7 @@
 
 /* Increment this schema when changing field order, enum/catalogue order or
  * the meaning of saved data. Never serialize native padding or addresses. */
-#define SAVE_SCHEMA 3u
+#define SAVE_SCHEMA 4u
 #define SAVE_MAGIC 0x31535156u
 #define ANIMATION_LIMIT 512
 
@@ -296,6 +296,14 @@ static void game_codec(Codec *c, SaveGame *game)
     if (game->has_checkpoint && c->ok) {
         character(c, &game->checkpoint_hero);
         if (c->ok) checkpoint(c, game);
+    }
+    if (c->schema >= 4 && c->ok) { /* The case file; older saves start it empty */
+        uint32_t found = game->case_file.found, solved = game->case_file.solved,
+                 beats = game->case_file.beats_seen;
+        u32(c, &found); u32(c, &solved); u32(c, &beats);
+        CHECK(found < (1u << CLUE_COUNT) && solved < (1u << CASE_COUNT) && beats < (1u << STAGE_COUNT));
+        if (c->reading && c->ok)
+            game->case_file = (CaseFile){found, solved, beats};
     }
 }
 

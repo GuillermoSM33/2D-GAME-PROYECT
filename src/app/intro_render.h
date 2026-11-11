@@ -21,4 +21,14 @@ void intro_draw_dust(SDL_Renderer *renderer, float t, float thick);
  * left it: since is seconds since the title screen came up. */
 void intro_draw_title_dust(SDL_Renderer *renderer, double since);
 
+/* The intro's pieces, for the tapes' own shots. All in the world's view
+ * (between stage_begin_view and stage_end_view), x in view px, on the road.
+ * Zombies face right (mirrored sprites shift in the captures' renderer). */
+#include "game/zombie.h"
+void cine_zombie(SDL_Renderer *renderer, ZombieKind kind, ZombieAnimation action, int frame, float view_x, int sunk);
+void cine_mound(SDL_Renderer *renderer, float x, float open);   /* A fresh grave; open 0..1 splits it */
+void cine_tombstone(SDL_Renderer *renderer, float x, int variant);
+void cine_clods(SDL_Renderer *renderer, float x, float from, float t, unsigned seed);
+void cine_crow(SDL_Renderer *renderer, int frame, float view_x, float height, int facing);
+
 #endif

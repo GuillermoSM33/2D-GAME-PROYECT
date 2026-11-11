@@ -173,10 +173,16 @@ void platform_poll_events(Platform *platform)
             latch(platform, BIND_KEY, (int)event.key.keysym.sym);
             break;
         case SDL_WINDOWEVENT:
-            if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+            if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                 platform->focus_lost = true;
+                platform->buttons_down = 0; /* Its release may go to another window */
+            }
+            break;
+        case SDL_MOUSEBUTTONUP:
+            platform->buttons_down &= ~SDL_BUTTON((Uint32)event.button.button);
             break;
         case SDL_MOUSEBUTTONDOWN:
+            platform->buttons_down |= SDL_BUTTON((Uint32)event.button.button);
             latch(platform, BIND_MOUSE, event.button.button);
             if (event.button.button == SDL_BUTTON_LEFT) {
                 set_pointer(platform, event.button.x, event.button.y);
@@ -194,7 +200,8 @@ void platform_poll_events(Platform *platform)
 void platform_read_actions(Platform *platform, bool down[ACTION_COUNT])
 {
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
-    Uint32 buttons = SDL_GetMouseState(NULL, NULL);
+    /* Held only if the events and SDL's own state both say so (platform.h). */
+    Uint32 buttons = SDL_GetMouseState(NULL, NULL) & platform->buttons_down;
     memcpy(down, platform->latched, sizeof(bool) * ACTION_COUNT);
     memset(platform->latched, 0, sizeof(platform->latched));
     if (platform->mouse_blocked && buttons == 0)

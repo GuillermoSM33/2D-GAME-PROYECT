@@ -7,7 +7,7 @@ de cuadros, mirando a la derecha) y el estilo de la vaquera descrito en
 
 | Personaje | Habilidad | Armas | Arte |
 | --- | --- | --- | --- |
-| **La Vaquera** (`cowgirl`) | **Botín:** los zombis que vence sueltan cofres | Cañón de mano | Hecho |
+| **La Sheriff** (`cowgirl`; antes la vaquera) | **Botín:** los zombis que vence sueltan cofres | Cañón de mano | Hecho |
 | **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Hecho |
 | **El Héroe** (`hero`) | **Prototipo:** arma experimental que atraviesa la armadura | Cañón de plasma | En desarrollo |
 

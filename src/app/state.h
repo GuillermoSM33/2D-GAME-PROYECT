@@ -72,6 +72,11 @@ typedef struct {
     ListMenu pause_menu;
     PauseView pause_view;
     bool request_almanac;
+    bool request_casefile;  /* The pause's EXPEDIENTE */
+    int clues_now[3];       /* Clues this step turned up (STAGE_CLUES), for the caller to keep */
+    int clue_count;
+    int clue_toast;         /* The clue the HUD is announcing, or -1 */
+    float clue_toast_time;  /* Seconds left of it */
     bool flashlight;
     float flashlight_since; /* Seconds since its switch was flipped */
     bool flashlight_click_pending; /* Wait until the raising animation reaches the switch */

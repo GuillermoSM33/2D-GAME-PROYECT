@@ -1,10 +1,12 @@
 #include <math.h>
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "app/stage.h"
 #include "engine/audio.h"
 #include "game/camera.h"
+#include "game/casefile.h"
 #include "game/combat.h"
 #include "game/damage.h"
 #include "game/hud.h"
@@ -133,6 +135,10 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
     play->progress_at_start = *progress;
     play->paused = false;
     play->request_almanac = false;
+    play->request_casefile = false;
+    play->clue_count = 0;
+    play->clue_toast = -1;
+    play->clue_toast_time = 0.0f;
     play->flashlight = STAGES[index].theme->night; /* On by night; L works by day too */
     play->flashlight_since = 10.0f; /* Already on, no stutter */
     play->flashlight_click_pending = false;
@@ -396,6 +402,9 @@ static bool pause_step(StagePlay *play, const InputState *input, Profile *profil
     case PAUSE_ALMANAC:
         play->request_almanac = true;
         return true;
+    case PAUSE_CASEFILE:
+        play->request_casefile = true;
+        return true;
     case PAUSE_VOLUME:
         list_menu_init(&options->volume_menu, VOLUME_ROWS);
         play->pause_view = PAUSE_VIEW_VOLUME;
@@ -528,6 +537,33 @@ static void stage_bat_sound(StagePlay *play, bool disturbed)
 }
 
 /* Opens the pause menu over the frozen stage. */
+/* The clues this step turned up (game/casefile.h): the crate that hides this
+ * stage's, the zombie that carries one, the exit chest's. The caller keeps
+ * them; a clue already found turns up again, and is ignored there. */
+static void collect_clues(StagePlay *play, const bool *was_beaten)
+{
+    const StageRun *run = &play->run;
+    int stage = run->stage_index;
+    float road = run->goal_x - run->start_x;
+    for (int l = 0; l < run->loot_count && road > 0.0f; l++) {
+        int clue = casefile_crate_clue(stage, (run->loot_x[l] - run->start_x) / road);
+        if (clue >= 0 && play->clue_count < STAGE_CLUES)
+            play->clues_now[play->clue_count++] = clue;
+    }
+    for (int k = 0; k < run->zombie_count; k++) {
+        if (!run->beaten[k] || was_beaten[k])
+            continue;
+        int clue = casefile_zombie_clue(stage, k, run->zombie_count);
+        if (clue >= 0 && play->clue_count < STAGE_CLUES)
+            play->clues_now[play->clue_count++] = clue;
+    }
+    if (run->cleared_now && play->clue_count < STAGE_CLUES) {
+        int clue = casefile_mission_clue(stage);
+        if (clue >= 0)
+            play->clues_now[play->clue_count++] = clue;
+    }
+}
+
 void stage_pause(StagePlay *play)
 {
     play->paused = true;
@@ -538,6 +574,9 @@ void stage_pause(StagePlay *play)
 /* One fixed step of a stage. Returns false to go back to the stage menu. */
 bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppOptions *options)
 {
+    play->clue_count = 0;
+    bool was_beaten[RUN_MAX_ZOMBIES];
+    memcpy(was_beaten, play->run.beaten, sizeof(was_beaten));
     Player *player = &play->player;
     Progress *progress = &profile->progress;
     if (input->pressed[ACTION_ALMANAC]) {
@@ -685,6 +724,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     StageRun *run = &play->run;
     float previous_bolt_warning = run->bolt_warn;
     run_update(run, player, progress, FIXED_DT);
+    collect_clues(play, was_beaten);
     if (run->phase != RUN_FIGHTING && play->music_on) { /* Won or lost: it makes room */
         audio_music_stop(MUSIC_FADE_MS);
         play->music_on = false;

@@ -36,6 +36,11 @@ typedef struct {
     int pointer_x, pointer_y; /* The mouse, in window (logical) coordinates */
     bool pointer_moved, pointer_clicked; /* Since the last platform_read_pointer */
     bool mouse_blocked; /* Mouse bindings ignored until every button is up */
+    /* The mouse buttons down, as their press and release events said. A
+     * button counts as held only while these agree with SDL_GetMouseState:
+     * with quick clicks that state has been seen stuck on "down" (sdl2-compat
+     * on Wayland), which kept the dual pistols firing on their own. */
+    Uint32 buttons_down;
 } Platform;
 
 bool platform_init(Platform *platform, const char *title, int width, int height);

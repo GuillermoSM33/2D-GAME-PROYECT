@@ -781,6 +781,120 @@ static void test_book_mouse_and_keyboard_share_paper_cues_without_hover_repeats(
     CHECK(plays("ui/confirm") == 0 && plays("ui/back") == 0);
 }
 
+static void test_casefile_gestures_sound_once_for_mouse_and_keyboard(void)
+{
+    clear_cues();
+    CaseFile file;
+    casefile_init(&file);
+    CHECK(casefile_take(&file, 0));
+    BoardView view;
+    board_view_init(&view);
+    CHECK(play_casefile_sounds(SCREEN_TITLE, SCREEN_CASEFILE, &view, &view));
+    CHECK(plays("ui/book_open") == 1);
+    InputState pointer = {.pointer_moved = true, .pointer_x = board_card_x(0) + 4,
+                          .pointer_y = board_row_y(0) + BOARD_ROW_H / 2};
+    BoardView before = view;
+    CHECK(board_view_update(&view, &file, &pointer, FIXED_DT) == BOARD_STAY);
+    CHECK(play_casefile_sounds(SCREEN_CASEFILE, SCREEN_CASEFILE, &before, &view));
+    int old_count = cue_count;
+    CHECK(play_casefile_sounds(SCREEN_CASEFILE, SCREEN_CASEFILE, &view, &view));
+    CHECK(cue_count == old_count); /* Staying on a card never rustles each tick. */
+    pointer.pointer_clicked = true;
+    before = view;
+    CHECK(board_view_update(&view, &file, &pointer, FIXED_DT) == BOARD_EXAMINE);
+    CHECK(play_casefile_sounds(SCREEN_CASEFILE, SCREEN_EXAMINE, &before, &view));
+    CHECK(plays("ui/book_page") == 1);
+    CHECK(play_casefile_sounds(SCREEN_EXAMINE, SCREEN_CASEFILE, &view, &view));
+    CHECK(plays("ui/book_page") == 2);
+    InputState right = {.pressed = {[ACTION_RIGHT] = true}};
+    before = view;
+    CHECK(board_view_update(&view, &file, &right, FIXED_DT) == BOARD_STAY);
+    CHECK(play_casefile_sounds(SCREEN_CASEFILE, SCREEN_CASEFILE, &before, &view));
+    CHECK(plays("ui/move") == 1);
+    CHECK(play_casefile_sounds(SCREEN_CASEFILE, SCREEN_STAGE, &view, &view));
+    CHECK(plays("ui/book_close") == 1);
+    CHECK(!play_casefile_sounds(SCREEN_TITLE, SCREEN_MENU, &view, &view));
+}
+
+static void test_casefile_answers_and_reports_do_not_repeat_cues(void)
+{
+    clear_cues();
+    CaseFile file;
+    casefile_init(&file);
+    int clues[CASE_MAX_CLUES];
+    int n = casefile_case_clues(0, clues);
+    for (int i = 0; i < n; i++) casefile_take(&file, clues[i]);
+    BoardView view;
+    board_view_init(&view);
+    view.col = n;
+    InputState enter = {.pressed = {[ACTION_CONFIRM] = true}};
+    BoardView before = view;
+    CHECK(board_view_update(&view, &file, &enter, FIXED_DT) == BOARD_STAY);
+    CHECK(view.asking);
+    play_casefile_sounds(SCREEN_CASEFILE, SCREEN_CASEFILE, &before, &view);
+    CHECK(plays("ui/confirm") == 1);
+    /* Each wrong submission has one back cue, including successive attempts. */
+    view.option = (CASES[0].answer + 1) % 3;
+    for (int i = 0; i < 2; i++) {
+        before = view;
+        CHECK(board_view_update(&view, &file, &enter, FIXED_DT) == BOARD_STAY);
+        play_casefile_sounds(SCREEN_CASEFILE, SCREEN_CASEFILE, &before, &view);
+        CHECK(plays("ui/back") == i + 1);
+        before = view;
+        InputState idle_input = {0};
+        board_view_update(&view, &file, &idle_input, FIXED_DT);
+        play_casefile_sounds(SCREEN_CASEFILE, SCREEN_CASEFILE, &before, &view);
+        CHECK(plays("ui/back") == i + 1);
+    }
+    view.option = CASES[0].answer;
+    before = view;
+    CHECK(board_view_update(&view, &file, &enter, FIXED_DT) == BOARD_REVEAL);
+    play_casefile_sounds(SCREEN_CASEFILE, SCREEN_REPORT, &before, &view);
+    CHECK(plays("ui/book_open") == 1);
+    play_casefile_sounds(SCREEN_REPORT, SCREEN_CASEFILE, &view, &view);
+    CHECK(stops("ui/stamp") == 1 && plays("ui/book_close") == 1);
+    CHECK(plays("world/wood") == 0); /* No breaking wood in a paper report. */
+}
+
+static void test_tape_mouse_and_keyboard_share_one_cue_and_locked_feedback(void)
+{
+    CaseFile file;
+    casefile_init(&file);
+    TapeView view = {0}, before = view;
+    InputState pointer = {.pointer_clicked = true, .pointer_x = TAPE_X + TAPE_STEP + 10,
+                          .pointer_y = TAPE_Y + 20};
+    clear_cues();
+    int result = tape_view_update(&view, &file, &pointer);
+    play_tape_sounds(&before, &view, &file, &pointer, result);
+    CHECK(result == -1 && view.selected == 1);
+    CHECK(plays("ui/back") == 1 && plays("ui/move") == 0);
+    before = view;
+    InputState enter = {.pressed = {[ACTION_CONFIRM] = true}};
+    result = tape_view_update(&view, &file, &enter);
+    play_tape_sounds(&before, &view, &file, &enter, result);
+    CHECK(plays("ui/back") == 2 && plays("ui/confirm") == 0);
+    file.beats_seen = 1u << TAPES[1].stage;
+    result = tape_view_update(&view, &file, &pointer);
+    play_tape_sounds(&before, &view, &file, &pointer, result);
+    CHECK(result == 1 && plays("ui/confirm") == 1);
+    clear_cues();
+    pointer.pointer_clicked = false;
+    pointer.pointer_moved = true;
+    pointer.pointer_x = TAPE_X + 10;
+    before = view;
+    result = tape_view_update(&view, &file, &pointer);
+    play_tape_sounds(&before, &view, &file, &pointer, result);
+    CHECK(plays("ui/move") == 1);
+    before = view;
+    play_tape_sounds(&before, &view, &file, &pointer, result);
+    CHECK(cue_count == 1);
+    pointer.pointer_clicked = true;
+    pointer.pointer_x = 0; pointer.pointer_y = 0;
+    result = tape_view_update(&view, &file, &pointer);
+    play_tape_sounds(&before, &view, &file, &pointer, result);
+    CHECK(cue_count == 1); /* A click outside the shelf has no cue. */
+}
+
 static void test_bats_have_their_own_cues(void)
 {
     setup_weapon(WEAPON_REVOLVER);
@@ -1104,6 +1218,9 @@ int main(void)
     RUN(test_lightning_warning_starts_once_and_stops_on_impact_or_failure);
     RUN(test_local_ambience_follows_distance_and_stops_with_the_stage);
     RUN(test_book_mouse_and_keyboard_share_paper_cues_without_hover_repeats);
+    RUN(test_casefile_gestures_sound_once_for_mouse_and_keyboard);
+    RUN(test_casefile_answers_and_reports_do_not_repeat_cues);
+    RUN(test_tape_mouse_and_keyboard_share_one_cue_and_locked_feedback);
     RUN(test_bats_have_their_own_cues);
     RUN(test_bat_calls_are_nearby_occasional_and_pause_with_the_stage);
     RUN(test_bat_disturbances_preserve_call_tails_and_restart_the_wait);

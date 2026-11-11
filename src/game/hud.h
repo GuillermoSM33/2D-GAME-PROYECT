@@ -25,11 +25,14 @@
 #define TITLE_SCALE 8
 #define TITLE_TAGLINE_Y 120 /* ...and its tagline's, scale 2 */
 
-typedef enum { TITLE_PLAY, TITLE_STORY, TITLE_ALMANAC, TITLE_CONTROLS, TITLE_VOLUME, TITLE_QUIT, TITLE_ITEMS } TitleItem;
+typedef enum {
+    TITLE_PLAY, TITLE_STORY, TITLE_CASEFILE, TITLE_ALMANAC, TITLE_CONTROLS, TITLE_VOLUME, TITLE_QUIT, TITLE_ITEMS
+} TitleItem;
 typedef enum {
     PAUSE_CONTINUE,
     PAUSE_RETRY,
     PAUSE_ALMANAC,
+    PAUSE_CASEFILE,
     PAUSE_VOLUME,
     PAUSE_CONTROLS,
     PAUSE_LEAVE,
@@ -107,6 +110,10 @@ void hud_draw_characters(SDL_Renderer *renderer, const CharacterSkin *skins,
 void hud_popup(const char *utf8, unsigned rgb, float world_x, int y, bool big);
 void hud_update(float dt);
 void hud_clear_popups(void);
+/* How many of the stage's clues are found, for the mission's plate (total 0: none). */
+void hud_set_stage_clues(int found, int total);
+/* Key caps with what they do ({"ESC", "VOLVER", ...}), centered, at y. */
+void hud_draw_hints(SDL_Renderer *renderer, const char *const *pairs, int count, int y);
 
 /* First level entry of the session: the caller has not started simulation yet. */
 void hud_draw_autosave_notice(SDL_Renderer *renderer);

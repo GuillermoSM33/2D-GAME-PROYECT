@@ -203,18 +203,25 @@ unsigned scene_sky_top(const ThemeDef *theme)
     return ((unsigned)sky->rgba[0] << 16) | ((unsigned)sky->rgba[1] << 8) | sky->rgba[2];
 }
 
-void scene_draw_distant(SDL_Renderer *renderer, const World *world, float camera_x)
+void scene_draw_layers(SDL_Renderer *renderer, const World *world, float camera_x, int first, int last)
 {
     const ThemeDef *theme = world->theme;
     prepare_props(renderer, theme);
-
-    for (int i = 0; i < BACKGROUND_LAYER_COUNT - 1; i++) {
+    if (last > BACKGROUND_LAYER_COUNT - 2)
+        last = BACKGROUND_LAYER_COUNT - 2;
+    for (int i = first < 0 ? 0 : first; i <= last; i++) {
         const BackgroundLayer *layer = &BACKGROUND_LAYERS[i];
         SDL_Texture *texture = layer_texture(theme, layer);
         if (texture)
             draw_layer(renderer, texture, layer, camera_x * layer->parallax);
     }
-    draw_houses(renderer, theme, camera_x);
+    if (last == BACKGROUND_LAYER_COUNT - 2) /* The houses stand in front of the nearest hills */
+        draw_houses(renderer, theme, camera_x);
+}
+
+void scene_draw_distant(SDL_Renderer *renderer, const World *world, float camera_x)
+{
+    scene_draw_layers(renderer, world, camera_x, 0, BACKGROUND_LAYER_COUNT - 2);
 }
 
 void scene_draw_near(SDL_Renderer *renderer, const World *world, float camera_x, double time)

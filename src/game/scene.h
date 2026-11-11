@@ -13,6 +13,10 @@ void scene_draw(SDL_Renderer *renderer, const World *world, float camera_x, doub
 /* Near surfaces can receive local lights without illuminating the moon or
  * distant hills. The full scene_draw wrapper remains for menu backdrops. */
 void scene_draw_distant(SDL_Renderer *renderer, const World *world, float camera_x);
+/* Only the background layers first..last (BACKGROUND_LAYERS order; the ground
+ * is scene_draw_near's), for drawing something between them: a far building
+ * on the horizon, behind the hills. */
+void scene_draw_layers(SDL_Renderer *renderer, const World *world, float camera_x, int first, int last);
 void scene_draw_near(SDL_Renderer *renderer, const World *world, float camera_x, double time);
 bool scene_begin_foreground(SDL_Renderer *renderer);
 void scene_end_foreground(SDL_Renderer *renderer);

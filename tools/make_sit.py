@@ -37,7 +37,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
-from rework_cowgirl import BARE_WIDTH, CHOKER, LACE, LACE_SMILE  # noqa: E402
+from rework_cowgirl import (BADGE, BADGE_TONES, BADGE_UNDER_FACE, BADGE_X, BARE_WIDTH, CHOKER, CHOKER_UNDER_FACE,  # noqa: E402
+                            CORSET_TONES, LACE, LACE_SMILE)
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 72, 67          # Frame
@@ -478,6 +479,25 @@ def tidy_cowgirl(img: Image, ox: int, dy: int, nod: int = 0) -> None:
                 img.set(ox + x, y, (0, 0, 0, 0))
 
 
+def badge_front(img: Image, ox: int) -> None:
+    """Her sheriff's badge, as on every other pose (rework_cowgirl.sheriff_badge):
+    the same star, the same place under her neckline, over her corset only.
+    Mirroring her walk's other side left it out. It is placed from the lace at
+    the middle of her neckline, which stays put while her head nods. Sat, her
+    corset is narrower than standing, so the star may lie over the dark band down
+    her side too (never her sleeve, nor the lacing), or its points would be cut off."""
+    laces = [y for y in range(H) if img.get(ox + CX, y)[3] and img.get(ox + CX, y)[:3] == LACE[0][:3]]
+    if not laces:
+        return
+    face = laces[0] - LACE_SMILE[0] - CHOKER_UNDER_FACE   # The lace's middle is LACE_SMILE[0] under the choker
+    under = CORSET_TONES | {(0x25, 0x20, 0x18)}
+    for j, row in enumerate(BADGE):
+        for i, mark in enumerate(row):
+            x, y = CX + BADGE_X + i, face + BADGE_UNDER_FACE + j
+            if mark != '.' and img.get(ox + x, y)[3] and img.get(ox + x, y)[:3] in under:
+                img.set(ox + x, y, BADGE_TONES[mark])
+
+
 def neckline_front(img: Image, ox: int, nod: int) -> None:
     """Her neckline seen from the front, the same as standing: the scoop of skin and
     the lace curving up to both shoulders. Dozing, her head comes down over the top
@@ -530,6 +550,7 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
             reload_step(out, ox, weapons, char, gun, kind, f - 4)
         if name == 'cowgirl':
             tidy_cowgirl(out, ox, dy, nod)
+            badge_front(out, ox)
         if f >= 12:
             zs(out, ox, 1 if f == 12 else 2, char['ink'])
     return out

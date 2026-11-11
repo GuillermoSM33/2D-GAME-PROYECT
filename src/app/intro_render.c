@@ -45,8 +45,8 @@
 
 #define CAPTION_Y 30
 #define CAPTION_SCALE 3
-#define NARRATOR_COLOR 0xe6ddd0
-#define DIALOG_COLOR COLOR_HUD_TITLE
+#define NARRATOR_COLOR COLOR_STORY_TEXT
+#define DIALOG_COLOR COLOR_STORY_DIALOG
 #define REC_RED 0xe8402a
 #define SAND_DUST 0xd7ab57
 
@@ -245,12 +245,13 @@ static void draw_caption(SDL_Renderer *r, const Intro *intro)
     const char *whole = intro_caption_text(intro_scene(intro, NULL));
     int y = CAPTION_Y + (whole && strchr(whole, '\n') == NULL ? (pixfont_height(CAPTION_SCALE) + 2) / 2 : 0);
     char *line = buf;
+    bool emphasis = false;
     while (line) {
         char *next = strchr(line, '\n');
         if (next)
             *next++ = '\0';
-        pixfont_draw(r, line, WINDOW_WIDTH / 2, y, CAPTION_SCALE, dialog ? DIALOG_COLOR : NARRATOR_COLOR,
-                     ANCHOR_N, (Uint8)lroundf(alpha * 255.0f));
+        pixfont_draw_rich(r, line, WINDOW_WIDTH / 2, y, CAPTION_SCALE, dialog ? DIALOG_COLOR : NARRATOR_COLOR,
+                          COLOR_STORY_EMPHASIS, ANCHOR_N, (Uint8)lroundf(alpha * 255.0f), true, &emphasis);
         y += pixfont_height(CAPTION_SCALE) + 2;
         line = next;
     }
@@ -737,4 +738,31 @@ void intro_render(Platform *platform, const Intro *intro, World *title_world, co
     if (!(scene == INTRO_TITLE && local > TITLE_RISE_FROM - 0.6f))
         pixfont_draw(r, "ENTER: SALTAR", WINDOW_WIDTH / 2, WINDOW_HEIGHT - 26, 2, 0xb0aaa0, ANCHOR_N, 110);
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+}
+
+/* ---- Pieces shared with the tapes' shots (app/story_render.c) ---------------- */
+
+void cine_zombie(SDL_Renderer *r, ZombieKind kind, ZombieAnimation action, int frame, float view_x, int sunk)
+{
+    draw_zombie_frame(r, kind, action, frame, view_x, 1, sunk);
+}
+
+void cine_mound(SDL_Renderer *r, float x, float open)
+{
+    draw_mound(r, x, open);
+}
+
+void cine_tombstone(SDL_Renderer *r, float x, int variant)
+{
+    draw_tombstone(r, x, variant);
+}
+
+void cine_clods(SDL_Renderer *r, float x, float from, float t, unsigned seed)
+{
+    draw_clods(r, x, from, t, seed);
+}
+
+void cine_crow(SDL_Renderer *r, int frame, float view_x, float height, int facing)
+{
+    draw_crow(r, frame, view_x, height, facing);
 }

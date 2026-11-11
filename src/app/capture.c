@@ -3,6 +3,8 @@
 
 #include "app/capture.h"
 #include "app/intro_render.h"
+#include "app/story_render.h"
+#include "game/casefile_render.h"
 #include "app/stage.h"
 #include "engine/assets.h"
 #include "game/almanac_render.h"
@@ -55,6 +57,78 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     hud_draw_title(r, &list);
     save_capture(r, dir, "1_titulo");
 
+    /* The case file: some clues in, one case ready, one solved; a question
+     * answered wrong; the popup of a clue found; two story beats. */
+    {
+        CaseFile file;
+        casefile_init(&file);
+        for (int c = 0; c < 8; c++)
+            casefile_take(&file, c);
+        for (int c = 9; c < 12; c++)
+            casefile_take(&file, c);
+        file.solved = 1u << 1;
+        BoardView board;
+        board_view_init(&board);
+        board.row = 0;
+        board.col = 0; /* The longest text: three lines */
+        stage_draw_backdrop(platform, menu_world, 0.70f);
+        casefile_render(r, &file, &board, 0.0f);
+        save_capture(r, dir, "0n_expediente");
+        board.row = 3;
+        board.col = 0;
+        stage_draw_backdrop(platform, menu_world, 0.70f);
+        casefile_render(r, &file, &board, 0.0f);
+        save_capture(r, dir, "0o_expediente_sin_pista");
+        board.row = 2;
+        board.col = 3;
+        board.asking = true;
+        board.option = 0;
+        board.wrong_time = 1.2f;
+        stage_draw_backdrop(platform, menu_world, 0.70f);
+        casefile_render(r, &file, &board, 0.0f);
+        save_capture(r, dir, "0p_expediente_pregunta");
+        stage_draw_backdrop(platform, menu_world, 0.0f);
+        casefile_draw_toast(r, 1, 2, 3.0f);
+        save_capture(r, dir, "0q_pista_encontrada");
+        Report report;
+        report_open(&report, 0); /* The longest report: it must fit the sheet */
+        report.time = 2.0f;
+        stage_draw_backdrop(platform, menu_world, 0.70f);
+        casefile_render(r, &file, &board, 0.0f);
+        report_render(r, &report, &file);
+        save_capture(r, dir, "0r_expediente_resuelto");
+        for (int clue = 0; clue < CLUE_COUNT; clue++) { /* Every clue up close */
+            ClueExam exam;
+            exam_open(&exam, clue);
+            exam.time = 1.0f;
+            stage_draw_backdrop(platform, menu_world, 0.70f);
+            casefile_render(r, &file, &board, 0.0f);
+            exam_render(r, &exam, &file);
+            char name[40];
+            snprintf(name, sizeof(name), "0u_examen_%02d", clue);
+            save_capture(r, dir, name);
+        }
+        file.beats_seen = (1u << 1) | (1u << 2);
+        TapeView tapes = {1};
+        stage_draw_backdrop(platform, menu_world, 0.15f);
+        tapes_render(r, &tapes, &file);
+        save_capture(r, dir, "0t_historia_cintas");
+        /* Every line of every tape, in the middle of its shot */
+        for (int stage = 1; stage <= 4; stage++) {
+            const StoryBeat *beat = story_after_stage(stage);
+            for (int line = 0; line < beat->count; line++) {
+                Story story;
+                story_start(&story, beat);
+                story.line = line;
+                story.time = 3.2f;
+                story_render(platform, &story, &file, 0.0f, &skins[0]);
+                char name[48];
+                snprintf(name, sizeof(name), "0s_cinta_%d_%d", stage, line + 1);
+                save_capture(r, dir, name);
+            }
+        }
+    }
+
     /* The opening cinematic, a moment of each scene (and three of the last). */
     static const struct {
         float time;
@@ -94,6 +168,7 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     save_capture(r, dir, "33_aviso_autoguardado");
     profiles[1].record.cleared[0] = false;
 
+    hud_set_stage_clues(1, STAGE_CLUES); /* The plate's clue count on the stage captures */
     /* The SWAT in 1-1, the first zombie woken and coming. */
     stage_start(&play, 0, &CHARACTERS[1], &profiles[1].progress);
     play.player.x = play.run.zombies[0].x - ROUTE_WAKE_DISTANCE + 20.0f;
@@ -101,6 +176,11 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     stage_draw(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x,
                play.player.jump.height, options);
     save_capture(r, dir, "6_pelea");
+    casefile_draw_toast(r, 1, 2, 3.0f);
+    save_capture(r, dir, "6_pelea_pista");
+    stage_draw(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x, play.player.jump.height, options);
+    casefile_draw_toast(r, 6, 1, 3.0f); /* A name in two lines */
+    save_capture(r, dir, "6_pelea_pista_larga");
     hud_draw_autosave_status(r, true, false, 0.4f);
     save_capture(r, dir, "34_autoguardado_en_curso");
     stage_draw(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x,

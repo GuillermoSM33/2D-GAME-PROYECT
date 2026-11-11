@@ -94,8 +94,11 @@ escriben dentro del ejecutable ni de `assets/`:
 Cada archivo lleva cabecera, generación, tamaño y CRC32. Al cargar se elige la
 copia más reciente cuyo contenido y esquema sean válidos; si falla se intenta
 la anterior. Una escritura fallida conserva la copia activa. El esquema actual
-es 2; se acepta el 1 y se inicializan las nuevas estrellas, récords e inventario
-sin inventar puntuaciones históricas. La codificación usa campos explícitos
+es 4; se aceptan los anteriores. El 3 agregó el volumen de la música y el 4 el
+Expediente (pistas encontradas, casos resueltos y escenas de fin de nivel vistas,
+compartido por todos los personajes); una partida vieja lo empieza vacío. Desde el
+1 se inicializan las estrellas, récords e inventario sin inventar puntuaciones
+históricas. La codificación usa campos explícitos
 little endian, sin direcciones de memoria ni estructuras nativas.
 
 Las pruebas usan carpetas temporales aisladas, incluyendo nombres con acentos,

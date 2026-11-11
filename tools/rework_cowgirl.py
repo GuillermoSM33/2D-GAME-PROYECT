@@ -9,7 +9,8 @@ hips. On walk, jump and stand her body is whole and the same as on every pose
 (TORSO_FRONT and so on) with no arm of the art left on it, and both arms are drawn apart:
 swinging as she walks. Her hat and her guns stay. Over the
 rest: long red hair falling down her back, a neckline curving up to her shoulders
-with a lace edge, dark slate puffed sleeves covering them, a slate corset, a wide leather belt with
+with a lace edge, dark slate puffed sleeves covering them, a slate corset with the
+sheriff's brass star on her chest, a wide leather belt with
 a brass buckle, a dark red sash hanging from it, striped trousers. Standard
 library only.
 """
@@ -78,6 +79,19 @@ TORSO_FRONT = {-10: 5, -9: 5, -8: 5, -7: 4, -6: 4, -5: 3, -4: 3, -3: 4, -2: 4}
 BELT_FRONT = {-1: 5, 0: 5, 1: 6}
 BACK_SIDE = {-8: -8, -7: -8, -6: -7, -5: -6, -4: -6, -3: -6, -2: -7}  # Its outline, where no arm covers it
 CORSET_EDGE = [rgb(0x2c363c), rgb(0x242c32)]
+# The sheriff's badge: a six-pointed brass star on her chest, on the wide side of
+# her corset as we see her (the near side is only 4 columns from the lacing to
+# her outline: it would cut the star). Under the lace, clear of the lacing. Light
+# from the top left, as on everything of hers. Only over the corset: an arm in
+# front hides it.
+BADGE = ('..L..',
+         'LLBBB',
+         '.LBD.',
+         'BBBDD',
+         '..D..')
+BADGE_TONES = {'L': rgb(0xf6dc86), 'B': rgb(0xd0a848), 'D': rgb(0x8e6c28)}
+BADGE_X = -6                       # Art columns from the middle of her neck to its left edge
+BADGE_UNDER_FACE = 15              # Rows from the top of her face to its top: under the lace's lowest point
 CORD_TONE = (0x6a, 0x6a, 0x68)
 LACE_TONES = {(0xec, 0xe6, 0xd6), (0xbc, 0xb6, 0xa6)}
 BELT_BACK = {-1: -8, 0: -9, 1: -9}
@@ -303,6 +317,16 @@ def legs_apart(out: dict, belt: int, boots: int) -> None:
             x = max(end, x + 1)
 
 
+def sheriff_badge(out: dict, neck_x: float, face: int) -> None:
+    """Her badge on her chest, the same on every pose that builds her body: over
+    the corset only, so an arm or a gun in front keeps it hidden."""
+    for j, row in enumerate(BADGE):
+        for i, mark in enumerate(row):
+            x, y = round(neck_x) + BADGE_X + i, face + BADGE_UNDER_FACE + j
+            if mark != '.' and out.get((x, y), (0, 0, 0, 0))[:3] in CORSET_TONES:
+                out[(x, y)] = BADGE_TONES[mark]
+
+
 def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple = None, dual: bool = False) -> dict:
     """One frame. Lying or fallen frames (no belt under a face) get colours only. Arms: her
     one body with no arm of the art on it, and these drawn on it (from walk_arms and so on).
@@ -421,6 +445,7 @@ def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple =
         fit_torso(out, belt, mid)
         fit_back(out, belt, mid)
         no_art_arms(out, belt, mid)
+    sheriff_badge(out, neck_x, face)                     # On her finished body, before any arm crosses it
     # The gun in its holster on her near hip, when it isn't in her hand
     if armed:
         outlined_on(out, holster(mid + NEAR_HOLSTER, belt))

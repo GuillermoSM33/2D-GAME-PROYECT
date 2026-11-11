@@ -1,7 +1,7 @@
 # Lore de THE MIRACLE
 
-Guion aprobado el 2026-11-11. Todavía no hay nada de esto en el código: aquí está la historia,
-la intro y el sistema de pistas, para construirlos. El juego se llama **THE MIRACLE** (antes Vaquera 2D).
+Guion aprobado el 2026-11-11. Aquí está la historia, la intro y el sistema de pistas;
+los apartados indican su implementación actual. El juego se llama **THE MIRACLE** (antes Vaquera 2D).
 
 **Regla:** la historia se cuenta **por fases**. La intro solo engancha y deja preguntas; las
 respuestas llegan conforme el jugador avanza y junta pistas. No adelantes en la intro nada que
@@ -76,10 +76,11 @@ la cámara de Valeria: el laboratorio va a oscuras, con linternas y siluetas.
 
 **Estado (2026-11-11):** hecha y jugable. Lógica y guion en `src/game/intro.c` (con pruebas en
 `tests/test_intro.c`), dibujo en `src/app/intro_render.c`, arte en `tools/make_cinematics.py`.
-`--capturas` guarda un cuadro de cada escena (`0a_intro_*` … `0m_intro_*`). Los sonidos usan por
-ahora efectos que ya existían (pasos, linterna, disparo, vidrio, viento, cuervos, zombis); faltan
-grabaciones propias para el zumbido del laboratorio, el latido, la alarma, la estática de radio y
-la sirena.
+`--capturas` guarda un cuadro de cada escena (`0a_intro_*` … `0m_intro_*`). Los sonidos combinan
+efectos existentes (pasos, linterna, disparo, vidrio, viento, cuervos, zombis) junto a
+grabaciones reales de respiración, zumbido del laboratorio, latido, alarma, estática de radio/cámara
+y la sirena. Fuentes y montaje en [AUDIO_CINEMATIC_SOURCES.md](AUDIO_CINEMATIC_SOURCES.md).
+El sonido respeta el silencio de la muestra y se corta al saltar la secuencia.
 
 **Cuándo se ve:** la primera vez que se abre el juego, completa. El título entre el polvo se
 convierte en la pantalla de título. Las siguientes veces solo sale el título entre el polvo
@@ -88,16 +89,52 @@ Siempre se puede saltar con Enter, Esc o clic.
 
 ## Pistas: "Encuentra la causa"
 
-1. **Pistas:** unas 3 por nivel, en los cofres de salida y escondidas en las misiones. Tipos:
-   cintas de Valeria 📼, documentos de Vantrell 📄, fotos y objetos del pueblo 📷 y muestras 🧪.
-   Cada una tiene su propio sprite. Al recogerla, el HUD muestra su sprite y el conteo del nivel.
-2. **El Expediente:** un tablero de corcho con las pistas clavadas y unidas con hilo rojo. Se
-   abre desde la pausa y desde el Almanaque.
-3. **Deducción:** cuando una parte del tablero está completa, aparece una pregunta con 3
-   respuestas. Al acertar se abre la minicinemática de esa fase. Equivocarse no castiga: se
-   vuelve a intentar.
-4. **El cambio de escenario siempre se explica** al final del nivel, aunque falten pistas. Las
-   pistas dan el porqué de fondo; quien no investiga entiende la historia igual.
+Hecho (2026-11-11). Lógica y textos en `src/game/casefile.c` (pruebas en `tests/test_casefile.c`),
+dibujo en `src/game/casefile_render.c`, sprites en `tools/make_clues.py`.
+
+1. **Pistas:** 15, tres por nivel. Una en el **cofre de salida**, otra la lleva **un zombi** de la
+   ruta (las dos salen seguro) y la tercera está **escondida en una caja** del camino, para quien
+   la rompa. Cada una tiene su propio sprite (`sprites/clues/clues.png`). Al encontrarla, el HUD
+   muestra un aviso con su sprite, su nombre y cuántas lleva del nivel. Se guardan en la partida y
+   valen para todos los personajes (hay una sola historia).
+2. **El Expediente** (título y pausa): un tablero de corcho con un renglón por caso, las pistas
+   clavadas y unidas con hilo rojo. Al elegir una pista se lee su texto; si falta, dice en qué
+   nivel está y de dónde sale (cofre, zombi o camino).
+3. **Deducción:** con todas las pistas de un caso aparece **DEDUCIR**: una pregunta con 3
+   respuestas. Equivocarse no castiga. Al acertar se abre el **expediente escrito** del caso: la
+   historia extendida y explicada, con su animación corta (la hoja entra y cae el sello de
+   RESUELTO). Se puede volver a leer desde el tablero.
+4. **El cambio de escenario siempre se explica** al terminar un nivel por primera vez (1-2 a 1-5),
+   aunque falten pistas: una escena corta sobre el paisaje del nivel siguiente.
+
+| Caso | Pistas (nivel) | Pregunta |
+|---|---|---|
+| La paciente cero | Orden de traslado, credencial de prensa, cinta 1 (1-1); registro de ingreso, foto del pasillo, hoja clínica (1-2) | ¿Cómo llegó el brote a Ojo de Cuervo? |
+| MRC-2 | Memorándum, informe del día 94, muestra rota (1-3) | ¿Por qué los muertos se levantan? |
+| Las cintas | Cintas 2 y 3, tarjeta de acceso (1-4) | ¿Quién ayudaba a Valeria desde dentro? |
+| El científico | Bata quemada, plano del prototipo, foto vieja (1-5) | ¿Quién se llevó el prototipo? |
+
+**Examinar:** Enter o clic sobre una pista del tablero la abre a pantalla completa: su dibujo en
+grande y una hoja de examen con su tipo, su caso, dónde se halló, su descripción y DETALLES más
+finos que dejan cabos sueltos para lo que viene (quién tachó "Laboratorio 4" en la orden, "busquen
+a N" en la credencial, la nota "Si cae en malas manos, que sean las mías" en el plano...).
+
+**Texto con énfasis:** en subtítulos, pistas e informes, lo que va entre asteriscos (`*Ojo de
+Cuervo*`) sale en otro color: dorado sobre fondo oscuro y rojo tinta sobre papel. Se usa para
+nombres, lugares y datos clave; lo que dice Valeria sale en verde agua. Sobre papel el texto va sin
+sombra (`pixfont_draw_flat`), que si no se empasta.
+
+## HISTORIA: las cintas
+
+Las animaciones de la historia principal se guardan como **cintas de video** en HISTORIA: *La
+filtración* (la intro) y las escenas de fin de nivel (*El panteón*, *Toque de queda*, *El pueblo
+vacío*, *Laboratorio 4*), que se desbloquean al verlas. Cada frase de una cinta tiene su propia toma animada
+(`src/app/story_render.c`): ataúdes acumulándose en la calle y una tumba que se abre (*El
+panteón*); zombis saliendo hacia el pueblo, la sheriff bajo los faroles y los faroles apagándose
+(*Toque de queda*); la calle vacía y los "vecinos" quietos (*El pueblo vacío*); las luces del
+laboratorio en el horizonte, su pasillo en alarma y alguien frente a los monitores (*Laboratorio 4*). Mientras solo esté la intro, HISTORIA la
+reproduce directo. El tablero del Expediente no lleva animaciones de la historia principal: solo
+expedientes escritos que la complementan.
 
 ## Fases de la ruta 1
 
@@ -113,8 +150,4 @@ de la fuga y qué pasó con Valeria.
 
 ## Pendiente
 
-- La vaquera pasa a sheriff: nombre en la elección de personaje y la placa en las tablas de
-  `tools/rework_cowgirl.py` (nunca en una sola hoja).
-- Arte nuevo que falta: hospital, tablero del Expediente y sprites de pistas.
-- Sonidos propios de la intro (zumbido, latido, alarma, estática, sirena), con fuente CC0 como
-  pide `docs/AUDIO.md`.
+- Arte que falta: el hospital (para escenas futuras).

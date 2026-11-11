@@ -28,4 +28,15 @@ int pixfont_height(int scale);
 int pixfont_draw(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
                  Anchor anchor, Uint8 alpha);
 
+/* Text with emphasis: what goes between two '*' is drawn in accent (the
+ * marks take no room). emphasis carries the state from one line to the next
+ * when a wrapped paragraph is drawn line by line; NULL starts it off. */
+int pixfont_draw_rich(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
+                      unsigned accent, Anchor anchor, Uint8 alpha, bool shadow, bool *emphasis);
+
+/* The same without the shadow: dark ink on light paper, where a shadow
+ * would smear the letters together. */
+int pixfont_draw_flat(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
+                      Anchor anchor, Uint8 alpha);
+
 #endif

@@ -258,6 +258,11 @@ static void draw_hints(SDL_Renderer *renderer, const char *const *pairs, int cou
     }
 }
 
+void hud_draw_hints(SDL_Renderer *renderer, const char *const *pairs, int count, int y)
+{
+    draw_hints(renderer, pairs, count, y);
+}
+
 /* Level badge: the sprite (an inverted pyramid that points at its owner)
  * with the level written in its top band. */
 typedef enum {
@@ -338,6 +343,34 @@ static void draw_popups(SDL_Renderer *renderer, float camera_x)
 
 /* Middle: the clock, centered on the window; which route and how far to its
  * exit; then the zombies beaten and how much of the fight that is. */
+/* The stage's clues found so far (game/casefile.h), shown in the mission's
+ * plate beside its zombies; total 0 hides it. */
+static int clues_found, clues_total;
+
+void hud_set_stage_clues(int found, int total)
+{
+    clues_found = found;
+    clues_total = total;
+}
+
+/* A clue, small enough for the plate's row: a sheet with a red header. */
+static void clue_mark(SDL_Renderer *renderer, int x, int y)
+{
+    SDL_Rect sheet = {x, y, 10, 13}, header = {x + 1, y + 1, 8, 3};
+    SDL_SetRenderDrawColor(renderer, 0x23, 0x1a, 0x14, 255);
+    SDL_Rect outline = {x - 1, y - 1, 12, 15};
+    SDL_RenderFillRect(renderer, &outline);
+    SDL_SetRenderDrawColor(renderer, 0xeb, 0xe1, 0xc6, 255);
+    SDL_RenderFillRect(renderer, &sheet);
+    SDL_SetRenderDrawColor(renderer, 0xc0, 0x3a, 0x14, 255);
+    SDL_RenderFillRect(renderer, &header);
+    SDL_SetRenderDrawColor(renderer, 0x7a, 0x70, 0x64, 255);
+    for (int k = 0; k < 3; k++) {
+        SDL_Rect line = {x + 2, y + 6 + k * 2, 6 - (k % 2) * 2, 1};
+        SDL_RenderFillRect(renderer, &line);
+    }
+}
+
 static void draw_mission(SDL_Renderer *renderer, const Player *player, const StageRun *run)
 {
     char str[64];
@@ -358,8 +391,16 @@ static void draw_mission(SDL_Renderer *renderer, const Player *player, const Sta
     snprintf(str, sizeof(str), "%d/%d", run->defeated, run->stage->zombies);
     hud_text_fit(renderer, str, x + 16, y0 + 38, DEFEATED_W, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
     float share = run->stage->zombies > 0 ? (float)run->defeated / (float)run->stage->zombies : 1.0f;
-    int bar_x = x + 16 + DEFEATED_W + 6;
-    hud_meter(renderer, bar_x, y0 + 44, right - bar_x, 9, share, 0x9c7044, 0xcd9b5b);
+    int bar_x = x + 16 + DEFEATED_W + 6, bar_end = right;
+    if (clues_total > 0) { /* Its clues at the plate's end: the mission is zombies and clues */
+        snprintf(str, sizeof(str), "%d/%d", clues_found, clues_total);
+        int w = ui_text_width(str, 2);
+        ui_text(renderer, str, right, y0 + 38, 2, clues_found >= clues_total ? COLOR_HUD_XP : COLOR_HUD_PRIMARY,
+                ANCHOR_NE);
+        clue_mark(renderer, right - w - 16, y0 + 41);
+        bar_end = right - w - 26;
+    }
+    hud_meter(renderer, bar_x, y0 + 44, bar_end - bar_x, 9, share, 0x9c7044, 0xcd9b5b);
 }
 
 /* Under her health: what she carries. Dynamite shows once she has some. */
@@ -1017,13 +1058,14 @@ static void draw_buttons(SDL_Renderer *renderer, const char *const *labels, int 
 
 void hud_draw_title(SDL_Renderer *renderer, const ListMenu *menu)
 {
-    static const char *const labels[TITLE_ITEMS] = {"JUGAR", "HISTORIA", "ALMANAQUE", "CONTROLES", "OPCIONES", "SALIR"};
+    static const char *const labels[TITLE_ITEMS] = {"JUGAR",     "HISTORIA", "EXPEDIENTE", "ALMANAQUE",
+                                                    "CONTROLES", "OPCIONES", "SALIR"};
     ui_text(renderer, TITLE_TEXT, WINDOW_WIDTH / 2, TITLE_Y, TITLE_SCALE, COLOR_HUD_TITLE, ANCHOR_N);
     ui_text(renderer, TITLE_TAGLINE, WINDOW_WIDTH / 2, TITLE_TAGLINE_Y, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
     /* Six buttons with the same margin above and below them in the board,
      * and room between the board and the key hints under it. */
-    ui_panel(renderer, WINDOW_WIDTH / 2 - 190, 166, 380, 280);
-    draw_buttons(renderer, labels, TITLE_ITEMS, menu->selected, WINDOW_WIDTH / 2, 184, 320, 34, 8);
+    ui_panel(renderer, WINDOW_WIDTH / 2 - 190, 162, 380, 290);
+    draw_buttons(renderer, labels, TITLE_ITEMS, menu->selected, WINDOW_WIDTH / 2, 178, 320, 32, 6);
     static const char *const hints[] = {"W/S", "ELEGIR", "ENTER", "ACEPTAR"};
     draw_hints(renderer, hints, 2, WINDOW_HEIGHT - 58);
 }
@@ -1116,13 +1158,13 @@ void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes
 
 void hud_draw_pause(SDL_Renderer *renderer, const ListMenu *menu)
 {
-    static const char *const labels[PAUSE_ITEMS] = {"CONTINUAR", "REINICIAR NIVEL", "ALMANAQUE", "OPCIONES",
-                                                    "CONTROLES", "SALIR AL MENÚ"};
+    static const char *const labels[PAUSE_ITEMS] = {"CONTINUAR", "REINICIAR NIVEL", "ALMANAQUE", "EXPEDIENTE",
+                                                    "OPCIONES",  "CONTROLES",       "SALIR AL MENÚ"};
     ui_dim(renderer, 150);
     int w = 400, h = 408, x = (WINDOW_WIDTH - w) / 2, y = 28;
     ui_panel(renderer, x, y, w, h);
     ui_text(renderer, "PAUSA", WINDOW_WIDTH / 2, y + 20, 3, COLOR_HUD_TITLE, ANCHOR_N);
-    draw_buttons(renderer, labels, PAUSE_ITEMS, menu->selected, WINDOW_WIDTH / 2, y + 64, 330, 46, 10);
+    draw_buttons(renderer, labels, PAUSE_ITEMS, menu->selected, WINDOW_WIDTH / 2, y + 64, 330, 40, 8);
     /* Right under the board, clear of the gun's panel. */
     static const char *const hints[] = {"W/S", "ELEGIR", "ENTER", "ACEPTAR", "ESC", "SEGUIR"};
     draw_hints(renderer, hints, 3, y + h + 10);

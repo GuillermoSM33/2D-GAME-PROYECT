@@ -32,7 +32,8 @@ typedef enum {
     CUE_PLAY,       /* audio_play_in(sound, group, gain) */
     CUE_LOOP,       /* audio_loop_in */
     CUE_STOP_LOOP,  /* audio_stop_loop */
-    CUE_MUSIC       /* audio_music_play(sound) */
+    CUE_MUSIC,      /* audio_music_play(sound) */
+    CUE_STOP        /* audio_stop: cut a one-shot at a picture/silence boundary */
 } IntroCueKind;
 
 typedef struct {

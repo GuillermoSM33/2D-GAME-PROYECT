@@ -21,7 +21,8 @@ assets/
     weapons/             disparo, recarga, vacío y culatazo propios por arma; switch, fire_mode, grenade_throw, ricochet
     weather/             wind, rain (bucles), thunder, lightning_warn
     effects/             hit_flesh, hit_armor
-    ui/                  move, confirm, back; book_open, book_close, book_page
+    ui/                  move, confirm, back; book_open, book_close, book_page; stamp (sello sobre papel)
+    cinematic/           lab_hum, heartbeat, lab_alarm (bucles); breath, radio_static, camera_static, ambulance_siren (grabaciones para la historia)
     world/               explosion, supply, fuse, glass, wood, snap (originales), impactos, trampas, movimiento y avisos; grenade_bounce, splash, river y fire (bucles locales)
   sprites/<entidad>/     Hojas de animación e imágenes de cada cosa del juego
     characters/<id>/     walk, jump, shoot, sit (y shoot_dual, throw, sit_shotgun...) de cada personaje jugable (cowgirl, swat; hero cuando tenga arte),
@@ -55,6 +56,7 @@ assets/
                          pip, bar, icons, weapons, notice_dev (la interfaz)
     mercenary/           walk: un mercenario en silueta con rifle y linterna (12 × 81 × 80, el cuerpo de swat/light_walk: 8 de caminar y 4 parado);
                          aim: de frente a la cámara, apuntando y disparando (4 × 110 × 130, de la cintura arriba)
+    clues/               clues: las 15 pistas del Expediente, un cuadro de 24 × 24 por pista en el orden de CLUES; stamp: el sello RESUELTO inclinado (tools/make_clues.py)
     vial/                held: el puño de Valeria levantando la muestra, a contraluz (64 × 100)
     ambulance/           drive: la ambulancia hacia la derecha, llantas girando y luces alternando (4 × 72 × 34)
   cinematics/<lugar>/    Pantallas completas de las cinemáticas, a 320 × 180 px de arte (1 px = 3 px de ventana)

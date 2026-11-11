@@ -97,12 +97,17 @@ bool pixfont_init(void)
     return true;
 }
 
+/* '*' marks where an emphasis starts and ends (pixfont_draw_rich): it takes
+ * no room and is never drawn. */
+#define EMPHASIS '*'
+
 int pixfont_width(const char *utf8, int scale)
 {
     int w = 0;
     unsigned c;
     while ((c = next_codepoint(&utf8)) != 0)
-        w += (widths[glyph_index(c)] + GAP) * scale;
+        if (c != EMPHASIS)
+            w += (widths[glyph_index(c)] + GAP) * scale;
     return w > 0 ? w - GAP * scale : 0;
 }
 
@@ -116,6 +121,8 @@ static void draw_run(SDL_Renderer *renderer, SDL_Texture *sheet, const char *utf
 {
     unsigned c;
     while ((c = next_codepoint(&utf8)) != 0) {
+        if (c == EMPHASIS)
+            continue;
         int g = glyph_index(c);
         if (g > 0) {
             SDL_Rect src = {g * CELL_W, 0, widths[g], CELL_H};
@@ -126,8 +133,8 @@ static void draw_run(SDL_Renderer *renderer, SDL_Texture *sheet, const char *utf
     }
 }
 
-int pixfont_draw(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
-                 Anchor anchor, Uint8 alpha)
+static int draw_text(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
+                     Anchor anchor, Uint8 alpha, bool shadow)
 {
     SDL_Texture *sheet = assets_texture(FONT_SHEET);
     int w = pixfont_width(utf8, scale), h = pixfont_height(scale);
@@ -142,11 +149,75 @@ int pixfont_draw(SDL_Renderer *renderer, const char *utf8, int x, int y, int sca
     case ANCHOR_NW: break;
     }
     SDL_SetTextureAlphaMod(sheet, alpha);
-    SDL_SetTextureColorMod(sheet, (Uint8)(SHADOW >> 16), (Uint8)(SHADOW >> 8), (Uint8)SHADOW);
-    draw_run(renderer, sheet, utf8, x + scale, y + scale, scale);
+    if (shadow) {
+        SDL_SetTextureColorMod(sheet, (Uint8)(SHADOW >> 16), (Uint8)(SHADOW >> 8), (Uint8)SHADOW);
+        draw_run(renderer, sheet, utf8, x + scale, y + scale, scale);
+    }
     SDL_SetTextureColorMod(sheet, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb);
     draw_run(renderer, sheet, utf8, x, y, scale);
     SDL_SetTextureColorMod(sheet, 255, 255, 255);
     SDL_SetTextureAlphaMod(sheet, 255);
+    return w;
+}
+
+int pixfont_draw(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
+                 Anchor anchor, Uint8 alpha)
+{
+    return draw_text(renderer, utf8, x, y, scale, rgb, anchor, alpha, true);
+}
+
+int pixfont_draw_flat(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
+                      Anchor anchor, Uint8 alpha)
+{
+    return draw_text(renderer, utf8, x, y, scale, rgb, anchor, alpha, false);
+}
+
+int pixfont_draw_rich(SDL_Renderer *renderer, const char *utf8, int x, int y, int scale, unsigned rgb,
+                      unsigned accent, Anchor anchor, Uint8 alpha, bool shadow, bool *emphasis)
+{
+    SDL_Texture *sheet = assets_texture(FONT_SHEET);
+    int w = pixfont_width(utf8, scale), h = pixfont_height(scale);
+    bool on = emphasis ? *emphasis : false;
+    if (sheet == NULL || w == 0) {
+        for (const char *p = utf8; *p; p++) /* Still keep track of the markers */
+            on ^= *p == EMPHASIS;
+        if (emphasis)
+            *emphasis = on;
+        return w;
+    }
+    switch (anchor) {
+    case ANCHOR_N: x -= w / 2; break;
+    case ANCHOR_NE: x -= w; break;
+    case ANCHOR_S: x -= w / 2; y -= h; break;
+    case ANCHOR_SW: y -= h; break;
+    case ANCHOR_SE: x -= w; y -= h; break;
+    case ANCHOR_NW: break;
+    }
+    SDL_SetTextureAlphaMod(sheet, alpha);
+    if (shadow) {
+        SDL_SetTextureColorMod(sheet, (Uint8)(SHADOW >> 16), (Uint8)(SHADOW >> 8), (Uint8)SHADOW);
+        draw_run(renderer, sheet, utf8, x + scale, y + scale, scale);
+    }
+    unsigned c;
+    const char *p = utf8;
+    while ((c = next_codepoint(&p)) != 0) {
+        if (c == EMPHASIS) {
+            on = !on;
+            continue;
+        }
+        unsigned ink = on ? accent : rgb;
+        int g = glyph_index(c);
+        if (g > 0) {
+            SDL_SetTextureColorMod(sheet, (Uint8)(ink >> 16), (Uint8)(ink >> 8), (Uint8)ink);
+            SDL_Rect src = {g * CELL_W, 0, widths[g], CELL_H};
+            SDL_Rect dst = {x, y, widths[g] * scale, CELL_H * scale};
+            SDL_RenderCopy(renderer, sheet, &src, &dst);
+        }
+        x += (widths[g] + GAP) * scale;
+    }
+    SDL_SetTextureColorMod(sheet, 255, 255, 255);
+    SDL_SetTextureAlphaMod(sheet, 255);
+    if (emphasis)
+        *emphasis = on;
     return w;
 }

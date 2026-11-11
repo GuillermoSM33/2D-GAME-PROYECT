@@ -24,10 +24,12 @@ import make_sfx
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'docs' / 'AUDIO_LEGACY_SHA256.json'
-LOOPS = {'weather/wind', 'weather/rain', 'world/river', 'world/fire'}
+LOOPS = {'weather/wind', 'weather/rain', 'world/river', 'world/fire',
+         'cinematic/lab_hum', 'cinematic/heartbeat', 'cinematic/lab_alarm'}
 OUTPUT_MANIFESTS = {
     'make_designed_sfx': 'AUDIO_DESIGNED_MANIFEST.json',
     'make_expansion_sfx': 'AUDIO_EXPANSION_MANIFEST.json',
+    'make_cinematic_sfx': 'AUDIO_CINEMATIC_MANIFEST.json',
 }
 RATE = 22050
 
@@ -127,7 +129,7 @@ class Audit:
         code = '\n'.join(path.read_text(encoding='utf-8')
                          for path in sorted((ROOT / 'src').rglob('*'))
                          if path.suffix in {'.c', '.h'})
-        pattern = r'"(?:sounds/)?((?:player|weapons|world|crow|bat|dog|zombie|weather|ui|effects)/[a-z0-9_]+)"'
+        pattern = r'"(?:sounds/)?((?:player|weapons|world|crow|bat|dog|zombie|weather|ui|effects|cinematic)/[a-z0-9_]+)"'
         references = set(re.findall(pattern, code))
         expected = names | originals
         self.check(not references - expected, f'unknown C sound references: {sorted(references - expected)}')
