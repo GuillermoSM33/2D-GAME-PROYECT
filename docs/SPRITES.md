@@ -1,4 +1,4 @@
-# Especificación de sprites — Vaquera 2D
+# Especificación de sprites — THE MIRACLE
 
 Medidas tomadas del arte de la vaquera (`assets/sprites/characters/cowgirl/`), que es la
 plantilla de todos los personajes ([`CHARACTERS.md`](CHARACTERS.md)). Todas las medidas están en

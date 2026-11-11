@@ -53,6 +53,13 @@ assets/
     props/               Decorados del paisaje, compartidos por todos los temas
     ui/                  badge_player, badge_zombie (placas de nivel); font, panel, button, key,
                          pip, bar, icons, weapons, notice_dev (la interfaz)
+    mercenary/           walk: un mercenario en silueta con rifle y linterna (12 × 81 × 80, el cuerpo de swat/light_walk: 8 de caminar y 4 parado);
+                         aim: de frente a la cámara, apuntando y disparando (4 × 110 × 130, de la cintura arriba)
+    vial/                held: el puño de Valeria levantando la muestra, a contraluz (64 × 100)
+    ambulance/           drive: la ambulancia hacia la derecha, llantas girando y luces alternando (4 × 72 × 34)
+  cinematics/<lugar>/    Pantallas completas de las cinemáticas, a 320 × 180 px de arte (1 px = 3 px de ventana)
+    lab/                 corridor (pasillo del Laboratorio 4, 480 de ancho para paneo), monitors (6 cuadros),
+                         alarm (MRC-1 dividiéndose, 8 cuadros)
   backgrounds/<tema>/    Capas del fondo de un tema: sky, far, hills_far, hills_near, ground (y fog)
     atardecer/  cementerio/  noche/  pueblo_fantasma/
 ```
@@ -71,6 +78,9 @@ assets/
   (si sirven de referencia) o no se guardan. Todo lo que hay en `assets/` termina dentro del
   ejecutable.
 - **Grabaciones crudas** en `recordings/` (fuera de git), nunca en `assets/`.
+- **Cinemáticas:** las pantallas completas van en `cinematics/<lugar>/` y los personajes u objetos
+  que solo salen en ellas, en `sprites/<entidad>/` como cualquier otro. Todo sale de
+  `tools/make_cinematics.py`; la historia que cuentan está en [LORE.md](LORE.md).
 
 Las 25 familias de zombis utilizan **50 variantes de juego** (normal y corredora).
 Comparten la carpeta de su profesión: `walk` y `run` dan sus ciclos de movimiento,

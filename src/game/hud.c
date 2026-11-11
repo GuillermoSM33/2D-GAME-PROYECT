@@ -1017,11 +1017,13 @@ static void draw_buttons(SDL_Renderer *renderer, const char *const *labels, int 
 
 void hud_draw_title(SDL_Renderer *renderer, const ListMenu *menu)
 {
-    static const char *const labels[TITLE_ITEMS] = {"JUGAR", "ALMANAQUE", "CONTROLES", "OPCIONES", "SALIR"};
-    ui_text(renderer, "VAQUERA 2D", WINDOW_WIDTH / 2, 46, 8, COLOR_HUD_TITLE, ANCHOR_N);
-    ui_text(renderer, "ZOMBIS EN EL VIEJO OESTE", WINDOW_WIDTH / 2, 142, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
-    ui_panel(renderer, WINDOW_WIDTH / 2 - 190, 186, 380, 282);
-    draw_buttons(renderer, labels, TITLE_ITEMS, menu->selected, WINDOW_WIDTH / 2, 202, 320, 42, 10);
+    static const char *const labels[TITLE_ITEMS] = {"JUGAR", "HISTORIA", "ALMANAQUE", "CONTROLES", "OPCIONES", "SALIR"};
+    ui_text(renderer, TITLE_TEXT, WINDOW_WIDTH / 2, TITLE_Y, TITLE_SCALE, COLOR_HUD_TITLE, ANCHOR_N);
+    ui_text(renderer, TITLE_TAGLINE, WINDOW_WIDTH / 2, TITLE_TAGLINE_Y, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
+    /* Six buttons with the same margin above and below them in the board,
+     * and room between the board and the key hints under it. */
+    ui_panel(renderer, WINDOW_WIDTH / 2 - 190, 166, 380, 280);
+    draw_buttons(renderer, labels, TITLE_ITEMS, menu->selected, WINDOW_WIDTH / 2, 184, 320, 34, 8);
     static const char *const hints[] = {"W/S", "ELEGIR", "ENTER", "ACEPTAR"};
     draw_hints(renderer, hints, 2, WINDOW_HEIGHT - 58);
 }

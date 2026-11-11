@@ -148,7 +148,7 @@ def fetch_verified(spec: dict[str, str], path: Path) -> None:
     if path.exists():
         data = path.read_bytes()
     else:
-        request = urllib.request.Request(spec['url'], headers={'User-Agent': 'Vaquera2D-CC0-audio/1.0'})
+        request = urllib.request.Request(spec['url'], headers={'User-Agent': 'TheMiracle-CC0-audio/1.0'})
         with urllib.request.urlopen(request, timeout=60) as response:
             data = response.read()
     if hashlib.sha256(data).hexdigest() != spec['sha256']:
@@ -331,7 +331,7 @@ def review(directory: Path, selected: list[str]) -> None:
                         'Pausa de 0.7 s. Después: efecto final con edición.</p>'
                         f'<audio controls preload="none" src="{filename}"></audio>')
     document = ('<!doctype html><html lang="es"><meta charset="utf-8">'
-                '<title>Vaquera 2D — revisión de naturaleza, beber y voces caninas</title>'
+                '<title>THE MIRACLE — revisión de naturaleza, beber y voces caninas</title>'
                 '<style>body{font:18px/1.5 system-ui;max-width:900px;margin:40px auto;'
                 'padding:0 20px;background:#191614;color:#f0e4d1}audio{width:100%}</style>'
                 '<h1>Comparación de grabaciones y efectos finales</h1>'

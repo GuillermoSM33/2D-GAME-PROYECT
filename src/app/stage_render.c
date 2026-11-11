@@ -30,7 +30,7 @@ static float interpolate(float before, float after, float alpha)
     return before + (after - before) * alpha;
 }
 
-static void begin_view(SDL_Renderer *renderer, const ThemeDef *theme)
+void stage_begin_view(SDL_Renderer *renderer, const ThemeDef *theme)
 {
     SDL_Rect band = {0, 0, WINDOW_WIDTH, VIEW_TOP + 1};
     platform_set_color(renderer, scene_sky_top(theme));
@@ -41,7 +41,7 @@ static void begin_view(SDL_Renderer *renderer, const ThemeDef *theme)
     SDL_RenderSetViewport(renderer, &view);
 }
 
-static void end_view(SDL_Renderer *renderer)
+void stage_end_view(SDL_Renderer *renderer)
 {
     SDL_RenderSetViewport(renderer, NULL);
     SDL_RenderSetScale(renderer, 1.0f, 1.0f);
@@ -280,7 +280,7 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     /* Only the chunks around the view exist; walking streams the rest. */
     float camera_x = camera_left(player_view.x);
     world_stream(&play->world, camera_x);
-    begin_view(platform->renderer, play->world.theme);
+    stage_begin_view(platform->renderer, play->world.theme);
     bool separated_light = false;
     float flashlight_time = stage_weapon(play)->light_time > 0.0f ? stage_weapon(play)->light_time : 1.0f;
     float flashlight = lighting_flashlight_power(play->flashlight, play->flashlight
@@ -338,7 +338,7 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
         scene_end_foreground(platform->renderer);
         terrain_render_light_bloom(platform->renderer, &lighting, camera_x);
     }
-    end_view(platform->renderer);
+    stage_end_view(platform->renderer);
     weather_render(platform->renderer, &play->weather, camera_x);
     const CharacterDef *c = play->character;
     const WeaponDef *w = stage_weapon(play);
@@ -371,14 +371,33 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
         hud_draw_controls(platform->renderer);
 }
 
+/* When the menus' landscape started drifting: the intro's last scene holds it
+ * still at PLAYER_START_X, and the title screen carries on from there. */
+static double backdrop_since;
+
+void stage_backdrop_restart(void)
+{
+    backdrop_since = platform_time();
+}
+
+double stage_backdrop_seconds(void)
+{
+    return platform_time() - backdrop_since;
+}
+
+void stage_draw_backdrop_at(Platform *platform, World *world, float camera_x, float dim)
+{
+    world_stream(world, camera_x);
+    stage_begin_view(platform->renderer, world->theme);
+    scene_draw(platform->renderer, world, camera_x, platform_time());
+    stage_end_view(platform->renderer);
+    if (dim > 0.0f)
+        ui_dim(platform->renderer, (Uint8)(dim * 255.0f));
+}
+
 /* Behind the menus: the first stage's landscape, drifting slowly by. */
 void stage_draw_backdrop(Platform *platform, World *world, float dim)
 {
-    float camera_x = PLAYER_START_X + (float)fmod(platform_time() * 40.0, 20000.0);
-    world_stream(world, camera_x);
-    begin_view(platform->renderer, world->theme);
-    scene_draw(platform->renderer, world, camera_x, platform_time());
-    end_view(platform->renderer);
-    if (dim > 0.0f)
-        ui_dim(platform->renderer, (Uint8)(dim * 255.0f));
+    double drift = (platform_time() - backdrop_since) * MENU_DRIFT_SPEED;
+    stage_draw_backdrop_at(platform, world, PLAYER_START_X + (float)fmod(drift, 20000.0), dim);
 }

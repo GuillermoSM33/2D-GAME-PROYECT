@@ -7,7 +7,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-BIN=build/bin/Vaquera2D
+BIN=build/bin/TheMiracle
 WATCHED=(src tests assets tools Makefile)
 INTERVAL=0.5
 LOG=build/watch-tests.log

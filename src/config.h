@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 /* Window */
-#define WINDOW_TITLE "Vaquera 2D"
+#define WINDOW_TITLE "THE MIRACLE"
 #define WINDOW_WIDTH 960
 #define WINDOW_HEIGHT 540
 
@@ -675,6 +675,7 @@
 #define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME): every sound, before the volume menu */
 #define MUSIC_VOLUME 52    /* 0-128: the stage's music at full, under the effects */
 #define MENU_MUSIC "music/menu"
+#define MENU_DRIFT_SPEED 40.0 /* Window px per second the menus' landscape drifts by */
 #define MUSIC_FADE_MS 1800 /* How long it fades when a stage ends */
 #define AUDIO_GROUPS 4     /* Volume groups (audio_play_in): see SoundGroup in settings.h */
 

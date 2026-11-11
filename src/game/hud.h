@@ -17,7 +17,15 @@
  * menus, the pause, the controls and volume screens, and the readouts during
  * a stage. */
 
-typedef enum { TITLE_PLAY, TITLE_ALMANAC, TITLE_CONTROLS, TITLE_VOLUME, TITLE_QUIT, TITLE_ITEMS } TitleItem;
+/* The title, as the title screen and the end of the intro draw it (the same
+ * place, so one becomes the other without a jump). */
+#define TITLE_TEXT "THE MIRACLE"
+#define TITLE_TAGLINE "LA CURA ERA LA PLAGA"
+#define TITLE_Y 32          /* Window px: the title's top, scale TITLE_SCALE */
+#define TITLE_SCALE 8
+#define TITLE_TAGLINE_Y 120 /* ...and its tagline's, scale 2 */
+
+typedef enum { TITLE_PLAY, TITLE_STORY, TITLE_ALMANAC, TITLE_CONTROLS, TITLE_VOLUME, TITLE_QUIT, TITLE_ITEMS } TitleItem;
 typedef enum {
     PAUSE_CONTINUE,
     PAUSE_RETRY,

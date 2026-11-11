@@ -4,12 +4,14 @@
 #include "app/application.h"
 #include "app/autosave.h"
 #include "app/capture.h"
+#include "app/intro_render.h"
 #include "app/navigation.h"
 #include "app/smoke.h"
 #include "app/stage.h"
 #include "app/stage_render.h"
 #include "engine/assets.h"
 #include "engine/audio.h"
+#include "engine/prefs.h"
 #include "engine/text.h"
 #include "game/almanac_render.h"
 #include "game/char_select.h"
@@ -44,6 +46,28 @@ static float snap_frame_time(float frame_time)
 static bool has_live_stage(Screen screen, Screen book_return)
 {
     return screen == SCREEN_STAGE || (screen == SCREEN_ALMANAC && book_return == SCREEN_STAGE);
+}
+
+/* Once the whole cinematic has been seen, the game opens on its short end. */
+#define PREF_INTRO_SEEN "intro_vista"
+
+/* Plays a cue of the cinematic's script (game/intro.c). */
+static void play_intro_cue(const IntroCue *cue)
+{
+    switch (cue->kind) {
+    case CUE_PLAY:
+        audio_play_in_gain(cue->sound, cue->group, cue->gain);
+        break;
+    case CUE_LOOP:
+        audio_loop_in(cue->sound, cue->group, cue->gain);
+        break;
+    case CUE_STOP_LOOP:
+        audio_stop_loop(cue->sound);
+        break;
+    case CUE_MUSIC:
+        audio_music_play(cue->sound);
+        break;
+    }
 }
 
 static void enter_stage(StagePlay *play, Autosave *save, Profile *profiles,
@@ -107,6 +131,15 @@ int app_run(bool smoke_mode, const char *capture_dir)
     input_init(&input);
     Screen screen = SCREEN_TITLE;
     Screen almanac_return = SCREEN_TITLE;
+    /* The whole cinematic the first time the game opens; afterwards only the
+     * title rising out of the dust. Never in the scripted or capture runs. */
+    Intro intro;
+    bool remember_intro = !smoke_mode && capture_dir == NULL;
+    if (remember_intro) {
+        intro_start(&intro, prefs_get_bool(PREF_INTRO_SEEN, false) ? INTRO_SHORT : INTRO_FULL);
+        screen = SCREEN_INTRO;
+        audio_music_stop(0);
+    }
     bool notice_seen = false;
     int pending_stage = -1;
     AlmanacView almanac_view;
@@ -186,11 +219,30 @@ int app_run(bool smoke_mode, const char *capture_dir)
 
             /* Esc goes back one screen: the stage's pause, its menu, character
              * select, the title. */
-            if (screen == SCREEN_TITLE) {
+            if (screen == SCREEN_INTRO) {
+                bool skip = input.pressed[ACTION_CONFIRM] || input.pressed[ACTION_QUIT] || input.pointer_clicked;
+                const IntroCue *fired[8];
+                int count = intro_update(&intro, FIXED_DT, skip, fired, 8);
+                for (int k = 0; k < count; k++)
+                    play_intro_cue(fired[k]);
+                if (intro.done) {
+                    if (intro.mode == INTRO_FULL && remember_intro)
+                        prefs_set_bool(PREF_INTRO_SEEN, true);
+                    audio_stop_all(); /* Its noises and the wind; the title's music plays on */
+                    stage_backdrop_restart();
+                    list_menu_init(&title, TITLE_ITEMS);
+                    screen = SCREEN_TITLE;
+                }
+            } else if (screen == SCREEN_TITLE) {
                 switch (list_menu_update(&title, &input)) {
                 case TITLE_PLAY:
                     char_select_init(&char_select, hero);
                     screen = SCREEN_CHARACTER;
+                    break;
+                case TITLE_STORY:
+                    intro_start(&intro, INTRO_FULL);
+                    audio_music_stop(400);
+                    screen = SCREEN_INTRO;
                     break;
                 case TITLE_ALMANAC:
                     almanac_return = SCREEN_TITLE;
@@ -295,7 +347,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
             if (screen == SCREEN_STAGE && !now_paused && menu_input)
                 platform_block_mouse(&platform);
             bool book_input = play_almanac_sounds(previous_screen, screen, &previous_almanac, &almanac_view);
-            if (menu_input && !book_input) {
+            if (menu_input && !book_input && previous_screen != SCREEN_INTRO) {
                 if (input.pressed[ACTION_QUIT] ||
                     (previous_screen == SCREEN_CHARACTER && char_select.denied))
                     audio_play("ui/back");
@@ -317,8 +369,11 @@ int app_run(bool smoke_mode, const char *capture_dir)
                                has_live_stage(screen, almanac_return) ? &play : NULL);
 
         hud_zones_clear();
-        if (screen == SCREEN_TITLE) {
+        if (screen == SCREEN_INTRO) {
+            intro_render(&platform, &intro, &menu_world, &skins[0]);
+        } else if (screen == SCREEN_TITLE) {
             stage_draw_backdrop(&platform, &menu_world, 0.15f);
+            intro_draw_title_dust(platform.renderer, stage_backdrop_seconds());
             hud_draw_title(platform.renderer, &title);
         } else if (screen == SCREEN_CONTROLS) {
             stage_draw_backdrop(&platform, &menu_world, 0.5f);
@@ -348,7 +403,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
             stage_draw(&platform, &play, &skins[hero], &profiles[hero].progress,
                        accumulator / FIXED_DT, prev_player_x, prev_jump, &options);
         }
-        if (!has_live_stage(screen, almanac_return))
+        if (!has_live_stage(screen, almanac_return) && screen != SCREEN_INTRO)
             audio_music_play(MENU_MUSIC); /* Keeps playing from one menu to the next */
         if (screen == SCREEN_STAGE && (save.saving || save.feedback_time > 0.0f))
             hud_draw_autosave_status(platform.renderer, save.saving, save.failed, save.feedback_age);

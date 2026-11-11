@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Genera el zip para jugadores del sistema actual, listo para descomprimir y jugar:
-#   dist/linux/Vaquera2D-<versión>-linux.zip      (al correrlo en Linux)
-#   dist/windows/Vaquera2D-<versión>-windows.zip  (al correrlo en MSYS2 UCRT64)
+#   dist/linux/TheMiracle-<versión>-linux.zip      (al correrlo en Linux)
+#   dist/windows/TheMiracle-<versión>-windows.zip  (al correrlo en MSYS2 UCRT64)
 #
 #   ./dist.sh    Pregunta la versión, prueba, compila y reemplaza el zip anterior.
 #
@@ -14,8 +14,8 @@ step() { printf '\n==> %s\n' "$1"; }
 fail() { printf '\nERROR: %s\n' "$1" >&2; exit 1; }
 
 case "$(uname -s)" in
-    MINGW*|MSYS*) PLATFORM=windows; EXE=Vaquera2D.exe ;;
-    *)            PLATFORM=linux;   EXE=Vaquera2D ;;
+    MINGW*|MSYS*) PLATFORM=windows; EXE=TheMiracle.exe ;;
+    *)            PLATFORM=linux;   EXE=TheMiracle ;;
 esac
 
 while true; do
@@ -39,9 +39,10 @@ for folder in dist/linux dist/windows; do
 done
 
 OUT_DIR="dist/$PLATFORM"
-NAME="Vaquera2D-$VERSION-$PLATFORM"
+NAME="TheMiracle-$VERSION-$PLATFORM"
 shopt -s nullglob
-OLD=("$OUT_DIR"/Vaquera2D-*.zip)
+# También borra los zips de antes del cambio de nombre (Vaquera2D-*).
+OLD=("$OUT_DIR"/TheMiracle-*.zip "$OUT_DIR"/Vaquera2D-*.zip)
 shopt -u nullglob
 if ((${#OLD[@]})); then
     printf 'Se reemplazará al terminar: %s\n' "${OLD[@]}"

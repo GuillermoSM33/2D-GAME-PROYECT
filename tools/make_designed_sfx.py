@@ -474,7 +474,7 @@ def prepare_source(path: Path, kind: str, fetch: bool) -> None:
     if path.is_file():
         raw = path.read_bytes()
     elif fetch:
-        request = urllib.request.Request(url, headers={'User-Agent': 'Vaquera2D-audio-authoring/1.0'})
+        request = urllib.request.Request(url, headers={'User-Agent': 'TheMiracle-audio-authoring/1.0'})
         with urllib.request.urlopen(request, timeout=60) as response:
             raw = response.read()
         if hashlib.sha256(raw).hexdigest() != expected:

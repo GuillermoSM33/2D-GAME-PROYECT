@@ -1,4 +1,15 @@
-# Vaquera 2D
+# THE MIRACLE
+
+(Antes Vaquera 2D; el repo y la carpeta del proyecto conservan el nombre viejo.)
+
+**Cambio pendiente en la PC de Windows:** desde 2026-11-11 las partidas y preferencias van en
+`%APPDATA%\TheMiracle\TheMiracle\` (antes `%APPDATA%\Vaquera2D\Vaquera2D\`). Al abrir este repo
+en Windows, si aún existe la carpeta vieja y no la nueva, muévela (en PowerShell:
+`New-Item -ItemType Directory -Force "$env:APPDATA\TheMiracle" | Out-Null; Move-Item "$env:APPDATA\Vaquera2D\Vaquera2D" "$env:APPDATA\TheMiracle\TheMiracle"`;
+luego borra `%APPDATA%\Vaquera2D` si quedó vacía) y quita este aviso. En Linux ya se hizo.
+La historia, sus nombres y las fases están en `docs/LORE.md`: respétalo. El arte de las
+cinemáticas sale de `tools/make_cinematics.py`. **Sin voces:** la
+historia se cuenta solo con cinemáticas, ruidos y texto.
 
 Juego 2D en C11 + SDL2/SDL2_ttf con motor propio (`src/engine`), lógica en `src/game`,
 pruebas en `tests/`. Los recursos se incrustan al compilar con `tools/embed_assets.py`.

@@ -135,7 +135,7 @@ def prepare_sources(download: bool = False) -> None:
         if not path.exists():
             if not download:
                 raise RuntimeError(f'Falta {path}; ejecuta tools/make_foley_sfx.py --download')
-            request = urllib.request.Request(url, headers={'User-Agent': 'Vaquera2D foley authoring'})
+            request = urllib.request.Request(url, headers={'User-Agent': 'TheMiracle foley authoring'})
             with urllib.request.urlopen(request, timeout=60) as response:
                 data = response.read()
             if hashlib.sha256(data).hexdigest() != expected:

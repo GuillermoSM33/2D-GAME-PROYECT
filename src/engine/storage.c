@@ -226,7 +226,7 @@ Storage *storage_open(const char *directory)
     if (directory)
         s->directory = SDL_strdup(directory);
     else
-        s->directory = SDL_GetPrefPath("Vaquera2D", "Vaquera2D");
+        s->directory = SDL_GetPrefPath("TheMiracle", "TheMiracle");
     s->mutex = SDL_CreateMutex();
     s->wake = SDL_CreateCond();
     if (s->directory && s->mutex && s->wake)

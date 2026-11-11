@@ -85,7 +85,7 @@ pendiente y restaura sus saldos de entrada como un abandono; los demás perfiles
 y sus progresos se conservan.
 
 Los archivos viven en el directorio de datos de usuario que devuelve
-`SDL_GetPrefPath("Vaquera2D", "Vaquera2D")`, junto a las preferencias. No se
+`SDL_GetPrefPath("TheMiracle", "TheMiracle")`, junto a las preferencias. No se
 escriben dentro del ejecutable ni de `assets/`:
 
 - `avance_a.sav` y `avance_b.sav`: generaciones alternas.

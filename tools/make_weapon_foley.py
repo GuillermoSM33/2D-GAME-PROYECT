@@ -67,7 +67,7 @@ def fetch() -> None:
     for name, url in SOURCES.items():
         path = SOURCE / name
         if not path.exists():
-            request = urllib.request.Request(url, headers={'User-Agent': 'Vaquera2D audio tools'})
+            request = urllib.request.Request(url, headers={'User-Agent': 'TheMiracle audio tools'})
             with urllib.request.urlopen(request, timeout=45) as response:
                 path.write_bytes(response.read())
     with zipfile.ZipFile(SOURCE / 'shotgunsounds.zip') as archive:

@@ -4,8 +4,8 @@
 
 #include <SDL.h>
 
-#define PREFS_ORG "Vaquera2D"
-#define PREFS_APP "Vaquera2D"
+#define PREFS_ORG "TheMiracle"
+#define PREFS_APP "TheMiracle"
 
 /* Full path of a preference's file, or false if there is no data folder. */
 static bool pref_path(const char *name, char *path, size_t size)

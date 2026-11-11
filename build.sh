@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compila Vaquera 2D y deja el ejecutable final en dist/.
+# Compila THE MIRACLE y deja el ejecutable final en dist/.
 #   ./build.sh           Compilación incremental
 #   ./build.sh --clean   Compilación desde cero
 # Si alguna prueba falla, se detiene y dist/ no se modifica.
@@ -57,21 +57,21 @@ step "Compilando"
 make -j"$JOBS"
 
 step "Verificando recursos incrustados"
-./build/bin/Vaquera2D --verify
+./build/bin/TheMiracle --verify
 
 step "Prueba de humo (sin ventana)"
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/bin/Vaquera2D --smoke-test
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/bin/TheMiracle --smoke-test
 
 step "Publicando en dist/"
 mkdir -p dist
-cp build/bin/Vaquera2D dist/Vaquera2D.tmp
-mv dist/Vaquera2D.tmp dist/Vaquera2D
-chmod +x dist/Vaquera2D
+cp build/bin/TheMiracle dist/TheMiracle.tmp
+mv dist/TheMiracle.tmp dist/TheMiracle
+chmod +x dist/TheMiracle
 if [[ $WINDOWS == 1 ]]; then
     # So the .exe runs on double-click: copy the MSYS2 DLLs it needs next to it.
-    ldd build/bin/Vaquera2D | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u | xargs -r cp -u -t dist/
+    ldd build/bin/TheMiracle | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u | xargs -r cp -u -t dist/
     echo "$(ls dist/*.dll | wc -l) DLL(s) junto al ejecutable"
 fi
-ls -lh dist/Vaquera2D
+ls -lh dist/TheMiracle
 
-printf '\nListo. Ejecuta: ./dist/Vaquera2D\n'
+printf '\nListo. Ejecuta: ./dist/TheMiracle\n'

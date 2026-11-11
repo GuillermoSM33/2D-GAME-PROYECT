@@ -1,5 +1,5 @@
-# Vaquera 2D - C + SDL2 (SDL2_ttf, SDL2_mixer)
-#   make          Build build/bin/Vaquera2D
+# THE MIRACLE - C + SDL2 (SDL2_ttf, SDL2_mixer)
+#   make          Build build/bin/TheMiracle
 #   make test     Build and run the logic tests (no window)
 #   make run      Build and launch the game
 #   make watch    Rebuild and relaunch the game on every saved change
@@ -9,7 +9,7 @@ CC      ?= cc
 PYTHON  ?= python3
 BUILD   := build
 GEN     := $(BUILD)/generated
-BIN     := $(BUILD)/bin/Vaquera2D
+BIN     := $(BUILD)/bin/TheMiracle
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_ttf SDL2_mixer)
 SDL_LIBS   := $(shell pkg-config --libs sdl2 SDL2_ttf SDL2_mixer)
@@ -26,9 +26,10 @@ CORE_SRC := src/engine/input.c src/engine/animation.c src/game/movement.c src/ga
             src/game/progression.c src/game/stages.c src/game/chest.c src/game/stage_run.c \
             src/game/menu.c src/game/weapons.c src/game/characters.c src/game/char_select.c \
             src/game/terrain.c src/game/settings.c src/game/crows.c src/game/bats.c src/game/weather.c \
-            src/game/hallucination.c src/game/almanac.c src/game/lighting.c src/game/mission.c
+            src/game/hallucination.c src/game/almanac.c src/game/lighting.c src/game/mission.c \
+            src/game/intro.c
 APP_SRC  := src/main.c src/app/application.c src/app/capture.c src/app/navigation.c src/app/options.c \
-            src/app/smoke.c src/app/stage.c src/app/stage_render.c src/app/verify.c src/app/savegame.c src/app/autosave.c \
+            src/app/smoke.c src/app/stage.c src/app/stage_render.c src/app/intro_render.c src/app/verify.c src/app/savegame.c src/app/autosave.c \
             src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c src/engine/pixfont.c src/engine/prefs.c src/engine/storage.c \
             src/game/controls.c src/game/scene.c src/game/hud.c src/game/player_render.c \
             src/game/bullet_render.c src/game/zombie_render.c src/game/effects_render.c \

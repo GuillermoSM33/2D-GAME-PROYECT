@@ -4,7 +4,8 @@
 #include "game/almanac.h"
 
 typedef enum {
-    SCREEN_TITLE,     /* Jugar, Almanaque, Controles, Volumen, Salir */
+    SCREEN_INTRO,     /* The opening cinematic (game/intro.h) */
+    SCREEN_TITLE,     /* Jugar, Historia, Almanaque, Controles, Opciones, Salir */
     SCREEN_CONTROLS,
     SCREEN_VOLUME,
     SCREEN_CHARACTER, /* Elige tu personaje */

@@ -127,7 +127,7 @@ def prepare_sources(names: list[str], fetch: bool = False) -> None:
         if not path.exists():
             if not fetch:
                 raise RuntimeError(f'Falta {path}; ejecuta con --fetch para descargar la fuente CC0.')
-            request = urllib.request.Request(spec['url'], headers={'User-Agent': 'Vaquera2D audio authoring'})
+            request = urllib.request.Request(spec['url'], headers={'User-Agent': 'TheMiracle audio authoring'})
             with urllib.request.urlopen(request, timeout=45) as response:
                 data = response.read()
             if hashlib.sha256(data).hexdigest() != spec['sha256']:

@@ -1,4 +1,6 @@
-# Vaquera 2D
+# THE MIRACLE
+
+*(Antes Vaquera 2D.)* La historia está en [docs/LORE.md](docs/LORE.md).
 
 Juego 2D en **C + SDL2**: una vaquera de pixel art contra zombis, por niveles (1-1 a 1-5)
 con cofres de recompensa, experiencia y niveles para ella y para los zombis. Sprites:
@@ -11,7 +13,7 @@ por nivel. Hacia la izquierda se usa el mismo arte espejado.
 
 ```bash
 ./build.sh          # compila, prueba y deja el ejecutable en dist/
-./dist/Vaquera2D
+./dist/TheMiracle
 ```
 
 El juego abre en el **menú principal** (Jugar, Almanaque, Controles, Opciones, Salir), todo en pixel art
@@ -42,8 +44,8 @@ que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus 
 **Pantalla:** la ventana abre al 85 % del área útil del monitor y se puede agrandar o
 maximizar; el juego se escala sin suavizado y conserva su forma (con franjas si el monitor
 tiene otra proporción). La pantalla completa usa la resolución del escritorio, sin cambiar
-el modo de video, y se recuerda entre partidas en `~/.local/share/Vaquera2D/Vaquera2D/`
-(Linux) o `%APPDATA%\Vaquera2D\Vaquera2D\` (Windows).
+el modo de video, y se recuerda entre partidas en `~/.local/share/TheMiracle/TheMiracle/`
+(Linux) o `%APPDATA%\TheMiracle\TheMiracle\` (Windows).
 
 **Pausa automática:** si la ventana pierde el foco durante un nivel (clic fuera de ella,
 `Alt+Tab`, minimizarla), el nivel se pausa como con `Esc`.
@@ -362,7 +364,7 @@ En Windows (MSYS2 UCRT64): `pacman -S mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-
 
 Para solo jugar en otra máquina basta con `libsdl2-2.0-0`, `libsdl2-ttf-2.0-0` y `libsdl2-mixer-2.0-0`
 (en Windows, `build.sh` deja las DLL necesarias en `dist/`).
-Los sprites, fuentes y sonidos van **dentro** del ejecutable: `dist/Vaquera2D` es un solo archivo.
+Los sprites, fuentes y sonidos van **dentro** del ejecutable: `dist/TheMiracle` es un solo archivo.
 
 ## Compilación
 
@@ -370,12 +372,12 @@ Los sprites, fuentes y sonidos van **dentro** del ejecutable: `dist/Vaquera2D` e
 
 1. Comprueba herramientas y SDL2.
 2. `make test` — pruebas de lógica (entrada, animación, personaje), sin ventana.
-3. `make` — compila `build/bin/Vaquera2D`.
+3. `make` — compila `build/bin/TheMiracle`.
 4. `--verify` — valida los recursos incrustados.
 5. `--smoke-test` — recorrido automático: caminar a la derecha, saltar caminando,
    regresar a la izquierda, detenerse, disparar una vez y seguir la bala hasta que
    sale de la pantalla, mientras el zombi avanza (sin ventana).
-6. Copia el ejecutable a `dist/Vaquera2D`.
+6. Copia el ejecutable a `dist/TheMiracle`.
 
 `./build.sh --clean` compila desde cero. Durante el desarrollo también sirven
 `make`, `make test`, `make run` y `make clean`.
@@ -393,7 +395,7 @@ ejecutable y sus bibliotecas (`lib/` en Linux, las DLL en Windows). En VS Code e
 tarea *Generar zip para jugadores*.
 
 Las partidas no viajan en el zip: el juego las guarda en la carpeta de datos del usuario
-(`~/.local/share/Vaquera2D/Vaquera2D` en Linux, `%APPDATA%\Vaquera2D\Vaquera2D` en
+(`~/.local/share/TheMiracle/TheMiracle` en Linux, `%APPDATA%\TheMiracle\TheMiracle` en
 Windows), así que cada cuenta de cada computadora tiene su propio avance.
 
 ### Desarrollo con recarga automática
@@ -596,6 +598,7 @@ docs/SPRITES.md          Especificación para dibujar sprites (tamaños, pivotes
 docs/LANDSCAPE.md        Especificación del paisaje: capas con paralaje, paletas y temas por nivel
 docs/ZOMBIE.md           Catálogo, escalado y plantilla de estilo compartida de los zombis
 docs/CHARACTERS.md       Personajes: habilidades, armas, plantilla, base y cómo dibujar uno nuevo
+docs/LORE.md             Historia de THE MIRACLE: personajes, intro, pistas y fases
 docs/templates/          La base de los personajes (la vaquera en grises), para dibujar encima
 build/                   Generado (temporales)
 dist/                    Generado (ejecutable final)

@@ -58,7 +58,7 @@ class ProjectToolsTests(unittest.TestCase):
     def test_cleanup_preserves_distribution_and_authoring_sources(self):
         self.write('build/debug/game')
         cache = self.write('tools/__pycache__/tool.pyc')
-        keep = [self.write(name) for name in ('dist/Vaquera2D', 'tools/tool.py',
+        keep = [self.write(name) for name in ('dist/TheMiracle', 'tools/tool.py',
                 'assets/sounds/bat/chirp.wav', 'recordings/bat.zip', 'docs/templates/source.png')]
         with patch.object(cleanup, 'ROOT', self.root):
             targets = cleanup.targets()
