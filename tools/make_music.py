@@ -307,6 +307,9 @@ CHORDS = {
     'B7': ['B2', 'F#3', 'A3', 'D#4', 'F#4'], 'F#m': ['F#2', 'C#3', 'F#3', 'A3', 'C#4'],
     'D': ['D3', 'A3', 'D4', 'F#4', 'A4'], 'Bm': ['B2', 'F#3', 'B3', 'D4', 'F#4'],
     'C#': ['C#3', 'G#3', 'C#4', 'F4', 'G#4'], 'F#dim': ['F#2', 'C3', 'F#3', 'A3', 'C4'],
+    'Cm': ['C3', 'G3', 'C4', 'Eb4', 'G4'], 'Fm': ['F2', 'C3', 'F3', 'Ab3', 'C4'],
+    'Ab': ['Ab2', 'Eb3', 'Ab3', 'C4', 'Eb4'], 'Eb': ['Eb3', 'Bb3', 'Eb4', 'G4', 'Bb4'],
+    'G7': ['G2', 'D3', 'F3', 'B3', 'D4'], 'C#m': ['C#3', 'G#3', 'C#4', 'E4', 'G#4'],
 }
 
 
@@ -485,6 +488,325 @@ def ruta_1_5() -> Track:
     return t
 
 
+# ---- The second route: Santa Brasa and the army post past it ---------------
+# A town, not the desert: nothing here is plucked or whistled. The first
+# route is wood and gut (guitar, bass fiddle, harmonica, whistle); this one is
+# wire and current: an electric bass, a drum kit, overdriven guitar, electric
+# piano and synthesizers. Its own sounds, below, are used by no other track.
+
+SQUARE = ((1, 1.0), (3, .33), (5, .2), (7, .14), (9, .11), (11, .09))
+SAW = tuple((n, 1.0 / n) for n in range(1, 13))
+
+
+def kick(track: Track, gain: float) -> list:
+    """A kick drum: a low thump falling from 130 Hz, a click on its front."""
+    count = round(.28 * RATE)
+    out, phase = [0.0] * count, 0.0
+    for i in range(count):
+        t = i / RATE
+        phase += math.tau * (46 + 90 * math.exp(-t * 34)) / RATE
+        out[i] = (math.sin(phase) * math.exp(-t * 11) + (.5 * math.exp(-t * 400) if i < 200 else 0.0)) * gain
+    return out
+
+
+def snare(track: Track, gain: float, seconds: float = .2) -> list:
+    """A snare: its skin's tone under a burst of wires."""
+    count = round(seconds * RATE)
+    rng, out, last, phase = track.rng, [0.0] * count, 0.0, 0.0
+    for i in range(count):
+        t = i / RATE
+        white = rng.uniform(-1, 1)
+        wires = white - .55 * last
+        last = white
+        phase += math.tau * (185 + 60 * math.exp(-t * 40)) / RATE
+        out[i] = (wires * .75 * math.exp(-t * 22) + math.sin(phase) * .6 * math.exp(-t * 30)) * gain
+    return out
+
+
+def hat(track: Track, gain: float, open_: bool = False) -> list:
+    """A hi-hat: the top of the noise only; open, it rings on."""
+    count = round((.16 if open_ else .045) * RATE)
+    rng, out, a, b = track.rng, [0.0] * count, 0.0, 0.0
+    for i in range(count):
+        white = rng.uniform(-1, 1)
+        high = white - a
+        a = white
+        higher = high - b
+        b = high
+        out[i] = higher * .5 * gain * math.exp(-i / count * (4 if open_ else 6))
+    return out
+
+
+def e_bass(track: Track, freq: float, seconds: float, gain: float) -> list:
+    """An electric bass through an amp: a saw that closes as the note dies, a little grit."""
+    count = round(seconds * RATE)
+    out, phase = [0.0] * count, 0.0
+    step = math.tau * freq / RATE
+    for i in range(count):
+        t = i / RATE
+        phase += step
+        bright = .25 + .75 * math.exp(-t * 7)
+        tone = math.sin(phase) + bright * (.5 * math.sin(2 * phase) + .33 * math.sin(3 * phase) +
+                                           .22 * math.sin(4 * phase) + .15 * math.sin(5 * phase))
+        env = min(1.0, i / 60) * math.exp(-t * 2.2) * min(1.0, (count - i) / 300)
+        out[i] = math.tanh(tone * 1.4) * gain * env
+    return out
+
+
+def power_chord(track: Track, root: float, seconds: float, gain: float, muted: bool = False) -> list:
+    """An overdriven guitar's fifth: root, fifth and octave sawing into a
+    clipped amp. muted: the palm on the strings, a short chug."""
+    count = round((min(seconds, .13) if muted else seconds) * RATE)
+    out = [0.0] * count
+    phases = [0.0, 0.0, 0.0]
+    steps = [math.tau * root * r * d / RATE for r, d in ((1, 1.0), (1.5, 1.003), (2, .997))]
+    for i in range(count):
+        t = i / RATE
+        tone = 0.0
+        for k in range(3):
+            phases[k] += steps[k]
+            p = phases[k] % math.tau
+            tone += (p / math.pi - 1.0)                 # A saw
+        drive = 4.0 if not muted else 6.0
+        env = min(1.0, i / 40) * (math.exp(-t * (26 if muted else 1.6))) * min(1.0, (count - i) / 400)
+        out[i] = math.tanh(tone * drive * (.4 + .6 * env)) * gain * env
+    # The speaker rolls the fizz off: a one-pole low-pass.
+    low = 0.0
+    for i in range(count):
+        low += (.2 if muted else .32) * (out[i] - low)
+        out[i] = low
+    return out
+
+
+def e_piano(track: Track, freq: float, seconds: float, gain: float) -> list:
+    """An electric piano: a tine's bell over a hollow body (two-operator FM), a slow tremolo."""
+    count = round(seconds * RATE)
+    out = [0.0] * count
+    for i in range(count):
+        t = i / RATE
+        index = 2.2 * math.exp(-t * 6) + .35
+        tone = math.sin(math.tau * freq * t + index * math.sin(math.tau * freq * 2 * t))
+        tine = .25 * math.sin(math.tau * freq * 7.02 * t) * math.exp(-t * 18)
+        env = min(1.0, i / 30) * math.exp(-t * 2.4) * min(1.0, (count - i) / 300)
+        out[i] = (tone + tine) * gain * env * (1 + .12 * math.sin(math.tau * 5.2 * t))
+    return out
+
+
+def lead_sound(gain: float, partials=SQUARE):
+    """A synthesizer lead: a hollow square wave that slides into its notes."""
+    def sound(track, freq, seconds, previous):
+        return voice(track, freq, seconds, gain, partials, .008, 5.6, 0.0, .02, .08, previous)
+    return sound
+
+
+def kit(t: Track, bar: int, pattern: str, gain: float = 1.0) -> None:
+    """A bar of drums in sixteenths: k kick, s snare, h hat, o open hat, . rest;
+    two lines: 'k...s...k.k.s...' and the hats under it."""
+    drums, hats = pattern.split('/')
+    for step, c in enumerate(drums):
+        if c == 'k':
+            t.mix(kick(t, .55 * gain), t.at(bar, step * .25, .002), 0.0, .04)
+        elif c == 's':
+            t.mix(snare(t, .34 * gain), t.at(bar, step * .25, .002), .08, .16)
+    for step, c in enumerate(hats):
+        if c in 'ho':
+            t.mix(hat(t, (.13 if step % 4 == 0 else .09) * gain, c == 'o'), t.at(bar, step * .25, .002), -.35, .05)
+
+
+def root_of(chords: dict, name: str, octave: int = 0) -> float:
+    return hz(chords[name][0]) * 2 ** octave
+
+
+def ruta_2_1() -> Track:
+    """2-1: dawn on the outskirts. Empty streets: an electric piano turning
+    over a chord, a bass that walks on, a far synth; the drums come in late."""
+    t = Track(100, 32, 701)
+    form = (['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Am', 'Bb', 'A'] * 2 + ['F', 'C', 'Bb', 'F', 'Gm', 'Dm', 'Bb', 'A'] +
+            ['Dm', 'Bb', 'Gm', 'A', 'Dm', 'C', 'Bb', 'A'])
+    for bar, name in enumerate(form):
+        notes = CHORDS[name]
+        for step, index in enumerate((1, 2, 3, 4, 3, 2, 3, 4)):
+            t.mix(e_piano(t, hz(notes[index]), .9, .11 if step % 2 == 0 else .08), t.at(bar, step * .5), -.3 + .1 * (step % 3), .3)
+        t.mix(e_bass(t, hz(notes[0]) / 2 if hz(notes[0]) > 90 else hz(notes[0]), 1.6, .3), t.at(bar, 0), 0.0, .05)
+        t.mix(e_bass(t, hz(notes[1]) / 2, .7, .2), t.at(bar, 2.5), 0.0, .05)
+        pad(t, bar, 1, [notes[2], notes[4]], .02, SAW, .2, .003, .5)
+        if bar >= 8:
+            kit(t, bar, 'k.......s.....k./h.h.h.h.h.h.h.o.', .8)
+    a = ('D5:2 F5:1 E5:1 | D5:3 R:1 | F5:1 G5:1 Bb5:2 | A5:3 R:1 | '
+         'D5:1 E5:1 F5:2 | E5:1 C5:1 A4:2 | Bb4:1 D5:1 G5:2 | A5:3 R:1')
+    b = ('A5:2 G5:1 F5:1 | E5:2 C5:2 | D5:1 F5:1 Bb5:2 | A5:2 E5:2 | '
+         'F5:1.5 E5:.5 D5:2 | C5:1 E5:1 A5:2 | G5:1 F5:1 D5:2 | C#5:3 R:1')
+    c = ('C5:2 F5:2 | E5:1 G5:1 C6:2 | Bb5:1 A5:1 F5:2 | A5:3 R:1 | '
+         'G5:1 Bb5:1 D6:2 | A5:2 F5:2 | D5:1 F5:1 Bb5:2 | A5:2 E5:2')
+    d = ('D5:2 A5:2 | Bb5:2 F5:2 | G5:1 Bb5:1 D6:2 | C#6:3 R:1 | '
+         'A5:2 F5:1 D5:1 | E5:1 G5:1 C6:2 | Bb5:1 G5:1 D5:2 | C#5:2 E5:2')
+    sound = lead_sound(.045)
+    for first, line in ((0, a), (8, b), (16, c), (24, d)):
+        melody(t, line, first, sound, .35, .5, echo=(.3, .35))
+    return t
+
+
+def ruta_2_2() -> Track:
+    """2-2: rain on the asphalt downtown. A bass in running eighths, a kit, a
+    guitar chugging under its palm, and a square lead over it all."""
+    t = Track(118, 32, 702)
+    form = (['Am', 'Am', 'F', 'E', 'Am', 'G', 'F', 'E'] * 2 + ['Dm', 'Am', 'F', 'E', 'Dm', 'Am', 'Bb', 'E'] +
+            ['Am', 'F', 'Dm', 'E', 'Am', 'G', 'F', 'E'])
+    for bar, name in enumerate(form):
+        notes = CHORDS[name]
+        root = root_of(CHORDS, name)
+        low = root / 2 if root > 100 else root
+        for step in range(8):
+            t.mix(e_bass(t, low * (2 if step == 7 else 1), .26, .26 if step % 2 == 0 else .2), t.at(bar, step * .5), 0.0, .04)
+        kit(t, bar, 'k...s...k.k.s...' + '/' + 'h.h.h.h.h.h.h.h.' if bar % 4 != 3 else 'k...s...k.k.s.ss/h.h.h.h.h.h.o...')
+        for step in (0, 1, 3, 4, 6, 7):
+            t.mix(power_chord(t, low * 2, .2, .09, muted=True), t.at(bar, step * .5), .4, .08)
+        if bar % 8 in (3, 7):
+            t.mix(power_chord(t, low * 2, 1.8, .1), t.at(bar, 2), .4, .2)
+        t.mix(e_piano(t, hz(notes[3]), 1.5, .05), t.at(bar, 0), -.45, .35)
+    a = ('A4:1 C5:1 E5:2 | D5:1 C5:1 A4:2 | F5:1.5 E5:.5 C5:2 | B4:3 R:1 | '
+         'A4:1 C5:1 E5:1 G5:1 | F5:2 D5:2 | C5:1 A4:1 F5:2 | E5:3 R:1')
+    b = ('E5:1.5 G5:.5 A5:2 | G5:1 E5:1 C5:2 | F5:1 A5:1 C6:2 | B5:2 G#5:2 | '
+         'A5:1 E5:1 C5:2 | D5:1 B4:1 G4:2 | A4:1 C5:1 F5:2 | E5:3 R:1')
+    c = ('D5:1 F5:1 A5:2 | C5:1 E5:1 A5:2 | F5:2 C6:2 | B5:2 G#5:2 | '
+         'F5:1 A5:1 D6:2 | C6:2 A5:2 | Bb5:1 D6:1 F5:2 | E5:2 B4:2')
+    d = ('A5:2 E5:2 | F5:1 A5:1 C6:2 | D5:2 F5:2 | E5:2 G#5:2 | '
+         'A5:1 C6:1 E6:2 | D6:1 B5:1 G5:2 | C6:1 A5:1 F5:2 | E5:3 R:1')
+    sound = lead_sound(.05)
+    for first, line in ((0, a), (8, b), (16, c), (24, d)):
+        melody(t, line, first, sound, .2, .3, echo=(.254, .25))
+    return t
+
+
+def ruta_2_3() -> Track:
+    """2-3: the rail yard. Hats in sixteenths like wheels on the joints, a
+    bass that never leaves its note, guitar stabs on the off-beats, a saw lead."""
+    t = Track(126, 32, 703)
+    form = (['Em', 'Em', 'C', 'B7', 'Em', 'D', 'C', 'B7'] * 2 + ['Am', 'Em', 'C', 'B7', 'Am', 'Em', 'F#dim', 'B7'] +
+            ['Em', 'C', 'Am', 'B7', 'Em', 'D', 'C', 'B7'])
+    for bar, name in enumerate(form):
+        root = root_of(CHORDS, name)
+        low = root / 2 if root > 100 else root
+        kit(t, bar, 'k..k..k.s..k..k./hhhhhhhhhhhhhhho')
+        for step in (0, 1.5, 3, 4.5, 6, 7):
+            t.mix(e_bass(t, low, .3, .25), t.at(bar, step * .5), 0.0, .04)
+        for beat in (1.5, 3.5):
+            t.mix(power_chord(t, low * 2, .32, .1), t.at(bar, beat), -.4, .15)
+        if bar % 4 == 0:
+            pad(t, bar, 4, [CHORDS[name][1], CHORDS[name][3]], .018, SAW, 0.0, .003, .5)
+    a = ('E5:3 G5:1 | F#5:2 D#5:2 | E5:1 G5:1 C6:2 | B5:3 R:1 | '
+         'E5:1 B4:1 E5:1 G5:1 | F#5:1 D5:1 A4:2 | G5:1 E5:1 C5:2 | B4:3 R:1')
+    b = ('B5:2 A5:1 G5:1 | F#5:2 B4:2 | C5:1 E5:1 G5:2 | F#5:2 D#5:2 | '
+         'E5:1 G5:1 B5:2 | A5:1 F#5:1 D5:2 | E5:1 G5:1 C6:2 | B5:3 R:1')
+    c = ('A4:1 C5:1 E5:2 | G5:2 E5:2 | C6:1.5 B5:.5 G5:2 | F#5:2 D#5:2 | '
+         'A5:1 C6:1 E6:2 | B5:2 G5:2 | A5:1 F#5:1 C5:2 | B4:3 R:1')
+    d = ('E5:2 B5:2 | C6:2 G5:2 | A5:1 C6:1 E6:2 | D#6:3 R:1 | '
+         'E6:1 B5:1 G5:2 | F#5:1 A5:1 D6:2 | C6:1 G5:1 E5:2 | D#5:2 F#5:2')
+    sound = lead_sound(.04, SAW)
+    for first, line in ((0, a), (8, b), (16, c), (24, d)):
+        melody(t, line, first, sound, .3, .4, echo=(.238, .3))
+    return t
+
+
+def ruta_2_4() -> Track:
+    """2-4: downtown by night. A sub pulse, a cold synth pad, a snare far off
+    in a big room, an electric piano's bell, and a lead that wails like a siren."""
+    t = Track(86, 28, 704)
+    form = (['C#m', 'C#m', 'A', 'G#3x', 'F#m', 'C#m', 'D', 'G#3x'] * 2 +
+            ['A', 'E', 'F#m', 'C#m', 'D', 'A', 'F#m', 'G#3x'] + ['C#m', 'A', 'F#m', 'G#3x'])
+    chords = dict(CHORDS)
+    chords['G#3x'] = ['G#2', 'D#3', 'G#3', 'C4', 'D#4']
+    for bar, name in enumerate(form):
+        notes = chords[name]
+        low = hz(notes[0]) / 2 if hz(notes[0]) > 90 else hz(notes[0])
+        pad(t, bar, 1, [notes[1], notes[2], notes[3]], .028, SAW, 0.0, .004, .55)
+        for beat, strength in ((0, 1.0), (.75, .6), (2.5, .8)):
+            t.mix(e_bass(t, low, .5, .3 * strength), t.at(bar, beat), 0.0, .04)
+        t.mix(kick(t, .5), t.at(bar, 0, .002), 0.0, .05)
+        t.mix(snare(t, .2, .3), t.at(bar, 2, .002), .1, .6)
+        for step in (2, 6, 10, 14):
+            t.mix(hat(t, .06), t.at(bar, step * .25, .002), -.4, .1)
+        for step, index in ((0, 4), (3, 3), (6, 4), (11, 2)):
+            t.mix(e_piano(t, hz(notes[index]) * 2, 1.2, .045), t.at(bar, step * .25), .45, .5)
+    a = ('R:2 G#5:2 | E5:3 R:1 | C#5:2 E5:2 | D#5:3 R:1 | '
+         'F#5:2 A5:2 | G#5:2 E5:2 | F#5:1.5 A5:.5 D5:2 | C5:3 R:1')
+    b = ('G#5:2 C#6:2 | B5:2 G#5:2 | A5:2 E5:2 | D#5:3 R:1 | '
+         'C#6:2 E6:2 | B5:1 G#5:1 E5:2 | F#5:2 A5:2 | G#5:3 R:1')
+    c = ('E5:2 A5:2 | G#5:2 B5:2 | A5:2 F#5:2 | E5:3 R:1 | '
+         'F#5:1 A5:1 D6:2 | C#6:2 A5:2 | F#5:2 C#5:2 | C5:3 R:1')
+    d = ('C#5:2 G#5:2 | E5:2 A5:2 | F#5:2 C#6:2 | C6:3 R:1')
+    sound = lead_sound(.04)
+    for first, line in ((0, a), (8, b), (16, c), (24, d)):
+        melody(t, line, first, sound, -.25, .6, echo=(.349, .4))
+    return t
+
+
+def ruta_2_5() -> Track:
+    """2-5: the army post. Everything at once: a double kick, a snare on the
+    two and the four, guitars held and chugging, a bass in eighths, the lead on top."""
+    t = Track(138, 48, 705)
+    form = (['Cm', 'Cm', 'Ab', 'G', 'Cm', 'Bb', 'Ab', 'G'] * 2 + ['Fm', 'Cm', 'Ab', 'G', 'Fm', 'Cm', 'Ab', 'G'] +
+            ['Cm', 'Cm', 'Ab', 'G', 'Cm', 'Bb', 'Ab', 'G'] + ['Ab', 'Eb', 'Fm', 'Cm', 'Ab', 'Bb', 'Fm', 'G'] +
+            ['Cm', 'Ab', 'Fm', 'G', 'Cm', 'Bb', 'Ab', 'G'])
+    assert len(form) == 48
+    for bar, name in enumerate(form):
+        root = root_of(CHORDS, name)
+        low = root / 2 if root > 100 else root
+        fill = bar % 8 == 7
+        kit(t, bar, ('k.k.s.k.k.k.s.k.' if not fill else 'k.k.s.k.ssssssss') + '/' + 'h.h.h.h.h.h.h.h.')
+        for step in range(8):
+            t.mix(e_bass(t, low, .2, .24), t.at(bar, step * .5), 0.0, .04)
+        t.mix(power_chord(t, low * 2, 1.7, .085), t.at(bar, 0), -.45, .15)
+        for step in (4, 5, 7):
+            t.mix(power_chord(t, low * 2, .2, .085, muted=True), t.at(bar, step * .5), .45, .08)
+        if 16 <= bar < 24 or bar >= 32:
+            pad(t, bar, 1, [CHORDS[name][2], CHORDS[name][4]], .016, SAW, 0.0, .003, .4)
+    a = ('C5:2 Eb5:1 G5:1 | F5:2 Eb5:2 | Ab5:1.5 G5:.5 F5:2 | D5:3 R:1 | '
+         'C5:1 Eb5:1 G5:2 | Bb5:1 Ab5:1 G5:2 | F5:1 Ab5:1 C6:2 | B5:3 R:1')
+    b = ('G5:1.5 Ab5:.5 G5:1 Eb5:1 | C5:2 G4:2 | Ab4:1 C5:1 Eb5:2 | D5:3 R:1 | '
+         'C6:1.5 Bb5:.5 Ab5:1 G5:1 | F5:1 D5:1 Bb4:2 | Ab5:1 F5:1 C5:2 | B4:2 D5:2')
+    c = ('F5:2 Ab5:2 | G5:1 Eb5:1 C5:2 | Eb5:1 Ab5:1 C6:2 | B5:3 R:1 | '
+         'Ab5:1 C6:1 F6:2 | Eb6:1 C6:1 G5:2 | F5:1 Ab5:1 C6:2 | D6:2 B5:2')
+    d = ('C6:2 G5:1 Eb5:1 | D5:2 G5:2 | Ab5:1.5 G5:.5 F5:2 | G5:3 R:1 | '
+         'Eb5:1 G5:1 C6:2 | D6:1 Bb5:1 F5:2 | Eb5:1 Ab5:1 C6:2 | B5:3 R:1')
+    e = ('Eb5:2 Ab5:2 | G5:1 Bb5:1 Eb6:2 | C6:2 Ab5:2 | G5:3 R:1 | '
+         'Ab5:1 C6:1 Eb6:2 | D6:1 Bb5:1 F5:2 | Ab5:1 F5:1 C5:2 | D5:2 B4:2')
+    f = ('C5:1 Eb5:1 G5:2 | Ab5:2 C6:2 | F5:1 Ab5:1 C6:2 | B5:3 R:1 | '
+         'C6:2 G5:1 Eb5:1 | D5:1 F5:1 Bb5:2 | C6:1 Ab5:1 F5:2 | G5:2 B5:2')
+    sound = lead_sound(.05)
+    for first, line in ((0, a), (8, b), (16, c), (24, d), (32, e), (40, f)):
+        melody(t, line, first, sound, .15, .3, echo=(.217, .22))
+    return t
+
+
+def menu_2() -> Track:
+    """The menus once she has reached the city: a dead sign's hum of a pad,
+    an electric piano picking over it, a bass note a bar, a kick like a pulse."""
+    t = Track(84, 24, 707)
+    form = (['Cm', 'Ab', 'Fm', 'G', 'Cm', 'Ab', 'Eb', 'G'] + ['Fm', 'Cm', 'Ab', 'G', 'Fm', 'Cm', 'Ab', 'G'] +
+            ['Cm', 'Ab', 'Fm', 'G', 'Cm', 'Bb', 'Ab', 'G'])
+    for bar, name in enumerate(form):
+        notes = CHORDS[name]
+        low = hz(notes[0]) / 2 if hz(notes[0]) > 90 else hz(notes[0])
+        pad(t, bar, 1, [notes[1], notes[2], notes[4]], .024, SAW, 0.0, .003, .55)
+        t.mix(e_bass(t, low, 2.2, .26), t.at(bar, 0), 0.0, .05)
+        for step, index in enumerate((2, 3, 4, 3, 2, 4, 3, 2)):
+            t.mix(e_piano(t, hz(notes[index]) * (2 if step in (2, 5) else 1), 1.1, .075), t.at(bar, step * .5),
+                  -.35 + .1 * (step % 4), .4)
+        t.mix(kick(t, .36), t.at(bar, 0, .002), 0.0, .05)
+        if bar >= 8:
+            t.mix(kick(t, .26), t.at(bar, 2.5, .002), 0.0, .05)
+            for step in (4, 12):
+                t.mix(hat(t, .05), t.at(bar, step * .25, .002), .4, .1)
+    a = ('G5:3 Eb5:1 | C5:3 R:1 | Ab5:2 F5:2 | D5:3 R:1 | G5:2 C6:2 | Ab5:3 R:1 | Bb5:2 G5:2 | D5:3 R:1')
+    b = ('C6:2 Ab5:2 | G5:3 Eb5:1 | C5:2 Eb5:2 | D5:3 R:1 | Ab5:2 C6:2 | G5:2 Eb5:2 | C5:1 Eb5:1 Ab5:2 | G5:3 R:1')
+    c = ('Eb5:2 G5:2 | Ab5:3 R:1 | C6:2 Ab5:2 | B5:3 R:1 | G5:3 Eb5:1 | F5:2 D5:2 | Eb5:1 C5:1 Ab4:2 | G4:3 R:1')
+    sound = lead_sound(.035)
+    for first, line in ((0, a), (8, b), (16, c)):
+        melody(t, line, first, sound, .3, .6, echo=(.357, .4))
+    return t
+
+
 # ---- The menu: a fire at the ranch, before anyone rides out ----------------
 
 def menu() -> Track:
@@ -520,6 +842,12 @@ TRACKS = {
     'ruta_1_3': ('Campo santo', '1-3', 'Cementerio: el respiro del juego. Muy lento e inquietante: armonio, cuerda grave, campana lejana y silbido.', ruta_1_3),
     'ruta_1_4': ('Luna sin dueño', '1-4', 'Noche con viento y el salto de dificultad. Guitarra en trémolo sobre cuerda grave, latido y silbido alto.', ruta_1_4),
     'ruta_1_5': ('Último duelo', '1-5', 'Pueblo fantasma, tormenta y jefe. Duelo final: rasgueos, tambores de guerra y trompeta.', ruta_1_5),
+    'menu_2': ('Neón apagado', 'Menús (fase 2)', 'Menús con el fondo de la ciudad. Colchón de sintetizador, piano eléctrico, bajo y un pulso de bombo.', menu_2),
+    'ruta_2_1': ('Santa Brasa al alba', '2-1', 'Las afueras al amanecer. Piano eléctrico en arpegio, bajo eléctrico, sintetizador lejano; la batería entra tarde.', ruta_2_1),
+    'ruta_2_2': ('Lluvia en el asfalto', '2-2', 'El centro bajo la lluvia. Bajo en corcheas, batería, guitarra distorsionada apagada con la palma y sintetizador solista.', ruta_2_2),
+    'ruta_2_3': ('Vías muertas', '2-3', 'El patio de maniobras. Platillos en semicorcheas como ruedas en las juntas, bajo ostinato, golpes de guitarra a contratiempo.', ruta_2_3),
+    'ruta_2_4': ('Toque de sirenas', '2-4', 'El centro de noche. Subgrave, colchón frío de sintetizador, caja lejana con eco, campana de piano eléctrico y un solista que aúlla.', ruta_2_4),
+    'ruta_2_5': ('Puesto Cerro Gris', '2-5', 'La base militar y su jefe. Doble bombo, caja en dos y cuatro, guitarras sostenidas y apagadas, bajo en corcheas.', ruta_2_5),
 }
 
 

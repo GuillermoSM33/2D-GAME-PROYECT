@@ -282,3 +282,33 @@ de progresión recorre la economía de los cinco niveles y mantiene sus límites
 originales de prueba: confirma que las acciones nuevas ausentes no vuelven invisible al
 enemigo ni al élite, que el cuadro se limita a la hoja disponible y que una nueva hoja
 presente tiene prioridad sobre la sustitución temporal. No reemplaza una revisión visual.
+
+## La familia de la ciudad (ruta 2)
+
+Cinco tipos nuevos, cada uno con su variante corredora, que solo salen en la ruta 2:
+**guardia de seguridad** (gorra negra, camisa celeste con charreteras y carteras azul marino),
+**enfermera** (uniforme quirúrgico azul, estetoscopio, coleta, antebrazos al aire),
+**patrullero** (azul marino, placa, radio al hombro, cinturón con funda y esposas),
+**obrero** (casco naranja, chaleco reflejante con bandas, mezclilla) y **oficinista** (camisa
+blanca, corbata roja floja, gafete, calvo con lentes).
+
+No se derivan de otra familia: `tools/make_city_zombies.py` los dibuja desde un esqueleto
+propio (cadera, columna inclinada, cabeza, dos brazos y dos piernas con los pies colocados y
+las rodillas calculadas), posado para cada cuadro de cada acción y vestido pieza por pieza. La
+ropa se pinta en las coordenadas de cada miembro, así que carteras, bandas y manchas no se
+mueven de su sitio al caminar. Mantienen la piel verde, el ojo amarillo, la boca roja, el
+contorno oscuro y el arco del zarpazo de las demás familias. En el zarpazo, un solo brazo
+golpea y el otro queda atrás.
+
+Van después de las 25 de la ruta 1 en `ZombieKind` (las partidas guardadas y el catálogo de la
+ruta 1 cuentan con ese orden). `stage_zombie_stats` los reparte en los niveles de ciudad junto
+con policías, bomberos y motociclistas; en la base, sobre todo soldados.
+
+## Corrección del zarpazo (todas las familias)
+
+En el ataque, el antidisturbios original inclina el casco hacia delante dos cuadros (3 y 4).
+`make_zombies.py` dejaba ahí su casco y careta, teñidos como pelo y con su ojo, junto a la
+cabeza propia de la familia: dos cabezas. `tools/fix_zombie_attack.py` reconstruye esos dos
+cuadros con el cuadro limpio que les sigue, inclinado hacia el golpe, y vuelve a poner el arco
+del zarpazo. Hay que correrlo después de exportar una familia con `make_zombies.py`. No toca
+`riot`, `elite`, `riot_shield` ni `dog`.

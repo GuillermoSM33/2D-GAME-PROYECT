@@ -29,7 +29,7 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
             const Piece *piece = &terrain->items[i];
             if (terrain_blocks(piece) && lighting->block_count < LIGHTING_MAX &&
                 piece->x > camera_x - 650.0f && piece->x < camera_x + VIEW_WIDTH + 650.0f) {
-                float half = terrain_half_width(piece->kind);
+                float half = terrain_piece_half_width(piece);
                 lighting->blocks[lighting->block_count++] = (LightBlock){
                     piece->x - half, piece->x + half,
                     BASELINE - (piece->kind == TERRAIN_BARRICADE ? BARRICADE_TOP
@@ -37,18 +37,27 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
                     BASELINE,
                 };
             }
-            if (piece->spent)
+            bool outpost = piece->kind == TERRAIN_OUTPOST && piece->spent; /* Its floodlight, switched on */
+            bool lying = terrain_burner_burning(piece);                    /* A drum burning on its side */
+            if (piece->spent && !outpost && !lying)
                 continue;
-            bool lamp = piece->kind == TERRAIN_LAMP;
-            bool flame = piece->kind == TERRAIN_FIRE || piece->kind == TERRAIN_CAMPFIRE;
+            if (piece->kind == TERRAIN_OUTPOST && !outpost)
+                continue;
+            bool lamp = piece->kind == TERRAIN_LAMP || outpost;
+            bool flame = piece->kind == TERRAIN_FIRE || piece->kind == TERRAIN_CAMPFIRE ||
+                         piece->kind == TERRAIN_BURNER;
             if (!lamp && !flame)
                 continue;
             float flicker = 0.94f + 0.035f * (float)sin(time * 7.0 + piece->x * .01) +
                             0.025f * (float)sin(time * 13.0 + piece->x * .03);
             WorldLight light = {
-                .kind = lamp ? LIGHT_LANTERN : LIGHT_FLAME, .x = piece->x,
-                .y = lamp ? BASELINE - (LAMP_FRAME_H - 8) * SPRITE_SCALE
-                          : BASELINE - (piece->kind == TERRAIN_CAMPFIRE ? 44.0f : 18.0f),
+                .kind = lamp ? LIGHT_LANTERN : LIGHT_FLAME,
+                .x = outpost ? piece->x + 50.0f * SPRITE_SCALE : piece->x,
+                .y = outpost ? BASELINE - (OUTPOST_FRAME_H - 12) * SPRITE_SCALE
+                    : lying ? BASELINE - 40.0f
+                    : lamp ? BASELINE - (LAMP_FRAME_H - 8) * SPRITE_SCALE
+                          : BASELINE - (piece->kind == TERRAIN_CAMPFIRE ? 44.0f
+                                        : piece->kind == TERRAIN_BURNER ? 150.0f : 18.0f),
                 .radius = lamp ? LAMP_LIGHT * 1.35f : FIRE_LIGHT * .88f,
                 .strength = (lamp ? .95f : .82f) * flicker,
             };

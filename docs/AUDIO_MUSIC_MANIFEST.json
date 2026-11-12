@@ -12,6 +12,17 @@
       "sha256": "7e9dbf3a3ed22d44e46dc7afa4f19c3a46584f0f09fe86eeda2efb7d2dc17cd8",
       "bytes": 541184
     },
+    "menu_2": {
+      "title": "Neón apagado",
+      "stage": "Menús (fase 2)",
+      "mood": "Menús con el fondo de la ciudad. Colchón de sintetizador, piano eléctrico, bajo y un pulso de bombo.",
+      "seconds": 68.571,
+      "samples": 1512000,
+      "bpm": 84,
+      "bars": 24,
+      "sha256": "009fea68c9c781ebfed03b33c40105b20eea8eb5d2c189548db9d94e43ff9515",
+      "bytes": 398071
+    },
     "ruta_1_1": {
       "title": "Polvo al ocaso",
       "stage": "1-1",
@@ -66,6 +77,61 @@
       "bars": 48,
       "sha256": "4204f7e22a3423df617371583b5ab31fdf9915b433ad5089abac963f6e6f9c60",
       "bytes": 612578
+    },
+    "ruta_2_1": {
+      "title": "Santa Brasa al alba",
+      "stage": "2-1",
+      "mood": "Las afueras al amanecer. Piano eléctrico en arpegio, bajo eléctrico, sintetizador lejano; la batería entra tarde.",
+      "seconds": 76.8,
+      "samples": 1693440,
+      "bpm": 100,
+      "bars": 32,
+      "sha256": "c30c1612c69323808be4ccebb9e76b096c077162a3b44ad0644c1009ed080844",
+      "bytes": 490206
+    },
+    "ruta_2_2": {
+      "title": "Lluvia en el asfalto",
+      "stage": "2-2",
+      "mood": "El centro bajo la lluvia. Bajo en corcheas, batería, guitarra distorsionada apagada con la palma y sintetizador solista.",
+      "seconds": 65.085,
+      "samples": 1435119,
+      "bpm": 118,
+      "bars": 32,
+      "sha256": "e305b20abcd7f54ec476150605451093623e58f2562fe3fef5c32d35c23601bc",
+      "bytes": 378948
+    },
+    "ruta_2_3": {
+      "title": "Vías muertas",
+      "stage": "2-3",
+      "mood": "El patio de maniobras. Platillos en semicorcheas como ruedas en las juntas, bajo ostinato, golpes de guitarra a contratiempo.",
+      "seconds": 60.952,
+      "samples": 1344000,
+      "bpm": 126,
+      "bars": 32,
+      "sha256": "a68cf8d38e916bc7b34b215a81462cb289ae66b34b9c0465edaae40ff0c32756",
+      "bytes": 410473
+    },
+    "ruta_2_4": {
+      "title": "Toque de sirenas",
+      "stage": "2-4",
+      "mood": "El centro de noche. Subgrave, colchón frío de sintetizador, caja lejana con eco, campana de piano eléctrico y un solista que aúlla.",
+      "seconds": 78.14,
+      "samples": 1722977,
+      "bpm": 86,
+      "bars": 28,
+      "sha256": "e2adc308abac42f3b9af33c8ae409da5a01d2a10d6dee879378c72a763a8f3eb",
+      "bytes": 472420
+    },
+    "ruta_2_5": {
+      "title": "Puesto Cerro Gris",
+      "stage": "2-5",
+      "mood": "La base militar y su jefe. Doble bombo, caja en dos y cuatro, guitarras sostenidas y apagadas, bajo en corcheas.",
+      "seconds": 83.478,
+      "samples": 1840696,
+      "bpm": 138,
+      "bars": 48,
+      "sha256": "3842502218edaee48e47d1669f2ca84f8ce5c25cf341a055ee2ad8a19b35b3c4",
+      "bytes": 524209
     }
   }
 }

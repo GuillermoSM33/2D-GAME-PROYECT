@@ -21,6 +21,8 @@ static HitResult hit_zombie(StageRun *run, Zombie *zombie, float damage, float a
     return result;
 }
 
+static void heal(StageRun *run, Player *player, int points);
+
 static bool is_hazard(TerrainKind kind)
 {
     return kind == TERRAIN_TRAP || kind == TERRAIN_SPIKES || kind == TERRAIN_NET ||
@@ -29,8 +31,9 @@ static bool is_hazard(TerrainKind kind)
 
 static bool stands_big(TerrainKind kind)
 {
-    return kind == TERRAIN_SUPPLY || kind == TERRAIN_BENCH || kind == TERRAIN_CAMPFIRE ||
-           kind == TERRAIN_WALL || kind == TERRAIN_BARRICADE || kind == TERRAIN_GOAL;
+    return kind == TERRAIN_OUTPOST || kind == TERRAIN_SUPPLY || kind == TERRAIN_BENCH || kind == TERRAIN_CAMPFIRE ||
+           kind == TERRAIN_WALL || kind == TERRAIN_BARRICADE || kind == TERRAIN_GOAL ||
+           kind == TERRAIN_SIREN;
 }
 
 /* How far apart what stands on the road must be, center to center, or 0 if it
@@ -46,8 +49,8 @@ static float road_gap(const StageRun *run, int a, int b)
     if (ha && hb)
         return HAZARD_GAP;
     float half = ZOMBIE_HALF_WIDTH * SPRITE_SCALE;
-    float ah = za ? half : terrain_half_width(run->terrain.items[a].kind);
-    float bh = zb ? half : terrain_half_width(run->terrain.items[b].kind);
+    float ah = za ? half : terrain_piece_half_width(&run->terrain.items[a]);
+    float bh = zb ? half : terrain_piece_half_width(&run->terrain.items[b]);
     return ah + bh + (za || zb ? DECOY_ROOM : HAZARD_ROOM);
 }
 
@@ -124,7 +127,7 @@ static void scatter_decoys(Terrain *terrain, int stage_index, float start_x, flo
         bool room = true;
         for (int i = 0; i < terrain->count && room; i++) {
             const Piece *p = &terrain->items[i];
-            room = fabsf(p->x - x) >= half + terrain_half_width(p->kind) + DECOY_ROOM;
+            room = fabsf(p->x - x) >= half + terrain_piece_half_width(p) + DECOY_ROOM;
         }
         if (!room) { /* A little farther on, then */
             x += DECOY_ROOM * 2.0f;
@@ -132,6 +135,38 @@ static void scatter_decoys(Terrain *terrain, int stage_index, float start_x, flo
         }
         terrain_add(terrain, kind, x);
         x += DECOY_EVERY * (0.6f + (float)(roll % 80u) / 100.0f);
+    }
+}
+
+/* The town's roads have cars left on them (and the army's jeeps and trucks):
+ * only to walk past, wherever there is room. Same for a stage every time. */
+static void scatter_vehicles(Terrain *terrain, const ThemeDef *theme, int stage_index, float start_x,
+                             float length)
+{
+    if (theme->vehicle_count <= 0)
+        return;
+    unsigned seed = (unsigned)stage_index * 2246822519u + 29u;
+    int n = 0;
+    float half = terrain_half_width(TERRAIN_VEHICLE);
+    for (float x = start_x + VEHICLE_EVERY * 0.5f; x < start_x + length - 600.0f;) {
+        seed = seed * 1103515245u + 12345u;
+        unsigned roll = seed >> 16;
+        bool room = true;
+        for (int i = 0; i < terrain->count && room; i++) {
+            const Piece *p = &terrain->items[i];
+            /* Clear of a building's whole front, not only of its door. */
+            float other = p->kind == TERRAIN_WALL ? (float)(CITY_FRONT_W * SPRITE_SCALE) / 2.0f
+                                                  : terrain_piece_half_width(p);
+            room = fabsf(p->x - x) >= half + other + VEHICLE_ROOM;
+        }
+        if (!room) {
+            x += VEHICLE_ROOM * 2.0f;
+            continue;
+        }
+        Piece *car = terrain_add(terrain, TERRAIN_VEHICLE, x);
+        if (car)
+            car->variant = theme->vehicles[n++ % theme->vehicle_count];
+        x += VEHICLE_EVERY * (0.6f + (float)(roll % 80u) / 100.0f);
     }
 }
 
@@ -152,7 +187,8 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         chest_clear(&run->chests[c]);
 
     int group = 0, campfires = 0, walls = 0, facades = (int)stage_index, barricades = 0;
-    Piece *fire, *wall, *barricade, *bench;
+    const ThemeDef *theme = run->stage->theme;
+    Piece *fire, *wall, *barricade, *bench, *siren = NULL;
     for (int s = 0; s < run->stage->spot_count; s++) {
         const StageSpot *spot = &run->stage->spots[s];
         float x = player_x + spot->at * run->stage->length;
@@ -162,6 +198,9 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         case SPOT_COFFINS:
         case SPOT_AMBUSH:
         case SPOT_RUNNERS:
+        case SPOT_SIREN:
+            if (spot->kind == SPOT_SIREN) /* The car; its horde waits off the road */
+                siren = terrain_add(&run->terrain, TERRAIN_SIREN, x);
             for (int i = 0; i < spot->count && run->zombie_count < RUN_MAX_ZOMBIES; i++) {
                 int k = run->zombie_count++;
                 Zombie *z = &run->zombies[k];
@@ -173,10 +212,12 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
                 z->awake = false;
                 z->just_spawned = false;
                 run->group_of[k] = group;
-                if (spot->kind == SPOT_AMBUSH) { /* Off the road until she gets here */
+                if (spot->kind == SPOT_AMBUSH || spot->kind == SPOT_SIREN) { /* Off the road until she gets here */
                     z->x = x + (float)i; /* In route order, all sprung at x */
                     z->hidden = true;
                     run->ambush_x[k] = x;
+                    if (spot->kind == SPOT_SIREN && siren)
+                        run->siren_of[k] = (int)(siren - run->terrain.items) + 1;
                     continue;
                 }
                 /* Shut in, standing behind its lid, more often by night; the
@@ -211,16 +252,33 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
             break;
         case SPOT_REST:
             bench = terrain_add(&run->terrain, TERRAIN_BENCH, x);
-            if (bench) /* Wood and wrought iron, in turn */
-                bench->variant = (campfires + (int)stage_index) % 2;
+            if (bench) /* Wood and wrought iron, in turn; the city's all iron */
+                bench->variant = theme->city ? 1 : (campfires + (int)stage_index) % 2;
             fire = terrain_add(&run->terrain, TERRAIN_CAMPFIRE, x + REST_GAP);
-            if (fire) /* Every other one has a pot hung over it */
-                fire->variant = campfires++ % 2 == 0;
+            if (fire) /* Every other one has a pot hung over it; in the city, a burning drum */
+                fire->variant = theme->city ? 2 : campfires % 2 == 0;
+            campfires++;
+            break;
+        case SPOT_BURNERS:
+            for (int i = 0; i < spot->count; i++) {
+                Piece *drum = terrain_add(&run->terrain, TERRAIN_BURNER, x + (float)i * BURNER_SPACING);
+                if (drum) /* Not all flickering in step */
+                    drum->timer = (float)i * 0.37f;
+            }
             break;
         case SPOT_BARRICADE:
             barricade = terrain_add(&run->terrain, TERRAIN_BARRICADE, x);
-            if (barricade) /* Its kind, in turn along the campaign */
-                barricade->variant = (barricades++ + (int)stage_index) % BARRICADE_KINDS;
+            if (barricade && theme->barricade_count > 0) { /* The theme's own, in turn */
+                barricade->variant = theme->barricades[barricades % theme->barricade_count];
+                /* Cars and motorcycles come in three looks: no two alike in a row. */
+                if (barricade->variant == BARRICADE_CAR)
+                    barricade->variant = terrain_car_variant(barricades + (int)stage_index);
+                else if (barricade->variant == BARRICADE_MOTO)
+                    barricade->variant = terrain_moto_variant(barricades + (int)stage_index);
+                barricades++;
+            }
+            else if (barricade) /* Its kind, in turn along the campaign */
+                barricade->variant = (barricades++ + (int)stage_index) % BARRICADE_KINDS_WEST;
             break;
         case SPOT_WIRE:
             terrain_add(&run->terrain, TERRAIN_WIRE, x);
@@ -243,11 +301,16 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
                 terrain_add(&run->terrain, TERRAIN_SPIKES, x + (float)i * TRAP_SPACING);
             break;
         case SPOT_WALL:
+        case SPOT_TRAIN:
             if (spot->count > 1) /* A barrel against it: the other way through */
                 terrain_add(&run->terrain, TERRAIN_BARREL, x - WALL_BARREL_GAP);
             wall = terrain_add(&run->terrain, TERRAIN_WALL, x);
+            if (wall && spot->kind == SPOT_TRAIN) /* The train's cars round its jammed coupling */
+                wall->variant = FACADE_TRAIN;
+            else if (wall && theme->wall_count > 0) /* The town: every one a front, its door shut */
+                wall->variant = theme->walls[walls++ % theme->wall_count];
             /* Every other one is a building across the road, its door barred. */
-            if (wall && walls++ % 2 == 1)
+            else if (wall && walls++ % 2 == 1)
                 wall->variant = 1 + facades++ % FACADE_KINDS;
             break;
         case SPOT_DYNAMITE:
@@ -257,8 +320,18 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
             for (int i = 0; i < spot->count; i++)
                 terrain_add(&run->terrain, TERRAIN_BARREL, x + (float)i * BARREL_FRAME_W * SPRITE_SCALE * 1.5f);
             break;
-        case SPOT_SUPPLY:
-            terrain_add(&run->terrain, TERRAIN_SUPPLY, x);
+        case SPOT_SUPPLY: {
+            Piece *supply = terrain_add(&run->terrain, TERRAIN_SUPPLY, x);
+            if (supply) /* A wagon on the first route; an army truck in the town */
+                supply->variant = theme->city;
+            break;
+        }
+        case SPOT_OUTPOST:
+            terrain_add(&run->terrain, TERRAIN_OUTPOST, x);
+            break;
+        case SPOT_HYDRANTS:
+            for (int i = 0; i < spot->count; i++)
+                terrain_add(&run->terrain, TERRAIN_HYDRANT, x + (float)i * HYDRANT_SPACING);
             break;
         }
     }
@@ -274,7 +347,7 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         if (!trap || (int)(roll % 100u) >= SIGN_CHANCE)
             continue;
         /* Before it, however long the trap: never on it. */
-        float gap = fmaxf(SIGN_GAP, terrain_half_width(p->kind) + terrain_half_width(TERRAIN_SIGN) + SIGN_ROOM);
+        float gap = fmaxf(SIGN_GAP, terrain_piece_half_width(p) + terrain_half_width(TERRAIN_SIGN) + SIGN_ROOM);
         Piece *sign = terrain_add(&run->terrain, TERRAIN_SIGN, p->x - gap);
         if (sign)
             sign->variant = (int)p->kind;
@@ -283,7 +356,10 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         if (run->terrain.items[i].kind == TERRAIN_CRATE)
             run->terrain.items[i].variant = (int)terrain_loot(stage_index, i);
     }
-    scatter_decoys(&run->terrain, stage_index, player_x, run->goal_x - player_x);
+    if (!theme->city) /* No trees nor shrubs on the town's asphalt: nothing to mistake for a trap */
+        scatter_decoys(&run->terrain, stage_index, player_x, run->goal_x - player_x);
+    else
+        scatter_vehicles(&run->terrain, theme, stage_index, player_x, run->goal_x - player_x);
 }
 
 /* The right edge of the group holding her: past its last zombie. */
@@ -401,7 +477,25 @@ bool run_vault(StageRun *run, Player *player)
 {
     if (!terrain_barricade_ahead(&run->terrain, player->x, player->facing) || player->jump.height > 0.0f)
         return false;
-    return player_vault(player);
+    /* Far enough to land past it in the one leap: a car is a long one. */
+    float span = terrain_vault_span(&run->terrain, player->x, player->facing);
+    if (!player_vault(player))
+        return false;
+    player->vault_speed = (span + 2.0f * PLAYER_BODY_HALF_WIDTH + 40.0f) / PLAYER_JUMP_TIME;
+    return true;
+}
+
+bool run_search(StageRun *run, Player *player)
+{
+    int i = terrain_outpost_near(&run->terrain, player->x);
+    if (i < 0 || !player_alive(player) || player->state == PLAYER_SIT || player->jump.height > 0.0f)
+        return false;
+    run->terrain.items[i].spent = true;
+    run->searched = true;
+    run->dynamite++;
+    player->water++;
+    heal(run, player, (int)lroundf((float)player->max_health * OUTPOST_HEAL_SHARE));
+    return true;
 }
 
 static float bolt_roll(StageRun *run)
@@ -685,22 +779,126 @@ static void spring_ambushes(StageRun *run, const Player *player)
     int behind = 0, ahead = 0;
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
-        if (run->ambush_x[k] <= 0.0f || !z->hidden || player->x < run->ambush_x[k])
+        if (run->ambush_x[k] <= 0.0f || !z->hidden)
             continue;
-        float front = player->x + AMBUSH_AHEAD + (float)ahead * AMBUSH_SPACING;
+        int siren = run->siren_of[k] - 1;
+        bool horde = siren >= 0 && siren < run->terrain.count;
+        /* A horde comes when its siren goes off, wherever she is then. */
+        if (horde ? !run->terrain.items[siren].spent : player->x < run->ambush_x[k])
+            continue;
+        float spacing = horde ? HORDE_SPACING : AMBUSH_SPACING;
+        float front = player->x + AMBUSH_AHEAD + (float)ahead * spacing;
         bool open = !terrain_stops(&run->terrain, player->x, front, 0.0f);
         if (open && behind > ahead) {
             z->x = front;
             ahead++;
         } else {
-            z->x = player->x - AMBUSH_BEHIND - (float)behind * AMBUSH_SPACING;
+            z->x = player->x - AMBUSH_BEHIND - (float)behind * spacing;
             behind++;
         }
         z->hidden = false;
         zombie_wake(z);
         z->facing = z->x < player->x ? 1 : -1;
-        run->ambushed = true;
+        if (horde)
+            run->horde_came = true;
+        else
+            run->ambushed = true;
     }
+}
+
+/* Patrol cars: she walks past one and its siren goes off (a shot, a blow or
+ * a blast does too: terrain.c). A siren that went off calls: sleeping groups
+ * near it wake and come, and its horde walks in (spring_ambushes). While a
+ * horde stands she is afraid (Player.fear). */
+static void trip_sirens(StageRun *run, const Player *player)
+{
+    Terrain *t = &run->terrain;
+    for (int i = 0; i < t->count; i++) {
+        const Piece *p = &t->items[i];
+        if (p->kind == TERRAIN_SIREN && !p->spent && player_alive(player) &&
+            fabsf(p->x - player->x) <= SIREN_TRIP_RANGE)
+            terrain_trip_siren(t, i);
+    }
+}
+
+/* Once this step's shots, blows and blasts are in too: what went off calls.
+ * (Its horde, if not sprung yet, comes on the next step.) */
+static void siren_calls(StageRun *run)
+{
+    Terrain *t = &run->terrain;
+    for (int e = 0; e < t->events.siren_count; e++) {
+        float x = t->items[t->events.sirens[e]].x;
+        run->siren_tripped = true;
+        for (int k = 0; k < run->zombie_count; k++) {
+            const Zombie *z = &run->zombies[k];
+            if (!z->awake && !z->hidden && fabsf(z->x - x) <= SIREN_CALL_RANGE)
+                wake_group(run, run->group_of[k]);
+        }
+    }
+}
+
+/* Burning drums knocked over on this step: their fire flares up and burns
+ * whoever stands close, her too. */
+static void flare_up(StageRun *run, Player *player, const Progress *progress)
+{
+    const Terrain *t = &run->terrain;
+    for (int e = 0; e < t->events.burner_count && run->flares < TERRAIN_EVENTS; e++) {
+        float x = t->items[t->events.burners[e]].x;
+        run->flare_x[run->flares++] = x;
+        for (int k = 0; k < run->zombie_count; k++) {
+            Zombie *z = &run->zombies[k];
+            if (!z->hidden && zombie_alive(z) && fabsf(z->x - x) - zombie_body_half_width(z) <= FLARE_RADIUS) {
+                hit_zombie(run, z, progress_damage(progress) * FLARE_DAMAGE_MULT, 0.3f);
+                wake_group(run, run->group_of[k]);
+            }
+        }
+        if (player_alive(player) && fabsf(player->x - x) - PLAYER_BODY_HALF_WIDTH <= FLARE_RADIUS * 0.6f) {
+            float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
+            player_hit(player, claw * FLARE_SELF_MULT, player->x < x ? -1 : 1);
+        }
+    }
+}
+
+/* Burst hydrants: while the water shoots up, every HYDRANT_TICK it hits
+ * whoever stands near and throws them back from it; her too (and soaks her). */
+static void hydrants(StageRun *run, Player *player, const Progress *progress)
+{
+    Terrain *t = &run->terrain;
+    run->hydrants_burst += t->events.hydrant_count;
+    for (int i = 0; i < t->count; i++) {
+        Piece *p = &t->items[i];
+        if (!terrain_hydrant_jetting(p) || p->ripple > 0.0f)
+            continue;
+        p->ripple = HYDRANT_TICK;
+        for (int k = 0; k < run->zombie_count; k++) {
+            Zombie *z = &run->zombies[k];
+            if (z->hidden || !zombie_alive(z) || fabsf(z->x - p->x) - zombie_body_half_width(z) > HYDRANT_REACH)
+                continue;
+            hit_zombie(run, z, progress_damage(progress) * HYDRANT_DAMAGE_MULT, 0.5f);
+            wake_group(run, run->group_of[k]);
+            float to = z->x + (z->x < p->x ? -HYDRANT_PUSH : HYDRANT_PUSH);
+            if (!terrain_stops(t, z->x, to, 0.0f))
+                z->x = to;
+        }
+        if (player_alive(player) && player->jump.height < JET_FRAME_H * SPRITE_SCALE * 0.5f &&
+            fabsf(player->x - p->x) - PLAYER_BODY_HALF_WIDTH <= HYDRANT_REACH) {
+            float claw = damage_at_level(ZOMBIE_ATTACK_BASE, run->stage->zombie_level);
+            player_hit(player, claw * HYDRANT_SELF_MULT, player->x < p->x ? -1 : 1);
+            player->wet = 1.0f;
+            run->soaked = true;
+        }
+    }
+}
+
+static void horde_fear(StageRun *run, Player *player)
+{
+    run->horde_left = 0;
+    for (int k = 0; k < run->zombie_count; k++)
+        run->horde_left += run->siren_of[k] > 0 && !run->zombies[k].hidden && zombie_alive(&run->zombies[k]);
+    if (run->horde_came)
+        player->fear = fmaxf(player->fear, FEAR_TIME);
+    if (run->horde_left > 0)
+        player->fear = fmaxf(player->fear, FEAR_LINGER);
 }
 
 void run_incoming(const StageRun *run, float view_left, float view_right, bool *left, bool *right)
@@ -902,7 +1100,7 @@ static void spikes(StageRun *run, Player *player, const Progress *progress)
         Piece *p = &t->items[i];
         if (p->kind != TERRAIN_SPIKES)
             continue;
-        float half = terrain_half_width(p->kind);
+        float half = terrain_piece_half_width(p);
         bool her = player_alive(player) && player->jump.height < SPIKES_TOP &&
                    fabsf(player->x - p->x) <= half + PLAYER_BODY_HALF_WIDTH * 0.5f;
         if (p->timer <= 0.0f) {
@@ -964,9 +1162,14 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     run->xp_gained = run->levels_gained = run->chests_opened = run->blasts = 0;
     run->cleared_now = run->group_beaten = run->elite_woke = run->supply_taken = false;
     run->dynamite_taken = false; /* charge_lit is cleared here too, after main saw it */
+    run->searched = false;
     run->charge_lit = false;
     run->loot_count = run->bottles_hit = run->coffins_burst = run->traps_sprung = 0;
     run->ambushed = run->crate_hint = false;
+    run->siren_tripped = run->horde_came = false;
+    run->flares = 0;
+    run->hydrants_burst = 0;
+    run->soaked = false;
     run->gold_gained = run->melee_hits = 0;
     run->wire_bit = false;
     run->bolt_struck = run->bolt_hit_her = false;
@@ -984,7 +1187,9 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     mission_advance(&run->mission, dt);
 
     int holding = run->holding;
+    trip_sirens(run, player);
     spring_ambushes(run, player);
+    horde_fear(run, player);
     run->omen = false;
     for (int k = 0; k < run->zombie_count; k++) { /* Some ambushes she can feel coming */
         float at = run->ambush_x[k];
@@ -1030,6 +1235,9 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     } else {
         run->warmth = 0.0f;
     }
+    siren_calls(run);
+    flare_up(run, player, progress);
+    hydrants(run, player, progress);
     terrain_clear_events(&run->terrain);
     int now = fighting_group(run);
     if (holding >= 0 && now != holding)

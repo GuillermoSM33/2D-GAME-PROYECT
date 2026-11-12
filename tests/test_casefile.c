@@ -13,7 +13,7 @@ static InputState press(Action action)
 
 static void test_every_stage_has_one_clue_of_each_source(void)
 {
-    for (int stage = 0; stage < 5; stage++) {
+    for (int stage = 0; stage < 10; stage++) { /* Both routes */
         int mission = 0, zombie = 0, crate = 0;
         for (int c = 0; c < CLUE_COUNT; c++) {
             if (CLUES[c].stage != stage)
@@ -181,7 +181,19 @@ static void test_tapes_unlock_with_stage_endings(void)
     casefile_init(&file);
     CHECK(tape_unlocked(&file, TAPE_INTRO) && tapes_unlocked(&file) == 1);
     for (int t = 1; t < TAPE_COUNT; t++)
-        CHECK(story_after_stage(TAPES[t].stage) != NULL); /* Every tape has its beat */
+        CHECK(tape_beat(t) != NULL && stage_tape(TAPES[t].stage, TAPES[t].before) == t); /* Every tape has its beat */
+    /* The second route opens with one told before its first stage: the town leads to the city. */
+    CHECK(story_before_stage(5) != NULL && story_before_stage(0) == NULL && story_before_stage(6) == NULL);
+    CHECK(stage_tape(5, true) >= 0 && stage_tape(5, false) >= 0 && stage_tape(5, true) != stage_tape(5, false));
+    CHECK(!tape_unlocked(&file, stage_tape(5, true)));
+    file.beats_seen |= story_bit(5, true);
+    CHECK(tape_unlocked(&file, stage_tape(5, true)) && !tape_unlocked(&file, stage_tape(5, false)));
+    file.beats_seen = 0;
+    /* The board shows a route's cases at a time: four, then three. */
+    CHECK(board_page(3) == 0 && board_page(4) == 1 && board_page_rows(0) == 4 && board_page_rows(1) == 3);
+    CHECK(board_row_y(4) == board_row_y(0));
+    for (int c = 15; c < CLUE_COUNT; c++)
+        CHECK(CLUES[c].stage >= 5 && CLUES[c].case_index >= 4);
     file.beats_seen |= 1u << TAPES[2].stage;
     CHECK(tape_unlocked(&file, 2) && !tape_unlocked(&file, 1) && tapes_unlocked(&file) == 2);
     TapeView view = {1};

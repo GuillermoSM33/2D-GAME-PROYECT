@@ -37,6 +37,7 @@ typedef struct {
      * previous read. */
     int pointer_x, pointer_y;
     bool pointer_moved, pointer_clicked;
+    int wheel; /* Notches the mouse wheel turned since the last read: + up (away), - down */
 } InputState;
 
 void input_init(InputState *input);

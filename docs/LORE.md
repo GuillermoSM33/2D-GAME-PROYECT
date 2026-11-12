@@ -92,12 +92,12 @@ Siempre se puede saltar con Enter, Esc o clic.
 Hecho (2026-11-11). Lógica y textos en `src/game/casefile.c` (pruebas en `tests/test_casefile.c`),
 dibujo en `src/game/casefile_render.c`, sprites en `tools/make_clues.py`.
 
-1. **Pistas:** 15, tres por nivel. Una en el **cofre de salida**, otra la lleva **un zombi** de la
+1. **Pistas:** 30 (15 por ruta), tres por nivel. Una en el **cofre de salida**, otra la lleva **un zombi** de la
    ruta (las dos salen seguro) y la tercera está **escondida en una caja** del camino, para quien
    la rompa. Cada una tiene su propio sprite (`sprites/clues/clues.png`). Al encontrarla, el HUD
    muestra un aviso con su sprite, su nombre y cuántas lleva del nivel. Se guardan en la partida y
    valen para todos los personajes (hay una sola historia).
-2. **El Expediente** (título y pausa): un tablero de corcho con un renglón por caso, las pistas
+2. **El Expediente** (título y pausa): un tablero de corcho con un renglón por caso (una página por ruta: W/S pasa de una a otra), las pistas
    clavadas y unidas con hilo rojo. Al elegir una pista se lee su texto; si falta, dice en qué
    nivel está y de dónde sale (cofre, zombi o camino).
 3. **Deducción:** con todas las pistas de un caso aparece **DEDUCIR**: una pregunta con 3
@@ -147,6 +147,43 @@ expedientes escritos que la complementan.
 
 Para rutas futuras: los mercenarios y la conexión con el gobierno, dónde estaba Reyes la noche
 de la fuga y qué pasó con Valeria.
+
+## Ruta 2: Santa Brasa y el Puesto Cerro Gris
+
+Hecha el 2026-11-11: niveles 2-1 a 2-5, con sus pistas, casos y cintas. Los nombres *Santa
+Brasa*, *Puesto Cerro Gris*, *Halcón Seguridad* y *los Buitres* son inventados y están
+**propuestos**: falta que el autor los apruebe.
+
+**El puente con la ruta 1.** La cinta *Las luces de Santa Brasa* se ve la primera vez que se
+entra a 2-1: desde la última loma de Ojo de Cuervo, la sheriff ve otra luz en el horizonte, la
+ciudad encendida y ardiendo en varios puntos, y decide ir: si alguien sabía lo que estaba
+pasando, tenía que estar ahí.
+
+**La meta: el Archivo 4.** Es todo lo que el ejército y Vantrell sacaron del Laboratorio 4 la
+noche de la fuga (cajas de archivo y muestras de MRC-2). Las pistas llevan de la ciudad al
+Puesto Cerro Gris, donde quedó guardado en el búnker 2.
+
+| Nivel | Dónde | Lo nuevo | Cinta al terminar |
+| --- | --- | --- | --- |
+| 2-1 | Las afueras, al amanecer | Patrullas con sirena y su horda | *La ciudad cerrada* |
+| 2-2 | El centro, con lluvia | Hordas mayores; tiendas y comisaría cerradas | *El convoy* |
+| 2-3 | El patio de maniobras | Trenes averiados | *Vagón 7* |
+| 2-4 | El centro de noche | Frío, tormenta, dos hordas | *Cerro Gris* |
+| 2-5 | El Puesto Cerro Gris | Retenes, alambre y el jefe | *Archivo 4* |
+
+| Caso | Pistas (nivel) | Pregunta | Lo que revela |
+| --- | --- | --- | --- |
+| El cordón | Volante de evacuación, radio de patrulla, foto del retén (2-1); parte policial, diario de la tendera, brazalete de cuarentena (2-2) | ¿Por qué nadie salió de Santa Brasa? | El ejército cerró la ciudad antes de avisar: sabía del brote un día antes |
+| El convoy | Carta de porte, sello de contenedor, bitácora del maquinista (2-3); lista del convoy, gorra sin insignias, cinta de la radio (2-4) | ¿Qué llevaba el convoy que cruzó la ciudad sin detenerse? | Los archivos y las muestras del Laboratorio 4, con soldados y mercenarios de Halcón Seguridad |
+| Cerro Gris | Orden de evacuación, registro de guardia, llave del búnker (2-5) | ¿Quién esperaba en el Puesto Cerro Gris la noche de la fuga? | Julian Vantrell, con la escolta del sargento Reyes: voló a las 04:55 y el Archivo 4 se quedó |
+
+Esto responde dos de los pendientes de la ruta 1: los mercenarios viajaban con el convoy
+(conexión con el gobierno) y Reyes estaba escoltando al director la noche de la fuga. Queda
+para después: qué pasó con Valeria y quién lee el Archivo 4 (Navarro).
+
+**Los Buitres.** En las paredes de la ciudad y hasta en el retén del puesto hay grafitis de un
+grupo de saqueadores: su nombre y su marca (una cabeza de buitre sobre tres zarpazos). No se
+explican en esta ruta: son el anuncio de la fase 3.
 
 ## Pendiente
 

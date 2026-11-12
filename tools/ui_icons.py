@@ -427,9 +427,42 @@ def construction(a: Art) -> None:
     a.flat({(11, 1), (10, 2)}, RED[0])
 
 
+def fear(a: Art) -> None:
+    """Fear: a pale face, its eyes wide open, its mouth agape, a bead of sweat."""
+    a.fill(ellipse(11.5, 12.5, 9.6, 10.2), BONE)
+    for cx in (7.5, 15.5):
+        a.flat(ellipse(cx, 10, 2.6, 3.0), (255, 255, 255, 255))
+        a.flat(ellipse(cx, 10.5, 1.2, 1.3), BLACK[4])
+    a.flat(ellipse(11.5, 18, 2.6, 3.0), BLACK[4])
+    a.flat({(5, 5), (6, 4), (7, 4), (16, 4), (17, 4), (18, 5)}, BONE[4])
+    a.fill(_drop(21, 4, 2.2), WATER)
+
+
+def siren(a: Art) -> None:
+    """A horde: a patrol car's light bar, its red and blue domes lit, rays."""
+    a.fill(poly([(2, 18), (4, 10), (11.5, 10), (11.5, 18)]), RED)
+    a.fill(poly([(12.5, 18), (12.5, 10), (20, 10), (22, 18)]), WATER)
+    a.fill(rect(1, 18, 22, 21), GUNMETAL)
+    a.flat({(5, 12), (5, 13), (6, 11)}, RED[0])
+    a.flat({(14, 12), (14, 13), (15, 11)}, WATER[0])
+    for points in ([(1, 3), (4, 7)], [(11.5, 1), (11.5, 6)], [(22, 3), (19, 7)]):
+        a.fill(stroke(points, 1.6), FIRE)
+
+
+def tape(a: Art) -> None:
+    """A video tape: its shell, the label, the two reels behind their window."""
+    a.fill(rect(1, 5, 22, 19), GUNMETAL)
+    a.fill(rect(3, 7, 20, 10), BONE)
+    a.flat(rect(4, 12, 19, 16), BLACK[4])
+    for cx in (8, 15):
+        a.flat(ellipse(cx, 14, 2.2, 2.2), BONE[2])
+        a.flat({(cx, 14)}, BLACK[4])
+    a.flat(rect(5, 8, 12, 8), BONE[4])
+
+
 ICONS = [heart, bullet, skull, flag, dynamite, speaker, star, lock, check, shell, blood, slow, gold,
          wind, current, heat, omen, cold, wet, cozy, water, fresh, save, clock, mission_star,
-         mission_star_empty, arrow_left, arrow_right, construction]
+         mission_star_empty, arrow_left, arrow_right, construction, fear, siren, tape]
 
 
 def draw_all() -> list:

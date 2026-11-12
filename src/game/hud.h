@@ -54,7 +54,12 @@ typedef struct {
 /* What can be clicked on the screen last drawn: menu items (buttons, stage
  * rows, character cards, volume rows), the keys of the hints (Esc goes back,
  * Enter accepts, R retries) and the volume bars. */
-typedef enum { HUD_ZONE_ITEM, HUD_ZONE_BACK, HUD_ZONE_ACCEPT, HUD_ZONE_RETRY, HUD_ZONE_VOLUME } HudZoneKind;
+typedef enum {
+    HUD_ZONE_ITEM, HUD_ZONE_BACK, HUD_ZONE_ACCEPT, HUD_ZONE_RETRY, HUD_ZONE_VOLUME,
+    HUD_ZONE_PHASE,    /* Stage select: a phase's tab (index: the phase) */
+    HUD_ZONE_TAPE,     /* ...a stage's tape button (index: the tape) */
+    HUD_ZONE_BACKDROP  /* ...the button that changes the menus' landscape */
+} HudZoneKind;
 
 typedef struct {
     HudZoneKind kind;
@@ -97,8 +102,11 @@ void hud_draw_pause(SDL_Renderer *renderer, const ListMenu *menu);
 
 /* Stage select for one character: every stage with its zombies, their level
  * and whether it is open or cleared. */
+/* tapes: bit per tape (casefile's TAPES) she can watch again: a stage with one
+ * shows its button. backdrop: the phase whose landscape is behind; reached:
+ * the furthest phase she may choose for it. */
 void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Progress *progress,
-                   const StageRecord *record, int selected);
+                   const StageRecord *record, int selected, unsigned tapes, int backdrop, int reached);
 
 /* "Elige tu personaje": a card per character with its look, level, ability
  * and guns. progress holds each character's, in CHARACTERS order. dev_notice
@@ -108,6 +116,9 @@ void hud_draw_characters(SDL_Renderer *renderer, const CharacterSkin *skins,
 
 /* A short message that rises and fades above a point of the world. */
 void hud_popup(const char *utf8, unsigned rgb, float world_x, int y, bool big);
+
+/* A horde is coming: its board with the siren up top for a few seconds. */
+void hud_horde_notice(void);
 void hud_update(float dt);
 void hud_clear_popups(void);
 /* How many of the stage's clues are found, for the mission's plate (total 0: none). */

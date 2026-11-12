@@ -13,6 +13,16 @@ Opciones (desde el menú principal o desde la pausa), y se guarda con la partida
 | 1-3 | `ruta_1_3.ogg` | Campo santo | Cementerio; el respiro del juego | Muy lento e inquietante: armonio, cuerda grave, campana lejana y silbido |
 | 1-4 | `ruta_1_4.ogg` | Luna sin dueño | Noche, viento; el salto de dificultad | Guitarra en trémolo sobre cuerda grave, latido y silbido alto |
 | 1-5 | `ruta_1_5.ogg` | Último duelo | Pueblo fantasma, tormenta; el jefe | Duelo final: rasgueos, tambores de guerra y trompeta |
+| Menús (fase 2) | `menu_2.ogg` | Neón apagado | Menús con el fondo de la ciudad | Colchón de sintetizador, piano eléctrico, bajo y un pulso de bombo |
+| 2-1 | `ruta_2_1.ogg` | Santa Brasa al alba | Las afueras al amanecer, viento | Piano eléctrico en arpegio, bajo eléctrico, sintetizador lejano; la batería entra tarde |
+| 2-2 | `ruta_2_2.ogg` | Lluvia en el asfalto | El centro con lluvia | Bajo en corcheas, batería, guitarra distorsionada apagada y sintetizador solista |
+| 2-3 | `ruta_2_3.ogg` | Vías muertas | El patio de maniobras al ocaso | Platillos en semicorcheas como ruedas de tren, bajo ostinato, golpes de guitarra a contratiempo |
+| 2-4 | `ruta_2_4.ogg` | Toque de sirenas | El centro de noche, tormenta | Subgrave, colchón frío, caja lejana con eco, campana de piano eléctrico, solista que aúlla |
+| 2-5 | `ruta_2_5.ogg` | Puesto Cerro Gris | La base militar; el jefe | Doble bombo, caja en dos y cuatro, guitarras sostenidas y apagadas, bajo en corcheas |
+
+**Dos identidades.** La fase 1 es madera y tripa (guitarra, contrabajo, armónica, silbido,
+tambores de mano); la fase 2 es cable y corriente (bajo eléctrico, batería, guitarra
+distorsionada, piano eléctrico, sintetizadores). Ningún instrumento de una suena en la otra.
 
 ## Derechos
 

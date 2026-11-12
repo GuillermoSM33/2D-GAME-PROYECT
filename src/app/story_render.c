@@ -18,7 +18,7 @@
 #define LAMP_W 14
 #define LAMP_H 76
 
-static World worlds[4];
+static World worlds[STORY_VISUALS];
 static bool worlds_ready;
 
 static float clamp01(float v)
@@ -46,6 +46,11 @@ static const ThemeDef *theme_of(StoryVisual visual)
     case STORY_CEMENTERIO: return &THEME_CEMENTERIO;
     case STORY_NOCHE: return &THEME_NOCHE;
     case STORY_PUEBLO: return &THEME_PUEBLO_FANTASMA;
+    case STORY_AFUERAS: return &THEME_AFUERAS;
+    case STORY_CENTRO: return &THEME_CENTRO;
+    case STORY_VIAS: return &THEME_VIAS;
+    case STORY_CIUDAD_NOCHE: return &THEME_CIUDAD_NOCHE;
+    case STORY_BASE: return &THEME_BASE_MILITAR;
     default: return &THEME_ATARDECER;
     }
 }
@@ -54,7 +59,7 @@ static const ThemeDef *theme_of(StoryVisual visual)
 static void begin_landscape(SDL_Renderer *r, StoryVisual visual, float drift)
 {
     if (!worlds_ready) {
-        for (int k = 0; k < 4; k++)
+        for (int k = 0; k < STORY_VISUALS; k++)
             world_init(&worlds[k], theme_of((StoryVisual)k));
         worlds_ready = true;
     }
@@ -235,14 +240,17 @@ static void shot_lab(SDL_Renderer *r, int line, float t)
         float drift = t * 40.0f, camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + drift;
         world_stream(world, camera_x);
         stage_begin_view(r, world->theme);
-        scene_draw_layers(r, world, camera_x, 0, 1); /* Sky and the far mesas */
-        /* The lab on the mesas, as far as they are (their parallax), its base
-         * behind the far hills: a dark block, windows lit, a red light blinking */
+        scene_draw_layers(r, world, camera_x, 0, 2); /* Mountains behind the valley */
+        /* The lab stands on a flat valley floor below the mountain crests,
+         * between the distant hills and the nearer ridge. */
         const int px = SPRITE_SCALE;
-        /* Moved exactly as its layer is (scene.c draw_layer: whole view px, not
-         * art px), so it glides with the mesas instead of stepping across them */
-        float parallax = BACKGROUND_LAYERS[1].parallax, start = PLAYER_START_X - VIEW_WIDTH / 2.0f;
-        int bx = 900 + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax), base = 62 * px;
+        /* Its depth lies between hills_far (.35) and hills_near (.6). Match
+         * draw_layer's whole-view-pixel camera rounding throughout the pan. */
+        float parallax = 0.45f, start = PLAYER_START_X - VIEW_WIDTH / 2.0f;
+        int bx = 700 + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax), base = 84 * px;
+        fill(r, bx - 6 * px, base, 46 * px, 2 * px, 0x262c3a, 255); /* Low concrete apron */
+        fill(r, bx - 4 * px, base, 42 * px, px, 0x303646, 255);
+        fill(r, bx - px, base + px, 36 * px, px, 0x10141e, 255); /* Contact shadow */
         fill(r, bx, base - 9 * px, 34 * px, 9 * px, 0x161a26, 255);
         fill(r, bx + 24 * px, base - 13 * px, 6 * px, 4 * px, 0x161a26, 255);
         for (int row = 0; row < 2; row++)
@@ -251,7 +259,7 @@ static void shot_lab(SDL_Renderer *r, int line, float t)
                     fill(r, bx + 2 * px + k * 4 * px, base - 7 * px + row * 3 * px, 2 * px, px, 0xc8d8b8, 150);
         if (fmodf(t, 1.0f) < 0.5f)
             fill(r, bx + 26 * px, base - 15 * px, px, px, 0xe8402a, 255);
-        scene_draw_layers(r, world, camera_x, 2, BACKGROUND_LAYER_COUNT - 2); /* The hills in front of it */
+        scene_draw_layers(r, world, camera_x, 3, BACKGROUND_LAYER_COUNT - 2); /* Near ridge in front */
         scene_draw_near(r, world, camera_x, platform_time());
         stage_end_view(r);
     } else if (line == 1) { /* Its corridor, under the emergency lights */
@@ -283,6 +291,181 @@ static void shot_lab(SDL_Renderer *r, int line, float t)
     }
 }
 
+/* ---- The second route's tapes ------------------------------------------------ */
+
+/* A frame of a sheet standing on the road at view x (its middle). */
+static void draw_piece(SDL_Renderer *r, const char *sheet, int frame, int w, int h, float x)
+{
+    SDL_Texture *tex = assets_texture(sheet);
+    if (tex == NULL)
+        return;
+    SDL_Rect src = {frame * w, 0, w, h};
+    SDL_Rect dst = {(int)lroundf(x) - w * SPRITE_SCALE / 2, BASELINE - h * SPRITE_SCALE, w * SPRITE_SCALE,
+                    h * SPRITE_SCALE};
+    SDL_RenderCopy(r, tex, &src, &dst);
+}
+
+/* A fire far off: a flickering tongue, its glow, a column of smoke leaning away. */
+static void far_fire(SDL_Renderer *r, int x, int base, float t, int seed, int size)
+{
+    const int px = SPRITE_SCALE;
+    int flick = (int)(t * 9.0f + (float)seed * 1.7f) % 3;
+    fill(r, x - (2 + size) * px, base - px, (5 + 2 * size) * px, px, 0xd0581a, 120);
+    fill(r, x - size * px, base - (2 + size + flick) * px, (1 + 2 * size) * px, (2 + size + flick) * px, 0xf08a24, 255);
+    fill(r, x, base - (1 + size) * px, px, (1 + size) * px, 0xffd23c, 255);
+    for (int k = 0; k < 9 + size * 3; k++) { /* Smoke */
+        float rise = (float)k + fmodf(t * 1.5f + (float)seed, 1.0f);
+        int sx = x + (int)lroundf(rise * 0.8f) * px, sy = base - (int)lroundf(4.0f + (float)size + rise * 1.6f) * px;
+        fill(r, sx, sy, (2 + k / 4) * px, px, 0x2a2228, (Uint8)(150 - k * 9 > 20 ? 150 - k * 9 : 20));
+    }
+}
+
+/* Santa Brasa seen from the last rise of Ojo de Cuervo: a low line of lit
+ * windows on the horizon, its glow in the sky, and things burning in it. */
+static void far_city(SDL_Renderer *r, float camera_x, float t, float zoom)
+{
+    const int px = SPRITE_SCALE;
+    float start = PLAYER_START_X - VIEW_WIDTH / 2.0f, parallax = 0.3f;
+    int bx = 420 + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax), base = 78 * px;
+    int unit = (int)lroundf(zoom);
+    for (int k = 0; k < 6; k++) { /* Its glow in the sky: a low dome, brighter toward the roofs */
+        int half = (62 - k * 9) * unit * px, cx = bx + 55 * px * unit;
+        fill(r, cx - half, base - (3 + k * 2) * unit * px, 2 * half, 2 * unit * px, 0xe07a34, (Uint8)(34 - k * 5));
+    }
+    unsigned h = 77u;
+    for (int k = 0; k < 22; k++) { /* The skyline, its windows */
+        h = h * 1103515245u + 12345u;
+        int w = (3 + (int)((h >> 16) % 4u)) * unit, tall = (3 + (int)((h >> 20) % 7u)) * unit;
+        int x = bx + k * 5 * px * unit;
+        fill(r, x, base - tall * px, w * px, tall * px, 0x1a1418, 255);
+        for (int wy = 1; wy < tall - 1; wy += 2)
+            for (int wx = 1; wx < w - 1; wx += 2)
+                if (((h >> (wx + wy)) & 3u) == 0u)
+                    fill(r, x + wx * px, base - (tall - wy) * px, px, px, 0xf0c870,
+                         (Uint8)(fmodf(t * 0.7f + (float)(k + wx), 5.0f) < 4.6f ? 220 : 60));
+    }
+    far_fire(r, bx + 18 * px * unit, base - 4 * px * unit, t, 1, unit);
+    far_fire(r, bx + 52 * px * unit, base - 7 * px * unit, t, 2, unit);
+    far_fire(r, bx + 88 * px * unit, base - 3 * px * unit, t, 3, unit);
+}
+
+/* "Las luces de Santa Brasa": the sheriff on the rise, the city's light far
+ * off and its fires; closer; her deciding; her taking the road. */
+static void shot_luces(SDL_Renderer *r, int line, float t, const CharacterSkin *sheriff)
+{
+    if (!worlds_ready)
+        begin_landscape(r, STORY_PUEBLO, 0.0f), stage_end_view(r);
+    World *world = &worlds[line == 1 ? STORY_NOCHE : STORY_PUEBLO];
+    float drift = line == 1 ? t * 30.0f : line == 3 ? t * 60.0f : t * 10.0f;
+    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + drift;
+    world_stream(world, camera_x);
+    stage_begin_view(r, world->theme);
+    scene_draw_layers(r, world, camera_x, 0, 2);
+    far_city(r, camera_x, t, line == 1 ? 2.0f : 1.0f);
+    scene_draw_layers(r, world, camera_x, 3, BACKGROUND_LAYER_COUNT - 2);
+    scene_draw_near(r, world, camera_x, platform_time());
+    if (line != 1 && sheriff) {
+        static Player her;
+        static float her_time = -1.0f;
+        static int her_line = -1;
+        if (her_line != line || t < her_time) { /* A new shot: stood looking at it */
+            player_init(&her);
+            her.x = PLAYER_START_X - VIEW_WIDTH / 2.0f + 300.0f;
+            her_time = 0.0f;
+            her_line = line;
+        }
+        while (line == 3 && her_time + FIXED_DT <= t) { /* The last line: she walks off toward it */
+            bool down[ACTION_COUNT] = {false};
+            InputState input = {0};
+            down[ACTION_RIGHT] = line == 3 && her_time > 0.8f;
+            input_update(&input, down);
+            player_update(&her, &input, FIXED_DT);
+            her_time += FIXED_DT;
+        }
+        player_render(r, &her, sheriff, sheriff->character->weapons, 0, camera_x);
+    }
+    stage_end_view(r);
+    ui_dim(r, line == 1 ? 30 : 50);
+}
+
+/* The city's tapes (scenes 6-10): its landscape and what the lines tell. */
+static void shot_city(SDL_Renderer *r, int scene, int line, float t, const CharacterSkin *sheriff)
+{
+    static const StoryVisual WHERE[] = {STORY_AFUERAS, STORY_CENTRO, STORY_VIAS, STORY_CIUDAD_NOCHE, STORY_BASE};
+    StoryVisual visual = WHERE[scene - 6];
+    if (scene == 9 && line == 1)
+        visual = STORY_BASE; /* The post up on its hill, its alarm lit */
+    begin_landscape(r, visual, t * (line == 0 ? 24.0f : 10.0f));
+    int flash = 1 + (int)(t * 6.0f) % 2;
+    switch (scene) {
+    case 6: /* The closed city: the checkpoints, the sirens still calling */
+        if (line == 0) {
+            draw_piece(r, "sprites/terrain/vehicles", 0, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 300.0f - t * 24.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 2, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 1100.0f - t * 24.0f);
+        } else if (line == 1) {
+            draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 420.0f);
+            draw_piece(r, "sprites/terrain/barricade", 15, BARRICADE_FRAME_W, BARRICADE_FRAME_H, 900.0f);
+            draw_piece(r, "sprites/terrain/barricade", 15, BARRICADE_FRAME_W, BARRICADE_FRAME_H, 1180.0f);
+        } else {
+            draw_piece(r, "sprites/terrain/siren_car", flash, SIREN_FRAME_W, SIREN_FRAME_H, 640.0f);
+            static const ZombieKind WHO[] = {ZOMBIE_KIND_CITY_POLICE, ZOMBIE_KIND_CITY_NURSE, ZOMBIE_KIND_CITY_WORKER};
+            for (int k = 0; k < 3; k++) {
+                const AnimationDef *walk = zombie_animation(WHO[k], ZOMBIE_ANIM_WALK);
+                cine_zombie(r, WHO[k], ZOMBIE_ANIM_WALK, (int)(t * walk->fps * 0.5f) + k * 3,
+                            -80.0f + (float)k * 150.0f + t * 40.0f, 0);
+            }
+        }
+        break;
+    case 7: /* The convoy through downtown, stopping for no one */
+        for (int k = 0; k < 3; k++)
+            draw_piece(r, "sprites/terrain/vehicles", k == 1 ? 3 : 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H,
+                       -500.0f + (float)k * 820.0f + t * (line == 0 ? 190.0f : 240.0f));
+        if (line == 1) {
+            static const ZombieKind WHO[] = {ZOMBIE_KIND_CITY_OFFICE, ZOMBIE_KIND_CITY_GUARD};
+            for (int k = 0; k < 2; k++)
+                cine_zombie(r, WHO[k], ZOMBIE_ANIM_IDLE, (int)(t * 3.0f) + k, 180.0f + (float)k * 620.0f, 0);
+        }
+        break;
+    case 8: /* The train off its rails; its load going on by truck */
+        draw_piece(r, "sprites/terrain/train", 0, TRAIN_W, TRAIN_H, 560.0f - t * 12.0f);
+        draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, 560.0f - t * 12.0f);
+        if (line == 1)
+            draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 700.0f + t * 150.0f);
+        break;
+    case 9: /* Every track climbs the same hill; the post's alarm still lit */
+        if (line == 0) {
+            draw_piece(r, "sprites/terrain/vehicles", 2, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 360.0f);
+            draw_piece(r, "sprites/terrain/siren_car", 3, SIREN_FRAME_W, SIREN_FRAME_H, 960.0f);
+        } else {
+            draw_piece(r, "sprites/terrain/outpost", 1, OUTPOST_FRAME_W, OUTPOST_FRAME_H, 520.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 3, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 1040.0f);
+        }
+        break;
+    default: /* The director gone before dawn; what he left in the bunker */
+        draw_piece(r, "sprites/terrain/city_fronts", 3, CITY_FRONT_W, CITY_FRONT_H, 620.0f);
+        if (line == 0) { /* His helicopter, climbing away */
+            const int px = SPRITE_SCALE;
+            int hx = 500 + (int)lroundf(t * 70.0f) / px * px, hy = 320 - (int)lroundf(t * 34.0f) / px * px;
+            fill(r, hx, hy, 22 * px, 7 * px, 0x10080a, 255);
+            fill(r, hx - 14 * px, hy + 2 * px, 14 * px, 2 * px, 0x10080a, 255);
+            fill(r, hx - 16 * px, hy - px, 3 * px, 5 * px, 0x10080a, 255);
+            fill(r, hx + 10 * px, hy - 3 * px, px, 3 * px, 0x10080a, 255);
+            int blade = (int)(t * 20.0f) % 2 ? 26 : 12;
+            fill(r, hx + 10 * px - blade * px, hy - 4 * px, 2 * blade * px, px, 0x10080a, 200);
+            if ((int)(t * 4.0f) % 2)
+                fill(r, hx + 20 * px, hy + 5 * px, px, px, 0xe8402a, 255);
+        } else if (line == 1) {
+            draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, 620.0f);
+        } else {
+            draw_piece(r, "sprites/terrain/door", 5, DOOR_FRAME_W, DOOR_FRAME_H, 620.0f);
+            draw_sheriff(r, sheriff, 430.0f);
+        }
+        break;
+    }
+    stage_end_view(r);
+    ui_dim(r, 50);
+}
+
 void story_render(Platform *platform, const Story *story, const CaseFile *file, float time,
                   const CharacterSkin *sheriff)
 {
@@ -299,6 +482,8 @@ void story_render(Platform *platform, const Story *story, const CaseFile *file, 
     case 1: shot_panteon(r, line, t); break;
     case 2: shot_toque(r, line, t, sheriff); break;
     case 3: shot_pueblo(r, line, t); break;
+    case 5: shot_luces(r, line, t, sheriff); break;
+    case 6: case 7: case 8: case 9: case 10: shot_city(r, story->beat.scene, line, t, sheriff); break;
     default: shot_lab(r, line, t); break;
     }
     /* Each shot fades in from black and out to it, between the lines */

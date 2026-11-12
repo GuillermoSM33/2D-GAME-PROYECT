@@ -676,7 +676,8 @@ static void test_scenery_looks_like_traps_but_is_harmless(void)
             TerrainKind trap = p->kind == TERRAIN_DEAD_TREE ? TERRAIN_NET : TERRAIN_SNARE;
             CHECK(terrain_sheet(p->kind) == terrain_sheet(trap) && terrain_frame(p) == 0);
         }
-        CHECK(decoys >= 3 && run.terrain.count < TERRAIN_MAX);
+        /* The town has no trees nor shrubs (and no nets or snares to hide). */
+        CHECK((STAGES[stage].theme->city ? decoys == 0 : decoys >= 3) && run.terrain.count < TERRAIN_MAX);
     }
     StageRun run;
     Player player;
@@ -847,14 +848,18 @@ static void test_ambush_lets_her_reach_the_wall_ahead(void)
                 break;
             if (run.ambush_x[k] <= 0.0f || (k > 0 && run.group_of[k - 1] == run.group_of[k]))
                 continue;
+            if (run.siren_of[k] > 0) /* A horde comes with its siren, not at a spot */
+                continue;
             Piece *wall = NULL;
             for (int i = 0; i < run.terrain.count; i++) {
                 Piece *p = &run.terrain.items[i];
                 if (p->kind == TERRAIN_WALL && p->x > run.ambush_x[k] && (wall == NULL || p->x < wall->x))
                     wall = p;
             }
-            CHECK(wall != NULL);
-            if (wall == NULL)
+            /* On the first route every ambush comes before a wall; on the
+             * second, only those with a wall close ahead are this case. */
+            CHECK(wall != NULL || stage >= 5);
+            if (wall == NULL || (stage >= 5 && wall->x - run.ambush_x[k] > AMBUSH_WALL_SPAN))
                 continue;
             for (int i = 0; i < k; i++) /* The groups before are beaten */
                 run.zombies[i].health = 0, run.zombies[i].state = ZOMBIE_DEAD;
@@ -872,7 +877,7 @@ static void test_ambush_lets_her_reach_the_wall_ahead(void)
             checked++;
         }
         /* 1-1 to 1-5 all have an ambush */
-        CHECK(checked > 0);
+        CHECK(checked > 0 || stage >= 5);
     }
 }
 
@@ -1348,7 +1353,7 @@ static void test_grenade_arcs_and_blows(void)
 static void test_some_walls_are_buildings(void)
 {
     /* Along the campaign, some walls are a building's barred door. */
-    int buildings = 0, palisades = 0;
+    int buildings = 0, palisades = 0, trains = 0;
     for (int s = 0; s < STAGE_COUNT; s++) {
         StageRun run;
         run_start(&run, s, 0.0f, true);
@@ -1357,11 +1362,261 @@ static void test_some_walls_are_buildings(void)
             if (p->kind == TERRAIN_WALL) {
                 buildings += p->variant > 0;
                 palisades += p->variant == 0;
-                CHECK(p->variant >= 0 && p->variant <= FACADE_KINDS);
+                if (s < 5) /* The first route: palisades and western fronts */
+                    CHECK(p->variant >= 0 && p->variant <= FACADE_KINDS);
+                else /* The town: only its fronts and the derailed trains */
+                    CHECK(p->variant > FACADE_KINDS && p->variant <= FACADE_TRAIN);
+                trains += p->variant == FACADE_TRAIN;
             }
         }
     }
     CHECK(buildings > 0 && palisades > 0);
+    CHECK(trains == 3); /* All in the rail yard, 2-3 */
+}
+
+/* 2-1: walking past a patrol car sets its siren off. Its horde walks in from
+ * both sides at once, a sleeping group near it wakes, and she is afraid
+ * until the horde is down (and a little after). Shots then smash it quiet. */
+static void test_siren_calls_a_horde(void)
+{
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 5, true);
+    int car = -1;
+    for (int i = 0; i < run.terrain.count && car < 0; i++)
+        if (run.terrain.items[i].kind == TERRAIN_SIREN)
+            car = i;
+    CHECK(car >= 0);
+    if (car < 0)
+        return;
+    int horde = 0;
+    for (int k = 0; k < run.zombie_count; k++) {
+        if (run.siren_of[k] == car + 1) {
+            horde++;
+            CHECK(run.zombies[k].hidden);
+        } else if (run.zombies[k].x < run.terrain.items[car].x) { /* The groups before are beaten */
+            run.zombies[k].health = 0;
+            run.zombies[k].state = ZOMBIE_DEAD;
+        }
+    }
+    CHECK(horde == 4);
+    player.x = run.terrain.items[car].x - SIREN_TRIP_RANGE - 50.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(!run.terrain.items[car].spent && !run.horde_came && player.fear == 0.0f);
+    player.x = run.terrain.items[car].x - SIREN_TRIP_RANGE + 10.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.terrain.items[car].spent && terrain_siren_on(&run.terrain.items[car]));
+    CHECK(run.siren_tripped && run.horde_came && !run.ambushed);
+    CHECK(run.horde_left == horde && player.fear >= FEAR_TIME - 0.01f);
+    int left = 0, right = 0;
+    for (int k = 0; k < run.zombie_count; k++) {
+        if (run.siren_of[k] != car + 1)
+            continue;
+        CHECK(!run.zombies[k].hidden && run.zombies[k].awake);
+        left += run.zombies[k].x < player.x;
+        right += run.zombies[k].x > player.x;
+    }
+    CHECK(left > 0 && right > 0); /* From both sides */
+    CHECK(terrain_siren_loudness(&run.terrain, player.x) > 0.85f);
+    CHECK(terrain_siren_loudness(&run.terrain, player.x + SIREN_HEAR_RANGE * 2.0f) == 0.0f);
+    /* Blows on its light bar: quiet after SIREN_SILENCE_HITS. */
+    float x = run.terrain.items[car].x;
+    for (int i = 0; i < SIREN_SILENCE_HITS; i++)
+        terrain_melee(&run.terrain, x - 10.0f, x + 10.0f);
+    CHECK(run.terrain.items[car].damage == 1 && !terrain_siren_on(&run.terrain.items[car]));
+    CHECK(terrain_frame(&run.terrain.items[car]) == 3);
+    /* Fear holds while the horde stands, then wears off. */
+    player.fear = 0.0f;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(player.fear >= FEAR_LINGER - 0.01f);
+    for (int k = 0; k < run.zombie_count; k++)
+        run.zombies[k].health = 0, run.zombies[k].state = ZOMBIE_DEAD;
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.horde_left == 0);
+}
+
+/* A shot (or a blow) at a patrol car from afar sets it off too. */
+static void test_a_shot_sets_a_siren_off(void)
+{
+    Terrain t;
+    terrain_clear(&t);
+    terrain_add(&t, TERRAIN_SIREN, 1000.0f);
+    Bullets bullets;
+    bullets_clear(&bullets);
+    Bullet *b = &bullets.items[0];
+    b->active = true;
+    b->prev_x = 900.0f;
+    b->x = 1010.0f;
+    b->y = BASELINE - 60.0f;
+    b->dir = 1;
+    CHECK(terrain_shoot(&t, &bullets) == 1 && !b->active);
+    CHECK(t.items[0].spent && t.events.siren_count == 1 && terrain_siren_on(&t.items[0]));
+    terrain_update(&t, SIREN_TIME + 0.1f); /* Left alone, it winds down */
+    CHECK(!terrain_siren_on(&t.items[0]) && t.items[0].damage == 0);
+}
+
+/* A burning drum lights the road; knocked over, its oil burns there. */
+static void test_burning_drum_tips_into_fire(void)
+{
+    Terrain t;
+    terrain_clear(&t);
+    terrain_add(&t, TERRAIN_BURNER, 1000.0f);
+    float xs[4];
+    CHECK(terrain_smokes(&t, xs, 4) == 1);
+    CHECK(terrain_melee(&t, 990.0f, 1010.0f) == 1);
+    /* Over it goes: its fire flares (an event), its oil burns down the road. */
+    CHECK(t.items[0].spent && terrain_frame(&t.items[0]) == 6 && t.events.burner_count == 1);
+    CHECK(t.count == 3 && t.items[1].kind == TERRAIN_FIRE && !t.items[1].spent);
+    terrain_update(&t, BURNER_TIP_TIME + 0.05f); /* On its side, still burning: light and smoke */
+    CHECK(terrain_burner_burning(&t.items[0]) && terrain_frame(&t.items[0]) >= 8 && terrain_frame(&t.items[0]) <= 11);
+    for (int i = 0; i < 40; i++)
+        terrain_update(&t, 0.2f);
+    CHECK(!terrain_burner_burning(&t.items[0]) && terrain_frame(&t.items[0]) == 12);
+    /* A car across the road is as wide as a car; an outpost is searched once. */
+    terrain_clear(&t);
+    Piece *car = terrain_add(&t, TERRAIN_BARRICADE, 2000.0f);
+    car->variant = BARRICADE_CAR;
+    CHECK(terrain_piece_half_width(car) == CAR_WRECK_W * SPRITE_SCALE / 2.0f);
+    float at = 2000.0f - terrain_piece_half_width(car) - PLAYER_BODY_HALF_WIDTH;
+    CHECK(terrain_barricade_ahead(&t, at, 1) && terrain_vault_span(&t, at, 1) == CAR_WRECK_W * SPRITE_SCALE);
+    terrain_add(&t, TERRAIN_OUTPOST, 4000.0f);
+    CHECK(terrain_outpost_near(&t, 4000.0f + OUTPOST_RANGE - 1.0f) == 1 && terrain_outpost_near(&t, 3000.0f) < 0);
+}
+
+/* A car across the road: one long leap (N) lands her past it. An army
+ * outpost: E searches it once. The town's supply point is a truck. */
+static void test_car_vault_outpost_and_truck(void)
+{
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 5, true);
+    terrain_clear(&run.terrain);
+    run.zombie_count = 0;
+    Piece *car = terrain_add(&run.terrain, TERRAIN_BARRICADE, player.x + 600.0f);
+    car->variant = BARRICADE_CAR;
+    float half = terrain_piece_half_width(car);
+    player.x = car->x - half - PLAYER_BODY_HALF_WIDTH;
+    run_place_player(&run, &player);
+    CHECK(player.max_x <= car->x - half - PLAYER_BODY_HALF_WIDTH + 1.0f); /* It stops her */
+    CHECK(run_vault(&run, &player) && player.vaulting);
+    InputState idle = {0};
+    for (int i = 0; i < 90 && (player.vaulting || player.jump.airborne); i++) {
+        run_place_player(&run, &player);
+        player_update(&player, &idle, FIXED_DT);
+    }
+    CHECK(player.x > car->x + half + PLAYER_BODY_HALF_WIDTH - 1.0f && player.jump.height == 0.0f);
+
+    terrain_add(&run.terrain, TERRAIN_OUTPOST, player.x + 100.0f);
+    int dynamite = run.dynamite, water = player.water;
+    player.health = player.max_health / 2;
+    CHECK(run_search(&run, &player) && run.searched);
+    CHECK(run.dynamite == dynamite + 1 && player.water == water + 1 && player.health > player.max_health / 2);
+    CHECK(!run_search(&run, &player)); /* Once */
+
+    setup(&run, &player, &progress, 5, true);
+    int trucks = 0, cars = 0, outposts = 0;
+    for (int i = 0; i < run.terrain.count; i++) {
+        const Piece *p = &run.terrain.items[i];
+        trucks += p->kind == TERRAIN_SUPPLY && p->variant == 1;
+        cars += p->kind == TERRAIN_VEHICLE;
+        outposts += p->kind == TERRAIN_OUTPOST;
+    }
+    CHECK(trucks == 1 && cars >= 5 && outposts == 1);
+    setup(&run, &player, &progress, 0, true); /* The first route keeps its wagon and has no cars */
+    for (int i = 0; i < run.terrain.count; i++) {
+        const Piece *p = &run.terrain.items[i];
+        CHECK(p->kind != TERRAIN_VEHICLE && (p->kind != TERRAIN_SUPPLY || p->variant == 0));
+    }
+}
+
+/* A car or a motorcycle across the road takes bullets and, shot enough,
+ * blows up like a barrel (so do those next to it); a hydrant shot bursts,
+ * and its water hits and throws back whoever is near for HYDRANT_TIME. */
+static void test_vehicles_blow_up_and_hydrants_burst(void)
+{
+    Terrain t;
+    terrain_clear(&t);
+    Piece *moto = terrain_add(&t, TERRAIN_BARRICADE, 1000.0f);
+    moto->variant = terrain_moto_variant(1);
+    Piece *car = terrain_add(&t, TERRAIN_BARRICADE, 1000.0f + BARREL_RADIUS);
+    car->variant = terrain_car_variant(2);
+    CHECK(terrain_moto_look(moto) == 1 && terrain_car_look(car) == 2 && terrain_car_look(moto) < 0);
+    Bullets bullets;
+    float xs[4];
+    for (int shot = 0; shot < MOTO_BLOW_HITS; shot++) {
+        CHECK(terrain_explosions(&t, xs, 4) == 0);
+        bullets_clear(&bullets);
+        Bullet *b = &bullets.items[0];
+        b->active = true;
+        b->prev_x = 700.0f;
+        b->x = 900.0f;
+        b->y = BASELINE - 60.0f;
+        b->dir = 1;
+        CHECK(terrain_shoot(&t, &bullets) == 1 && !b->active);
+    }
+    CHECK(terrain_explosions(&t, xs, 4) == 2); /* Its tank goes up, and the car's with it */
+    CHECK(t.items[0].spent && t.items[1].spent && terrain_frame(&t.items[0]) % 3 == 2);
+
+    StageRun run;
+    Player player;
+    Progress progress;
+    setup(&run, &player, &progress, 5, true);
+    terrain_clear(&run.terrain);
+    run.zombie_count = 1;
+    Piece *hydrant = terrain_add(&run.terrain, TERRAIN_HYDRANT, player.x + 400.0f);
+    zombie_spawn(&run.zombies[0], &ZOMBIE_RIOT, hydrant->x + 60.0f);
+    run.zombies[0].awake = true;
+    float zombie_from = run.zombies[0].x;
+    int health = run.zombies[0].health;
+    terrain_melee(&run.terrain, hydrant->x - 5.0f, hydrant->x + 5.0f);
+    CHECK(terrain_hydrant_jetting(hydrant));
+    run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(run.hydrants_burst == 1 && run.zombies[0].health < health && run.zombies[0].x > zombie_from + HYDRANT_PUSH - 20.0f);
+    CHECK(!run.soaked); /* She stood clear of it */
+    player.x = hydrant->x - 60.0f;
+    for (int i = 0; i < (int)(HYDRANT_TICK / FIXED_DT) + 2; i++)
+        run_update(&run, &player, &progress, FIXED_DT);
+    CHECK(player.health < player.max_health && player.wet == 1.0f);
+    for (int i = 0; i < (int)(HYDRANT_TIME / FIXED_DT) + 5; i++)
+        run_update(&run, &player, &progress, FIXED_DT);
+    int puddles = 0;
+    for (int i = 0; i < run.terrain.count; i++)
+        puddles += run.terrain.items[i].kind == TERRAIN_PUDDLE;
+    CHECK(!terrain_hydrant_jetting(&run.terrain.items[0]) && puddles == 1);
+}
+
+/* Afraid, she walks faster but a magazine goes in slower. */
+static void test_fear_hurries_her_feet_and_slows_her_hands(void)
+{
+    Player calm, afraid;
+    player_init(&calm);
+    player_init(&afraid);
+    afraid.fear = 5.0f;
+    InputState input = {0};
+    input.down[ACTION_RIGHT] = true;
+    float from = calm.x;
+    for (int i = 0; i < 30; i++) {
+        player_update(&calm, &input, FIXED_DT);
+        player_update(&afraid, &input, FIXED_DT);
+    }
+    CHECK(afraid.x - from > (calm.x - from) * 1.1f);
+    CHECK(afraid.fear < 5.0f);
+    Player a, b;
+    player_init(&a);
+    player_init(&b);
+    b.fear = 30.0f;
+    shot_set_magazine(&a.shot, 6, 1.0f, 0);
+    shot_set_magazine(&b.shot, 6, 1.0f, 0);
+    CHECK(shot_reload_now(&a.shot) && shot_reload_now(&b.shot));
+    InputState idle = {0};
+    a.state = b.state = PLAYER_SHOOT;
+    for (int i = 0; i < (int)(1.1f / FIXED_DT); i++) {
+        player_update(&a, &idle, FIXED_DT);
+        player_update(&b, &idle, FIXED_DT);
+    }
+    CHECK(!shot_reloading(&a.shot) && shot_reloading(&b.shot));
 }
 
 static void test_impacts_accumulate_until_played(void)
@@ -1611,5 +1866,11 @@ int main(void)
     RUN(test_impacts_accumulate_until_played);
     RUN(test_dog_body_edge_receives_melee_and_blasts);
     RUN(test_blast_hurts_her_only_inside_the_fireball);
+    RUN(test_siren_calls_a_horde);
+    RUN(test_a_shot_sets_a_siren_off);
+    RUN(test_burning_drum_tips_into_fire);
+    RUN(test_car_vault_outpost_and_truck);
+    RUN(test_vehicles_blow_up_and_hydrants_burst);
+    RUN(test_fear_hurries_her_feet_and_slows_her_hands);
     return TEST_EXIT();
 }

@@ -61,6 +61,7 @@
 #define PLAYER_SHOOT_AIM_FRAME 3  /* A follow-up shot restarts here, already aimed */
 #define PLAYER_SHOOT_FIRE_FRAME 4 /* The bullet leaves on this frame */
 #define PLAYER_SHOOT_FPS 16.0f
+#define PISTON_QUEUE_FRAMES 2      /* A click in a turn's last frames (0.1 s) queues the next shot */
 #define PLAYER_PISTON_FPS 20.0f    /* Two guns taking turns: a whole turn each shot, 0.4 s */
 #define PLAYER_PISTON_FRAMES 16    /* ...drawn in this many frames: the arms swing, they don't jump */
 /* Her ricochet: both hands together, its muzzles off the aim's (tools/make_flashlight.py prints them) */
@@ -308,7 +309,8 @@
 
 /* The stage's road (stage_run.c, stages.c): she walks from PLAYER_START_X
  * to a gate StageDef.length ahead, past its zombies' groups and its terrain. */
-#define RUN_MAX_ZOMBIES 24
+#define RUN_MAX_ZOMBIES 40          /* Saves before schema 5 hold 24 */
+#define RUN_MAX_ZOMBIES_V4 24
 #define RUN_MAX_CHESTS 6
 /* XP of a stage's kills and zombie chests is shared out as if it had this
  * many zombies: more zombies make it harder, not a faster climb. */
@@ -331,7 +333,7 @@
 #define PLAYER_BODY_HALF_WIDTH 40.0f /* What runs into a barricade: her body, not the frame */
 
 /* Terrain (terrain.c, art from tools/make_terrain.py). */
-#define TERRAIN_MAX 96
+#define TERRAIN_MAX 160
 #define POWER_LEVEL 3             /* Each character's level-3 power: dual pistols, grenades */
 /* TEMPORARY, to see the art in play: Q swaps to the duals from level 1. Set to
  * 0 for the real rule, from POWER_LEVEL. */
@@ -361,7 +363,9 @@
 #define GRENADE_FRAME 8           /* weapons/grenade: 4 frames tumbling */
 #define HOUSE_FRAME_W 80          /* Buildings off the road, behind it (props/houses) */
 #define HOUSE_FRAME_H 64
-#define HOUSE_FRAMES 13          /* Five houses; church, sheriff, smithy, stable, bank; store, adobe, fallen silo */
+#define HOUSE_FRAMES_WEST 13     /* Five houses; church, sheriff, smithy, stable, bank; store, adobe, fallen silo */
+#define HOUSE_FRAMES 21          /* ...then the city's: billboard, gas station, shops, flats, warehouse,
+                                  * hangar, watchtower, radar (ThemeDef.houses picks) */
 #define HOUSE_SCALE 3             /* Smaller than the props: further away */
 #define HOUSE_PARALLAX 0.8f       /* ...and slower */
 #define HOUSE_SPACING 700.0f      /* A slot for a house every this many px of their strip */
@@ -369,7 +373,16 @@
 #define BARRICADE_FRAME_H 36
 #define BARRICADE_TOP 146.0f      /* Window px: under her face, over her jump's peak: only N gets her over */
 #define BARRICADE_STRIKES 4       /* Claw strikes that wreck it */
-#define BARRICADE_KINDS 4         /* Crates, sandbags, logs, a steel barrier (Piece.variant) */
+#define BARRICADE_KINDS 12        /* Crates, sandbags, logs, a steel barrier; a car, police sawhorses, an
+                                  * army jersey barrier, a motorcycle; two more cars (8, 9) and two more
+                                  * motorcycles (10, 11) so they are not all the same (Piece.variant) */
+#define BARRICADE_MOTO 7
+#define BARRICADE_SHEET_KINDS 9   /* Those drawn in terrain/barricade: all but the three cars, which are
+                                  * a car's size and have their own sheet (terrain/car_wreck) */
+#define VEHICLE_LOOKS 3           /* Cars and motorcycles each come in three */
+#define CAR_BLOW_HITS 6           /* Shots a car across the road takes before its tank goes up */
+#define MOTO_BLOW_HITS 4          /* ...and a motorcycle */
+#define BARRICADE_KINDS_WEST 4    /* The first route's, in turn when a theme names none */
 #define BARRICADE_CLAW_GAP 36.0f  /* A zombie clawing it stands this far from its edge */
 #define WALL_FRAME_W 44           /* The tall palisade: her height, no jumping it */
 #define WALL_FRAME_H 72
@@ -377,7 +390,14 @@
 #define WALL_RUINS_H 84
 #define FACADE_W 180              /* A wall that is a building's front: church, sheriff... */
 #define FACADE_H 128
-#define FACADE_KINDS 5
+#define FACADE_KINDS 5            /* The first route's: church, sheriff, smithy, stable, bank */
+#define FACADE_URBAN 4            /* Then the city's: store, police station, flats, checkpoint, on
+                                   * their own sheet, two storeys at her scale (terrain/city_fronts) */
+#define CITY_FRONT_W 240
+#define CITY_FRONT_H 192
+#define FACADE_TRAIN (FACADE_KINDS + FACADE_URBAN + 1) /* Wall variant: the derailed train (SPOT_TRAIN) */
+#define TRAIN_W 300               /* Its cars round the jammed coupling (terrain/train) */
+#define TRAIN_H 104
 #define DOOR_FRAME_W 44           /* ...its barred door, as wide as the palisade */
 #define DOOR_FRAME_H 64
 #define WALL_STRIKES 14           /* Claws take a long while; a blast takes a moment */
@@ -511,7 +531,7 @@
 #define CROW_FALL_GRAVITY 1400.0f /* A dead one drops */
 #define CROW_CORPSE_TIME 4.0f     /* Seconds it lies on the road... */
 #define CROW_FADE_TIME 0.8f       /* ...then fades */
-#define CROW_FRAMES 8
+#define CROW_FRAMES 8             /* Sparrows (ThemeDef.city) use the same frames: sparrow/sparrow */
 /* Bats at night (bats.c): small colonies along the road, like the crows. */
 #define BAT_FRAME_W 16
 #define BAT_FRAME_H 10
@@ -625,7 +645,8 @@
 #define BENCH_HEAL_MAX 15
 #define CAMPFIRE_FRAME_W 48        /* A campfire to rest by */
 #define CAMPFIRE_FRAME_H 56
-#define CAMPFIRE_FRAMES 4         /* Per look: the fire alone, then with a pot over it */
+#define CAMPFIRE_FRAMES 4         /* Per look: the fire alone, with a pot over it, a burning drum (city) */
+#define CAMPFIRE_LOOKS 3
 #define CAMPFIRE_RANGE 140.0f      /* Window px from its center: warm enough to heal */
 #define CAMPFIRE_HEAL 1.5f         /* Health per CAMPFIRE_HEAL_TIME by the fire */
 #define CAMPFIRE_HEAL_TIME 3.0f
@@ -637,6 +658,69 @@
 #define HEAL_FPS 8.0f
 #define GLOW_SIZE 32               /* The light round a flame (effects/glow), stretched */
 #define LAMP_LIGHT 300.0f          /* Window px across the light of a lamp */
+#define BURNER_FRAME_W 40          /* A burning oil drum to her waist: 6 frames of flames, 2 going over,
+                                    * 4 burning on its side, burnt out */
+#define BURNER_FRAME_H 72
+#define BURNER_FRAMES 13
+#define BURNER_TIP_TIME 0.24f      /* Seconds it takes to go over */
+#define BURNER_BURN_TIME 6.0f      /* ...and it burns on its side */
+#define FLARE_FRAME_W 64           /* Its fire flaring up as it goes over (effects/flare) */
+#define FLARE_FRAME_H 80
+#define FLARE_FRAMES 6
+#define FLARE_FPS 14.0f
+#define FLARE_RADIUS 150.0f        /* Window px: bodies this near are burnt by it */
+#define FLARE_DAMAGE_MULT 1.6f     /* Times her weapon damage on zombies */
+#define FLARE_SELF_MULT 0.8f       /* Claws of the stage's zombies on her */
+/* Cars at her scale. The one that is a barricade (variant 4) is as wide as a
+ * car: she vaults it in one long leap. Others stand on the road to walk past. */
+#define CAR_WRECK_W 136
+#define CAR_WRECK_H 46            /* terrain/car_wreck: 3 states of each of VEHICLE_LOOKS cars */
+#define BARRICADE_CAR 4
+#define VEHICLE_FRAME_W 184        /* terrain/vehicles: sedans, a jeep, an army truck */
+#define VEHICLE_FRAME_H 70
+#define VEHICLE_KINDS 5
+#define VEHICLE_EVERY 2300.0f      /* Window px between them, about */
+#define VEHICLE_ROOM 80.0f         /* ...and clear of everything else by this */
+/* A fire hydrant (SPOT_HYDRANTS): a shot bursts it. Its water shoots up for
+ * HYDRANT_TIME, hitting and pushing away whoever is near, and leaves a puddle. */
+#define HYDRANT_FRAME_W 20
+#define HYDRANT_FRAME_H 28
+#define HYDRANT_SPACING 420.0f
+#define HYDRANT_TIME 2.0f
+#define HYDRANT_TICK 0.4f          /* Seconds between its blows */
+#define HYDRANT_REACH 130.0f       /* Window px from it */
+#define HYDRANT_PUSH 70.0f         /* Window px a zombie is thrown back each blow */
+#define HYDRANT_DAMAGE_MULT 0.5f   /* Times her weapon damage on zombies */
+#define HYDRANT_SELF_MULT 0.3f     /* Claws of the stage's zombies on her */
+#define JET_FRAME_W 72             /* effects/hydrant_jet: 4 frames */
+#define JET_FRAME_H 120
+#define JET_FPS 12.0f
+/* An army outpost (SPOT_OUTPOST): E searches its locker once (a charge, water,
+ * full magazines, a little health) and switches its floodlight on. */
+#define OUTPOST_FRAME_W 168
+#define OUTPOST_FRAME_H 92
+#define OUTPOST_RANGE 170.0f
+#define OUTPOST_HEAL_SHARE 0.2f
+#define BURNER_SPACING 300.0f
+/* A patrol car left on the road (SPOT_SIREN): walk past it or hit it and its
+ * siren goes off, calling a horde in from both sides (its spot's zombies) and
+ * waking sleeping groups near; shots then smash its light bar quiet. */
+#define SIREN_FRAME_W 136          /* At her scale, like the other cars */
+#define SIREN_FRAME_H 52
+#define SIREN_TRIP_RANGE 250.0f    /* Window px from its center: she sets it off walking by */
+#define SIREN_TIME 14.0f           /* Seconds it wails if left alone */
+#define SIREN_SILENCE_HITS 3       /* Shots (or blows) after it goes off that smash it quiet */
+#define SIREN_FLASH_HZ 4.0f        /* Its light bar: red, blue */
+#define SIREN_CALL_RANGE 1500.0f   /* Sleeping groups this near it wake and come */
+#define SIREN_HEAR_RANGE 2400.0f   /* Heard this far (the sound fades with distance) */
+#define HORDE_SPACING 95.0f        /* Window px between a horde's zombies on one side */
+/* Fear (during a horde and a little after): she walks and runs faster, but a
+ * magazine goes in slower and, with endless rounds, she fires slower. */
+#define FEAR_TIME 10.0f            /* Seconds when the horde comes */
+#define FEAR_LINGER 4.0f           /* ...kept at least this while any of it is alive */
+#define FEAR_PACE 1.18f
+#define FEAR_RELOAD_MULT 1.4f      /* Times as long a magazine takes */
+#define FEAR_FIRE_MULT 1.25f       /* Times as long between shots with endless rounds */
 #define FIRE_LIGHT 380.0f          /* ...of burning oil, a campfire */
 #define SMOKE_EVERY 0.35f          /* Seconds between puffs off a fire */
 #define EXPLOSION_FRAME_W 72
@@ -683,6 +767,7 @@
 #define SFX_VOLUME 60      /* 0-128 (MIX_MAX_VOLUME): every sound, before the volume menu */
 #define MUSIC_VOLUME 52    /* 0-128: the stage's music at full, under the effects */
 #define MENU_MUSIC "music/menu"
+#define MENU_MUSIC_CITY "music/menu_2" /* While the second phase's landscape is behind the menus */
 #define MENU_DRIFT_SPEED 40.0 /* Window px per second the menus' landscape drifts by */
 #define MUSIC_FADE_MS 1800 /* How long it fades when a stage ends */
 #define AUDIO_GROUPS 4     /* Volume groups (audio_play_in): see SoundGroup in settings.h */

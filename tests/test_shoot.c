@@ -316,7 +316,13 @@ static void test_clicks_during_a_turn_are_kept_and_alternate(void)
     shot_start(&shot);
     CHECK(next_bullet(&shot, false, 1.0f) && !shot.other_gun);
     CHECK(!shot_start(&shot));
-    shot_trigger(&shot, true, false); /* Clicked during the recoil */
+    /* Hammered right after the shot: not kept (four quick clicks are not a burst). */
+    shot_trigger(&shot, true, false);
+    CHECK(!shot.queued);
+    while (shot_frame(&shot) < PLAYER_SHOOT_FRAMES - PISTON_QUEUE_FRAMES)
+        shot_update(&shot, FIXED_DT);
+    shot_trigger(&shot, true, false); /* Clicked as the turn ends: the next follows */
+    CHECK(shot.queued);
     CHECK(next_bullet(&shot, false, 1.0f) && shot.other_gun);
     /* No more clicks: the last turn ends and they rest; the next is the other gun. */
     while (shot.active)

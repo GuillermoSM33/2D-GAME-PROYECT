@@ -149,9 +149,10 @@ static void draw_phantoms(SDL_Renderer *renderer, const Hallucination *h, float 
 }
 
 /* The crows: pecking on the road, flapping off up and away, or dead. */
-static void draw_crows(SDL_Renderer *renderer, const Crows *crows, float camera_x)
+static void draw_crows(SDL_Renderer *renderer, const Crows *crows, float camera_x, bool sparrows)
 {
-    SDL_Texture *sheet = assets_texture("sprites/crow/crow");
+    /* In the town they are sparrows: the same frames, their own sheet. */
+    SDL_Texture *sheet = assets_texture(sparrows ? "sprites/sparrow/sparrow" : "sprites/crow/crow");
     if (sheet == NULL)
         return;
     for (int i = 0; i < crows->count; i++) {
@@ -295,7 +296,7 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     }
     terrain_render(platform->renderer, &play->run.terrain, camera_x);
     draw_blood(platform->renderer, play, camera_x);
-    draw_crows(platform->renderer, &play->crows, camera_x);
+    draw_crows(platform->renderer, &play->crows, camera_x, play->run.stage->theme->city);
     draw_bats(platform->renderer, &play->bats, camera_x);
     for (int c = 0; c < RUN_MAX_CHESTS; c++)
         chest_render(platform->renderer, &play->run.chests[c], camera_x);

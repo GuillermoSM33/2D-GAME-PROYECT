@@ -10,6 +10,11 @@ El paisaje del juego: un viejo oeste con zombis, en capas que se mueven a distin
 | `cementerio` | 1-3 | Recién anochecido, morado, luna creciente, cruces a lo lejos, niebla ligera |
 | `noche` | 1-4 | Luna llena, azules oscuros, niebla espesa |
 | `pueblo_fantasma` | 1-5 | Cielo rojo, luna roja a medio ocultar, saloon, iglesia y tanque de agua en ruinas |
+| `afueras` | 2-1 | Amanecer rosa y naranja, casas de techo de dos aguas, postes, tanque de agua, espectacular |
+| `centro` | 2-2 | Tarde de esmog parda, torres con antenas y tinacos, edificios bajos, toldos y faroles |
+| `vias` | 2-3 | Ocaso naranja, elevadores de grano y silos, vagones en vía muerta, catenarias; suelo de balasto con durmientes y riel |
+| `ciudad_noche` | 2-4 | Noche azul, ventanas encendidas solo sobre las cabezas, escaleras de incendio, niebla, asfalto mojado |
+| `base_militar` | 2-5 | Noche roja de alarma, hangares, radar y torre de control, búnkeres, torres de vigilancia y cerca; losas de concreto |
 
 El paisaje se oscurece con la dificultad: el más rojo y opresivo es el del jefe.
 
@@ -158,6 +163,59 @@ copias por tema.
 5. Mira el nivel con los personajes delante: deben leerse por su silueta y sus acentos
    claros. Si se pierden, oscurece las colinas antes que aclarar a los personajes.
 
+## La ruta 2: la ciudad
+
+Los cinco temas de la ciudad salen de `tools/make_city.py` (sus paletas están en la tabla
+`THEMES` del script) y pasan `tools/check_landscape.py`. Son `city` en `src/game/themes.c`:
+en lugar de pasto llevan basura en el suelo (`litter`), gorriones en lugar de cuervos, banca de
+hierro y bidón ardiendo en los descansos, y listas propias de casas del fondo, barricadas y
+frentes de muro (`houses`, `barricades`, `walls`).
+
+Están **a escala de la sheriff** (56 px = 1.70 m): un hidrante le llega a la rodilla, un bote
+de basura a la cintura, postes y semáforos pasan muy por encima de su cabeza.
+
+| Decorado de ciudad | Cuadro (px) | Variantes |
+| --- | --- | --- |
+| `hydrant.png` | 14 × 24 | 1 |
+| `streetlight.png` | 40 × 150 | 2 (entero, con el brazo colgando) |
+| `traffic_light.png` | 60 × 140 | 2 (derecho, descolgado) |
+| `pole.png` | 44 × 160 | 1 (poste de luz con transformador) |
+| `fallen_pole.png` | 150 × 26 | 1 (poste caído con sus cables) |
+| `trash.png` | 26 × 32 | 2 (bote, bolsas) |
+| `cone.png` | 16 × 24 | 1 |
+| `tires.png` | 40 × 34 | 1 |
+| `sandbags.png` | 66 × 28 | 1 |
+| `jersey.png` | 104 × 27 | 1 |
+| `signal.png` | 24 × 110 | 1 |
+| `drums.png` | 48 × 34 | 1 |
+| `litter.png` | 20 × 6 | 3 (en lugar del pasto) |
+
+Los autos no son decorados: a su tamaño real van como piezas del camino (`sprites/terrain`):
+los de paso (`vehicles.png`: tres sedanes, un todoterreno militar, un camión del ejército; se
+atraviesan), los que son barricada (`car_wreck.png`: sedán, pickup y guayín; explotan), la
+patrulla con sirena y el camión de provisiones. Los frentes de la ciudad (`city_fronts.png`,
+240 × 192) son de dos plantas a escala: un piso mide 100 px, las ventanas son del tamaño de
+una persona. Llevan los grafitis de los Buitres.
+
+Se pintan con los mismos seis colores del atardecer y cada tema los recolorea:
+
+| Color original | `afueras` | `centro` | `vias` | `ciudad_noche` | `base_militar` |
+| --- | --- | --- | --- | --- | --- |
+| `#312224` | `#2a1c24` | `#262020` | `#2a1a1c` | `#161624` | `#22100f` |
+| `#4f2b2a` | `#3e2632` | `#3a2e2a` | `#40221e` | `#22223a` | `#361818` |
+| `#45332a` | `#382430` | `#342a28` | `#3a201e` | `#1e1e32` | `#301616` |
+| `#5e302a` | `#4a2a38` | `#463630` | `#4e2a24` | `#2a2a44` | `#421c1c` |
+| `#6d3d1f` | `#5a3040` | `#54402e` | `#60321e` | `#34344e` | `#542420` |
+| `#5a4334` | `#5a3a44` | `#524034` | `#5a3626` | `#343452` | `#4e2622` |
+
 Un decorado nuevo: su hoja en `assets/sprites/props/`, una fila en `src/game/props.c` y su
 peso en los temas que lo usen. Si usa colores nuevos, agrégalos al cambio de paleta de cada
 tema.
+
+En la cinta **Laboratorio 4**, el edificio se asienta en el valle: base en la fila 84
+del arte, sobre una plataforma baja con sombra de contacto. Se dibuja después de
+las colinas lejanas y antes de las cercanas, con paralaje 0.45, para mantener su
+separación respecto a las montañas durante el paneo (`app/story_render.c`). Las
+capturas `0s_laboratorio_valle_0/1` revisan ambos extremos visibles de la toma.
+
+![Laboratorio en el valle](img/laboratorio_valle.png)

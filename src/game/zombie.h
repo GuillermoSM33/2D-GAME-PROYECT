@@ -32,8 +32,17 @@ typedef enum {
     ZOMBIE_KIND_FIREFIGHTER,
     ZOMBIE_KIND_BUTCHER,
     ZOMBIE_KIND_ELITE,
+    /* The city's family (the second route), after the first route's 25: saves
+     * and the first route's catalogue count on those staying where they are. */
+    ZOMBIE_KIND_CITY_OFFICE,
+    ZOMBIE_KIND_CITY_NURSE,
+    ZOMBIE_KIND_CITY_WORKER,
+    ZOMBIE_KIND_CITY_GUARD,
+    ZOMBIE_KIND_CITY_POLICE,
     ZOMBIE_KIND_COUNT
 } ZombieKind;
+
+#define ZOMBIE_KINDS_FIRST_ROUTE (ZOMBIE_KIND_ELITE + 1) /* The 25 before the city's */
 
 /* What sets one kind of zombie apart from another, at level 1. Its level
  * scales all three the same way as the player's (progression.c). */

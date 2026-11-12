@@ -245,10 +245,14 @@ void casefile_render(SDL_Renderer *r, const CaseFile *file, const BoardView *vie
     char str[48];
     snprintf(str, sizeof(str), "%d/%d PISTAS", casefile_found_count(file), CLUE_COUNT);
     ui_text(r, str, WINDOW_WIDTH - BOARD_X, 30, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
-    int board_h = CASE_COUNT * BOARD_ROW_H;
+    /* A page of the board per route: W/S walk through every case, turning it. */
+    int page = board_page(view->row), pages = (CASE_COUNT + BOARD_ROWS - 1) / BOARD_ROWS;
+    snprintf(str, sizeof(str), "RUTA %d DE %d", page + 1, pages);
+    ui_text(r, str, WINDOW_WIDTH / 2, 30, 2, COLOR_HUD_SECONDARY, ANCHOR_N);
+    int board_h = BOARD_ROWS * BOARD_ROW_H;
     ui_panel(r, BOARD_X - 6, BOARD_Y - 10, BOARD_W + 12, board_h + 16);
     casefile_draw_cork(r, BOARD_X + 6, BOARD_Y - 2, BOARD_W - 12, board_h);
-    for (int row = 0; row < CASE_COUNT; row++)
+    for (int row = page * BOARD_ROWS; row < page * BOARD_ROWS + board_page_rows(page); row++)
         draw_row(r, file, view, row);
     draw_detail(r, file, view);
     if (view->asking) {
@@ -416,21 +420,23 @@ void tapes_render(SDL_Renderer *r, const TapeView *view, const CaseFile *file)
     ui_text(r, "HISTORIA", WINDOW_WIDTH / 2, 30, 5, COLOR_HUD_TITLE, ANCHOR_N);
     char str[48];
     snprintf(str, sizeof(str), "%d/%d CINTAS", tapes_unlocked(file), TAPE_COUNT);
-    ui_text(r, str, WINDOW_WIDTH / 2, 92, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
+    ui_text(r, str, WINDOW_WIDTH / 2, 88, 2, COLOR_HUD_PRIMARY, ANCHOR_N);
     float time = (float)SDL_GetTicks() / 1000.0f;
     for (int t = 0; t < TAPE_COUNT; t++) {
-        int x = TAPE_X + t * TAPE_STEP;
+        int x = tape_x(t), TAPE_ROW_Y = tape_y(t, view->selected);
+        if (TAPE_ROW_Y < 0) /* On a row scrolled out of view */
+            continue;
         bool unlocked = tape_unlocked(file, t), selected = view->selected == t;
         int lift = selected ? -6 : 0;
-        draw_tape(r, x, TAPE_Y + lift, unlocked, selected, time);
+        draw_tape(r, x, TAPE_ROW_Y + lift, unlocked, selected, time);
         char lines[2][96];
         int n = casefile_wrap(unlocked ? TAPES[t].title : "???", 2, TAPE_W, lines, 2);
         for (int k = 0; k < n; k++)
-            pixfont_draw(r, lines[k], x + TAPE_W / 2, TAPE_Y + TAPE_H + 16 + k * (pixfont_height(2) + 2), 2,
+            pixfont_draw(r, lines[k], x + TAPE_W / 2, TAPE_ROW_Y + TAPE_H + 8 + k * (pixfont_height(1) + 2), 1,
                          selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_N, 255);
         if (!unlocked) {
-            snprintf(str, sizeof(str), "TERMINA %s", STAGES[TAPES[t].stage].name);
-            pixfont_draw(r, str, x + TAPE_W / 2, TAPE_Y + TAPE_H + 42, 2, COLOR_HUD_SECONDARY, ANCHOR_N, 255);
+            snprintf(str, sizeof(str), "%s %s", TAPES[t].before ? "LLEGA A" : "TERMINA", STAGES[TAPES[t].stage].name);
+            pixfont_draw(r, str, x + TAPE_W / 2, TAPE_ROW_Y + TAPE_H + 24, 1, COLOR_HUD_SECONDARY, ANCHOR_N, 255);
         }
     }
     static const char *const hints[] = {"A/D", "ELEGIR", "ENTER", "VER", "ESC", "VOLVER"};

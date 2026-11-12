@@ -94,7 +94,7 @@ static void test_storm_has_lightning(void)
 
 static void test_every_stage_has_its_weather(void)
 {
-    CHECK(STAGES[0].weather == WEATHER_WIND && STAGES[STAGE_COUNT - 1].weather == WEATHER_STORM);
+    CHECK(STAGES[0].weather == WEATHER_WIND && STAGES[4].weather == WEATHER_STORM && STAGES[8].weather == WEATHER_STORM);
 }
 
 int main(void)

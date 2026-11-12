@@ -129,11 +129,10 @@ static void test_routes_add_up(void)
         bool supply = false;
         for (int i = 0; i < stage->spot_count; i++) {
             const StageSpot *spot = &stage->spots[i];
-            bool fighter = spot->kind == SPOT_ZOMBIES || spot->kind == SPOT_ELITE ||
-                           spot->kind == SPOT_COFFINS || spot->kind == SPOT_AMBUSH ||
-                           spot->kind == SPOT_RUNNERS;
+            bool fighter = spot_has_zombies(spot->kind);
             zombies += fighter ? spot->count : 0;
-            terrain += fighter && spot->kind != SPOT_COFFINS ? 0 : spot->count;
+            terrain += spot->kind == SPOT_SIREN ? 1 /* The car */
+                       : fighter && spot->kind != SPOT_COFFINS ? 0 : spot->count;
             supply |= spot->kind == SPOT_SUPPLY;
             CHECK(spot->at > 0.0f && spot->at < 1.0f);
             if (i > 0)
@@ -147,7 +146,7 @@ static void test_routes_add_up(void)
                 charges += spot->count * DYNAMITE_PER_BOX;
             if (spot->kind == SPOT_SUPPLY)
                 charges += stage_supply_dynamite(stage);
-            if (spot->kind == SPOT_WALL && spot->count < 2) {
+            if (spot_is_wall(spot->kind) && spot->count < 2) {
                 CHECK(charges > 0); /* A box before it that no other wall used */
                 charges--;
             }
@@ -166,9 +165,14 @@ static void test_stages_unlock_in_order(void)
     CHECK(!stage_unlocked(&record, 1));
     record.cleared[0] = true;
     CHECK(stage_unlocked(&record, 1) && !stage_unlocked(&record, 2));
-    CHECK(STAGE_COUNT == 5);
+    CHECK(STAGE_COUNT == 10); /* Two routes of five */
     /* The wagon's dynamite grows with the road: 1, 2 or 3. */
     CHECK(stage_supply_dynamite(&STAGES[0]) == 1 && stage_supply_dynamite(&STAGES[4]) == 3);
+    CHECK(stage_supply_dynamite(&STAGES[5]) == 3);
+    /* The second route: longer than the first's longest, each longer than the last. */
+    for (int i = 5; i < STAGE_COUNT; i++)
+        CHECK(STAGES[i].length > STAGES[4].length && STAGES[i].length > STAGES[i - 1].length &&
+              STAGES[i].zombies > STAGES[4].zombies);
     /* Never easier than the stage before, and a jump at 1-4. */
     for (int i = 1; i < STAGE_COUNT; i++)
         CHECK(STAGES[i].zombie_level >= STAGES[i - 1].zombie_level);

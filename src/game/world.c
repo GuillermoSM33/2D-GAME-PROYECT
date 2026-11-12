@@ -77,10 +77,11 @@ void chunk_generate(Chunk *chunk, int index, const ThemeDef *theme)
     }
 
     int tufts = GRASS_MIN + (int)(rand01(index, SALT_GRASS_COUNT, 0) * (GRASS_MAX - GRASS_MIN + 1));
-    float half_w = (float)(prop_def(PROP_GRASS)->frame_w * SPRITE_SCALE) / 2.0f;
+    PropKind tuft = theme->city ? PROP_LITTER : PROP_GRASS; /* No grass on asphalt */
+    float half_w = (float)(prop_def(tuft)->frame_w * SPRITE_SCALE) / 2.0f;
     for (int g = 0; g < tufts; g++) {
         float x = half_w + rand01(index, SALT_GRASS, g * 2) * (WORLD_CHUNK_W - 2.0f * half_w);
-        add_prop(chunk, PROP_GRASS, rand01(index, SALT_GRASS, g * 2 + 1), x);
+        add_prop(chunk, tuft, rand01(index, SALT_GRASS, g * 2 + 1), x);
     }
 }
 

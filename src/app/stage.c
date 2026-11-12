@@ -159,6 +159,7 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
     crows_start(&play->crows, index, play->player.x, play->run.goal_x - play->player.x);
     bats_start(&play->bats, index, play->player.x, play->run.goal_x - play->player.x, play->run.stage->theme->night);
     weather_start(&play->weather, play->run.stage->weather, camera_left(play->player.x));
+    play->weather.paper = play->run.stage->theme->city; /* No tumbleweeds in a town: newspapers */
     float river_xs[8];
     int rivers = 0;
     for (int i = 0; i < play->run.terrain.count && rivers < 8; i++) {
@@ -445,6 +446,14 @@ static void play_run_sounds(StageRun *run)
     }
 }
 
+/* Crows on the first route; sparrows in the town (ThemeDef.city). */
+static const char *bird_sound(const StagePlay *play, bool death)
+{
+    if (play->run.stage->theme->city)
+        return death ? "sparrow/death" : "sparrow/chirp";
+    return death ? "crow/death" : "crow/caw";
+}
+
 static void stage_weather_sound(StagePlay *play)
 {
     if (play->run.phase == RUN_FIGHTING && weather_blows(&play->weather))
@@ -455,19 +464,26 @@ static void stage_weather_sound(StagePlay *play)
         audio_loop_in("weather/rain", SOUND_MASTER, play->weather.kind == WEATHER_STORM ? 0.65f : 0.45f);
     else
         audio_stop_loop("weather/rain");
+    /* The town's own air under it all: mains hum, a far alarm, a shutter. */
+    if (play->run.phase == RUN_FIGHTING && play->run.stage->theme->city)
+        audio_loop_in("world/city", SOUND_MASTER, 0.5f);
+    else
+        audio_stop_loop("world/city");
 }
 
 /* Only nearby water and fires are audible. A smooth distance curve keeps
  * entering/leaving their range quiet; nearby sources share one loop. */
 static void stage_local_sound(const StagePlay *play)
 {
-    float river = 0.0f, fire = 0.0f;
+    float river = 0.0f, fire = 0.0f, siren = 0.0f;
     if (play->run.phase == RUN_FIGHTING && player_alive(&play->player)) {
         const Terrain *terrain = &play->run.terrain;
+        siren = terrain_siren_loudness(terrain, play->player.x);
         for (int i = 0; i < terrain->count; i++) {
             const Piece *p = &terrain->items[i];
             bool water = p->kind == TERRAIN_RIVER;
-            bool burning = p->kind == TERRAIN_CAMPFIRE || (p->kind == TERRAIN_FIRE && !p->spent);
+            bool burning = p->kind == TERRAIN_CAMPFIRE || ((p->kind == TERRAIN_FIRE || p->kind == TERRAIN_BURNER) &&
+                                                           !p->spent) || terrain_burner_burning(p);
             if (!water && !burning)
                 continue;
             float distance = fabsf(p->x - play->player.x);
@@ -490,6 +506,10 @@ static void stage_local_sound(const StagePlay *play)
         audio_loop_in("world/fire", SOUND_MASTER, fire);
     else
         audio_stop_loop("world/fire");
+    if (siren > 0.001f) /* A patrol car wailing: loud by it, fading with distance */
+        audio_loop_in("world/siren", SOUND_MASTER, 0.2f + 0.45f * siren * siren);
+    else
+        audio_stop_loop("world/siren");
 }
 
 static void stage_lightning_sound(StagePlay *play, float previous_warning)
@@ -631,7 +651,10 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     /* E: a charge on the wall she is at; a seat on the bench there; else a
      * charge planted on the road. Lighting one cuts a reload or a shot short. */
     if (input->pressed[ACTION_USE]) {
-        if (run_use(&play->run, player)) {
+        if (run_search(&play->run, player)) { /* An army outpost's locker */
+            refill_guns(play);
+            play_sound("world/supply");
+        } else if (run_use(&play->run, player)) {
             play_sound("world/fuse");
             player_plant(player);
             /* Lighting it takes her hands: a reload or a shot under way
@@ -705,7 +728,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         crows_noise(&play->crows, player->x, CROW_SHOT_RANGE);
     }
     if (crows_shoot(&play->crows, &play->bullets) > 0)
-        play_sound("crow/death");
+        play_sound(bird_sound(play, true));
     bool bats_died = bats_shoot(&play->bats, &play->bullets) > 0;
     hallucination_shoot(&play->visions, &play->bullets); /* A bullet wasted on nothing */
     run_bullets(&play->run, &play->bullets, &play->effects);
@@ -771,7 +794,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
                                   "world/explosion";
         play_sound(blast_sound);
         if (crows_blast(&play->crows, run->blast_x[b], BARREL_RADIUS) > 0)
-            play_sound("crow/death");
+            play_sound(bird_sound(play, true));
         if (bats_blast(&play->bats, run->blast_x[b], BARREL_RADIUS) > 0)
             bats_died = true;
     }
@@ -786,7 +809,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     if (bats_fled)
         audio_play_in_gain("bat/flee", SOUND_PLAYER, 0.55f);
     if (play->crows.took_off > 0)
-        play_sound("crow/caw");
+        play_sound(bird_sound(play, false));
     stage_lightning_sound(play, previous_bolt_warning);
     if (run->bolt_struck) { /* Right overhead: light and thunder at once */
         play->weather.flash = 1.0f;
@@ -834,6 +857,20 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
                  SUPPLY_WATER);
         hud_popup(str, COLOR_HUD_XP, player->x, above_tag, true);
     }
+    if (run->searched)
+        hud_popup("¡PUESTO REGISTRADO!  +1 DINAMITA  +1 AGUA", COLOR_HUD_XP, player->x, above_tag, true);
+    for (int f = 0; f < run->flares; f++) { /* A burning drum goes over: its fire flares up */
+        effects_spawn(&play->effects, terrain_flare(), run->flare_x[f], BASELINE, 1);
+        smoke_rise(&play->smoke, run->flare_x[f], BASELINE - 120.0f, 6, 1.6f);
+        play_sound("world/flare");
+        crows_noise(&play->crows, run->flare_x[f], CROW_SHOT_RANGE);
+    }
+    if (run->hydrants_burst > 0) { /* The mains let go */
+        play_sound("world/hydrant");
+        crows_noise(&play->crows, player->x, CROW_SHOT_RANGE);
+    }
+    if (run->soaked)
+        hud_popup("¡EL CHORRO TE EMPUJA!", COLOR_HUD_DANGER, player->x, above_tag, true);
     if (run->dynamite_taken) {
         play_sound("world/supply");
         hud_popup("+1 DINAMITA", COLOR_HUD_TITLE, player->x, above_tag, true);
@@ -962,6 +999,16 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     if (run->ambushed) { /* They walk in from off screen: no sliding in from their old spot */
         play_sound("world/ambush");
         hud_popup("¡EMBOSCADA!", COLOR_HUD_DANGER, player->x, above_tag, true);
+        for (int k = 0; k < run->zombie_count; k++)
+            play->prev_zombie_x[k] = run->zombies[k].x;
+    }
+    if (run->siren_tripped) /* The birds go too */
+        crows_noise(&play->crows, player->x, CROW_BLAST_RANGE);
+    if (run->siren_tripped && !run->horde_came) /* Set off from afar: its horde comes next */
+        hud_popup("¡LA SIRENA ATRAE A LOS ZOMBIS!", COLOR_HUD_DANGER, player->x, above_tag, true);
+    if (run->horde_came) { /* From both sides at once, and she is afraid: the board says it */
+        play_sound("world/horde");
+        hud_horde_notice();
         for (int k = 0; k < run->zombie_count; k++)
             play->prev_zombie_x[k] = run->zombies[k].x;
     }

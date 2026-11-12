@@ -69,6 +69,8 @@ typedef struct {
     bool beaten[RUN_MAX_ZOMBIES];     /* Counted as defeated */
     bool chest_done[RUN_MAX_ZOMBIES]; /* Its chest (if any) was placed */
     float ambush_x[RUN_MAX_ZOMBIES];  /* An ambusher: where she springs it (0 = none) */
+    int siren_of[RUN_MAX_ZOMBIES];    /* Of a horde: its patrol car's piece index + 1 (0 = none);
+                                       * it comes when that siren goes off, not at ambush_x */
     Chest chests[RUN_MAX_CHESTS];
     int mission_chest;               /* Index into chests, -1 until it appears */
     Terrain terrain;
@@ -95,6 +97,14 @@ typedef struct {
     int coffins_burst; /* Coffins that burst open on this update */
     int traps_sprung;  /* Bear traps that snapped on this update */
     bool ambushed;     /* An ambush was sprung on this update */
+    int flares;        /* Burning drums that went over on this update, their fire flaring... */
+    float flare_x[TERRAIN_EVENTS]; /* ...and where */
+    int hydrants_burst; /* Hydrants that burst on this update (a sound) */
+    bool soaked;       /* A hydrant's water hit her on this update */
+    bool searched;     /* An outpost was searched on this update (magazines full: the caller's) */
+    bool siren_tripped; /* A patrol car's siren went off on this update */
+    bool horde_came;   /* ...and its horde was sprung (a horde, not an ambush) */
+    int horde_left;    /* Zombies of sprung hordes still standing (the HUD's count) */
     bool crate_hint;   /* Show the crate hint now (once a run, first stages only) */
     bool hinted;       /* The crate hint was shown */
     int gold_gained;   /* Gold earned on this update */
@@ -158,6 +168,10 @@ bool run_sit(StageRun *run, Player *player, unsigned reload_guns);
  * faces, bounces off the ground and walls and goes off when its fuse ends,
  * like a barrel (blast_x) but without opening walls. */
 void run_throw(StageRun *run, const Player *player);
+
+/* E at an army outpost not searched yet: a charge, water, some health and
+ * (searched: the caller fills her magazines). Returns whether she did. */
+bool run_search(StageRun *run, Player *player);
 
 /* E: lights a charge on the wall she is at, if she carries one; away from
  * walls and benches, plants it on the road at her feet (a barrel's blast

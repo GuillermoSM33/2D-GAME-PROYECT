@@ -8,7 +8,9 @@
 #include "config.h"
 #include "engine/assets.h"
 #include "engine/pixfont.h"
+#include "game/casefile.h"
 #include "game/hang_render.h"
+#include "game/menu.h"
 #include "game/terrain.h"
 #include "game/ui.h"
 #include "game/weapons.h"
@@ -518,6 +520,9 @@ static void draw_states(SDL_Renderer *renderer, const Player *player, const Stag
                  (int)(100.0f * player->bandage / BANDAGE_TIME));
     else
         snprintf(bleed_note, sizeof(bleed_note), "MANTÉN U PARA VENDARTE");
+    char horde_note[48];
+    snprintf(horde_note, sizeof(horde_note), "LA SIRENA LOS ATRAJO: %s %d", run->horde_left == 1 ? "QUEDA" : "QUEDAN",
+             run->horde_left);
     const struct {
         bool on;
         int icon;
@@ -554,6 +559,9 @@ static void draw_states(SDL_Renderer *renderer, const Player *player, const Stag
         {player->fatigue >= FATIGUE_STROKE, ICON_HEAT, "GOLPE DE CALOR", "¡ALÉJATE DEL FUEGO O TE DESMAYARÁS!",
          FATIGUE_FAINT - player->fatigue, false},
         {run->omen, ICON_OMEN, "MAL PRESAGIO", "UNA EMBOSCADA PUEDE ESTAR CERCA", 0.0f, false},
+        {run->horde_left > 0, ICON_SIREN, "HORDA", horde_note, 0.0f, false},
+        {player->fear > 0.0f, ICON_FEAR, "TEMOR", "CORRES MÁS RÁPIDO, PERO RECARGAS (O DISPARAS SIN FIN) MÁS LENTO",
+         player->fear, false},
     };
     /* One row: if the seconds would not fit beside every icon, the row drops
      * them. They stay available in each icon's description. */
@@ -718,6 +726,8 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
                      run->dynamite > 0 ? COLOR_HUD_TITLE : COLOR_HUD_DANGER);
     } else if (player->state == PLAYER_SIT) {
         draw_context(renderer, "A/D", "LEVANTARSE", COLOR_HUD_PRIMARY);
+    } else if (terrain_outpost_near(&run->terrain, player->x) >= 0 && player->jump.height <= 0.0f) {
+        draw_context(renderer, "E", "REGISTRAR EL PUESTO", COLOR_HUD_TITLE);
     } else if (terrain_bench_near(&run->terrain, player->x) >= 0 && player->jump.height <= 0.0f) {
         draw_context(renderer, "E", "DESCANSAR", COLOR_HUD_TITLE);
     } else if (terrain_barricade_ahead(&run->terrain, player->x, player->facing) &&
@@ -730,6 +740,29 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
     } else if (run->defeated >= run->stage->zombies) {
         draw_context(renderer, NULL, "EL COFRE TE ESPERA EN LA SALIDA →", COLOR_HUD_TITLE);
     }
+}
+
+/* A horde coming (a siren went off): a board up top with the light bar
+ * flashing, for HORDE_NOTICE_TIME. */
+#define HORDE_NOTICE_TIME 3.0f
+static float horde_notice;
+
+void hud_horde_notice(void)
+{
+    horde_notice = HORDE_NOTICE_TIME;
+}
+
+static void draw_horde_notice(SDL_Renderer *renderer)
+{
+    if (horde_notice <= 0.0f)
+        return;
+    int w = 440, h = 84, x = (WINDOW_WIDTH - w) / 2, y = 112;
+    ui_panel(renderer, x, y, w, h);
+    int size = UI_ICON_SIZE * 4;
+    int bob = (int)(horde_notice * 6.0f) % 2 * 2; /* The light bar flashing: it jumps a little */
+    ui_icon(renderer, ICON_SIREN, x + 20, y + (h - size) / 2 - bob, 4);
+    ui_text(renderer, "¡HORDA!", x + 32 + size, y + 16, 3, COLOR_HUD_DANGER, ANCHOR_NW);
+    ui_text(renderer, "VIENEN DE AMBOS LADOS", x + 32 + size, y + 54, 2, COLOR_HUD_TITLE, ANCHOR_NW);
 }
 
 /* An ambush walking in from out of sight: which way to look, at the window's
@@ -869,6 +902,7 @@ void hud_draw_stage(SDL_Renderer *renderer, const Player *player, const Zombie *
     draw_states(renderer, player, run);
     draw_prompt(renderer, player, run);
     draw_incoming(renderer, run, camera_x);
+    draw_horde_notice(renderer);
     draw_mission_goals(renderer, run);
 
     if (run->phase == RUN_FAILED) {
@@ -1170,23 +1204,39 @@ void hud_draw_pause(SDL_Renderer *renderer, const ListMenu *menu)
     draw_hints(renderer, hints, 3, y + h + 10);
 }
 
+/* The phases' names, on their tabs. */
+static const char *const PHASE_NAMES[] = {"FASE 1 · OJO DE CUERVO", "FASE 2 · SANTA BRASA"};
+
 void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Progress *progress,
-                   const StageRecord *record, int selected)
+                   const StageRecord *record, int selected, unsigned tapes, int backdrop, int reached)
 {
     char str[96];
-    ui_text(renderer, "ELIGE UN NIVEL", WINDOW_WIDTH / 2, 18, 4, COLOR_HUD_TITLE, ANCHOR_N);
+    ui_text(renderer, "ELIGE UN NIVEL", WINDOW_WIDTH / 2, 12, 4, COLOR_HUD_TITLE, ANCHOR_N);
     int name_w = ui_text_width(character_name, 2);
-    ui_text(renderer, character_name, WINDOW_WIDTH / 2 - 30 - name_w, 74, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
-    draw_badge(renderer, WINDOW_WIDTH / 2, 104, progress->level, BADGE_PLAYER, false);
+    ui_text(renderer, character_name, WINDOW_WIDTH / 2 - 30 - name_w, 62, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+    draw_badge(renderer, WINDOW_WIDTH / 2, 92, progress->level, BADGE_PLAYER, false);
     snprintf(str, sizeof(str), "XP %d/%d", progress->xp, xp_to_next(progress->level));
-    ui_text(renderer, str, WINDOW_WIDTH / 2 + 30, 74, 2, COLOR_HUD_XP, ANCHOR_NW);
+    ui_text(renderer, str, WINDOW_WIDTH / 2 + 30, 62, 2, COLOR_HUD_XP, ANCHOR_NW);
 
-    int w = 600, row_h = 54, x = (WINDOW_WIDTH - w) / 2, top = 118;
-    ui_panel(renderer, x - 20, top - 14, w + 40, STAGE_COUNT * (row_h + 8) + 22);
-    for (int i = 0; i < STAGE_COUNT && i < 16; i++) {
+    /* A page per phase: its tab lit, the others to click (or A/D). */
+    int w = 700, row_h = 54, x = (WINDOW_WIDTH - w) / 2, tabs_y = 100, top = 150;
+    int phase = menu_phase(selected), phases = PHASE_COUNT;
+    int tab_w = (w - (phases - 1) * 10) / phases;
+    for (int p = 0; p < phases; p++) {
+        bool open = stage_unlocked(record, p * PHASE_STAGES);
+        int tx = x + p * (tab_w + 10);
+        ui_button(renderer, tx, tabs_y, tab_w, 36, p < (int)(sizeof(PHASE_NAMES) / sizeof(PHASE_NAMES[0]))
+                                                       ? PHASE_NAMES[p] : "FASE", p == phase, open);
+        add_zone(HUD_ZONE_PHASE, p, tx, tabs_y, tab_w, 36);
+        if (!open)
+            ui_icon(renderer, ICON_LOCK, tx + tab_w - 34, tabs_y + 6, 2);
+    }
+    int first = phase * PHASE_STAGES, rows = STAGE_COUNT - first < PHASE_STAGES ? STAGE_COUNT - first : PHASE_STAGES;
+    ui_panel(renderer, x - 20, top - 14, w + 40, rows * (row_h + 8) + 22);
+    for (int i = first; i < first + rows && i < 16; i++) {
         const StageDef *stage = &STAGES[i];
         bool open = stage_unlocked(record, i);
-        int y = top + i * (row_h + 8);
+        int y = top + (i - first) * (row_h + 8);
         ui_button(renderer, x, y, w, row_h, "", i == selected, open);
         add_zone(HUD_ZONE_ITEM, i, x, y, w, row_h);
         unsigned ink = open ? (i == selected ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY) : COLOR_HUD_LOCKED;
@@ -1198,6 +1248,18 @@ void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Pro
         snprintf(str, sizeof(str), "%d M", (int)(run_road_length(i) / ROUTE_PX_PER_METER));
         ui_icon(renderer, ICON_FLAG, x + 396, y + 14, 2);
         ui_text(renderer, str, x + 426, y + 18, 2, open ? COLOR_HUD_SECONDARY : COLOR_HUD_LOCKED, ANCHOR_NW);
+        /* Its tape, once seen: click it (or E on the row) to watch it again.
+         * A stage with one before it and one after shows the latest. */
+        int tape = stage_tape(i, false);
+        if (tape < 0 || !(tapes & (1u << tape)))
+            tape = stage_tape(i, true);
+        if (tape >= 0 && (tapes & (1u << tape))) {
+            int bx = x + 500, by = y + 10, bw = 86, bh = row_h - 20;
+            ui_button(renderer, bx, by, bw, bh, "", false, true);
+            ui_icon(renderer, ICON_TAPE, bx + 8, by + (bh - UI_ICON_SIZE * 2) / 2, 2);
+            ui_text(renderer, "CINTA", bx + 36, by + (bh - 14) / 2, 1, COLOR_HUD_TITLE, ANCHOR_NW);
+            add_zone(HUD_ZONE_TAPE, tape, bx, by, bw, bh);
+        }
         if (record->cleared[i]) {
             for (int star = 0; star < 3; star++)
                 ui_icon(renderer, (unsigned)star < record->stars[i] ? ICON_MISSION_STAR : ICON_MISSION_STAR_EMPTY,
@@ -1205,8 +1267,16 @@ void hud_draw_menu(SDL_Renderer *renderer, const char *character_name, const Pro
         } else if (!open)
             ui_icon(renderer, ICON_LOCK, x + w - 52, y + 14, 2);
     }
-    static const char *const hints[] = {"W/S", "ELEGIR", "ENTER", "JUGAR", "ESC", "PERSONAJES"};
-    draw_hints(renderer, hints, 3, WINDOW_HEIGHT - 52);
+    /* The landscape behind the menus: any phase she has reached. */
+    if (reached > 0) {
+        snprintf(str, sizeof(str), "FONDO: FASE %d", backdrop + 1);
+        int bw = 170, bx = WINDOW_WIDTH - bw - 14, by = 14;
+        ui_button(renderer, bx, by, bw, 30, str, false, true);
+        add_zone(HUD_ZONE_BACKDROP, 0, bx, by, bw, 30);
+        ui_key(renderer, bx - 34, by + 2, "Q");
+    }
+    static const char *const hints[] = {"W/S", "NIVEL", "A/D", "FASE", "E", "CINTA", "ENTER", "JUGAR", "ESC", "VOLVER"};
+    draw_hints(renderer, hints, 5, WINDOW_HEIGHT - 52);
 }
 
 /* Text centered at cx from y, broken at spaces into lines no wider than
@@ -1342,6 +1412,7 @@ void hud_popup(const char *utf8, unsigned rgb, float world_x, int y, bool big)
 
 void hud_update(float dt)
 {
+    horde_notice = horde_notice > dt ? horde_notice - dt : 0.0f;
     for (int i = 0; i < POPUP_MAX; i++) {
         if (popups[i].active && (popups[i].age += dt) >= POPUP_TIME)
             popups[i].active = false;
@@ -1350,6 +1421,7 @@ void hud_update(float dt)
 
 void hud_clear_popups(void)
 {
+    horde_notice = 0.0f;
     for (int i = 0; i < POPUP_MAX; i++)
         popups[i].active = false;
 }

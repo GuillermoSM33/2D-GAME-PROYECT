@@ -315,7 +315,10 @@ static void test_material_impacts_survive_event_clear(void)
     Terrain t;
     static const unsigned material[] = {
         TERRAIN_SOUND_HIT_WOOD, TERRAIN_SOUND_HIT_SAND,
-        TERRAIN_SOUND_HIT_WOOD, TERRAIN_SOUND_HIT_METAL
+        TERRAIN_SOUND_HIT_WOOD, TERRAIN_SOUND_HIT_METAL,
+        TERRAIN_SOUND_HIT_METAL, TERRAIN_SOUND_HIT_WOOD, TERRAIN_SOUND_HIT_STONE, /* Car, sawhorses, jersey */
+        TERRAIN_SOUND_HIT_METAL, TERRAIN_SOUND_HIT_METAL, TERRAIN_SOUND_HIT_METAL, /* Motorcycle; cars 2, 3 */
+        TERRAIN_SOUND_HIT_METAL, TERRAIN_SOUND_HIT_METAL                            /* Motorcycles 2, 3 */
     };
     for (int variant = 0; variant < BARRICADE_KINDS; variant++) {
         terrain_clear(&t);

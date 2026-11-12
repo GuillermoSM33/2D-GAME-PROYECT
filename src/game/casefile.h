@@ -17,8 +17,8 @@
  * whoever breaks it. What a stage changes in the landscape is told at its
  * end anyway (story beats); the clues tell why. No SDL. */
 
-#define CLUE_COUNT 15
-#define CASE_COUNT 4
+#define CLUE_COUNT 30 /* 15 on each route: the save keeps them as bits of one word */
+#define CASE_COUNT 7  /* Four on the first route, three on the second */
 #define CASE_MAX_CLUES 6
 #define STAGE_CLUES 3
 #define CASE_OPTIONS 3
@@ -97,8 +97,12 @@ int casefile_stage_found(const CaseFile *file, int stage);
 #define BOARD_OPTION_H 40
 #define BOARD_OPTION_Y 250
 
+#define BOARD_ROWS 4 /* Cases on a page of the board: the first route's, then the second's */
+
 int board_card_x(int col);
 int board_row_y(int row);
+int board_page(int row);
+int board_page_rows(int page);
 int board_slot_x(void);
 
 typedef enum { BOARD_STAY, BOARD_BACK, BOARD_REVEAL, BOARD_EXAMINE } BoardResult;
@@ -124,7 +128,9 @@ int board_selected_clue(const BoardView *view);
 
 typedef enum {
     STORY_ATARDECER, STORY_CEMENTERIO, STORY_NOCHE, STORY_PUEBLO, /* A stage's landscape */
-    STORY_LAB          /* Laboratorio 4's corridor */
+    STORY_LAB,         /* Laboratorio 4's corridor */
+    STORY_AFUERAS, STORY_CENTRO, STORY_VIAS, STORY_CIUDAD_NOCHE, STORY_BASE, /* The second route's */
+    STORY_VISUALS
 } StoryVisual;
 
 typedef struct {
@@ -137,6 +143,14 @@ typedef struct {
 /* What the landscape's change after a stage means, played when it is first
  * cleared; NULL for stages with none. */
 const StoryBeat *story_after_stage(int stage);
+
+/* What is told before a stage is first played (2-1: the town leads to the
+ * city); NULL for the rest. */
+const StoryBeat *story_before_stage(int stage);
+
+/* The bit of CaseFile.beats_seen for a stage's beat: after it, or before it. */
+#define STORY_BEFORE_BIT 16
+unsigned story_bit(int stage, bool before);
 
 /* ---- A solved case's report ----------------------------------------------- */
 
@@ -168,24 +182,33 @@ bool exam_update(ClueExam *exam, const InputState *input, float dt);
 /* ---- The video tapes (HISTORIA) --------------------------------------------- */
 
 /* The intro and each stage's ending, kept to watch again. */
-#define TAPE_COUNT 5
+#define TAPE_COUNT 11
 #define TAPE_INTRO 0
 
 typedef struct {
     const char *title;
-    int stage; /* The stage whose ending it is; -1 for the intro */
+    int stage;   /* The stage whose ending it is; -1 for the intro */
+    bool before; /* ...or played before that stage instead */
 } TapeDef;
 
 extern const TapeDef TAPES[TAPE_COUNT];
 
 bool tape_unlocked(const CaseFile *file, int tape);
+/* A tape's beat (NULL for the intro), and the tape of a stage's beat or -1. */
+const StoryBeat *tape_beat(int tape);
+int stage_tape(int stage, bool before);
 int tapes_unlocked(const CaseFile *file);
 
 #define TAPE_X 30
-#define TAPE_Y 150
+#define TAPE_Y 122
 #define TAPE_STEP 182
 #define TAPE_W 168
 #define TAPE_H 112
+#define TAPE_COLUMNS 5  /* In rows: the intro and the first route, then the second */
+#define TAPE_ROW_STEP 176
+#define TAPE_ROWS_SHOWN 2
+int tape_x(int tape);
+int tape_y(int tape, int selected); /* Scrolled so the selected one's row shows */
 
 typedef struct {
     int selected;

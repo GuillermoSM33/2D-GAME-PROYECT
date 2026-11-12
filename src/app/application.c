@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "app/application.h"
+
+#define PHASE_COUNT_MAX 4
 #include "app/autosave.h"
 #include "app/capture.h"
 #include "app/intro_render.h"
@@ -97,6 +99,19 @@ static void enter_stage(StagePlay *play, Autosave *save, Profile *profiles,
     autosave_request(save, profiles, hero, &options->volumes, play);
 }
 
+/* A stage about to be played for the first time: what is told before it
+ * (2-1: the town leads to the city), then the stage. */
+#define STORY_BEFORE(stage_index) do { \
+    const StoryBeat *before_beat = story_before_stage(stage_index); \
+    if (before_beat && !(save.game.case_file.beats_seen & story_bit(stage_index, true))) { \
+        save.game.case_file.beats_seen |= story_bit(stage_index, true); \
+        story_start(&story, before_beat); \
+        story_since = platform_time(); \
+        story_return = SCREEN_STAGE; \
+        screen = SCREEN_STORY; \
+    } \
+} while (0)
+
 int app_run(bool smoke_mode, const char *capture_dir)
 {
     if (CHARACTER_COUNT > APP_PROFILE_CAPACITY) {
@@ -137,11 +152,17 @@ int app_run(bool smoke_mode, const char *capture_dir)
     Menu menu;
     char_select_init(&char_select, hero);
     menu_init(&menu, &profiles[hero].record);
+    if (prefs_get_bool("menu_backdrop_first", false)) /* Her choice: an earlier phase's landscape */
+        menu.backdrop = 0;
 
     InputState input;
     static StagePlay play; /* Large; static keeps it off the stack */
-    static World menu_world;
-    world_init(&menu_world, STAGES[0].theme);
+    /* The landscape drifting behind the menus: the first phase's, or (her
+     * choice in the stage select, once reached) a later one's. */
+    static World menu_worlds[PHASE_COUNT_MAX];
+    for (int p = 0; p < PHASE_COUNT && p < PHASE_COUNT_MAX; p++)
+        world_init(&menu_worlds[p], STAGES[p * PHASE_STAGES].theme);
+#define menu_world menu_worlds[0]
     ListMenu title;
     list_menu_init(&title, TITLE_ITEMS);
     SmokeTest smoke = {.enabled = smoke_mode};
@@ -316,6 +337,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
                 if (chosen >= 0) {
                     hero = chosen;
                     menu_init(&menu, &profiles[hero].record);
+    if (prefs_get_bool("menu_backdrop_first", false)) /* Her choice: an earlier phase's landscape */
+        menu.backdrop = 0;
                     if (save.game.has_checkpoint && save.game.checkpoint_hero == hero)
                         menu.selected = save.game.checkpoint.run.stage_index;
                     screen = SCREEN_MENU;
@@ -325,7 +348,37 @@ int app_run(bool smoke_mode, const char *capture_dir)
                     char_select_init(&char_select, hero);
                     screen = SCREEN_CHARACTER;
                 }
-                int chosen = menu_update(&menu, &input, &profiles[hero].record);
+                /* The mouse on the page: a phase's tab, a stage's tape, the backdrop. */
+                HudZone zone;
+                int replay = -1;
+                bool on_zone = input.pointer_clicked && hud_zone_at(input.pointer_x, input.pointer_y, &zone);
+                if (on_zone && zone.kind == HUD_ZONE_PHASE) {
+                    menu_show_phase(&menu, zone.index);
+                    audio_play("ui/move");
+                } else if (on_zone && zone.kind == HUD_ZONE_TAPE) {
+                    replay = zone.index;
+                    input.pressed[ACTION_CONFIRM] = false; /* Its row was under the click too */
+                } else if ((on_zone && zone.kind == HUD_ZONE_BACKDROP) || input.pressed[ACTION_SWAP]) {
+                    menu_next_backdrop(&menu, &profiles[hero].record);
+                    prefs_set_bool("menu_backdrop_first", menu.backdrop == 0);
+                    audio_play("ui/move");
+                    input.pressed[ACTION_CONFIRM] = false;
+                }
+                if (input.pressed[ACTION_USE]) { /* E: the selected stage's tape */
+                    int tape = stage_tape(menu.selected, false);
+                    if (tape < 0 || !tape_unlocked(&save.game.case_file, tape))
+                        tape = stage_tape(menu.selected, true);
+                    if (tape >= 0 && tape_unlocked(&save.game.case_file, tape))
+                        replay = tape;
+                }
+                if (replay > 0) {
+                    audio_play("ui/confirm");
+                    story_start(&story, tape_beat(replay));
+                    story_since = platform_time();
+                    story_return = SCREEN_MENU;
+                    screen = SCREEN_STORY;
+                }
+                int chosen = screen == SCREEN_MENU ? menu_update(&menu, &input, &profiles[hero].record) : -1;
                 if (chosen >= 0) {
                     if (!notice_seen) {
                         pending_stage = chosen;
@@ -335,6 +388,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
                         prev_player_x = play.player.x;
                         prev_jump = play.player.jump.height;
                         screen = SCREEN_STAGE;
+                        STORY_BEFORE(chosen);
                     }
                 }
             } else if (screen == SCREEN_AUTOSAVE_NOTICE) {
@@ -347,6 +401,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
                     prev_player_x = play.player.x;
                     prev_jump = play.player.jump.height;
                     screen = SCREEN_STAGE;
+                    STORY_BEFORE(pending_stage);
                     pending_stage = -1;
                 }
             } else if (screen == SCREEN_ALMANAC) {
@@ -388,7 +443,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
                     audio_music_stop(400);
                     screen = SCREEN_INTRO;
                 } else if (tape > 0) {
-                    story_start(&story, story_after_stage(TAPES[tape].stage));
+                    story_start(&story, tape_beat(tape));
                     story_since = platform_time();
                     story_return = SCREEN_TAPES;
                     screen = SCREEN_STORY;
@@ -403,12 +458,14 @@ int app_run(bool smoke_mode, const char *capture_dir)
             } else if (!stage_step(&play, &input, &profiles[hero], &options)) {
                 save.game.has_checkpoint = false;
                 menu_init(&menu, &profiles[hero].record);
+    if (prefs_get_bool("menu_backdrop_first", false)) /* Her choice: an earlier phase's landscape */
+        menu.backdrop = 0;
                 screen = SCREEN_MENU;
                 /* A stage cleared for the first time: what its end means, before the menu */
                 int cleared = play.run.stage_index;
                 const StoryBeat *beat = play.run.phase == RUN_CLEARED ? story_after_stage(cleared) : NULL;
-                if (beat && !(save.game.case_file.beats_seen & (1u << cleared))) {
-                    save.game.case_file.beats_seen |= 1u << cleared;
+                if (beat && !(save.game.case_file.beats_seen & story_bit(cleared, false))) {
+                    save.game.case_file.beats_seen |= story_bit(cleared, false);
                     story_start(&story, beat);
                     story_since = platform_time();
                     story_return = SCREEN_MENU;
@@ -494,49 +551,54 @@ int app_run(bool smoke_mode, const char *capture_dir)
                                has_live_stage(screen, book_return, story_return) ? &play : NULL);
 
         hud_zones_clear();
+        World *backdrop_world = &menu_worlds[menu.backdrop >= 0 && menu.backdrop < PHASE_COUNT ? menu.backdrop : 0];
         if (screen == SCREEN_INTRO) {
             intro_render(&platform, &intro, &menu_world, &skins[0]);
         } else if (screen == SCREEN_TITLE) {
-            stage_draw_backdrop(&platform, &menu_world, 0.15f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.15f);
             intro_draw_title_dust(platform.renderer, stage_backdrop_seconds());
             hud_draw_title(platform.renderer, &title);
         } else if (screen == SCREEN_CONTROLS) {
-            stage_draw_backdrop(&platform, &menu_world, 0.5f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.5f);
             hud_draw_controls(platform.renderer);
         } else if (screen == SCREEN_VOLUME) {
-            stage_draw_backdrop(&platform, &menu_world, 0.5f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.5f);
             hud_draw_volume(platform.renderer, &options.volume_menu, &options.volumes);
         } else if (screen == SCREEN_CHARACTER) {
             for (int c = 0; c < CHARACTER_COUNT; c++)
                 progress_view[c] = profiles[c].progress;
-            stage_draw_backdrop(&platform, &menu_world, 0.45f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.45f);
             hud_draw_characters(platform.renderer, skins, progress_view, char_select.selected,
                                 char_select.notice_time > 0.0f);
         } else if (screen == SCREEN_MENU || screen == SCREEN_AUTOSAVE_NOTICE) {
-            stage_draw_backdrop(&platform, &menu_world, 0.45f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.45f);
+            unsigned seen_tapes = 0;
+            for (int t = 1; t < TAPE_COUNT; t++)
+                seen_tapes |= tape_unlocked(&save.game.case_file, t) ? 1u << t : 0u;
             hud_draw_menu(platform.renderer, CHARACTERS[hero].name, &profiles[hero].progress,
-                          &profiles[hero].record, menu.selected);
+                          &profiles[hero].record, menu.selected, seen_tapes, menu.backdrop,
+                          menu_reached_phase(&profiles[hero].record));
             if (screen == SCREEN_AUTOSAVE_NOTICE)
                 hud_draw_autosave_notice(platform.renderer);
             else if (save.game.has_checkpoint && save.game.checkpoint_hero == hero &&
                      menu.selected == save.game.checkpoint.run.stage_index)
                 hud_draw_resume_hint(platform.renderer, STAGES[menu.selected].name);
         } else if (screen == SCREEN_ALMANAC) {
-            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.70f);
             almanac_render(platform.renderer, &profiles[hero].almanac, &almanac_view, (float)platform_time());
         } else if (screen == SCREEN_CASEFILE) {
-            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.70f);
             casefile_render(platform.renderer, &save.game.case_file, &board, (float)platform_time());
         } else if (screen == SCREEN_EXAMINE) {
-            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.70f);
             casefile_render(platform.renderer, &save.game.case_file, &board, (float)platform_time());
             exam_render(platform.renderer, &exam, &save.game.case_file);
         } else if (screen == SCREEN_REPORT) {
-            stage_draw_backdrop(&platform, &menu_world, 0.70f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.70f);
             casefile_render(platform.renderer, &save.game.case_file, &board, (float)platform_time());
             report_render(platform.renderer, &report, &save.game.case_file);
         } else if (screen == SCREEN_TAPES) {
-            stage_draw_backdrop(&platform, &menu_world, 0.15f);
+            stage_draw_backdrop(&platform, backdrop_world, 0.15f);
             intro_draw_title_dust(platform.renderer, stage_backdrop_seconds());
             tapes_render(platform.renderer, &tapes, &save.game.case_file);
         } else if (screen == SCREEN_STORY) {
@@ -547,7 +609,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
                        accumulator / FIXED_DT, prev_player_x, prev_jump, &options);
         }
         if (!has_live_stage(screen, book_return, story_return) && screen != SCREEN_INTRO)
-            audio_music_play(MENU_MUSIC); /* Keeps playing from one menu to the next */
+            audio_music_play(menu.backdrop >= 1 ? MENU_MUSIC_CITY : MENU_MUSIC); /* Keeps playing from one menu to the next */
         if (screen == SCREEN_STAGE && !play.paused)
             casefile_draw_toast(platform.renderer, play.clue_toast,
                                 casefile_stage_found(&save.game.case_file, play.run.stage_index),

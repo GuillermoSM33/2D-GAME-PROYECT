@@ -50,7 +50,11 @@ void shot_set_piston(Shot *shot, bool piston)
 void shot_trigger(Shot *shot, bool pressed, bool held)
 {
     shot->held = held && shot->automatic;
-    if (pressed && shot->active && shot->piston)
+    /* A click while a turn plays asks for the next only as that turn ends (its
+     * holster, PISTON_QUEUE_FRAMES): clicks hammered in mid-turn are not kept,
+     * or four quick ones would go on firing by themselves like a burst. */
+    if (pressed && shot->active && shot->piston && shot->mag_reload <= 0.0f &&
+        shot->start_frame + (int)(shot->time * shot_fps(shot)) >= PLAYER_SHOOT_FRAMES - PISTON_QUEUE_FRAMES)
         shot->queued = true;
 }
 

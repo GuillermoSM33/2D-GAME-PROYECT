@@ -105,6 +105,16 @@ deben cubrir sus salidas y coincidir con sus hashes. Las pruebas SDL usan dispos
 `build.sh` ejecuta las pruebas, verifica los recursos incrustados y realiza
 la prueba de humo del juego.
 
+**Ruta 2** (`tools/make_city_sfx.py`): `world/siren` (dos aullidos de sirena, 4 s, en bucle
+mientras suena una patrulla; `stage.c` lo atenúa con la distancia), `world/horde` (las voces
+originales de `sounds/zombie`, solo leídas, con distinto tono y repartidas en 3 s sobre un
+arrastrar de pies), `sparrow/chirp` y `sparrow/death` (gorriones). Son sintéticos: no hay
+grabación de terceros. Los gorriones sintetizados pueden cambiarse después por una grabación
+CC0 real, como los cuervos. También: `world/flare` (un bidón que cae y su fogonazo),
+`world/hydrant` (un hidrante que revienta: golpe y dos segundos de agua a presión) y
+`world/city` (bucle de 12 s del ambiente de la ciudad: zumbido eléctrico, una alarma lejana,
+una cortina suelta, un perro a lo lejos), que suena bajo los niveles de la fase 2.
+
 Para generar comparaciones de fuentes y resultados fuera de `assets/`:
 
 ```sh

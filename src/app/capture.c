@@ -114,8 +114,13 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
         tapes_render(r, &tapes, &file);
         save_capture(r, dir, "0t_historia_cintas");
         /* Every line of every tape, in the middle of its shot */
-        for (int stage = 1; stage <= 4; stage++) {
-            const StoryBeat *beat = story_after_stage(stage);
+        TapeView city_tapes = {7}; /* Its second row, scrolled to: the second route's */
+        file.beats_seen |= story_bit(5, true) | story_bit(5, false) | story_bit(6, false);
+        stage_draw_backdrop(platform, menu_world, 0.15f);
+        tapes_render(r, &city_tapes, &file);
+        save_capture(r, dir, "0t_historia_cintas_ruta2");
+        for (int stage = 1; stage < TAPE_COUNT; stage++) { /* The tape's number: 1-4 are also their stage */
+            const StoryBeat *beat = tape_beat(stage);
             for (int line = 0; line < beat->count; line++) {
                 Story story;
                 story_start(&story, beat);
@@ -125,6 +130,15 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
                 char name[48];
                 snprintf(name, sizeof(name), "0s_cinta_%d_%d", stage, line + 1);
                 save_capture(r, dir, name);
+                if (stage == 4 && line == 0) { /* Keep its valley depth through the whole pan. */
+                    const float moments[] = {0.8f, story_line_length(beat->lines[0]) - 0.7f};
+                    for (int k = 0; k < 2; k++) {
+                        story.time = moments[k];
+                        story_render(platform, &story, &file, 0.0f, &skins[0]);
+                        snprintf(name, sizeof(name), "0s_laboratorio_valle_%d", k);
+                        save_capture(r, dir, name);
+                    }
+                }
             }
         }
     }
@@ -162,8 +176,19 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     save_capture(r, dir, "4_personajes_en_desarrollo");
     profiles[1].record.cleared[0] = true;
     stage_draw_backdrop(platform, menu_world, 0.45f);
-    hud_draw_menu(r, CHARACTERS[1].name, &profiles[1].progress, &profiles[1].record, 1);
+    hud_draw_menu(r, CHARACTERS[1].name, &profiles[1].progress, &profiles[1].record, 1, 1u << 1, 0, 0);
     save_capture(r, dir, "5_niveles");
+    stage_draw_backdrop(platform, menu_world, 0.45f); /* Scrolled down to the second route */
+    {   /* The second phase's page: reached, its tapes seen, its own landscape behind */
+        static World city_world;
+        world_init(&city_world, &THEME_AFUERAS);
+        StageRecord reached = profiles[1].record;
+        for (int s = 0; s < 7; s++)
+            reached.cleared[s] = true, reached.stars[s] = 1 + (unsigned)s % 3;
+        stage_draw_backdrop(platform, &city_world, 0.45f);
+        hud_draw_menu(r, CHARACTERS[1].name, &profiles[1].progress, &reached, 7, 0x7ffu, 1, 1);
+        save_capture(r, dir, "5_niveles_ruta2");
+    }
     hud_draw_autosave_notice(r);
     save_capture(r, dir, "33_aviso_autoguardado");
     profiles[1].record.cleared[0] = false;
@@ -236,6 +261,39 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
         stage_draw(platform, &play, &skins[1], &profiles[1].progress, 1.0f, play.player.x,
                    play.player.jump.height, options);
         save_capture(r, dir, "10_descanso");
+    }
+    /* The second route, each stage: its first patrol car going off with the
+     * horde walking in, its first wall (a front or the derailed train), its
+     * rest stop with the burning drum, and its burning drums on the road. */
+    for (int stage = 5; stage < STAGE_COUNT; stage++) {
+        const char *shots[] = {"horda", "muro", "descanso", "barriles"};
+        const TerrainKind kinds[] = {TERRAIN_SIREN, TERRAIN_WALL, TERRAIN_CAMPFIRE, TERRAIN_BURNER};
+        for (int shot = 0; shot < 4; shot++) {
+            stage_start(&play, stage, &CHARACTERS[0], &profiles[0].progress);
+            int at = -1;
+            for (int i = 0; i < play.run.terrain.count && at < 0; i++)
+                if (play.run.terrain.items[i].kind == kinds[shot])
+                    at = i;
+            if (at < 0)
+                continue;
+            float x = play.run.terrain.items[at].x;
+            for (int k = 0; k < play.run.zombie_count; k++) { /* Only the horde in this picture */
+                if (shot == 0 && play.run.siren_of[k] == at + 1)
+                    continue;
+                play.run.zombies[k].x = play.run.goal_x + 1e4f;
+                play.run.zombies[k].awake = false;
+            }
+            play.player.x = shot == 0   ? x - SIREN_TRIP_RANGE + 5.0f
+                            : shot == 1 ? x - terrain_half_width(TERRAIN_WALL) - PLAYER_BODY_HALF_WIDTH
+                            : shot == 2 ? x - 120.0f : x - 260.0f;
+            play.run.dynamite = 1;
+            idle_steps(&play, &profiles[0], &input, shot == 0 ? 45 : 20, options);
+            stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x,
+                       play.player.jump.height, options);
+            char name[48];
+            snprintf(name, sizeof(name), "4%d_ruta2_%s_%s", shot, STAGES[stage].name, shots[shot]);
+            save_capture(r, dir, name);
+        }
     }
     /* Reproducible visual checks: each weather at its real stage, including
      * the upper sky, then a crowded HUD with a reload and several ailments. */

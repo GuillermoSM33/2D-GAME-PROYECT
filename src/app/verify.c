@@ -197,7 +197,15 @@ int app_verify_assets(void)
     failures += !verify_image(terrain_charge_sheet(), 2 * CHARGE_FRAME_W, CHARGE_FRAME_H);
     failures += !verify_image(terrain_ruins_sheet(), WALL_RUINS_W, WALL_RUINS_H);
     failures += !verify_image(terrain_facade_sheet(), FACADE_KINDS * FACADE_W, FACADE_H);
-    failures += !verify_image(terrain_door_sheet(), 3 * DOOR_FRAME_W, DOOR_FRAME_H);
+    failures += !verify_image(terrain_city_front_sheet(), FACADE_URBAN * CITY_FRONT_W, CITY_FRONT_H);
+    failures += !verify_image(terrain_car_wreck_sheet(), 3 * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image(terrain_supply_truck_sheet(), 2 * VEHICLE_FRAME_W, VEHICLE_FRAME_H);
+    failures += !verify_image("sprites/effects/flare", FLARE_FRAMES * FLARE_FRAME_W, FLARE_FRAME_H);
+    failures += !verify_image("sprites/effects/paper", 4 * TUMBLE_FRAME, TUMBLE_FRAME);
+    failures += !verify_image("sprites/effects/hydrant_jet", 4 * JET_FRAME_W, JET_FRAME_H);
+    failures += !verify_image(terrain_door_sheet(), 3 * 3 * DOOR_FRAME_W, DOOR_FRAME_H); /* Planks, shutter, coupling */
+    failures += !verify_image(terrain_train_sheet(), TRAIN_W, TRAIN_H);
+    failures += !verify_image("sprites/sparrow/sparrow", CROW_FRAMES * CROW_FRAME_W, CROW_FRAME_H);
     failures += !verify_image("sprites/weapons/grenade", 4 * GRENADE_FRAME, GRENADE_FRAME);
     failures += !verify_image("sprites/effects/blood", 4 * 8, 4);
     failures += !verify_image("sprites/terrain/wire", 3 * WIRE_FRAME_W, WIRE_FRAME_H);
@@ -213,7 +221,7 @@ int app_verify_assets(void)
     failures += !verify_image("sprites/terrain/sign", SIGN_FRAME_W, SIGN_FRAME_H);
     failures += !verify_image("sprites/effects/splash", SPLASH_FRAMES * SPLASH_FRAME_W, SPLASH_FRAME_H);
     failures += !verify_image("sprites/effects/tumbleweed", 4 * TUMBLE_FRAME, TUMBLE_FRAME);
-    failures += !verify_image("sprites/terrain/barricade", 3 * BARRICADE_KINDS * BARRICADE_FRAME_W,
+    failures += !verify_image("sprites/terrain/barricade", 3 * BARRICADE_SHEET_KINDS * BARRICADE_FRAME_W,
                               BARRICADE_FRAME_H);
     failures += !verify_image("sprites/props/houses", HOUSE_FRAMES * HOUSE_FRAME_W, HOUSE_FRAME_H);
     failures += !verify_image("sprites/effects/glow", GLOW_SIZE, GLOW_SIZE);
@@ -243,6 +251,10 @@ int app_verify_assets(void)
         failures++;
     }
     failures += verify_characters();
+    if (assets_find_blob(MENU_MUSIC_CITY) == NULL) {
+        fprintf(stderr, "FALTA: %s\n", MENU_MUSIC_CITY);
+        failures++;
+    }
     if (assets_find_blob(MENU_MUSIC) == NULL) {
         fprintf(stderr, "FALTA: %s\n", MENU_MUSIC);
         failures++;
@@ -258,6 +270,8 @@ int app_verify_assets(void)
                            "sounds/world/supply", "sounds/world/fuse",
                            "sounds/world/glass", "sounds/world/wood", "sounds/world/snap",
                            "sounds/player/drink", "sounds/crow/caw", "sounds/crow/death",
+                           "sounds/sparrow/chirp", "sounds/sparrow/death", "sounds/world/siren",
+                           "sounds/world/horde", "sounds/world/flare", "sounds/world/city", "sounds/world/hydrant",
                            "sounds/dog/spawn", "sounds/dog/idle", "sounds/dog/death",
                            "sounds/player/hurt", "sounds/player/jump", "sounds/player/land",
                            "sounds/player/death", "sounds/player/bandage", "sounds/player/faint",

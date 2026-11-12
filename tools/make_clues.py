@@ -101,7 +101,7 @@ def cassette(c: Canvas, label, number: str) -> None:
 
 
 def make_clues() -> Image:
-    img = Image(SIZE * 15, SIZE)
+    img = Image(SIZE * 30, SIZE)
 
     def frame(i: int) -> Canvas:
         return Canvas(img, i * SIZE, SIZE)
@@ -275,7 +275,209 @@ def make_clues() -> Image:
     c.px(19, 3, PAPER[0])
     c.px(20, 4, PAPER[0])
     outline(c)
+    city_clues(frame)
     return img
+
+
+OLIVE = [rgb(0x2a2c1c), rgb(0x3e4228), rgb(0x565c36), rgb(0x707848)]
+
+
+def city_clues(frame) -> None:
+    """The second route's fifteen, frames 15-29, in CLUES order."""
+    # 15 Volante de evacuación: a flyer, a red band and a warning triangle
+    c = frame(15)
+    paper(c, 4, 2, 19, 21)
+    c.fill(5, 3, 18, 6, RED[2])
+    c.hline(5, 18, 3, RED[3])
+    for i in range(5):
+        c.hline(11 - i, 12 + i, 9 + i, GOLD[2])
+    c.vline(11, 10, 12, INK)
+    c.vline(12, 10, 12, INK)
+    lines(c, 6, 17, 16, 3, seed=2)
+    outline(c)
+
+    # 16 Radio de patrulla: a car radio's handset, its cord coiled, tape on its button
+    c = frame(16)
+    c.fill(7, 5, 16, 20, TAPE[1])
+    c.hline(7, 16, 5, TAPE[3])
+    c.vline(7, 5, 20, TAPE[2])
+    c.vline(14, 0, 4, METAL[2])                  # Antenna
+    for y in range(8, 13, 2):
+        c.hline(9, 14, y, TAPE[3])               # Speaker slots
+    c.fill(9, 15, 14, 18, GREEN[1])
+    c.hline(9, 14, 15, GREEN[3])
+    c.fill(5, 9, 6, 12, PAPER[2])                # The taped-down button
+    for i in range(5):
+        c.px(17 + (i % 2), 14 + i * 2, TAPE[3])  # Cord
+    outline(c)
+
+    # 17 Foto del retén: trucks across the road, wire, people behind it
+    c = frame(17)
+    c.fill(2, 4, 21, 20, PAPER[3])
+    c.fill(4, 6, 19, 16, SEPIA[3])
+    c.fill(4, 12, 19, 16, SEPIA[1])
+    c.fill(6, 9, 13, 13, OLIVE[1])               # A truck, its cab
+    c.fill(14, 10, 17, 13, OLIVE[2])
+    c.px(8, 14, INK)
+    c.px(15, 14, INK)
+    for x in range(4, 20, 2):
+        c.px(x, 15, METAL[3])                    # The wire
+    for x in (5, 9, 13, 18):
+        c.px(x, 16, SEPIA[0])                    # Heads behind it
+    outline(c)
+
+    # 18 Parte policial: the station's day book page, a blue band and a star
+    c = frame(18)
+    clipboard(c)
+    c.fill(7, 7, 16, 9, BLUE[1])
+    c.hline(7, 16, 7, BLUE[2])
+    c.fill(10, 7, 12, 9, GOLD[2])
+    c.px(11, 6, GOLD[3])
+    lines(c, 8, 15, 12, 4, seed=3)
+    c.hline(8, 14, 20, RED[1])                   # The last line, in another hand
+    outline(c)
+
+    # 19 Diario de la tendera: an account book, a ribbon, a pencil in its rings
+    c = frame(19)
+    c.fill(4, 3, 18, 21, SEPIA[1])
+    c.hline(4, 18, 3, SEPIA[2])
+    c.vline(4, 3, 21, SEPIA[2])
+    c.fill(6, 6, 16, 10, PAPER[2])
+    c.hline(7, 14, 8, INK_LIGHT)
+    for y in range(5, 21, 3):
+        c.px(3, y, METAL[3])                     # Rings
+    c.vline(13, 12, 22, RED[2])                  # Ribbon
+    c.vline(20, 4, 18, GOLD[2])                  # Pencil
+    c.px(20, 19, INK)
+    c.px(20, 3, RED[3])
+    outline(c)
+
+    # 20 Brazalete de cuarentena: a plastic wristband, its barcode
+    c = frame(20)
+    for x in range(3, 21):
+        for y in range(6, 19):
+            d = ((x - 11.5) / 9) ** 2 + ((y - 12) / 6.5) ** 2
+            if .45 <= d <= 1.0:
+                c.px(x, y, RED[3] if y < 12 else RED[2])
+    c.fill(6, 15, 17, 18, PAPER[3])              # Its tag
+    for x in range(7, 17):
+        if (x * 7) % 5 < 3:
+            c.vline(x, 16, 17, INK)
+    outline(c)
+
+    # 21 Carta de porte: a waybill with two stamps and a red one over them
+    c = frame(21)
+    paper(c, 3, 3, 20, 21)
+    c.fill(4, 4, 19, 5, INK_LIGHT)
+    lines(c, 5, 18, 8, 3, seed=4)
+    c.fill(5, 15, 9, 19, BLUE[2])
+    c.fill(6, 16, 8, 18, PAPER[3])
+    c.fill(11, 15, 15, 19, TEAL[2])
+    c.fill(12, 16, 14, 18, PAPER[3])
+    c.fill(13, 12, 19, 14, RED[2])
+    c.hline(13, 19, 12, RED[3])
+    outline(c)
+
+    # 22 Sello de contenedor: a steel bolt seal, snapped, its numbered tag
+    c = frame(22)
+    c.fill(9, 3, 14, 8, METAL[2])
+    c.hline(9, 14, 3, METAL[3])
+    c.fill(10, 9, 13, 13, METAL[1])
+    c.px(10, 14, METAL[2])                       # The break
+    c.px(12, 15, METAL[2])
+    c.fill(10, 17, 13, 20, METAL[1])
+    c.fill(15, 10, 21, 15, GOLD[2])              # Tag
+    c.hline(15, 21, 10, GOLD[3])
+    c.hline(16, 20, 12, INK)
+    c.hline(16, 19, 14, INK)
+    c.fill(5, 16, 8, 18, TEAL[3])                # Frost melting off it
+    outline(c)
+
+    # 23 Bitácora del maquinista: a black log book, brass corners, a rail on its cover
+    c = frame(23)
+    c.fill(4, 3, 19, 21, TAPE[1])
+    c.hline(4, 19, 3, TAPE[3])
+    c.vline(4, 3, 21, TAPE[2])
+    for (x, y) in ((5, 4), (18, 4), (5, 20), (18, 20)):
+        c.px(x, y, GOLD[3])
+    c.fill(7, 8, 16, 13, PAPER[2])
+    c.hline(8, 15, 10, INK)                      # Rails
+    c.hline(8, 15, 12, INK)
+    for x in range(9, 16, 2):
+        c.vline(x, 10, 12, INK_LIGHT)
+    c.vline(20, 5, 19, PAPER[1])                 # Its pages' edge
+    outline(c)
+
+    # 24 Lista del convoy: a checkpoint's control sheet, ticks down it, a pencil note
+    c = frame(24)
+    clipboard(c)
+    c.fill(7, 7, 16, 8, OLIVE[2])
+    for r in range(5):
+        y = 10 + r * 2
+        c.px(8, y, GREEN[2] if r != 4 else RED[2])
+        c.hline(10, 15 - r % 2, y, INK_LIGHT)
+    c.hline(10, 15, 20, GOLD[1])
+    outline(c)
+
+    # 25 Gorra sin insignias: a black contractor's cap, its label inside
+    c = frame(25)
+    for x in range(4, 18):
+        for y in range(6, 15):
+            if ((x - 10.5) / 7) ** 2 + ((y - 14) / 8.5) ** 2 <= 1.0:
+                c.px(x, y, TAPE[2] if x < 9 and y < 11 else TAPE[1])
+    c.fill(4, 14, 17, 15, TAPE[0])
+    c.fill(15, 15, 22, 16, TAPE[1])              # Brim
+    c.hline(15, 22, 15, TAPE[3])
+    c.px(10, 6, TAPE[3])                         # Button
+    c.fill(7, 17, 13, 20, PAPER[2])              # The label
+    c.hline(8, 12, 18, INK)
+    c.hline(8, 11, 19, RED[1])
+    outline(c)
+
+    # 26 Cinta de la radio: the station's cassette, recorded over
+    c = frame(26)
+    cassette(c, GOLD, '4')
+    outline(c)
+
+    # 27 Orden de evacuación: a typed order, a red priority bar, a seal
+    c = frame(27)
+    paper(c, 3, 2, 20, 21)
+    for i in range(14):
+        c.px(4 + i, 3 + i // 3, RED[2])          # The bar across its corner
+        c.px(4 + i, 4 + i // 3, RED[3])
+    lines(c, 5, 18, 10, 4, seed=5)
+    for x in range(13, 19):
+        for y in range(15, 21):
+            if (x - 15.5) ** 2 + (y - 17.5) ** 2 <= 7:
+                c.px(x, y, TEAL[1] if (x + y) % 2 else TEAL[2])
+    outline(c)
+
+    # 28 Registro de guardia: the gatehouse's book, olive, an entry underlined twice
+    c = frame(28)
+    c.fill(3, 4, 20, 20, OLIVE[1])
+    c.hline(3, 20, 4, OLIVE[3])
+    c.fill(5, 6, 18, 18, PAPER[2])
+    c.vline(11, 6, 18, PAPER[0])
+    lines(c, 6, 10, 8, 4, seed=6)
+    lines(c, 13, 17, 8, 3, seed=7)
+    c.hline(13, 17, 15, RED[2])
+    c.hline(13, 17, 17, RED[2])
+    outline(c)
+
+    # 29 Llave del búnker: a magnetic card on its lanyard, a red band
+    c = frame(29)
+    c.vline(11, 0, 5, OLIVE[2])
+    c.vline(12, 0, 5, OLIVE[3])
+    c.fill(10, 5, 13, 6, METAL[2])
+    c.fill(4, 7, 19, 20, PAPER[3])
+    c.hline(4, 19, 7, METAL[3])
+    c.fill(4, 9, 19, 11, RED[2])
+    c.hline(4, 19, 9, RED[3])
+    c.fill(4, 17, 19, 18, TAPE[1])               # Its magnetic stripe
+    c.fill(6, 13, 9, 15, GOLD[2])                # Chip
+    c.hline(11, 17, 13, INK_LIGHT)
+    c.hline(11, 15, 15, INK_LIGHT)
+    outline(c)
 
 
 STAMP_RED = [rgb(0x7a1a10), rgb(0x9c2414)]

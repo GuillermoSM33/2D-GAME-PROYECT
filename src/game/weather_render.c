@@ -85,7 +85,7 @@ static void draw_wind(SDL_Renderer *renderer, const WeatherState *w, float camer
             SDL_RenderFillRect(renderer, &mote);
         }
     }
-    SDL_Texture *weed = assets_texture("sprites/effects/tumbleweed");
+    SDL_Texture *weed = assets_texture(w->paper ? "sprites/effects/paper" : "sprites/effects/tumbleweed");
     if (!w->tumbling || weed == NULL)
         return;
     const int world_size = TUMBLE_FRAME * SPRITE_SCALE;

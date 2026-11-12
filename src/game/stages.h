@@ -29,8 +29,20 @@ typedef enum {
     SPOT_LAMPS,     /* count oil lamps on posts: shoot one down to set the ground on fire */
     SPOT_REST,      /* A bench and a campfire by it: sit to reload, warm up to heal */
     SPOT_BARRELS,   /* count powder barrels side by side: a shot blows them up */
-    SPOT_SUPPLY     /* The supply wagon: full magazines and some health, once */
+    SPOT_SUPPLY,    /* The supply wagon: full magazines and some health, once */
+    /* The second route, the town: */
+    SPOT_SIREN,     /* A patrol car: walked past or hit, it wails and count zombies come as a horde */
+    SPOT_TRAIN,     /* A derailed train across the line: a wall (dynamite); count 2 adds a barrel */
+    SPOT_BURNERS,   /* count burning oil drums: light; shot over, their oil burns the road */
+    SPOT_OUTPOST,   /* An army outpost: E searches it once (a charge, water, magazines, some health) */
+    SPOT_HYDRANTS   /* count fire hydrants: shot, one bursts and its water hits and pushes whoever is near */
 } SpotKind;
+
+/* Whether a spot of this kind puts count zombies on the road. */
+bool spot_has_zombies(SpotKind kind);
+
+/* Whether a spot of this kind is a wall to open (one charge, or its barrel). */
+bool spot_is_wall(SpotKind kind);
 
 typedef struct {
     float at;      /* 0 at the start, 1 at the goal */
@@ -85,7 +97,7 @@ bool stage_chest_after(const StageDef *stage, int index);
 
 /* What the player keeps between stages besides her progress. */
 typedef struct {
-    bool cleared[16];
+    bool cleared[16];       /* Room for 16 stages: the saves keep 16 */
     unsigned stars[16];
     unsigned best_ticks[16]; /* Zero until the first completion. */
 } StageRecord;

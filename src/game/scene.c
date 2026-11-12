@@ -182,7 +182,8 @@ static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float cam
         hash ^= hash >> 12;
         if ((int)(hash % 100u) >= theme->house_chance)
             continue;
-        int variant = (int)((hash >> 8) % HOUSE_FRAMES);
+        int variant = theme->house_count > 0 ? theme->houses[(hash >> 8) % (unsigned)theme->house_count]
+                                             : (int)((hash >> 8) % HOUSE_FRAMES_WEST);
         float jitter = (float)((hash >> 16) % 300u);
         if (over_a_river((float)slot * HOUSE_SPACING + jitter, (float)w))
             continue;

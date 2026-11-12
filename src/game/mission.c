@@ -37,7 +37,7 @@ MissionGoals mission_goals(int index)
     for (int i = 0; i < stage->spot_count; i++) {
         const StageSpot *spot = &stage->spots[i];
         switch (spot->kind) {
-        case SPOT_WALL: budget += spot->count == 2 ? 3.0f : 5.0f; break;
+        case SPOT_WALL: case SPOT_TRAIN: budget += spot->count == 2 ? 3.0f : 5.0f; break;
         case SPOT_RIVER: budget += 7.0f; break;
         case SPOT_REST: budget += 10.0f; break;
         case SPOT_BARRICADE: budget += 2.0f; break;

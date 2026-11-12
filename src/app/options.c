@@ -70,6 +70,10 @@ void options_apply_pointer(AppOptions *options, InputState *input, int *selected
     case HUD_ZONE_RETRY:
         input->pressed[ACTION_RELOAD] = true;
         break;
+    case HUD_ZONE_PHASE: /* The stage select's own: its screen acts on them */
+    case HUD_ZONE_TAPE:
+    case HUD_ZONE_BACKDROP:
+        break;
     case HUD_ZONE_VOLUME:
         if (volume_set(&options->volumes, zone.index, (int)lroundf(zone.share * VOLUME_STEPS))) {
             apply_volumes(options);

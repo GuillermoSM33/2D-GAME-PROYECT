@@ -2,7 +2,7 @@
 
 *(Antes Vaquera 2D.)* La historia está en [docs/LORE.md](docs/LORE.md).
 
-Juego 2D en **C + SDL2**: una vaquera de pixel art contra zombis, por niveles (1-1 a 1-5)
+Juego 2D en **C + SDL2**: una vaquera de pixel art contra zombis, por niveles en dos rutas (1-1 a 1-5 en el desierto, 2-1 a 2-5 en la ciudad vecina)
 con cofres de recompensa, experiencia y niveles para ella y para los zombis. Sprites:
 caminata (8 fotogramas de 42 × 67 px), salto (8 de 54 × 82), disparo (8 de 81 × 80), bala
 (4 de 8 × 6), 25 familias de zombis con variantes normales y corredoras (cuadros de
@@ -145,7 +145,7 @@ el nivel y `Esc` vuelve al menú.
 
 ## Niveles, cofres y experiencia
 
-Al abrir el juego aparece el **menú** con los niveles 1-1 a 1-5: cuántos zombis tiene cada
+Al abrir el juego aparece el **menú** con los niveles 1-1 a 2-5 (se desplaza con W/S): cuántos zombis tiene cada
 uno, de qué nivel, y si está completado o bloqueado. Cada nivel se abre al completar el
 anterior. El autoguardado conserva el progreso entre sesiones y permite continuar
 una misión pendiente con el mismo personaje.
@@ -344,6 +344,52 @@ Subir de nivel rellena toda la vida hasta el nuevo máximo; no elimina sangrado 
 | 1-3 | 13 | 3 | 1.20 | Ataúdes, trampas y primer élite |
 | 1-4 | 19 | 4 | 1.35 | Más corredores y combate nocturno |
 | 1-5 | 22 | 5, el último **6** (jefe) | 1.50 | Completa las variantes y combina los peligros |
+| 2-1 | 28 | 6 | 1.60 | Las afueras: patrullas con sirena y su **horda**, barriles ardiendo, autos y vallas |
+| 2-2 | 31 | 7 | 1.70 | El centro con lluvia: hordas mayores, escaparates cerrados y un élite |
+| 2-3 | 33 | 8 | 1.80 | Las vías: tres **trenes averiados** cortan el paso (dinamita o barril) |
+| 2-4 | 36 | 9 | 1.90 | El centro de noche, con frío y tormenta: dos hordas |
+| 2-5 | 38 | 10, el último **11** (jefe) | 2.00 | La base militar: alambre, retenes, dos élites |
+
+**Ruta 2: la ciudad (Santa Brasa y el Puesto Cerro Gris).** Los caminos son más largos (34 000 a
+44 000 px) y todo está a escala de la sheriff: un auto mide lo que un auto, los edificios son
+de dos plantas y los bidones le llegan a la cintura.
+
+- **Patrulla con sirena** (`SPOT_SIREN`): si pasa junto a ella, o le dispara, golpea o le
+  explota algo cerca, la sirena suena y llega una **horda** por ambos lados; además despierta a
+  los grupos dormidos cercanos. Tres tiros más le rompen las luces y la callan. Un letrero con
+  su propio ícono avisa la horda y el HUD cuenta los que quedan.
+- **Temor** (debuff, ícono propio): mientras dura una horda y unos segundos después, camina y
+  corre más rápido (`FEAR_PACE`), pero recarga más lento (`FEAR_RELOAD_MULT`) y, con balas
+  infinitas, dispara más lento (`FEAR_FIRE_MULT`).
+- **Barriles ardiendo** (`SPOT_BURNERS`): iluminan la calle; un tiro o un golpe los tumba con un
+  **fogonazo** que quema a quien esté cerca, y siguen ardiendo tirados mientras su aceite quema el piso.
+- **Hidrantes** (`SPOT_HYDRANTS`): un tiro los revienta; el chorro dura 2 s, **daña y empuja** a
+  zombis y a la jugadora (la moja) y deja un charco.
+- **Autos y motos como barricada** (tres modelos de cada uno): se saltan con N (el auto, de un
+  brinco largo) y **explotan** con 6 tiros (auto) o 4 (moto), al ser destrozados o por otra
+  explosión, con la misma explosión de los barriles.
+- **Tren averiado** (`SPOT_TRAIN`): un muro hecho de dos vagones; se abre con dinamita.
+- **Puesto de avanzada** (`SPOT_OUTPOST`): con E se registra una vez (dinamita, agua, cargadores
+  llenos y algo de vida) y se enciende su reflector.
+- **Vehículos de paso**: autos, un todoterreno militar y camiones del ejército quedan sobre el
+  camino; se atraviesan como la patrulla. El punto de provisiones es un **camión militar** (la
+  carreta queda para la ruta 1).
+- Frentes de tienda, comisaría, edificio y retén a tamaño real, con grafitis de **los Buitres**
+  (saqueadores: se presentan en la fase 3); vallas de policía y barrera militar; descansos con
+  banca de hierro y bidón ardiendo. Hay **gorriones** en vez de cuervos y periódicos en lugar de
+  plantas rodadoras.
+- **Zombis de ciudad** (5 tipos nuevos, cada uno normal y corredor): guardia de seguridad,
+  enfermera, patrullero, obrero y oficinista, dibujados por oficio (`tools/make_city_zombies.py`).
+- **Historia**: 15 pistas y 3 casos nuevos (*El cordón*, *El convoy*, *Cerro Gris*), una cinta
+  antes de 2-1 (*Las luces de Santa Brasa*) y otra al terminar cada nivel. La meta de la ruta es
+  el **Archivo 4**. Todo en [docs/LORE.md](docs/LORE.md).
+- **Música y ambiente propios**: bajo eléctrico, batería, guitarra distorsionada, piano
+  eléctrico y sintetizadores, más un tema de menú de la fase 2 y un ambiente de ciudad.
+
+**Menú de niveles**: una pestaña por fase (FASE 1 · Ojo de Cuervo, FASE 2 · Santa Brasa; A/D o
+clic), la rueda del mouse recorre los niveles, cada nivel con cinta vista tiene su botón CINTA
+(clic o E) y con Q se elige el fondo de los menús entre las fases alcanzadas (cambia también
+la música del menú).
 
 Jugando cada nivel una vez (todos los zombis y cofres), la vaquera sube un nivel por nivel
 completado y llega a cada uno cerca del nivel de sus zombis. Las profesiones frágiles,
@@ -492,7 +538,9 @@ genera idéntico. Tamaños y semilla en `src/config.h` (`WORLD_*`).
 Detrás, el **paisaje** del tema (`assets/backgrounds/<tema>/`): cielo, mesetas, colinas
 lejanas y cercanas, y el suelo, cada capa con su paralaje (0, 0.15, 0.35, 0.6 y 1), y niebla
 en los temas nocturnos. 1-1 y 1-2 son al **atardecer**, 1-3 en el **cementerio**, 1-4 de
-**noche** y 1-5 en el **pueblo fantasma**; los decorados cambian de paleta con el tema. Todo
+**noche** y 1-5 en el **pueblo fantasma**; en la ruta 2, 2-1 en las **afueras** al amanecer, 2-2 en
+el **centro**, 2-3 en las **vías**, 2-4 en la **ciudad de noche** y 2-5 en la **base militar** (suelo de
+asfalto, concreto o balasto con rieles). Los decorados cambian de paleta con el tema. Todo
 en [`docs/LANDSCAPE.md`](docs/LANDSCAPE.md).
 
 ## Estructura
@@ -554,7 +602,7 @@ src/
     settings.c/.h        Volúmenes por grupo y listas de menú (sin SDL)
     progression.c/.h     Niveles y experiencia: estadísticas por nivel, curva de XP y recompensas (sin SDL)
     mission.c/.h         Reloj, metas por nivel, estrellas, récords y bonos (sin SDL)
-    stages.c/.h          Los niveles 1-1 a 1-5: su camino (grupos, élite, terreno), nivel, cofres y complejidad (sin SDL)
+    stages.c/.h          Los niveles 1-1 a 2-5: su camino (grupos, élite, terreno), nivel, cofres y complejidad (sin SDL)
     stage_run.c/.h       Una partida de un nivel: el camino, grupos que despiertan y detienen, cofres, XP y salida (sin SDL)
     terrain.c/.h         Barricadas, barriles de pólvora, carreta de provisiones y salida (sin SDL)
     terrain_render.c/.h  Dibujo del terreno del camino

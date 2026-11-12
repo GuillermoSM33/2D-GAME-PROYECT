@@ -10,7 +10,7 @@
 
 /* Increment this schema when changing field order, enum/catalogue order or
  * the meaning of saved data. Never serialize native padding or addresses. */
-#define SAVE_SCHEMA 4u
+#define SAVE_SCHEMA 5u /* 5: the second route (more stages and zombies, hordes, fear) */
 #define SAVE_MAGIC 0x31535156u
 #define ANIMATION_LIMIT 512
 
@@ -22,6 +22,7 @@ typedef struct {
     size_t capacity, position;
     bool reading, ok;
     unsigned schema;
+    int almanac_entries; /* In this save: fewer before the city's zombies were added */
 } Codec;
 
 static void u32(Codec *c, uint32_t *value)
@@ -66,13 +67,15 @@ static void real(Codec *c, float *value)
 #define CHECK(condition) do { if (!(condition)) c->ok = false; } while (0)
 #define A(field) animation(c, &(field))
 
-static int animation_catalogue(const AnimationDef **all)
+static int animation_catalogue(const Codec *c, const AnimationDef **all)
 {
     int count, total = 1;
     all[0] = NULL;
     const AnimationDef *const *list = player_state_animations(&count);
     for (int i = 0; i < count; i++) all[total++] = list[i];
     list = zombie_animations(&count);
+    if (c->schema < 5) /* Before the city's zombies: the first 25 kinds, then the bullets' and the chest's */
+        count = 4 + ZOMBIE_KINDS_FIRST_ROUTE * ZOMBIE_ANIM_COUNT;
     for (int i = 0; i < count; i++) all[total++] = list[i];
     list = bullet_animations(&count);
     for (int i = 0; i < count; i++) all[total++] = list[i];
@@ -83,7 +86,7 @@ static int animation_catalogue(const AnimationDef **all)
 static void animation(Codec *c, Animation *a)
 {
     const AnimationDef *all[ANIMATION_LIMIT];
-    int count = animation_catalogue(all), id = -1;
+    int count = animation_catalogue(c, all), id = -1;
     for (int i = 0; i < count; i++)
         if (a->def == all[i]) { id = i; break; }
     I(id);
@@ -153,7 +156,7 @@ static void profile(Codec *c, Profile *p)
         if (c->schema >= 2) { U(p->record.stars[i]); U(p->record.best_ticks[i]); }
         CHECK(p->record.stars[i] <= 3);
     }
-    for (int i = 0; i < ALMANAC_ENTRIES; i++) {
+    for (int i = 0; i < c->almanac_entries; i++) {
         AlmanacEntry *e = &p->almanac.entries[i];
         B(e->discovered); I(e->seen); I(e->defeated); I(e->max_level);
         CHECK(e->seen >= 0 && e->defeated >= 0 && e->max_level >= 0 && e->max_level <= MAX_LEVEL);
@@ -200,7 +203,9 @@ static void run(Codec *c, StageRun *r)
         codec_Zombie(c, &r->zombies[i]);
         I(r->group_of[i]); B(r->beaten[i]); B(r->chest_done[i]);
         F(r->ambush_x[i]); F(r->zombie_wire[i]);
+        if (c->schema >= 5) I(r->siren_of[i]);
         CHECK(r->group_of[i] >= -1 && r->group_of[i] < RUN_MAX_ZOMBIES);
+        CHECK(r->siren_of[i] >= 0 && r->siren_of[i] <= TERRAIN_MAX);
     }
     for (int i = 0; i < RUN_MAX_CHESTS; i++) codec_Chest(c, &r->chests[i]);
     I(r->terrain.count);
@@ -244,7 +249,12 @@ static void checkpoint(Codec *c, SaveGame *game)
         CHECK(p->inventory_at_start.water >= 0 && p->inventory_at_start.dynamite >= 0);
     }
     B(p->flashlight); F(p->flashlight_since); B(p->flashlight_click_pending);
+    int encounters = c->schema >= 5 ? RUN_MAX_ZOMBIES : RUN_MAX_ZOMBIES_V4; /* Older saves hold 24 */
     for (int i = 0; i < RUN_MAX_ZOMBIES; i++) {
+        if (i >= encounters) {
+            if (c->reading) { p->encounter.entry[i] = -1; p->encounter.defeated[i] = false; }
+            continue;
+        }
         I(p->encounter.entry[i]); B(p->encounter.defeated[i]);
         CHECK(p->encounter.entry[i] >= -1 && p->encounter.entry[i] < ALMANAC_ENTRIES);
     }
@@ -273,7 +283,11 @@ static void game_codec(Codec *c, SaveGame *game)
     c->schema = version;
     int stages = STAGE_COUNT, entries = ALMANAC_ENTRIES, count = CHARACTER_COUNT;
     I(stages); I(entries); I(count);
-    CHECK(stages == STAGE_COUNT && entries == ALMANAC_ENTRIES);
+    /* Saves from before the second route hold 5 stages; the new ones start locked. */
+    CHECK(stages >= 1 && stages <= STAGE_COUNT && entries >= 2 && entries <= ALMANAC_ENTRIES);
+    CHECK(c->schema >= 5 || entries == ZOMBIE_KINDS_FIRST_ROUTE * 2);
+    c->almanac_entries = c->ok ? entries : 0;
+    CHECK(c->schema >= 5 || stages == 5);
     CHECK(count > 0 && count <= APP_PROFILE_CAPACITY && CHARACTER_COUNT <= APP_PROFILE_CAPACITY);
     unsigned seen = 0;
     for (int i = 0; c->ok && i < count; i++) {
@@ -301,7 +315,7 @@ static void game_codec(Codec *c, SaveGame *game)
         uint32_t found = game->case_file.found, solved = game->case_file.solved,
                  beats = game->case_file.beats_seen;
         u32(c, &found); u32(c, &solved); u32(c, &beats);
-        CHECK(found < (1u << CLUE_COUNT) && solved < (1u << CASE_COUNT) && beats < (1u << STAGE_COUNT));
+        CHECK(found < (1u << CLUE_COUNT) && solved < (1u << CASE_COUNT));
         if (c->reading && c->ok)
             game->case_file = (CaseFile){found, solved, beats};
     }
@@ -521,6 +535,8 @@ static void codec_Player(Codec *c, Player *p)
     B(p->sit_reloaded);
     I(p->sit_reloaded_gun);
     A(p->anim);
+    if (c->schema >= 5) { F(p->fear); F(p->vault_speed); }
+    CHECK(p->fear >= 0.0f && p->fear <= FEAR_TIME + 1.0f);
     CHECK(p->state >= PLAYER_IDLE && p->state <= PLAYER_DEAD);
     CHECK(p->facing == FACING_LEFT || p->facing == FACING_RIGHT);
     CHECK(p->level >= 1 && p->level <= MAX_LEVEL && p->max_health > 0);

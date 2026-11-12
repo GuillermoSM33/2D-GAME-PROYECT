@@ -24,7 +24,7 @@ import make_sfx
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'docs' / 'AUDIO_LEGACY_SHA256.json'
-LOOPS = {'weather/wind', 'weather/rain', 'world/river', 'world/fire',
+LOOPS = {'weather/wind', 'weather/rain', 'world/river', 'world/fire', 'world/city',
          'cinematic/lab_hum', 'cinematic/heartbeat', 'cinematic/lab_alarm'}
 OUTPUT_MANIFESTS = {
     'make_designed_sfx': 'AUDIO_DESIGNED_MANIFEST.json',
@@ -129,7 +129,7 @@ class Audit:
         code = '\n'.join(path.read_text(encoding='utf-8')
                          for path in sorted((ROOT / 'src').rglob('*'))
                          if path.suffix in {'.c', '.h'})
-        pattern = r'"(?:sounds/)?((?:player|weapons|world|crow|bat|dog|zombie|weather|ui|effects|cinematic)/[a-z0-9_]+)"'
+        pattern = r'"(?:sounds/)?((?:player|weapons|world|crow|sparrow|bat|dog|zombie|weather|ui|effects|cinematic)/[a-z0-9_]+)"'
         references = set(re.findall(pattern, code))
         expected = names | originals
         self.check(not references - expected, f'unknown C sound references: {sorted(references - expected)}')
@@ -180,7 +180,7 @@ class Audit:
         self.check(len(named) == len(set(named)), 'two stages share one music track')
         self.check('MENU_MUSIC "music/menu"' in (ROOT / 'src/config.h').read_text(encoding='utf-8'),
                    'the menu no longer plays music/menu')
-        self.check(set(named) | {'menu'} == set(manifest), f'music differs from the manifest: {sorted(named)}')
+        self.check(set(named) | {'menu', 'menu_2'} == set(manifest), f'music differs from the manifest: {sorted(named)}')
         for name, entry in manifest.items():
             path = self.assets / 'music' / f'{name}.ogg'
             if not path.exists():

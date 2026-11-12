@@ -189,6 +189,9 @@ void platform_poll_events(Platform *platform)
                 platform->pointer_clicked = true;
             }
             break;
+        case SDL_MOUSEWHEEL:
+            platform->wheel += event.wheel.y;
+            break;
         case SDL_MOUSEMOTION:
             set_pointer(platform, event.motion.x, event.motion.y);
             platform->pointer_moved = true;
@@ -231,6 +234,8 @@ void platform_read_pointer(Platform *platform, InputState *input)
     input->pointer_y = platform->pointer_y;
     input->pointer_moved = platform->pointer_moved;
     input->pointer_clicked = platform->pointer_clicked;
+    input->wheel = platform->wheel;
+    platform->wheel = 0;
     platform->pointer_moved = platform->pointer_clicked = false;
 }
 

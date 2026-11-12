@@ -55,9 +55,9 @@ bool play_casefile_sounds(Screen before, Screen after,
 void play_tape_sounds(const TapeView *previous, const TapeView *view, const CaseFile *file,
                        const InputState *input, int result)
 {
-    int x = TAPE_X + view->selected * TAPE_STEP;
+    int x = tape_x(view->selected), y = tape_y(view->selected, view->selected);
     bool clicked = input->pointer_clicked && input->pointer_x >= x && input->pointer_x < x + TAPE_W &&
-                   input->pointer_y >= TAPE_Y && input->pointer_y < TAPE_Y + TAPE_H + 70;
+                   input->pointer_y >= y && input->pointer_y < y + TAPE_H + 50;
     if (result >= 0)
         audio_play("ui/confirm");
     else if (result == TAPE_BACK ||

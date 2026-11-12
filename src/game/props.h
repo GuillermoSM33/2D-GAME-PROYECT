@@ -14,6 +14,20 @@ typedef enum {
     PROP_SKULL,
     PROP_TOMBSTONE,
     PROP_SIGN,
+    /* The city (tools/make_city.py) */
+    PROP_HYDRANT,
+    PROP_STREETLIGHT,
+    PROP_TRASH,
+    PROP_CONE,
+    PROP_TIRES,
+    PROP_SANDBAGS,
+    PROP_JERSEY,
+    PROP_POLE,
+    PROP_LITTER,  /* Strewn like the grass tufts in a city theme */
+    PROP_SIGNAL,
+    PROP_DRUMS,
+    PROP_FALLEN_POLE,
+    PROP_TRAFFIC_LIGHT,
     PROP_KIND_COUNT
 } PropKind;
 

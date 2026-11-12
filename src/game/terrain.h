@@ -35,6 +35,12 @@ typedef enum {
     TERRAIN_SIGN,      /* A warning sign before a trap (variant: the trap's kind) */
     TERRAIN_DEAD_TREE, /* Only scenery, drawn just as a net's tree: which is which? */
     TERRAIN_SHRUB,     /* Only scenery, drawn just as a snare's shrub */
+    TERRAIN_BURNER,    /* A burning oil drum (city): light; shot or blown over, its oil burns the road */
+    TERRAIN_SIREN,     /* A patrol car: walked past or hit, its siren wails (timer) and calls a horde;
+                        * spent once it has gone off, damage 1 once its light bar is smashed */
+    TERRAIN_VEHICLE,   /* A car, jeep or truck left on the road (variant: which): only to walk past */
+    TERRAIN_OUTPOST,   /* An army outpost: E searches it once (spent), its floodlight on from then */
+    TERRAIN_HYDRANT,   /* A fire hydrant: shot, it bursts (spent) and its water shoots up while timer runs */
     TERRAIN_KINDS
 } TerrainKind;
 
@@ -78,6 +84,9 @@ typedef struct {
     bool crate_blasted[TERRAIN_EVENTS];          /* ...by a blast (its health is lost) */
     int bottles[TERRAIN_EVENTS], bottle_count;   /* The last bottle shot */
     int coffins[TERRAIN_EVENTS], coffin_count;   /* Burst open */
+    int sirens[TERRAIN_EVENTS], siren_count;     /* Went off */
+    int burners[TERRAIN_EVENTS], burner_count;   /* Burning drums knocked over: their fire flares */
+    int hydrants[TERRAIN_EVENTS], hydrant_count; /* Hydrants burst */
 } TerrainEvents;
 
 typedef struct {
@@ -97,6 +106,39 @@ bool terrain_blocks(const Piece *piece);
 
 /* Half its width, window px. */
 float terrain_half_width(TerrainKind kind);
+
+/* A barricade that is a car (its look 0..VEHICLE_LOOKS-1, else -1) or a
+ * motorcycle. Both take bullets and, shot enough, clawed down or caught in a
+ * blast, blow up like a barrel. */
+int terrain_car_look(const Piece *piece);
+int terrain_moto_look(const Piece *piece);
+/* The barricade variant of a car or a motorcycle's look. */
+int terrain_car_variant(int look);
+int terrain_moto_variant(int look);
+
+/* The same for a piece: a barricade that is a car is as wide as a car. */
+float terrain_piece_half_width(const Piece *piece);
+
+/* The width of the standing barricade right ahead of x (terrain_barricade_ahead), or 0. */
+float terrain_vault_span(const Terrain *terrain, float x, int dir);
+
+/* The unsearched outpost within reach of x, or -1; and searching it. */
+int terrain_outpost_near(const Terrain *terrain, float x);
+
+/* Whether a burst hydrant's water is still shooting up. */
+bool terrain_hydrant_jetting(const Piece *piece);
+
+/* Whether a knocked-over drum is still burning on its side. */
+bool terrain_burner_burning(const Piece *piece);
+
+/* Sheets drawn in place of a kind's own: the barricade that is a car, the
+ * town's fronts and its supply truck. */
+const char *terrain_car_wreck_sheet(void);
+const char *terrain_city_front_sheet(void);
+const char *terrain_supply_truck_sheet(void);
+
+/* A drum's fire flaring up, its pivot at the bottom center. */
+const AnimationDef *terrain_flare(void);
 
 /* Height of what she stands on at x: a standing barricade's top, or 0. */
 float terrain_floor(const Terrain *terrain, float x);
@@ -136,6 +178,20 @@ bool terrain_by_campfire(const Terrain *terrain, float x);
 
 /* Where smoke rises from (burning oil, campfires). Returns how many. */
 int terrain_smokes(const Terrain *terrain, float *xs, int max);
+
+/* Sets off a patrol car's siren that has not gone off yet: it goes into events. */
+void terrain_trip_siren(Terrain *terrain, int index);
+
+/* Whether a siren is wailing now; and how loud for someone at x (0..1). */
+bool terrain_siren_on(const Piece *piece);
+float terrain_siren_loudness(const Terrain *terrain, float x);
+
+/* The door's look in a wall's doorway (door.png has 3 frames per look):
+ * 0 planks, 1 a steel shutter, 2 the train's jammed coupling. */
+int terrain_door_look(const Piece *wall);
+
+/* The derailed train drawn round its wall (TERRAIN_WALL, FACADE_TRAIN). */
+const char *terrain_train_sheet(void);
 
 /* Opens a closed coffin (she came near): it goes into events. */
 void terrain_open_coffin(Terrain *terrain, int index);

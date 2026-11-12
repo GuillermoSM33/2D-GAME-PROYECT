@@ -11,7 +11,7 @@ static const struct {
     int sink;    /* Art rows under the ground line */
 } KINDS[TERRAIN_KINDS] = {
     [TERRAIN_BARRICADE] = {"sprites/terrain/barricade", BARRICADE_FRAME_W, BARRICADE_FRAME_H,
-                           3 * BARRICADE_KINDS, BARRICADE_STRIKES},
+                           3 * BARRICADE_SHEET_KINDS, BARRICADE_STRIKES},
     [TERRAIN_WALL] = {"sprites/terrain/wall", WALL_FRAME_W, WALL_FRAME_H, 3, WALL_STRIKES},
     [TERRAIN_BARREL] = {"sprites/terrain/barrel", BARREL_FRAME_W, BARREL_FRAME_H, 1, 0},
     [TERRAIN_DYNAMITE] = {"sprites/terrain/dynamite", DYNAMITE_FRAME_W, DYNAMITE_FRAME_H, 1, 0},
@@ -25,7 +25,7 @@ static const struct {
     [TERRAIN_FIRE] = {"sprites/terrain/fire", FIRE_FRAME_W, FIRE_FRAME_H, 4, 0},
     [TERRAIN_BENCH] = {"sprites/terrain/bench", BENCH_FRAME_W, BENCH_FRAME_H, 2, 0},
     [TERRAIN_CAMPFIRE] = {"sprites/terrain/campfire", CAMPFIRE_FRAME_W, CAMPFIRE_FRAME_H,
-                          2 * CAMPFIRE_FRAMES, 0},
+                          CAMPFIRE_LOOKS * CAMPFIRE_FRAMES, 0},
     [TERRAIN_CHARGE] = {"sprites/terrain/charge", CHARGE_FRAME_W, CHARGE_FRAME_H, 2, 0},
     [TERRAIN_WIRE] = {"sprites/terrain/wire", WIRE_FRAME_W, WIRE_FRAME_H, 3, 0},
     [TERRAIN_NET] = {"sprites/terrain/net", NET_FRAME_W, NET_FRAME_H, 3, 0},
@@ -36,6 +36,11 @@ static const struct {
     [TERRAIN_RIVER] = {"sprites/terrain/river", RIVER_FRAME_W, RIVER_FRAME_H, 4, 0, RIVER_SINK},
     [TERRAIN_SIGN] = {"sprites/terrain/sign", SIGN_FRAME_W, SIGN_FRAME_H, 1, 0},
     [TERRAIN_PUDDLE] = {"sprites/terrain/puddle", PUDDLE_FRAME_W, PUDDLE_FRAME_H, 4, 0, PUDDLE_SINK},
+    [TERRAIN_BURNER] = {"sprites/terrain/burner", BURNER_FRAME_W, BURNER_FRAME_H, BURNER_FRAMES, 0},
+    [TERRAIN_VEHICLE] = {"sprites/terrain/vehicles", VEHICLE_FRAME_W, VEHICLE_FRAME_H, VEHICLE_KINDS, 0},
+    [TERRAIN_OUTPOST] = {"sprites/terrain/outpost", OUTPOST_FRAME_W, OUTPOST_FRAME_H, 2, 0},
+    [TERRAIN_HYDRANT] = {"sprites/terrain/hydrant", HYDRANT_FRAME_W, HYDRANT_FRAME_H, 2, 0},
+    [TERRAIN_SIREN] = {"sprites/terrain/siren_car", SIREN_FRAME_W, SIREN_FRAME_H, 4, 0},
 };
 
 /* Pivot at the bottom center of the blast, on the barrel's spot. */
@@ -74,11 +79,119 @@ float terrain_half_width(TerrainKind kind)
     return (float)(KINDS[kind].frame_w * SPRITE_SCALE) / 2.0f;
 }
 
+static const int CAR_VARIANTS[VEHICLE_LOOKS] = {BARRICADE_CAR, 8, 9};
+static const int MOTO_VARIANTS[VEHICLE_LOOKS] = {BARRICADE_MOTO, 10, 11};
+
+int terrain_car_variant(int look)
+{
+    return CAR_VARIANTS[((look % VEHICLE_LOOKS) + VEHICLE_LOOKS) % VEHICLE_LOOKS];
+}
+
+int terrain_moto_variant(int look)
+{
+    return MOTO_VARIANTS[((look % VEHICLE_LOOKS) + VEHICLE_LOOKS) % VEHICLE_LOOKS];
+}
+
+int terrain_car_look(const Piece *piece)
+{
+    for (int k = 0; k < VEHICLE_LOOKS && piece->kind == TERRAIN_BARRICADE; k++)
+        if (piece->variant == CAR_VARIANTS[k])
+            return k;
+    return -1;
+}
+
+int terrain_moto_look(const Piece *piece)
+{
+    for (int k = 0; k < VEHICLE_LOOKS && piece->kind == TERRAIN_BARRICADE; k++)
+        if (piece->variant == MOTO_VARIANTS[k])
+            return k;
+    return -1;
+}
+
+static bool is_vehicle(const Piece *piece)
+{
+    return terrain_car_look(piece) >= 0 || terrain_moto_look(piece) >= 0;
+}
+
+/* A vehicle wrecked by claws or a grenade: its tank goes up (terrain_explosions). */
+static void wreck_vehicle(Piece *p)
+{
+    if (p->spent && is_vehicle(p))
+        p->blowing = true;
+}
+
+float terrain_piece_half_width(const Piece *piece)
+{
+    if (terrain_car_look(piece) >= 0)
+        return (float)(CAR_WRECK_W * SPRITE_SCALE) / 2.0f;
+    return terrain_half_width(piece->kind);
+}
+
+float terrain_vault_span(const Terrain *terrain, float x, int dir)
+{
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind != TERRAIN_BARRICADE || p->spent)
+            continue;
+        float edge = p->x - (float)dir * (terrain_piece_half_width(p) + PLAYER_BODY_HALF_WIDTH);
+        float gap = (edge - x) * (float)dir;
+        if (gap >= -1.0f && gap <= VAULT_REACH)
+            return 2.0f * terrain_piece_half_width(p);
+    }
+    return 0.0f;
+}
+
+int terrain_outpost_near(const Terrain *terrain, float x)
+{
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind == TERRAIN_OUTPOST && !p->spent && fabsf(x - p->x) <= OUTPOST_RANGE)
+            return i;
+    }
+    return -1;
+}
+
+bool terrain_hydrant_jetting(const Piece *piece)
+{
+    return piece->kind == TERRAIN_HYDRANT && piece->spent && piece->timer > 0.0f;
+}
+
+bool terrain_burner_burning(const Piece *piece)
+{
+    return piece->kind == TERRAIN_BURNER && piece->spent && piece->timer < BURNER_BURN_TIME;
+}
+
+const char *terrain_car_wreck_sheet(void)
+{
+    return "sprites/terrain/car_wreck";
+}
+
+const char *terrain_city_front_sheet(void)
+{
+    return "sprites/terrain/city_fronts";
+}
+
+const char *terrain_supply_truck_sheet(void)
+{
+    return "sprites/terrain/supply_truck";
+}
+
+static const AnimationDef ANIM_FLARE = {
+    .sheet = "sprites/effects/flare", .frame_w = FLARE_FRAME_W, .frame_h = FLARE_FRAME_H,
+    .first_frame = 0, .frame_count = FLARE_FRAMES, .fps = FLARE_FPS, .loop = false,
+    .anchor_x = 31.5f, .ground_y = FLARE_FRAME_H - 1,
+};
+
+const AnimationDef *terrain_flare(void)
+{
+    return &ANIM_FLARE;
+}
+
 float terrain_floor(const Terrain *terrain, float x)
 {
     for (int i = 0; i < terrain->count; i++) {
         const Piece *p = &terrain->items[i];
-        if (p->kind == TERRAIN_BARRICADE && !p->spent && fabsf(x - p->x) <= terrain_half_width(p->kind))
+        if (p->kind == TERRAIN_BARRICADE && !p->spent && fabsf(x - p->x) <= terrain_piece_half_width(p))
             return BARRICADE_TOP;
     }
     return 0.0f;
@@ -90,7 +203,7 @@ void terrain_bounds(const Terrain *terrain, float x, float height, float *min_x,
         const Piece *p = &terrain->items[i];
         if (!terrain_blocks(p) || (p->kind == TERRAIN_BARRICADE && height >= BARRICADE_TOP))
             continue;
-        float reach = terrain_half_width(p->kind) + PLAYER_BODY_HALF_WIDTH;
+        float reach = terrain_piece_half_width(p) + PLAYER_BODY_HALF_WIDTH;
         if (x <= p->x && p->x - reach < *max_x)
             *max_x = fmaxf(*min_x, fminf(*max_x, p->x - reach));
         if (x > p->x && p->x + reach > *min_x)
@@ -114,7 +227,7 @@ bool terrain_barricade_ahead(const Terrain *terrain, float x, int dir)
         const Piece *p = &terrain->items[i];
         if (p->kind != TERRAIN_BARRICADE || p->spent)
             continue;
-        float edge = p->x - (float)dir * (terrain_half_width(p->kind) + PLAYER_BODY_HALF_WIDTH);
+        float edge = p->x - (float)dir * (terrain_piece_half_width(p) + PLAYER_BODY_HALF_WIDTH);
         float gap = (edge - x) * (float)dir;
         if (gap >= -1.0f && gap <= VAULT_REACH)
             return true;
@@ -131,7 +244,7 @@ float terrain_zombie_target(const Terrain *terrain, float zombie_x, float player
         const Piece *p = &terrain->items[i];
         if (!terrain_blocks(p))
             continue;
-        float half = terrain_half_width(p->kind);
+        float half = terrain_piece_half_width(p);
         bool between = (zombie_x - p->x) * (player_x - p->x) < 0.0f;
         bool under_her = p->kind == TERRAIN_BARRICADE && fabsf(player_x - p->x) <= half;
         if (!between && !under_her)
@@ -153,7 +266,7 @@ float terrain_zombie_target(const Terrain *terrain, float zombie_x, float player
  * half again as many as crates, the steel barrier twice). */
 static int strikes(const Piece *p)
 {
-    static const int SHARE[BARRICADE_KINDS] = {2, 3, 3, 4}; /* Halves */
+    static const int SHARE[BARRICADE_KINDS] = {2, 3, 3, 4, 4, 2, 4, 3, 4, 4, 3, 3}; /* Halves */
     if (p->kind == TERRAIN_BARRICADE && p->variant >= 0 && p->variant < BARRICADE_KINDS)
         return KINDS[p->kind].strikes * SHARE[p->variant] / 2;
     return KINDS[p->kind].strikes;
@@ -163,10 +276,16 @@ static unsigned impact_sound(const Piece *p)
 {
     switch (p->kind) {
     case TERRAIN_BARRICADE:
-        return p->variant == 3 ? TERRAIN_SOUND_HIT_METAL
-             : p->variant == 1 ? TERRAIN_SOUND_HIT_SAND : TERRAIN_SOUND_HIT_WOOD;
+        return p->variant == 3 || is_vehicle(p) ? TERRAIN_SOUND_HIT_METAL
+             : p->variant == 1 ? TERRAIN_SOUND_HIT_SAND
+             : p->variant == 6 ? TERRAIN_SOUND_HIT_STONE : TERRAIN_SOUND_HIT_WOOD;
     case TERRAIN_WALL:
-        return p->variant == 1 ? TERRAIN_SOUND_HIT_STONE : TERRAIN_SOUND_HIT_WOOD;
+        return terrain_door_look(p) > 0 ? TERRAIN_SOUND_HIT_METAL
+             : p->variant == 1 ? TERRAIN_SOUND_HIT_STONE : TERRAIN_SOUND_HIT_WOOD;
+    case TERRAIN_BURNER:
+    case TERRAIN_SIREN:
+    case TERRAIN_HYDRANT:
+        return TERRAIN_SOUND_HIT_METAL;
     case TERRAIN_CRATE:
     case TERRAIN_COFFIN:
     case TERRAIN_BARREL:
@@ -190,6 +309,7 @@ bool terrain_claw(Terrain *terrain, int index)
     p->spent = p->damage >= strikes(p);
     if (p->spent)
         p->fuse = 0.0f; /* A charge on a wall clawed down falls with it */
+    wreck_vehicle(p);
     return p->spent;
 }
 
@@ -203,6 +323,17 @@ static void push_event(int *list, int *count, int index)
 static void strike(Terrain *terrain, int index, bool blast)
 {
     Piece *p = &terrain->items[index];
+    if (p->kind == TERRAIN_SIREN) { /* The first hit sets it off; then its light bar takes them */
+        terrain->sound_events |= impact_sound(p);
+        if (!p->spent) {
+            terrain_trip_siren(terrain, index);
+        } else if (p->damage == 0 && (blast || ++p->hits >= SIREN_SILENCE_HITS)) {
+            p->damage = 1;
+            p->timer = 0.0f;
+            terrain->sound_events |= TERRAIN_SOUND_GLASS;
+        }
+        return;
+    }
     if (p->spent)
         return;
     if (!blast)
@@ -230,6 +361,24 @@ static void strike(Terrain *terrain, int index, bool blast)
             push_event(ev->bottles, &ev->bottle_count, index);
         }
         break;
+    case TERRAIN_HYDRANT: /* Its top goes: the mains' pressure does the rest */
+        p->spent = true;
+        p->timer = HYDRANT_TIME;
+        p->ripple = 0.0f; /* Seconds to its next blow */
+        push_event(ev->hydrants, &ev->hydrant_count, index);
+        break;
+    case TERRAIN_BURNER: { /* Over it goes: its fire flares, its burning oil runs down the road */
+        float x = p->x;
+        p->spent = true;
+        p->timer = 0.0f; /* Since it went over */
+        push_event(ev->burners, &ev->burner_count, index);
+        for (int k = 0; k < 2; k++) {
+            Piece *fire = terrain_add(terrain, TERRAIN_FIRE, x + 90.0f + (float)k * BLAST_FIRE_SPREAD);
+            if (fire)
+                fire->timer = BURNER_BURN_TIME - (float)k;
+        }
+        break;
+    }
     case TERRAIN_LAMP: /* Down it comes; the oil catches */
         terrain->sound_events |= TERRAIN_SOUND_GLASS;
         p->spent = true;
@@ -283,10 +432,50 @@ int terrain_smokes(const Terrain *terrain, float *xs, int max)
     int n = 0;
     for (int i = 0; i < terrain->count && n < max; i++) {
         const Piece *p = &terrain->items[i];
-        if ((p->kind == TERRAIN_FIRE && !p->spent) || p->kind == TERRAIN_CAMPFIRE)
+        if ((p->kind == TERRAIN_FIRE && !p->spent) || p->kind == TERRAIN_CAMPFIRE ||
+            (p->kind == TERRAIN_BURNER && (!p->spent || terrain_burner_burning(p))))
             xs[n++] = p->x;
     }
     return n;
+}
+
+void terrain_trip_siren(Terrain *terrain, int index)
+{
+    Piece *p = &terrain->items[index];
+    if (p->kind != TERRAIN_SIREN || p->spent)
+        return;
+    p->spent = true;
+    p->timer = SIREN_TIME;
+    p->hits = 0;
+    push_event(terrain->events.sirens, &terrain->events.siren_count, index);
+}
+
+bool terrain_siren_on(const Piece *piece)
+{
+    return piece->kind == TERRAIN_SIREN && piece->spent && piece->damage == 0 && piece->timer > 0.0f;
+}
+
+float terrain_siren_loudness(const Terrain *terrain, float x)
+{
+    float loud = 0.0f;
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (terrain_siren_on(p))
+            loud = fmaxf(loud, 1.0f - fabsf(p->x - x) / SIREN_HEAR_RANGE);
+    }
+    return loud;
+}
+
+int terrain_door_look(const Piece *wall)
+{
+    if (wall->kind != TERRAIN_WALL || wall->variant <= FACADE_KINDS)
+        return 0;
+    return wall->variant == FACADE_TRAIN ? 2 : 1;
+}
+
+const char *terrain_train_sheet(void)
+{
+    return "sprites/terrain/train";
 }
 
 void terrain_open_coffin(Terrain *terrain, int index)
@@ -319,9 +508,12 @@ Loot terrain_loot(int stage_index, int index)
 
 static bool breakable(const Piece *p)
 {
+    if (p->kind == TERRAIN_SIREN)
+        return p->damage == 0;
     return !p->spent && (p->kind == TERRAIN_CRATE || p->kind == TERRAIN_BOTTLES ||
                          p->kind == TERRAIN_LAMP || p->kind == TERRAIN_COFFIN ||
-                         p->kind == TERRAIN_WIRE);
+                         p->kind == TERRAIN_WIRE || p->kind == TERRAIN_BURNER ||
+                         p->kind == TERRAIN_HYDRANT);
 }
 
 int terrain_shoot(Terrain *terrain, Bullets *bullets)
@@ -330,15 +522,21 @@ int terrain_shoot(Terrain *terrain, Bullets *bullets)
     for (int i = 0; i < terrain->count; i++) {
         Piece *p = &terrain->items[i];
         bool wall = p->kind == TERRAIN_WALL && !p->spent;
-        bool barrel = p->kind == TERRAIN_BARREL && !p->spent && !p->blowing;
+        bool barrel = (p->kind == TERRAIN_BARREL && !p->spent && !p->blowing) ||
+                      (p->kind == TERRAIN_BURNER && !p->spent) || (p->kind == TERRAIN_SIREN && p->damage == 0) ||
+                      (p->kind == TERRAIN_HYDRANT && !p->spent);
         bool target = breakable(p);
-        if (!wall && !barrel && !target)
+        bool vehicle = terrain_blocks(p) && is_vehicle(p) && !p->blowing; /* A car or a motorcycle: shot, it blows */
+        if (!wall && !barrel && !target && !vehicle)
             continue;
-        float half = terrain_half_width(p->kind);
+        float half = terrain_piece_half_width(p);
         float top = BASELINE - (float)(KINDS[p->kind].frame_h * SPRITE_SCALE) - BARREL_SHOT_MARGIN;
+        if (vehicle)
+            top = BASELINE - (float)((terrain_car_look(p) >= 0 ? CAR_WRECK_H : BARRICADE_FRAME_H) * SPRITE_SCALE) -
+                  BARREL_SHOT_MARGIN;
         for (int b = 0; b < BULLET_MAX; b++) {
             Bullet *bullet = &bullets->items[b];
-            if (!bullet->active || (barrel && bullet->y < top))
+            if (!bullet->active || ((barrel || vehicle) && bullet->y < top))
                 continue; /* Over a barrel's lid: it flies on */
             if (p->kind == TERRAIN_LAMP && bullet->y > BASELINE - LAMP_GLASS_ROWS * SPRITE_SCALE)
                 continue; /* Past the post, under the glass: it flies on */
@@ -358,7 +556,14 @@ int terrain_shoot(Terrain *terrain, Bullets *bullets)
                 continue;
             }
             bullet->active = false;
-            if (barrel) {
+            if (vehicle) { /* Holes in its tank; enough of them and it goes up */
+                if (++p->hits >= (terrain_car_look(p) >= 0 ? CAR_BLOW_HITS : MOTO_BLOW_HITS)) {
+                    p->blowing = true;
+                    break;
+                }
+                continue;
+            }
+            if (barrel && p->kind == TERRAIN_BARREL) {
                 p->blowing = true;
                 break;
             }
@@ -377,7 +582,7 @@ static Piece *wall_near(Terrain *terrain, float x)
     for (int i = 0; i < terrain->count; i++) {
         Piece *p = &terrain->items[i];
         if (p->kind == TERRAIN_WALL && !p->spent && p->fuse <= 0.0f &&
-            fabsf(x - p->x) <= terrain_half_width(p->kind) + PLAYER_BODY_HALF_WIDTH + WALL_USE_RANGE)
+            fabsf(x - p->x) <= terrain_piece_half_width(p) + PLAYER_BODY_HALF_WIDTH + WALL_USE_RANGE)
             return p;
     }
     return NULL;
@@ -414,7 +619,7 @@ int terrain_melee(Terrain *terrain, float x0, float x1)
     float lo = fminf(x0, x1), hi = fmaxf(x0, x1);
     for (int i = 0; i < terrain->count; i++) {
         Piece *p = &terrain->items[i];
-        float half = terrain_half_width(p->kind);
+        float half = terrain_piece_half_width(p);
         if (hi < p->x - half || lo > p->x + half)
             continue;
         if (terrain_blocks(p)) {
@@ -436,7 +641,7 @@ int terrain_wire_at(const Terrain *terrain, float x, float height)
         return -1;
     for (int i = 0; i < terrain->count; i++) {
         const Piece *p = &terrain->items[i];
-        if (p->kind == TERRAIN_WIRE && !p->spent && fabsf(x - p->x) <= terrain_half_width(p->kind))
+        if (p->kind == TERRAIN_WIRE && !p->spent && fabsf(x - p->x) <= terrain_piece_half_width(p))
             return i;
     }
     return -1;
@@ -463,7 +668,7 @@ bool terrain_river_at(const Terrain *terrain, float x)
     for (int i = 0; i < terrain->count; i++) {
         const Piece *p = &terrain->items[i];
         /* Its banks are dry: the water starts a few art px in. */
-        if (p->kind == TERRAIN_RIVER && fabsf(x - p->x) <= terrain_half_width(p->kind) - 5 * SPRITE_SCALE)
+        if (p->kind == TERRAIN_RIVER && fabsf(x - p->x) <= terrain_piece_half_width(p) - 5 * SPRITE_SCALE)
             return true;
     }
     return false;
@@ -475,7 +680,7 @@ float terrain_river_depth(const Terrain *terrain, float x)
         const Piece *p = &terrain->items[i];
         if (p->kind != TERRAIN_RIVER)
             continue;
-        float wet = terrain_half_width(p->kind) - 5 * SPRITE_SCALE;
+        float wet = terrain_piece_half_width(p) - 5 * SPRITE_SCALE;
         float from_bank = wet - fabsf(x - p->x); /* 0 at the water's edge */
         if (from_bank <= 0.0f)
             continue;
@@ -491,7 +696,7 @@ bool terrain_water_at(const Terrain *terrain, float x)
         return true;
     for (int i = 0; i < terrain->count; i++) {
         const Piece *p = &terrain->items[i];
-        if (p->kind == TERRAIN_PUDDLE && fabsf(x - p->x) <= terrain_half_width(p->kind))
+        if (p->kind == TERRAIN_PUDDLE && fabsf(x - p->x) <= terrain_piece_half_width(p))
             return true;
     }
     return false;
@@ -502,7 +707,7 @@ bool terrain_splash(Terrain *terrain, float x)
     bool wet = terrain_river_at(terrain, x);
     for (int i = 0; i < terrain->count; i++) {
         Piece *p = &terrain->items[i];
-        if (p->kind == TERRAIN_PUDDLE && fabsf(x - p->x) <= terrain_half_width(p->kind)) {
+        if (p->kind == TERRAIN_PUDDLE && fabsf(x - p->x) <= terrain_piece_half_width(p)) {
             p->ripple = RIPPLE_TIME;
             wet = true;
         }
@@ -522,7 +727,7 @@ bool terrain_wire_ahead(const Terrain *terrain, float x, int dir, float range)
         if (p->kind != TERRAIN_WIRE || p->spent)
             continue;
         float gap = (p->x - x) * (float)dir;
-        if (gap >= -terrain_half_width(p->kind) && gap <= range)
+        if (gap >= -terrain_piece_half_width(p) && gap <= range)
             return true;
     }
     return false;
@@ -558,8 +763,29 @@ void terrain_update(Terrain *terrain, float dt)
             p->spent = p->timer <= 0.0f;
             continue;
         }
-        if (p->kind == TERRAIN_CAMPFIRE) {
+        if (p->kind == TERRAIN_CAMPFIRE || (p->kind == TERRAIN_BURNER && !p->spent)) {
             p->timer = fmodf(p->timer + dt, 60.0f);
+            continue;
+        }
+        if (p->kind == TERRAIN_HYDRANT) { /* Its water running out; then a puddle where it stood */
+            if (p->spent && p->timer > 0.0f) {
+                p->timer -= dt;
+                p->ripple = fmaxf(0.0f, p->ripple - dt);
+                if (p->timer <= 0.0f) {
+                    float x = p->x;
+                    p->timer = 0.0f;
+                    terrain_add(terrain, TERRAIN_PUDDLE, x); /* May move items: p is not used after */
+                }
+            }
+            continue;
+        }
+        if (p->kind == TERRAIN_BURNER) { /* On its side: burning down */
+            p->timer = fminf(p->timer + dt, BURNER_BURN_TIME + 1.0f);
+            continue;
+        }
+        if (p->kind == TERRAIN_SIREN) { /* Wailing down to quiet */
+            p->timer = fmaxf(0.0f, p->timer - dt);
+            p->ripple = fmodf(p->ripple + dt, 60.0f); /* Its light bar's flashing */
             continue;
         }
         if (p->kind == TERRAIN_RIVER || p->kind == TERRAIN_PUDDLE) {
@@ -619,10 +845,14 @@ int terrain_explosions_typed(Terrain *terrain, float *xs, TerrainKind *kinds, in
                 if (q->kind == TERRAIN_BARREL && !q->spent && !q->blowing && gap <= BARREL_CHAIN_RADIUS) {
                     q->blowing = true;
                     more = true;
-                } else if (terrain_blocks(q) && gap <= BARREL_RADIUS + terrain_half_width(q->kind)) {
+                } else if (terrain_blocks(q) && is_vehicle(q) && !q->blowing &&
+                           gap <= BARREL_RADIUS + terrain_piece_half_width(q)) {
+                    q->blowing = true; /* Its tank goes up too */
+                    more = true;
+                } else if (terrain_blocks(q) && gap <= BARREL_RADIUS + terrain_piece_half_width(q)) {
                     q->spent = true; /* Blown apart */
                     q->fuse = 0.0f;
-                } else if (breakable(q) && gap <= BARREL_RADIUS + terrain_half_width(q->kind)) {
+                } else if (breakable(q) && gap <= BARREL_RADIUS + terrain_piece_half_width(q)) {
                     strike(terrain, k, true);
                 }
             }
@@ -668,8 +898,16 @@ float terrain_goal_x(const Terrain *terrain)
 int terrain_frame(const Piece *piece)
 {
     switch (piece->kind) {
-    case TERRAIN_BARRICADE: /* Three frames per kind */
-        return piece->variant * 3 + (piece->spent ? 2 : piece->damage * 2 >= strikes(piece) ? 1 : 0);
+    case TERRAIN_BARRICADE: { /* Three frames per kind: whole, damaged (claws or bullet holes), wrecked */
+        /* Its place in its sheet: a car's look in terrain/car_wreck; the rest
+         * in terrain/barricade, which has no cells for the cars. */
+        static const int SLOT[BARRICADE_KINDS] = {0, 1, 2, 3, 0, 4, 5, 6, 1, 2, 7, 8};
+        int kind = piece->variant >= 0 && piece->variant < BARRICADE_KINDS ? SLOT[piece->variant] : 0;
+        if (is_vehicle(piece) && !piece->spent && piece->hits * 2 >= (terrain_car_look(piece) >= 0 ? CAR_BLOW_HITS
+                                                                                                    : MOTO_BLOW_HITS))
+            return kind * 3 + 1;
+        return kind * 3 + (piece->spent ? 2 : piece->damage * 2 >= strikes(piece) ? 1 : 0);
+    }
     case TERRAIN_WALL:
         if (piece->spent)
             return 2;
@@ -710,6 +948,22 @@ int terrain_frame(const Piece *piece)
         return (int)(piece->timer * FIRE_FPS) % FIRE_FRAMES;
     case TERRAIN_CAMPFIRE:
         return piece->variant * CAMPFIRE_FRAMES + (int)(piece->timer * FIRE_FPS) % CAMPFIRE_FRAMES;
+    case TERRAIN_BURNER: /* Flames; going over; burning on its side; burnt out */
+        if (!piece->spent)
+            return (int)(piece->timer * FIRE_FPS) % 6;
+        if (piece->timer < BURNER_TIP_TIME)
+            return piece->timer < BURNER_TIP_TIME / 2.0f ? 6 : 7;
+        return terrain_burner_burning(piece) ? 8 + (int)(piece->timer * FIRE_FPS) % 4 : 12;
+    case TERRAIN_VEHICLE:
+        return piece->variant;
+    case TERRAIN_HYDRANT:
+        return piece->spent ? 1 : 0;
+    case TERRAIN_OUTPOST: /* Locked; searched, its floodlight on */
+        return piece->spent ? 1 : 0;
+    case TERRAIN_SIREN: /* Dark; red, blue while it wails; smashed */
+        if (piece->damage > 0)
+            return 3;
+        return terrain_siren_on(piece) ? 1 + (int)(piece->ripple * SIREN_FLASH_HZ * 2.0f) % 2 : 0;
     default:
         return 0;
     }
@@ -749,14 +1003,15 @@ void terrain_grenade(Terrain *terrain, float x, float radius)
         float gap = fabsf(p->x - x);
         if (p->kind == TERRAIN_BARREL && !p->spent && !p->blowing && gap <= BARREL_CHAIN_RADIUS)
             p->blowing = true;
-        else if (breakable(p) && gap <= radius + terrain_half_width(p->kind))
+        else if (breakable(p) && gap <= radius + terrain_piece_half_width(p))
             strike(terrain, i, true);
-        else if (terrain_blocks(p) && gap <= radius + terrain_half_width(p->kind)) {
+        else if (terrain_blocks(p) && gap <= radius + terrain_piece_half_width(p)) {
             /* Not blown apart like by a barrel: it takes a share of claws. */
             p->damage += GRENADE_STRUCTURE_STRIKES;
             p->spent = p->damage >= strikes(p);
             if (p->spent)
                 p->fuse = 0.0f;
+            wreck_vehicle(p);
         }
     }
 }
@@ -768,7 +1023,7 @@ bool terrain_stops(const Terrain *terrain, float x0, float x1, float height)
         const Piece *p = &terrain->items[i];
         if (!terrain_blocks(p) || (p->kind == TERRAIN_BARRICADE && height >= BARRICADE_TOP))
             continue;
-        float half = terrain_half_width(p->kind);
+        float half = terrain_piece_half_width(p);
         if (hi >= p->x - half && lo <= p->x + half)
             return true;
     }

@@ -62,7 +62,12 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
         }
         if (p->kind != TERRAIN_WALL)
             continue;
-        if (p->variant > 0)
+        if (p->variant == FACADE_TRAIN)
+            draw(renderer, terrain_train_sheet(), 0, TRAIN_W, TRAIN_H, p->x, camera_x);
+        else if (p->variant > FACADE_KINDS) /* The town's fronts: two storeys at her scale */
+            draw(renderer, terrain_city_front_sheet(), p->variant - FACADE_KINDS - 1, CITY_FRONT_W, CITY_FRONT_H,
+                 p->x, camera_x);
+        else if (p->variant > 0)
             draw(renderer, terrain_facade_sheet(), p->variant - 1, FACADE_W, FACADE_H, p->x, camera_x);
         else
             draw(renderer, terrain_ruins_sheet(), 0, WALL_RUINS_W, WALL_RUINS_H, p->x, camera_x);
@@ -76,9 +81,18 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
         int w, h, frames;
         terrain_frame_size(p->kind, &w, &h, &frames);
         if (p->kind == TERRAIN_WALL && p->variant > 0) /* A building's door in its doorway */
-            draw(renderer, terrain_door_sheet(), terrain_frame(p), DOOR_FRAME_W, DOOR_FRAME_H, p->x, camera_x);
+            draw(renderer, terrain_door_sheet(), terrain_door_look(p) * 3 + terrain_frame(p), DOOR_FRAME_W,
+                 DOOR_FRAME_H, p->x, camera_x);
+        else if (terrain_car_look(p) >= 0) /* A car, a car's size: its look's three states */
+            draw(renderer, terrain_car_wreck_sheet(), terrain_frame(p), CAR_WRECK_W, CAR_WRECK_H, p->x, camera_x);
+        else if (p->kind == TERRAIN_SUPPLY && p->variant == 1) /* The town's: an army truck */
+            draw(renderer, terrain_supply_truck_sheet(), terrain_frame(p), VEHICLE_FRAME_W, VEHICLE_FRAME_H, p->x,
+                 camera_x);
         else
             draw(renderer, terrain_sheet(p->kind), terrain_frame(p), w, h, p->x, camera_x);
+        if (terrain_hydrant_jetting(p)) /* Its water shooting up out of it */
+            draw(renderer, "sprites/effects/hydrant_jet", (int)(p->timer * JET_FPS) % 4, JET_FRAME_W, JET_FRAME_H,
+                 p->x, camera_x);
         if (p->fuse > 0.0f && p->kind != TERRAIN_CHARGE) { /* The lit charge at its foot, sparking */
             int spark = (int)(p->fuse * 10.0f) % 2;
             draw(renderer, terrain_charge_sheet(), spark, CHARGE_FRAME_W, CHARGE_FRAME_H, p->x, camera_x);

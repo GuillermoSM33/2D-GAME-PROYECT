@@ -68,7 +68,10 @@ static void test_theme_picks_its_props(void)
         CHECK(STAGES[s].theme != NULL);
     /* The landscape darkens with the stages: the boss stage has its own. */
     CHECK(STAGES[0].theme == &THEME_ATARDECER);
-    CHECK(STAGES[STAGE_COUNT - 1].theme == &THEME_PUEBLO_FANTASMA);
+    CHECK(STAGES[4].theme == &THEME_PUEBLO_FANTASMA); /* The first route's end */
+    CHECK(STAGES[STAGE_COUNT - 1].theme == &THEME_BASE_MILITAR); /* The second's */
+    for (int s = 5; s < STAGE_COUNT; s++) /* The town: no grass, no cacti */
+        CHECK(STAGES[s].theme->city && STAGES[s].theme->prop_weights[PROP_CACTUS] == 0);
 }
 
 static void test_recolors_cover_every_prop_color(void)

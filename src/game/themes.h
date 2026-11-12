@@ -39,11 +39,24 @@ typedef struct {
     unsigned prop_recolor[THEME_MAX_RECOLORS][2];
     int prop_recolor_count;
     int house_chance; /* Percent of the house slots with a building in the background */
+    /* The second route's town. A city theme strews litter instead of grass,
+     * has sparrows instead of crows, iron benches and a burning drum to rest
+     * by. Each list below, when given, replaces the first route's rotation. */
+    bool city;
+    int houses[8], house_count;            /* Which frames of props/houses, picked at random */
+    int barricades[6], barricade_count;    /* Barricade looks, in turn */
+    int walls[6], wall_count;              /* Wall looks (Piece.variant: fronts), in turn */
+    int vehicles[6], vehicle_count;        /* Vehicles left on the road to walk past (terrain/vehicles), in turn */
 } ThemeDef;
 
 extern const ThemeDef THEME_ATARDECER;
 extern const ThemeDef THEME_CEMENTERIO;
 extern const ThemeDef THEME_NOCHE;
 extern const ThemeDef THEME_PUEBLO_FANTASMA;
+extern const ThemeDef THEME_AFUERAS;
+extern const ThemeDef THEME_CENTRO;
+extern const ThemeDef THEME_VIAS;
+extern const ThemeDef THEME_CIUDAD_NOCHE;
+extern const ThemeDef THEME_BASE_MILITAR;
 
 #endif

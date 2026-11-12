@@ -84,15 +84,98 @@ static const StageSpot ROUTE_1_5[] = {
     {0.87f, SPOT_RIVER, 1}, {0.88f, SPOT_LAMPS, 1}, {0.91f, SPOT_ELITE, 1},
 };
 
+/* The second route: the neighbouring town, Santa Brasa, and the army post past
+ * it. Longer roads with more on them. Each teaches one thing more: 2-1 the
+ * patrol car's siren and its horde (fear: faster legs, slower hands), burning
+ * drums to knock over, cars and police sawhorses as barricades; 2-2 a bigger
+ * horde and an elite in the rain; 2-3 the rail yard and its derailed trains,
+ * three of them, one with a barrel by it; 2-4 the night, the cold and two
+ * hordes; 2-5 the army post: wire, checkpoints, two elites, the last above
+ * the rest. Every wall or train has its charge before it, as on the first route. */
+static const StageSpot ROUTE_2_1[] = {
+    {0.03f, SPOT_ZOMBIES, 2}, {0.05f, SPOT_CRATES, 2}, {0.07f, SPOT_BARRICADE, 1}, {0.10f, SPOT_BURNERS, 2},
+    {0.12f, SPOT_ZOMBIES, 2}, {0.15f, SPOT_SIREN, 4}, {0.18f, SPOT_DYNAMITE, 1}, {0.20f, SPOT_HYDRANTS, 1},
+    {0.22f, SPOT_WALL, 1}, {0.25f, SPOT_RUNNERS, 2}, {0.27f, SPOT_WIRE, 1}, {0.30f, SPOT_BOTTLES, 1},
+    {0.32f, SPOT_ZOMBIES, 3}, {0.35f, SPOT_BARRELS, 2}, {0.38f, SPOT_BARRICADE, 1}, {0.40f, SPOT_AMBUSH, 2},
+    {0.43f, SPOT_CRATES, 2}, {0.46f, SPOT_SPIKES, 1}, {0.50f, SPOT_SUPPLY, 1}, {0.53f, SPOT_REST, 1},
+    {0.56f, SPOT_BURNERS, 2}, {0.58f, SPOT_ZOMBIES, 2}, {0.61f, SPOT_WALL, 2}, {0.64f, SPOT_SIREN, 5},
+    {0.68f, SPOT_BARRICADE, 1}, {0.70f, SPOT_TRAPS, 1}, {0.72f, SPOT_RUNNERS, 2}, {0.745f, SPOT_OUTPOST, 1},
+    {0.76f, SPOT_CRATES, 1},
+    {0.77f, SPOT_WIRE, 1}, {0.80f, SPOT_BARRICADE, 1}, {0.815f, SPOT_HYDRANTS, 1}, {0.83f, SPOT_ZOMBIES, 2}, {0.86f, SPOT_REST, 1},
+    {0.88f, SPOT_BURNERS, 1}, {0.92f, SPOT_ZOMBIES, 2},
+};
+static const StageSpot ROUTE_2_2[] = {
+    {0.03f, SPOT_ZOMBIES, 2}, {0.05f, SPOT_PUDDLES, 3}, {0.08f, SPOT_BURNERS, 2}, {0.10f, SPOT_BARRICADE, 1},
+    {0.115f, SPOT_HYDRANTS, 2}, {0.13f, SPOT_SIREN, 5}, {0.16f, SPOT_CRATES, 2}, {0.18f, SPOT_DYNAMITE, 1}, {0.21f, SPOT_AMBUSH, 2},
+    {0.23f, SPOT_WALL, 1}, {0.26f, SPOT_ZOMBIES, 3}, {0.28f, SPOT_SPIKES, 2}, {0.31f, SPOT_BARRICADE, 1},
+    {0.33f, SPOT_BOTTLES, 1}, {0.35f, SPOT_RUNNERS, 3}, {0.365f, SPOT_OUTPOST, 1}, {0.38f, SPOT_WIRE, 1},
+    {0.40f, SPOT_BARRELS, 2},
+    {0.42f, SPOT_ZOMBIES, 2}, {0.45f, SPOT_CRATES, 2}, {0.48f, SPOT_SUPPLY, 1}, {0.51f, SPOT_REST, 1},
+    {0.54f, SPOT_SIREN, 6}, {0.57f, SPOT_BURNERS, 2}, {0.60f, SPOT_WALL, 1}, {0.63f, SPOT_TRAPS, 2},
+    {0.645f, SPOT_HYDRANTS, 1}, {0.66f, SPOT_ZOMBIES, 3}, {0.69f, SPOT_BARRICADE, 1}, {0.72f, SPOT_PUDDLES, 2}, {0.74f, SPOT_AMBUSH, 2},
+    {0.77f, SPOT_WALL, 2}, {0.80f, SPOT_CRATES, 1}, {0.82f, SPOT_SPIKES, 1}, {0.85f, SPOT_REST, 1},
+    {0.87f, SPOT_BARRICADE, 1}, {0.90f, SPOT_ELITE, 1}, {0.93f, SPOT_ZOMBIES, 2},
+};
+static const StageSpot ROUTE_2_3[] = {
+    {0.03f, SPOT_ZOMBIES, 2}, {0.05f, SPOT_CRATES, 2}, {0.08f, SPOT_SPIKES, 1}, {0.10f, SPOT_BURNERS, 2},
+    {0.12f, SPOT_RUNNERS, 3}, {0.15f, SPOT_DYNAMITE, 1}, {0.17f, SPOT_BARRICADE, 1}, {0.20f, SPOT_TRAIN, 1},
+    {0.23f, SPOT_ZOMBIES, 3}, {0.26f, SPOT_WIRE, 1}, {0.28f, SPOT_SIREN, 5}, {0.31f, SPOT_BARRELS, 2},
+    {0.33f, SPOT_CRATES, 2}, {0.36f, SPOT_TRAPS, 2}, {0.38f, SPOT_ZOMBIES, 2}, {0.40f, SPOT_AMBUSH, 3},
+    {0.43f, SPOT_BOTTLES, 1}, {0.445f, SPOT_OUTPOST, 1}, {0.46f, SPOT_BARRICADE, 1}, {0.49f, SPOT_SUPPLY, 1}, {0.52f, SPOT_REST, 1},
+    {0.55f, SPOT_RUNNERS, 3}, {0.58f, SPOT_SPIKES, 2}, {0.61f, SPOT_TRAIN, 2}, {0.64f, SPOT_ZOMBIES, 3},
+    {0.67f, SPOT_BURNERS, 2}, {0.70f, SPOT_SIREN, 6}, {0.73f, SPOT_CRATES, 2}, {0.75f, SPOT_WIRE, 1},
+    {0.78f, SPOT_DYNAMITE, 1}, {0.80f, SPOT_TRAIN, 1}, {0.83f, SPOT_BARRICADE, 1}, {0.86f, SPOT_REST, 1},
+    {0.88f, SPOT_ZOMBIES, 2}, {0.92f, SPOT_ELITE, 1},
+};
+static const StageSpot ROUTE_2_4[] = {
+    {0.03f, SPOT_BURNERS, 1}, {0.05f, SPOT_ZOMBIES, 3}, {0.08f, SPOT_PUDDLES, 2}, {0.10f, SPOT_BARRICADE, 1},
+    {0.12f, SPOT_SIREN, 6}, {0.15f, SPOT_CRATES, 2}, {0.17f, SPOT_DYNAMITE, 1}, {0.19f, SPOT_WIRE, 1},
+    {0.22f, SPOT_WALL, 1}, {0.25f, SPOT_RUNNERS, 3}, {0.27f, SPOT_BURNERS, 2}, {0.30f, SPOT_AMBUSH, 3},
+    {0.33f, SPOT_SPIKES, 2}, {0.35f, SPOT_BARRICADE, 1}, {0.365f, SPOT_HYDRANTS, 2}, {0.38f, SPOT_ZOMBIES, 3}, {0.40f, SPOT_BARRELS, 2},
+    {0.43f, SPOT_CRATES, 2}, {0.46f, SPOT_TRAPS, 2}, {0.49f, SPOT_SUPPLY, 1}, {0.52f, SPOT_REST, 1},
+    {0.55f, SPOT_SIREN, 7}, {0.58f, SPOT_BURNERS, 2}, {0.61f, SPOT_WALL, 1}, {0.64f, SPOT_RUNNERS, 3},
+    {0.655f, SPOT_OUTPOST, 1}, {0.67f, SPOT_WIRE, 1}, {0.69f, SPOT_BARRICADE, 1}, {0.72f, SPOT_ZOMBIES, 3}, {0.75f, SPOT_WALL, 2},
+    {0.78f, SPOT_PUDDLES, 2}, {0.80f, SPOT_CRATES, 2}, {0.82f, SPOT_AMBUSH, 2}, {0.85f, SPOT_REST, 1},
+    {0.87f, SPOT_BARRICADE, 1}, {0.90f, SPOT_ELITE, 1}, {0.93f, SPOT_ZOMBIES, 2},
+};
+static const StageSpot ROUTE_2_5[] = {
+    {0.03f, SPOT_ZOMBIES, 3}, {0.05f, SPOT_SPIKES, 1}, {0.07f, SPOT_BARRICADE, 1}, {0.09f, SPOT_WIRE, 1},
+    {0.11f, SPOT_DYNAMITE, 1}, {0.13f, SPOT_WALL, 1}, {0.16f, SPOT_BURNERS, 2}, {0.18f, SPOT_RUNNERS, 3},
+    {0.21f, SPOT_SIREN, 6}, {0.24f, SPOT_CRATES, 2}, {0.26f, SPOT_BARRELS, 2}, {0.28f, SPOT_BARRICADE, 1},
+    {0.295f, SPOT_OUTPOST, 1}, {0.31f, SPOT_ZOMBIES, 3}, {0.33f, SPOT_WIRE, 1}, {0.35f, SPOT_TRAPS, 2}, {0.37f, SPOT_ELITE, 1},
+    {0.40f, SPOT_CRATES, 2}, {0.43f, SPOT_AMBUSH, 3}, {0.46f, SPOT_SPIKES, 2}, {0.49f, SPOT_SUPPLY, 1},
+    {0.52f, SPOT_REST, 1}, {0.55f, SPOT_WALL, 1}, {0.58f, SPOT_SIREN, 7}, {0.61f, SPOT_BURNERS, 2},
+    {0.63f, SPOT_BARRICADE, 1}, {0.66f, SPOT_RUNNERS, 3}, {0.69f, SPOT_WIRE, 1}, {0.71f, SPOT_WALL, 2},
+    {0.74f, SPOT_ZOMBIES, 3}, {0.755f, SPOT_OUTPOST, 1}, {0.77f, SPOT_CRATES, 2}, {0.79f, SPOT_BARRICADE, 1},
+    {0.82f, SPOT_AMBUSH, 3},
+    {0.85f, SPOT_REST, 1}, {0.87f, SPOT_SPIKES, 2}, {0.89f, SPOT_ZOMBIES, 2}, {0.93f, SPOT_ELITE, 1},
+};
+
 const StageDef STAGES[] = {
     {"1-1", 1, 0, 10, 1, 1.00f, &THEME_ATARDECER, 19000.0f, SPOTS(ROUTE_1_1), WEATHER_WIND, true, false, "music/ruta_1_1"},
     {"1-2", 2, 0, 14, 1, 1.10f, &THEME_ATARDECER, 21500.0f, SPOTS(ROUTE_1_2), WEATHER_RAIN, false, false, "music/ruta_1_2"},
     {"1-3", 3, 0, 13, 1, 1.20f, &THEME_CEMENTERIO, 25000.0f, SPOTS(ROUTE_1_3), WEATHER_RAIN, false, true, "music/ruta_1_3"},
     {"1-4", 4, 0, 19, 1, 1.35f, &THEME_NOCHE, 26500.0f, SPOTS(ROUTE_1_4), WEATHER_WIND, false, true, "music/ruta_1_4"},
     {"1-5", 5, 1, 22, 1, 1.50f, &THEME_PUEBLO_FANTASMA, 31000.0f, SPOTS(ROUTE_1_5), WEATHER_STORM, false, false, "music/ruta_1_5"},
+    {"2-1", 6, 0, 28, 1, 1.60f, &THEME_AFUERAS, 34000.0f, SPOTS(ROUTE_2_1), WEATHER_WIND, false, false, "music/ruta_2_1"},
+    {"2-2", 7, 0, 31, 1, 1.70f, &THEME_CENTRO, 37000.0f, SPOTS(ROUTE_2_2), WEATHER_RAIN, false, false, "music/ruta_2_2"},
+    {"2-3", 8, 0, 33, 1, 1.80f, &THEME_VIAS, 40000.0f, SPOTS(ROUTE_2_3), WEATHER_WIND, false, false, "music/ruta_2_3"},
+    {"2-4", 9, 0, 36, 1, 1.90f, &THEME_CIUDAD_NOCHE, 41000.0f, SPOTS(ROUTE_2_4), WEATHER_STORM, false, true, "music/ruta_2_4"},
+    {"2-5", 10, 1, 38, 1, 2.00f, &THEME_BASE_MILITAR, 44000.0f, SPOTS(ROUTE_2_5), WEATHER_WIND, false, true, "music/ruta_2_5"},
 };
 
 const int STAGE_COUNT = (int)(sizeof(STAGES) / sizeof(STAGES[0]));
+
+bool spot_has_zombies(SpotKind kind)
+{
+    return kind == SPOT_ZOMBIES || kind == SPOT_ELITE || kind == SPOT_COFFINS || kind == SPOT_AMBUSH ||
+           kind == SPOT_RUNNERS || kind == SPOT_SIREN;
+}
+
+bool spot_is_wall(SpotKind kind)
+{
+    return kind == SPOT_WALL || kind == SPOT_TRAIN;
+}
 
 int stage_supply_dynamite(const StageDef *stage)
 {
@@ -109,6 +192,29 @@ int stage_zombie_level(const StageDef *stage, int index)
     return stage->zombie_level + (index == stage->zombies - 1 ? stage->boss_bonus : 0);
 }
 
+/* The second route's zombies: the townspeople (the city's family), its
+ * police, firefighters and bikers; in the army post, mostly soldiers. Every
+ * few, a runner; a pack of runners is all runners. In turn, so the whole
+ * family shows early, walking and running. */
+static const ZombieStats *city_zombie(const ThemeDef *theme, int n, bool pack)
+{
+    static const ZombieKind TOWN[] = {
+        ZOMBIE_KIND_CITY_OFFICE, ZOMBIE_KIND_CITY_NURSE, ZOMBIE_KIND_POLICE, ZOMBIE_KIND_CITY_WORKER,
+        ZOMBIE_KIND_CITY_POLICE, ZOMBIE_KIND_CITY_GUARD, ZOMBIE_KIND_FIREFIGHTER, ZOMBIE_KIND_CITY_OFFICE,
+        ZOMBIE_KIND_MOTORCYCLE, ZOMBIE_KIND_CITY_NURSE, ZOMBIE_KIND_CITY_POLICE, ZOMBIE_KIND_RIOT,
+        ZOMBIE_KIND_CITY_WORKER, ZOMBIE_KIND_CITY_GUARD,
+    };
+    static const ZombieKind POST[] = {
+        ZOMBIE_KIND_SOLDIER, ZOMBIE_KIND_CITY_GUARD, ZOMBIE_KIND_SOLDIER, ZOMBIE_KIND_RIOT,
+        ZOMBIE_KIND_CITY_WORKER, ZOMBIE_KIND_SOLDIER, ZOMBIE_KIND_RIOT_SHIELD, ZOMBIE_KIND_CITY_NURSE,
+        ZOMBIE_KIND_SOLDIER, ZOMBIE_KIND_DOG, ZOMBIE_KIND_CITY_OFFICE, ZOMBIE_KIND_POLICE,
+    };
+    bool post = theme == &THEME_BASE_MILITAR;
+    int count = post ? (int)(sizeof(POST) / sizeof(POST[0])) : (int)(sizeof(TOWN) / sizeof(TOWN[0]));
+    ZombieKind kind = (post ? POST : TOWN)[n % count];
+    return zombie_stats(kind, pack || n % 5 == 4);
+}
+
 const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
 {
     if (!stage || index < 0 || index >= stage->zombies)
@@ -120,13 +226,13 @@ const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
     int next_normal = 1; /* Riot normal already appears throughout 1-1. */
     int next_runner = 0;
     int repeat = 0;
+    int city = 0;
     for (int mission = 0; mission < STAGE_COUNT; mission++) {
         const StageDef *route = &STAGES[mission];
         int k = 0;
         for (int s = 0; s < route->spot_count; s++) {
             const StageSpot *spot = &route->spots[s];
-            if (spot->kind != SPOT_ZOMBIES && spot->kind != SPOT_ELITE && spot->kind != SPOT_COFFINS &&
-                spot->kind != SPOT_AMBUSH && spot->kind != SPOT_RUNNERS)
+            if (!spot_has_zombies(spot->kind))
                 continue;
             for (int body = 0; body < spot->count; body++, k++) {
                 const ZombieStats *stats;
@@ -134,11 +240,13 @@ const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
                     stats = &ZOMBIE_ELITE;
                 } else if (mission == 0) {
                     stats = &ZOMBIE_RIOT;
+                } else if (route->theme->city) {
+                    stats = city_zombie(route->theme, city++, spot->kind == SPOT_RUNNERS);
                 } else if (spot->kind == SPOT_RUNNERS) {
-                    stats = zombie_stats((ZombieKind)(next_runner++ % ZOMBIE_KIND_COUNT), true);
+                    stats = zombie_stats((ZombieKind)(next_runner++ % ZOMBIE_KINDS_FIRST_ROUTE), true);
                 } else if (next_normal < ZOMBIE_KIND_ELITE) {
                     stats = zombie_stats((ZombieKind)next_normal++, false);
-                } else if (next_runner < ZOMBIE_KIND_COUNT) {
+                } else if (next_runner < ZOMBIE_KINDS_FIRST_ROUTE) {
                     stats = zombie_stats((ZombieKind)next_runner++, true);
                 } else {
                     /* Repeat a mixture after all fifty are represented.
@@ -155,8 +263,7 @@ const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
     int k = 0;
     for (int s = 0; s < stage->spot_count; s++) {
         const StageSpot *spot = &stage->spots[s];
-        if (spot->kind != SPOT_ZOMBIES && spot->kind != SPOT_ELITE && spot->kind != SPOT_COFFINS &&
-            spot->kind != SPOT_AMBUSH && spot->kind != SPOT_RUNNERS)
+        if (!spot_has_zombies(spot->kind))
             continue;
         if (index < k + spot->count)
             return spot->kind == SPOT_ELITE ? &ZOMBIE_ELITE :

@@ -30,6 +30,7 @@ typedef struct {
     WeatherBit dust[WEATHER_DUST];   /* Wind */
     float splash_x[WEATHER_SPLASHES], splash_age[WEATHER_SPLASHES]; /* Drops hitting the road */
     int splash_next;
+    bool paper;                      /* In a town: a newspaper blows through instead (the stage sets it) */
     bool tumbling;                   /* A tumbleweed rolling through... */
     float tumble_x, tumble_height, tumble_vy, tumble_time;
     float tumble_wait;               /* ...or seconds until the next */

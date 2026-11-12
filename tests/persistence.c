@@ -317,7 +317,7 @@ static void test_notice_and_indicator_do_not_leave_clicks_on_the_world(void)
     CHECK(r != NULL);
     if (r) {
         hud_zones_clear();
-        hud_draw_menu(r, "SWAT", &source.profiles[1].progress, &source.profiles[1].record, 0);
+        hud_draw_menu(r, "SWAT", &source.profiles[1].progress, &source.profiles[1].record, 0, 0u, 0, 0);
         hud_draw_autosave_notice(r);
         HudZone zone;
         CHECK(!hud_zone_at(190, 124, &zone)); /* Underlying level row. */

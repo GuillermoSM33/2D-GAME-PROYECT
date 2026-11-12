@@ -2648,14 +2648,23 @@ def clear_beside(img: Image, w: int, *frames: int) -> Image:
 
 def main() -> int:
     assets = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / 'assets'
+    import city_terrain as city  # The second route's frames, after the first's (tools/city_terrain.py)
+    urban_barricades = Image(68 * 3 * len(city.URBAN_BARRICADES), 26 + RAISE)
+    for kind, draw in enumerate(city.URBAN_BARRICADES):
+        for state in range(3):
+            f = Frame(urban_barricades, (kind * 3 + state) * 68, 68, RAISE)
+            draw(f, state)
+            f.outline()
     out = {
-        'sprites/terrain/barricade.png': clear_beside(make_barricade(), 68, 2, 5, 8, 11),
+        'sprites/terrain/barricade.png': clear_beside(join(make_barricade(), urban_barricades), 68,
+                                                      2, 5, 8, 11, 14, 17, 20, 23, 26),
         'sprites/terrain/barrel.png': make_barrel(),
         'sprites/terrain/wall.png': clear_beside(make_wall(), 44, 2),
         'sprites/terrain/wall_ruins.png': make_wall_ruins(),
-        'sprites/props/houses.png': join(join(make_houses(), make_town_houses()), make_more_houses()),
+        'sprites/props/houses.png': join(join(join(make_houses(), make_town_houses()), make_more_houses()),
+                                         city.make_urban_houses()),
         'sprites/terrain/facades.png': make_facades(),
-        'sprites/terrain/door.png': make_door(),
+        'sprites/terrain/door.png': join(make_door(), city.make_urban_doors(DOOR_W, DOOR_H)),
         'sprites/terrain/dynamite.png': make_dynamite(),
         'sprites/terrain/charge.png': make_charge(),
         'sprites/terrain/crate.png': clear_beside(make_crate(), 32, 10),
@@ -2678,7 +2687,7 @@ def main() -> int:
         'sprites/terrain/lamp.png': clear_beside(make_lamp(), 14, 1),
         'sprites/terrain/fire.png': make_fire(),
         'sprites/terrain/bench.png': make_bench(),
-        'sprites/terrain/campfire.png': make_campfire(),
+        'sprites/terrain/campfire.png': join(make_campfire(), city.make_campfire_barrel(48, 56, 0)),
         'sprites/effects/heal.png': make_heal(),
         'sprites/effects/glow.png': make_glow(),
         'sprites/terrain/supply.png': make_supply(),

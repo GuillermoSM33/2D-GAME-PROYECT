@@ -40,6 +40,9 @@ typedef enum {
     ICON_ARROW_LEFT,  /* An ambush coming, out of sight */
     ICON_ARROW_RIGHT,
     ICON_CONSTRUCTION, /* In development: a striped barrier */
+    ICON_FEAR,   /* Afraid: a face, eyes wide */
+    ICON_SIREN,  /* A horde: a patrol car's light bar */
+    ICON_TAPE,   /* A video tape: a stage's scene to watch again */
     ICON_COUNT
 } UiIcon;
 

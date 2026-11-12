@@ -12,7 +12,7 @@
 
 static void test_professions_and_runners_are_distinct_stable_variants(void)
 {
-    CHECK(ZOMBIE_KIND_COUNT == 25);
+    CHECK(ZOMBIE_KIND_COUNT == 30 && ZOMBIE_KINDS_FIRST_ROUTE == 25);
     for (int kind = 0; kind < ZOMBIE_KIND_COUNT; kind++) {
         const ZombieKindDef *def = zombie_kind_def((ZombieKind)kind);
         const ZombieStats *normal = zombie_stats((ZombieKind)kind, false);
@@ -203,16 +203,16 @@ static void test_caught_loop_releases_back_to_motion_even_after_hurt(void)
 static void test_campaign_contains_all_fifty_without_adding_bodies_or_elites(void)
 {
     bool seen[ZOMBIE_KIND_COUNT][2] = {{false}};
-    const int original_counts[] = {10, 14, 13, 19, 22};
+    /* The first route's counts as they were; the second route's, longer. */
+    const int original_counts[] = {10, 14, 13, 19, 22, 28, 31, 33, 36, 38};
     int elites = 0;
-    CHECK(STAGE_COUNT == 5);
+    CHECK(STAGE_COUNT == 10);
     for (int s = 0; s < STAGE_COUNT; s++) {
         CHECK(STAGES[s].zombies == original_counts[s]);
         int index = 0;
         for (int spot = 0; spot < STAGES[s].spot_count; spot++) {
             const StageSpot *p = &STAGES[s].spots[spot];
-            if (p->kind != SPOT_ZOMBIES && p->kind != SPOT_COFFINS && p->kind != SPOT_AMBUSH &&
-                p->kind != SPOT_RUNNERS && p->kind != SPOT_ELITE)
+            if (!spot_has_zombies(p->kind))
                 continue;
             for (int body = 0; body < p->count; body++, index++) {
                 const ZombieStats *stats = stage_zombie_stats(&STAGES[s], index);
@@ -232,7 +232,7 @@ static void test_campaign_contains_all_fifty_without_adding_bodies_or_elites(voi
         }
         CHECK(index == STAGES[s].zombies);
     }
-    CHECK(elites == 3);
+    CHECK(elites == 3 + 5); /* 1-3, 1-4, 1-5; 2-2, 2-3, 2-4 and two in 2-5 */
     for (int kind = 0; kind < ZOMBIE_KIND_COUNT; kind++)
         CHECK(seen[kind][0] && seen[kind][1]);
 }

@@ -63,6 +63,8 @@ typedef struct {
     bool swap_back;       /* ...away: the same frames backwards */
     float plant_time;     /* Seconds left of setting a charge (player_plant): she stands to it */
     bool burned;          /* Lightning burned her: slower, heals slower (player_burn) */
+    float fear;           /* Seconds left afraid (a horde, the stage sets it): FEAR_PACE faster on her
+                           * feet, FEAR_RELOAD_MULT slower to reload, FEAR_FIRE_MULT with endless rounds */
     bool burn_bandaged;   /* ...its bandage is on: a drink of water ends it */
     CatchKind catch_kind; /* While caught: what holds her */
     int catch_blows;      /* Blows still needed to cut free */
@@ -86,6 +88,7 @@ typedef struct {
     float floor;
     float min_x, max_x;
     bool vaulting;      /* Leaping over a low barricade (player_vault): carried across */
+    float vault_speed;  /* ...at this many px a second (a car is a longer leap); 0 = PLAYER_VAULT_SPEED */
     /* Walking while a magazine goes in: the legs walk (legs) under the reload. */
     bool reload_walk;
     bool light_on;     /* Her flashlight (for drawing it: the switch is the stage's)... */

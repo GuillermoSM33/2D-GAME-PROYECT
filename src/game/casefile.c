@@ -79,6 +79,78 @@ const ClueDef CLUES[CLUE_COUNT] = {
      "Dos estudiantes abrazados en la universidad. Al reverso: \"Perdóname, Vale. *E.*\"",
      "Una foto de hace diez años: Elías y Valeria con las togas de graduación. Él escribió al reverso, con la *misma letra* que firma las notas como N.",
      CLUE_PHOTO, 3, 4, CLUE_FROM_CRATE, 0.74f, 0},
+    /* ---- The second route: Santa Brasa and the Puesto Cerro Gris ---- */
+    {"Volante de evacuación",
+     "AVISO A LA POBLACIÓN: permanezca en casa y *no use las carreteras*. Un convoy pasará a "
+     "recogerlo. Firma: *Mando del Puesto Cerro Gris*.",
+     "Volante impreso a toda prisa, pegado en cada poste de las afueras. Lleva fecha de *un día antes* de que el hospital de Ojo de Cuervo se llenara. El ejército ya sabía.",
+     CLUE_DOCUMENT, 4, 5, CLUE_FROM_MISSION, 0.0f, 0},
+    {"Radio de patrulla",
+     "[Estática] ...a todas las unidades: *los soldados no dejan pasar a nadie* por la carretera 9. "
+     "Dicen que es una fuga de gas. Repito, nadie sale...",
+     "Radio de una patrulla, arrancado de su tablero. Alguien dejó el botón trabado con cinta para que el mensaje se repitiera. El canal de emergencias aparece *bloqueado desde fuera*.",
+     CLUE_OBJECT, 4, 5, CLUE_FROM_CRATE, 0.43f, 0},
+    {"Foto del retén",
+     "Camiones militares cruzados en la salida norte. Detrás del alambre, *familias con maletas* "
+     "que nadie deja pasar.",
+     "Foto tomada desde una azotea. En la puerta de un camión hay un logotipo tapado con pintura verde; debajo todavía se lee *\"...TRELL\"*. No todos esos camiones eran del ejército.",
+     CLUE_PHOTO, 4, 5, CLUE_FROM_ZOMBIE, 0.0f, 9},
+    {"Parte policial",
+     "22:40. El capitán ordena abrir el retén por la fuerza. 23:05: *el ejército dispara al aire*. "
+     "23:30: llegan por la carretera los primeros mordidos.",
+     "Hoja del libro de novedades de la comisaría. La última línea está escrita con otra letra: *\"Nos encerraron con ellos.\"* Después, nadie volvió a escribir.",
+     CLUE_DOCUMENT, 4, 6, CLUE_FROM_MISSION, 0.0f, 0},
+    {"Diario de la tendera",
+     "Día 2 de encierro: dicen que el convoy viene mañana. Día 4: *el convoy pasó de largo*, hacia "
+     "las vías. No recogió a nadie.",
+     "Libreta de cuentas de una tienda del centro; las últimas hojas son un diario. Anota que los camiones iban *cerrados y con escolta*, y que uno goteaba agua helada.",
+     CLUE_DOCUMENT, 4, 6, CLUE_FROM_CRATE, 0.45f, 0},
+    {"Brazalete de cuarentena",
+     "Pulsera de plástico con código de barras: *SUJETO EXPUESTO. NO EVACUAR.*",
+     "Se las pusieron a quienes estuvieron cerca de la ambulancia y del hospital. El código de barras empieza con *VP*, de Vantrell Pharmaceuticals. Los marcaron en lugar de sacarlos.",
+     CLUE_OBJECT, 4, 6, CLUE_FROM_ZOMBIE, 0.0f, 14},
+    {"Carta de porte",
+     "Tren especial 4-G. Carga: *12 contenedores refrigerados* y 40 cajas de archivo. Origen: "
+     "apartadero del Laboratorio 4. Destino: *Puesto Cerro Gris*.",
+     "Documento ferroviario con dos sellos: el de Vantrell como remitente y el del ejército como consignatario. Un tercer sello, en rojo: *PRIORIDAD SOBRE LA EVACUACIÓN CIVIL*.",
+     CLUE_DOCUMENT, 5, 7, CLUE_FROM_MISSION, 0.0f, 0},
+    {"Sello de contenedor",
+     "Un precinto de metal roto. Grabado: *MRC-2. MANTENER A -20 GRADOS.*",
+     "Precinto numerado de un contenedor refrigerado. Está doblado *desde dentro*, como si algo hubiera empujado la puerta. El número coincide con el vagón 7 del tren especial.",
+     CLUE_OBJECT, 5, 7, CLUE_FROM_CRATE, 0.33f, 0},
+    {"Bitácora del maquinista",
+     "02:15 salimos del apartadero con escolta. 03:40: algo golpea desde dentro del *vagón 7*. "
+     "03:52: descarrilamos en el patio de Santa Brasa.",
+     "Cuaderno de a bordo. La última entrada, casi ilegible: *\"Los soldados se llevan las cajas en camiones. A nosotros nos dejan aquí.\"*",
+     CLUE_DOCUMENT, 5, 7, CLUE_FROM_ZOMBIE, 0.0f, 12},
+    {"Lista del convoy",
+     "Camiones 1 a 3: cajas del *ARCHIVO 4*. Camiones 4 y 5: muestras. Camión 6: *un pasajero sin "
+     "nombre*, con escolta del sargento T. R.",
+     "Hoja de control de un retén. Junto al camión 6 alguien anotó a lápiz: *\"No se le revisa. Orden directa.\"* El Archivo 4 es todo lo que salió del Laboratorio 4 esa noche.",
+     CLUE_DOCUMENT, 5, 8, CLUE_FROM_MISSION, 0.0f, 0},
+    {"Gorra sin insignias",
+     "Una gorra negra de contratista. Por dentro, una etiqueta: *HALCÓN SEGURIDAD*.",
+     "La misma gorra que llevaban los hombres armados del Laboratorio 4. Estaba junto a un casquillo militar: *los mercenarios viajaban con el convoy*, mezclados con los soldados.",
+     CLUE_OBJECT, 5, 8, CLUE_FROM_CRATE, 0.43f, 0},
+    {"Cinta de la radio",
+     "[Locutor] ...nos piden leer que no hay peligro. Pero yo vi los camiones: llevaban *cajas "
+     "de Vantrell* hacia el cerro. Si alguien me oye...",
+     "Casete de la radio local, grabado sobre un programa de música. Al fondo se oyen sirenas. La transmisión se corta con un golpe en la puerta de la cabina.",
+     CLUE_TAPE, 5, 8, CLUE_FROM_ZOMBIE, 0.0f, 15},
+    {"Orden de evacuación",
+     "Prioridad uno: *el director J. V.* y el Archivo 4. Helicóptero a las 05:00. Civiles de "
+     "Santa Brasa: *sin transporte asignado*.",
+     "Orden mecanografiada con membrete del Puesto Cerro Gris. Al pie, una firma ilegible y un sello de una oficina del gobierno que no aparece en ningún directorio.",
+     CLUE_DOCUMENT, 6, 9, CLUE_FROM_MISSION, 0.0f, 0},
+    {"Registro de guardia",
+     "21:10: llega el director con su escolta, sargento *Reyes*. 04:55: despega. 05:20: *el "
+     "Archivo 4 sigue en el búnker*; no cupo en el helicóptero.",
+     "Libro de la garita principal. La entrada de las 05:20 está subrayada dos veces. Debajo: *\"Vendrán por él.\"* Nadie volvió: el puesto cayó esa misma mañana.",
+     CLUE_DOCUMENT, 6, 9, CLUE_FROM_ZOMBIE, 0.0f, 20},
+    {"Llave del búnker",
+     "Una tarjeta magnética con una banda roja: *BÚNKER 2 - ARCHIVO*.",
+     "Tarjeta del oficial de guardia, todavía en su cordón. Abre el búnker donde quedó el *Archivo 4*: lo que Vantrell y el gobierno quisieron llevarse de todo esto.",
+     CLUE_OBJECT, 6, 9, CLUE_FROM_CRATE, 0.77f, 0},
 };
 
 const CaseDef CASES[CASE_COUNT] = {
@@ -119,6 +191,37 @@ const CaseDef CASES[CASE_COUNT] = {
      "Fue él quien la llamó para sacar la verdad a la luz. La noche de la filtración desapareció, y "
      "con él faltó del inventario el *cañón de plasma experimental*.\n\n"
      "*Conclusión: N es Navarro.* Sigue vivo, está armado y sabe más de lo que nadie ha contado."},
+    {"EL CORDÓN", "¿Por qué nadie salió de Santa Brasa?",
+     {"Los vecinos se negaron a irse", "El ejército la cerró antes de avisar", "Los muertos llegaron primero"},
+     1, "NOVEDADES DE LA COMISARÍA DE SANTA BRASA",
+     "Un día antes de que el hospital de Ojo de Cuervo se llenara, el *Puesto Cerro Gris* ya repartía "
+     "volantes en Santa Brasa: quédese en casa, no use las carreteras, un convoy pasará por usted.\n\n"
+     "No era una evacuación. En cada salida había un retén, y a quienes estuvieron cerca de la "
+     "ambulancia les pusieron un brazalete: *SUJETO EXPUESTO. NO EVACUAR.* Cuando la policía quiso "
+     "abrir paso, el ejército disparó al aire. Media hora después llegaron los primeros mordidos.\n\n"
+     "*Conclusión:* nadie salió porque *los encerraron*. Alguien supo del brote antes que el pueblo "
+     "y eligió contenerlo con la gente dentro."},
+    {"EL CONVOY", "¿Qué llevaba el convoy que cruzó la ciudad sin detenerse?",
+     {"Víveres para los vecinos", "Los archivos y muestras del Laboratorio 4", "Soldados heridos del puesto"},
+     1, "CARGA DEL TREN ESPECIAL 4-G",
+     "La noche de la fuga salió del apartadero del Laboratorio 4 un tren especial: doce "
+     "contenedores refrigerados con muestras de *MRC-2* y cuarenta cajas de archivo. Tenía "
+     "*prioridad sobre la evacuación civil*.\n\n"
+     "A las 03:40 algo golpeó desde dentro del vagón 7. El tren descarriló en el patio de Santa "
+     "Brasa y la carga siguió en camiones, con soldados y con hombres de *Halcón Seguridad*: los "
+     "mismos mercenarios que borraron el laboratorio.\n\n"
+     "*Conclusión:* el convoy no venía por nadie. Llevaba al cerro el *Archivo 4*: todo lo que "
+     "prueba qué es The Miracle y quién lo pagó."},
+    {"CERRO GRIS", "¿Quién esperaba en el Puesto Cerro Gris la noche de la fuga?",
+     {"La reportera Valeria Ortiz", "Julian Vantrell, listo para evacuar", "Nadie: estaba abandonado"},
+     1, "LIBRO DE GUARDIA DEL PUESTO CERRO GRIS",
+     "A las 21:10, horas antes del disparo en el laboratorio, *Julian Vantrell* llegó al Puesto "
+     "Cerro Gris con su escolta, el pelotón del sargento *Tomás Reyes*. La orden lo ponía por "
+     "delante de todo: prioridad uno, el director y el Archivo 4.\n\n"
+     "El helicóptero despegó a las 04:55. Las cajas no cupieron: *el Archivo 4 se quedó en el "
+     "búnker 2*. Prometieron volver por él. Esa mañana el puesto cayó.\n\n"
+     "*Conclusión:* el director sabía lo que iba a pasar y ya tenía la salida lista. Lo que dejó "
+     "atrás sigue ahí, y *es la prueba de todo*."},
 };
 
 void casefile_init(CaseFile *file)
@@ -242,7 +345,18 @@ int board_card_x(int col)
 
 int board_row_y(int row)
 {
-    return BOARD_Y + row * BOARD_ROW_H;
+    return BOARD_Y + (row % BOARD_ROWS) * BOARD_ROW_H; /* On its page */
+}
+
+int board_page(int row)
+{
+    return row / BOARD_ROWS;
+}
+
+int board_page_rows(int page)
+{
+    int left = CASE_COUNT - page * BOARD_ROWS;
+    return left > BOARD_ROWS ? BOARD_ROWS : left;
 }
 
 int board_slot_x(void)
@@ -270,9 +384,9 @@ static bool inside(int x, int y, int left, int top, int w, int h)
 }
 
 /* The card or slot under the pointer: its row and column, or false. */
-static bool board_hit(int x, int y, int *row, int *col)
+static bool board_hit(int page, int x, int y, int *row, int *col)
 {
-    for (int r = 0; r < CASE_COUNT; r++) {
+    for (int r = page * BOARD_ROWS; r < page * BOARD_ROWS + board_page_rows(page); r++) {
         int top = board_row_y(r) + (BOARD_ROW_H - BOARD_CARD) / 2;
         int n = casefile_case_clues(r, NULL);
         for (int c = 0; c < n; c++) {
@@ -349,7 +463,7 @@ BoardResult board_view_update(BoardView *view, CaseFile *file, const InputState 
         view->col = (view->col + 1) % (n + 1);
     int row, col;
     bool on_slot_click = false, on_card_click = false;
-    if ((input->pointer_moved || input->pointer_clicked) && board_hit(input->pointer_x, input->pointer_y, &row, &col)) {
+    if ((input->pointer_moved || input->pointer_clicked) && board_hit(board_page(view->row), input->pointer_x, input->pointer_y, &row, &col)) {
         view->row = row;
         view->col = col;
         on_slot_click = input->pointer_clicked && col == casefile_case_clues(row, NULL);
@@ -397,12 +511,72 @@ static const StoryBeat AFTER_STAGE[] = {
      3, 4},
 };
 
+/* The second route: what each stage's end shows (scenes 6-10). */
+static const StoryBeat AFTER_CITY[] = {
+    {STORY_AFUERAS,
+     {"A *Santa Brasa* no la evacuaron: la cerraron.", "En cada salida quedó un retén del ejército.",
+      "Y las sirenas siguen llamando a quien todavía puede oírlas."},
+     3, 6},
+    {STORY_CENTRO,
+     {"Un convoy cruzó el centro sin detenerse.", "No venía por la gente: iba hacia *las vías*."},
+     2, 7},
+    {STORY_VIAS,
+     {"El tren del *Laboratorio 4* descarriló en el patio.",
+      "Lo que cargaba siguió su camino en camiones, de noche."},
+     2, 8},
+    {STORY_CIUDAD_NOCHE,
+     {"Todas las huellas suben al mismo cerro.", "El *Puesto Cerro Gris* sigue con la alarma encendida."},
+     2, 9},
+    {STORY_BASE,
+     {"El director voló antes del amanecer.", "Pero algo no cupo en su helicóptero: el *Archivo 4*.",
+      "Ahí está todo lo que *Vantrell* quiso llevarse. Alguien tendrá que leerlo."},
+     3, 10},
+};
+
+/* Before the second route's first stage: the town leads to the city. */
+static const StoryBeat BEFORE_CITY = {
+    STORY_PUEBLO,
+    {"Desde la última loma de *Ojo de Cuervo* se veía otra luz: *Santa Brasa*.",
+     "La ciudad seguía encendida, pero ardía en más de un lugar.",
+     "Si alguien sabía lo que estaba pasando, tenía que estar ahí.",
+     "La sheriff *Dolores Vega* tomó la carretera hacia la ciudad."},
+    4, 5,
+};
+
 const StoryBeat *story_after_stage(int stage)
 {
     /* 1-2 into the graveyard, 1-3 into the night, 1-4 into the ghost town,
-     * 1-5 the end of the first route. */
+     * 1-5 the end of the first route; then each stage of the second. */
     int k = stage - 1;
-    return k >= 0 && k < (int)(sizeof(AFTER_STAGE) / sizeof(AFTER_STAGE[0])) ? &AFTER_STAGE[k] : NULL;
+    if (k >= 0 && k < (int)(sizeof(AFTER_STAGE) / sizeof(AFTER_STAGE[0])))
+        return &AFTER_STAGE[k];
+    k = stage - 5;
+    return k >= 0 && k < (int)(sizeof(AFTER_CITY) / sizeof(AFTER_CITY[0])) ? &AFTER_CITY[k] : NULL;
+}
+
+const StoryBeat *story_before_stage(int stage)
+{
+    return stage == 5 ? &BEFORE_CITY : NULL;
+}
+
+unsigned story_bit(int stage, bool before)
+{
+    return 1u << (before ? STORY_BEFORE_BIT + stage : stage);
+}
+
+const StoryBeat *tape_beat(int tape)
+{
+    if (tape <= TAPE_INTRO || tape >= TAPE_COUNT)
+        return NULL;
+    return TAPES[tape].before ? story_before_stage(TAPES[tape].stage) : story_after_stage(TAPES[tape].stage);
+}
+
+int stage_tape(int stage, bool before)
+{
+    for (int t = 1; t < TAPE_COUNT; t++)
+        if (TAPES[t].stage == stage && TAPES[t].before == before)
+            return t;
+    return -1;
 }
 
 void report_open(Report *report, int case_index)
@@ -438,14 +612,17 @@ bool exam_update(ClueExam *exam, const InputState *input, float dt)
 /* ---- The tapes ---------------------------------------------------------------- */
 
 const TapeDef TAPES[TAPE_COUNT] = {
-    {"LA FILTRACIÓN", -1}, {"EL PANTEÓN", 1}, {"TOQUE DE QUEDA", 2}, {"EL PUEBLO VACÍO", 3}, {"LABORATORIO 4", 4},
+    {"LA FILTRACIÓN", -1, false}, {"EL PANTEÓN", 1, false}, {"TOQUE DE QUEDA", 2, false},
+    {"EL PUEBLO VACÍO", 3, false}, {"LABORATORIO 4", 4, false},
+    {"LAS LUCES DE SANTA BRASA", 5, true}, {"LA CIUDAD CERRADA", 5, false}, {"EL CONVOY", 6, false},
+    {"VAGÓN 7", 7, false}, {"CERRO GRIS", 8, false}, {"ARCHIVO 4", 9, false},
 };
 
 bool tape_unlocked(const CaseFile *file, int tape)
 {
     if (tape < 0 || tape >= TAPE_COUNT)
         return false;
-    return TAPES[tape].stage < 0 || (file->beats_seen & (1u << TAPES[tape].stage)) != 0;
+    return TAPES[tape].stage < 0 || (file->beats_seen & story_bit(TAPES[tape].stage, TAPES[tape].before)) != 0;
 }
 
 int tapes_unlocked(const CaseFile *file)
@@ -456,19 +633,42 @@ int tapes_unlocked(const CaseFile *file)
     return n;
 }
 
+int tape_x(int tape)
+{
+    return TAPE_X + (tape % TAPE_COLUMNS) * TAPE_STEP;
+}
+
+int tape_y(int tape, int selected)
+{
+    int rows = (TAPE_COUNT + TAPE_COLUMNS - 1) / TAPE_COLUMNS;
+    int first = selected / TAPE_COLUMNS; /* The selected one's row on top, or the last rows */
+    if (first > rows - TAPE_ROWS_SHOWN)
+        first = rows - TAPE_ROWS_SHOWN;
+    if (first < 0)
+        first = 0;
+    int row = tape / TAPE_COLUMNS - first;
+    return row < 0 || row >= TAPE_ROWS_SHOWN ? -10000 : TAPE_Y + row * TAPE_ROW_STEP;
+}
+
 int tape_view_update(TapeView *view, const CaseFile *file, const InputState *input)
 {
     if (input->pressed[ACTION_QUIT])
         return TAPE_BACK;
-    if (input->pressed[ACTION_LEFT] || input->pressed[ACTION_UP])
+    if (input->pressed[ACTION_LEFT])
         view->selected = (view->selected + TAPE_COUNT - 1) % TAPE_COUNT;
-    if (input->pressed[ACTION_RIGHT] || input->pressed[ACTION_DOWN])
+    if (input->pressed[ACTION_RIGHT])
         view->selected = (view->selected + 1) % TAPE_COUNT;
+    int step = (input->pressed[ACTION_DOWN] ? 1 : 0) - (input->pressed[ACTION_UP] ? 1 : 0);
+    step -= input->wheel > 0 ? 1 : input->wheel < 0 ? -1 : 0;
+    if (step < 0 && view->selected >= TAPE_COLUMNS)
+        view->selected -= TAPE_COLUMNS;
+    if (step > 0 && view->selected / TAPE_COLUMNS < (TAPE_COUNT - 1) / TAPE_COLUMNS)
+        view->selected = view->selected + TAPE_COLUMNS < TAPE_COUNT ? view->selected + TAPE_COLUMNS : TAPE_COUNT - 1;
     bool clicked = false;
     if (input->pointer_moved || input->pointer_clicked) {
+        int shown = view->selected;
         for (int t = 0; t < TAPE_COUNT; t++) {
-            int x = TAPE_X + t * TAPE_STEP;
-            if (inside(input->pointer_x, input->pointer_y, x, TAPE_Y, TAPE_W, TAPE_H + 70)) {
+            if (inside(input->pointer_x, input->pointer_y, tape_x(t), tape_y(t, shown), TAPE_W, TAPE_H + 50)) {
                 view->selected = t;
                 clicked = input->pointer_clicked;
             }

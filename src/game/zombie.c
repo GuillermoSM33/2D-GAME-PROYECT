@@ -77,7 +77,12 @@ static const AnimationDef *const LEGACY_ANIMATIONS[] = {&ANIM_WALK, &ANIM_HURT, 
     X(JAILER, "jailer", "Carcelero", "Uniforme de guardia y chaleco de servicio.", "Chaleco de guardia", 130, 75, 17.0f, 0.85f) \
     X(FIREFIGHTER, "firefighter", "Bombero", "Casco y chaquetón grueso de rescate.", "Casco y chaquetón", 135, 45, 17.0f, 0.80f) \
     X(BUTCHER, "butcher", "Carnicero", "Delantal de cuero y cuerpo pesado.", "Delantal de cuero grueso", 150, 20, 19.0f, 0.80f) \
-    X(ELITE, "elite", "Antidisturbios de élite", "Peto reforzado y garra más peligrosa.", "Armadura antidisturbios reforzada", 150, 120, 20.25f, 1.00f)
+    X(ELITE, "elite", "Antidisturbios de élite", "Peto reforzado y garra más peligrosa.", "Armadura antidisturbios reforzada", 150, 120, 20.25f, 1.00f) \
+    X(CITY_OFFICE, "city_office", "Ciudad: oficinista", "Camisa blanca, corbata roja floja, pantalón de vestir y gafete.", "Ropa, sin protección", 90, 0, 12.0f, 1.05f) \
+    X(CITY_NURSE, "city_nurse", "Ciudad: enfermera", "Uniforme quirúrgico azul, estetoscopio y coleta.", "Ropa, sin protección", 85, 0, 12.0f, 1.10f) \
+    X(CITY_WORKER, "city_worker", "Ciudad: obrero", "Casco naranja, chaleco reflejante y mezclilla.", "Casco de obra y chaleco", 115, 25, 15.0f, 0.92f) \
+    X(CITY_GUARD, "city_guard", "Ciudad: guardia de seguridad", "Gorra negra, camisa celeste con charreteras y pantalón azul marino.", "Uniforme, sin protección", 105, 5, 14.0f, 1.00f) \
+    X(CITY_POLICE, "city_police", "Ciudad: patrullero", "Uniforme azul marino, placa, radio al hombro y cinturón de servicio.", "Uniforme y cinturón de servicio", 110, 30, 15.0f, 1.00f)
 
 #define NORMAL_STATS(kind_, id_, name_, description_, equipment_, hp_, armor_, attack_, speed_) \
     [ZOMBIE_KIND_##kind_] = {.health = hp_, .armor = armor_, .attack_base = attack_, \

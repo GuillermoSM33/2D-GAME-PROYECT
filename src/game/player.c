@@ -558,6 +558,10 @@ void player_update(Player *player, const InputState *input, float dt)
     player->wind_feel = player->current_feel = 0;
     if (player->cold)
         pace *= COLD_PACE;
+    if (player->fear > 0.0f) { /* Afraid: her legs hurry, her hands shake */
+        pace *= FEAR_PACE;
+        player->fear = fmaxf(0.0f, player->fear - dt);
+    }
     /* Thirst: none while hydrated (a little quicker then), faster in the heat. */
     if (player->refreshed > 0.0f)
         pace *= HYDRATED_PACE;
@@ -709,7 +713,11 @@ void player_update(Player *player, const InputState *input, float dt)
     if (player->shot.active && input->pressed[ACTION_JUMP])
         shot_cancel(&player->shot);
     if (player->shot.active) {
-        player->shot_fired = shot_update(&player->shot, weary ? dt * FATIGUE_PACE : dt);
+        float shot_dt = weary ? dt * FATIGUE_PACE : dt;
+        if (player->fear > 0.0f) /* Fumbling a magazine in; with endless rounds, slower between shots */
+            shot_dt /= shot_reloading(&player->shot) ? FEAR_RELOAD_MULT
+                       : player->shot.magazine == 0 ? FEAR_FIRE_MULT : 1.0f;
+        player->shot_fired = shot_update(&player->shot, shot_dt);
         /* Firing on with the trigger held: each new turn can face a new way. */
         if (player->shot.piston && player->shot.active && !player->shot.fired && dir != 0)
             player->facing = dir > 0 ? FACING_RIGHT : FACING_LEFT;
@@ -744,7 +752,7 @@ void player_update(Player *player, const InputState *input, float dt)
     /* Horizontal control is the same on the ground and in the air, except
      * over a barricade: the leap carries her across. */
     if (player->vaulting && player->jump.airborne) {
-        player->x += (float)player->facing * PLAYER_VAULT_SPEED * dt;
+        player->x += (float)player->facing * fmaxf(PLAYER_VAULT_SPEED, player->vault_speed) * dt;
         keep_in_bounds(player);
     } else if (dir != 0) {
         player->facing = dir > 0 ? FACING_RIGHT : FACING_LEFT;

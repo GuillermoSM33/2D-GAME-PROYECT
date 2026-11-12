@@ -34,7 +34,8 @@ typedef struct {
      * than one update is never lost. */
     bool latched[ACTION_COUNT];
     int pointer_x, pointer_y; /* The mouse, in window (logical) coordinates */
-    bool pointer_moved, pointer_clicked; /* Since the last platform_read_pointer */
+    bool pointer_moved, pointer_clicked;
+    int wheel; /* Wheel notches since the last platform_read_pointer */ /* Since the last platform_read_pointer */
     bool mouse_blocked; /* Mouse bindings ignored until every button is up */
     /* The mouse buttons down, as their press and release events said. A
      * button counts as held only while these agree with SDL_GetMouseState:
