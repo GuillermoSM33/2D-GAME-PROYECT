@@ -43,7 +43,19 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
                 continue;
             if (piece->kind == TERRAIN_OUTPOST && !outpost)
                 continue;
-            bool lamp = piece->kind == TERRAIN_LAMP || outpost;
+            if (outpost) {
+                /* The fixed lens uses the same cone, falloff and occlusion as
+                 * her flashlight. Its light belongs to the scene, not the PNG. */
+                add_light(lighting, (WorldLight){
+                    .kind = LIGHT_FLASHLIGHT,
+                    .x = piece->x + (OUTPOST_LIGHT_COL - OUTPOST_FRAME_W * .5f) * SPRITE_SCALE,
+                    .y = (GROUND_ROW - OUTPOST_FRAME_H + OUTPOST_LIGHT_ROW + .5f) * SPRITE_SCALE,
+                    .radius = OUTPOST_LIGHT_REACH, .strength = 1.05f,
+                    .direction = -1, .tilt = OUTPOST_LIGHT_TILT,
+                }, camera_x);
+                continue;
+            }
+            bool lamp = piece->kind == TERRAIN_LAMP;
             bool flame = piece->kind == TERRAIN_FIRE || piece->kind == TERRAIN_CAMPFIRE ||
                          piece->kind == TERRAIN_BURNER;
             if (!lamp && !flame)
@@ -52,9 +64,8 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
                             0.025f * (float)sin(time * 13.0 + piece->x * .03);
             WorldLight light = {
                 .kind = lamp ? LIGHT_LANTERN : LIGHT_FLAME,
-                .x = outpost ? piece->x + 50.0f * SPRITE_SCALE : piece->x,
-                .y = outpost ? BASELINE - (OUTPOST_FRAME_H - 12) * SPRITE_SCALE
-                    : lying ? BASELINE - 40.0f
+                .x = piece->x,
+                .y = lying ? BASELINE - 40.0f
                     : lamp ? BASELINE - (LAMP_FRAME_H - 8) * SPRITE_SCALE
                           : BASELINE - (piece->kind == TERRAIN_CAMPFIRE ? 44.0f
                                         : piece->kind == TERRAIN_BURNER ? 150.0f : 18.0f),

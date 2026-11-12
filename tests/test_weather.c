@@ -27,17 +27,26 @@ static void test_rain_already_covers_upper_sky(void)
     for (int kind = WEATHER_RAIN; kind <= WEATHER_STORM; kind++) {
         WeatherState w;
         weather_start(&w, (Weather)kind, 2400.0f);
-        bool above_world = false, near_window_top = false, over_road = false;
+        bool near_window_top = false, over_road = false;
+        bool zones[4] = {false};
         for (int i = 0; i < WEATHER_DROPS; i++) {
             float y = w.drops[i].y;
             CHECK(y >= weather_view_top() && y <= (float)BASELINE);
             float screen_y = (float)VIEW_TOP + y * VIEW_SCALE;
             bool visible_x = w.drops[i].x >= 2400.0f && w.drops[i].x < 2400.0f + (float)VIEW_WIDTH;
-            above_world |= visible_x && y < 0.0f;
             near_window_top |= visible_x && screen_y >= 0.0f && screen_y < 30.0f;
             over_road |= visible_x && y > (float)BASELINE - 80.0f;
+            /* Full-window views start at y=0; a separate sky band used to
+             * require negative view coordinates. Check coverage in each
+             * quarter of the visible rain height for either layout. */
+            float rain_height = (float)VIEW_TOP + (float)BASELINE * VIEW_SCALE;
+            int zone = (int)(screen_y * 4.0f / rain_height);
+            if (visible_x && zone >= 0 && zone < 4)
+                zones[zone] = true;
         }
-        CHECK(above_world && near_window_top && over_road);
+        CHECK(near_window_top && over_road);
+        for (int zone = 0; zone < 4; zone++)
+            CHECK(zones[zone]);
     }
 }
 
@@ -47,7 +56,7 @@ static void test_respawned_rain_enters_above_the_entire_window(void)
         WeatherState w;
         weather_start(&w, (Weather)kind, 5000.0f);
         for (int i = 0; i < WEATHER_DROPS; i++)
-            w.drops[i].y = (float)BASELINE + 80.0f;
+            w.drops[i].y = (float)BASELINE + (float)WEATHER_SPLASH_DEPTH;
         weather_update(&w, 5000.0f, FIXED_DT);
         for (int i = 0; i < WEATHER_DROPS; i++) {
             CHECK(w.drops[i].y <= weather_view_top());
@@ -56,8 +65,11 @@ static void test_respawned_rain_enters_above_the_entire_window(void)
         bool crossed_upper_sky = false;
         for (int frame = 0; frame < 30; frame++) {
             weather_update(&w, 5000.0f, FIXED_DT);
-            for (int i = 0; i < WEATHER_DROPS; i++)
-                crossed_upper_sky |= w.drops[i].y >= weather_view_top() && w.drops[i].y < 0.0f;
+            for (int i = 0; i < WEATHER_DROPS; i++) {
+                float screen_y = (float)VIEW_TOP + w.drops[i].y * VIEW_SCALE;
+                bool visible_x = w.drops[i].x >= 5000.0f && w.drops[i].x < 5000.0f + (float)VIEW_WIDTH;
+                crossed_upper_sky |= visible_x && screen_y >= 0.0f && screen_y < (float)HUD_BAND;
+            }
         }
         CHECK(crossed_upper_sky);
     }

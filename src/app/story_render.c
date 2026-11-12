@@ -17,6 +17,10 @@
 #define ART 3 /* Window px per art px in the cinematic images */
 #define LAMP_W 14
 #define LAMP_H 76
+/* Art rows over the ground line where things far off stand, between the far
+ * hills and the near ones (tools/make_landscape.py draws that valley). */
+#define LAB_VALLEY_ROWS 58
+#define FAR_CITY_ROWS 66
 
 static World worlds[STORY_VISUALS];
 static bool worlds_ready;
@@ -132,12 +136,12 @@ static void draw_sheriff(SDL_Renderer *r, const CharacterSkin *skin, float view_
 
 /* ---- The tapes' shots: scene (1-4), line, seconds into the line -------------- */
 
-static const float GRAVES[] = {240.0f, 430.0f, 620.0f, 810.0f, 1000.0f};
+static const float GRAVES[] = {CINE_X(240.0f), CINE_X(430.0f), CINE_X(620.0f), CINE_X(810.0f), CINE_X(1000.0f)};
 
 static void graves(SDL_Renderer *r, float open)
 {
     for (int k = 0; k < 5; k++)
-        cine_tombstone(r, GRAVES[k] + 88.0f, k % 3);
+        cine_tombstone(r, GRAVES[k] + TOMBSTONE_GAP, k % 3);
     for (int k = 0; k < 5; k++)
         cine_mound(r, GRAVES[k], open);
 }
@@ -149,14 +153,14 @@ static void shot_panteon(SDL_Renderer *r, int line, float t)
         for (int k = 0; k < 5; k++) {
             float a = smooth(0.6f + (float)k * 0.5f, 1.0f + (float)k * 0.5f, t);
             if (a > 0.0f)
-                draw_coffin(r, 330.0f + (float)k * 140.0f, 0, (Uint8)lroundf(a * 255.0f));
+                draw_coffin(r, CINE_X(330.0f + (float)k * 140.0f), 0, (Uint8)lroundf(a * 255.0f));
         }
         stage_end_view(r);
     } else if (line == 1) { /* Fresh graves in the old graveyard, the crows already there */
         begin_landscape(r, STORY_CEMENTERIO, t * 8.0f);
         graves(r, 0.0f);
         for (int k = 0; k < 3; k++)
-            cine_crow(r, (int)(t * 3.0f + (float)k) % 2, 1080.0f + (float)k * 50.0f - t * 8.0f, 0.0f, 1);
+            cine_crow(r, (int)(t * 3.0f + (float)k) % 2, CINE_X(1080.0f) + (float)k * 50.0f - t * 8.0f, 0.0f, 1);
         stage_end_view(r);
     } else { /* That night, one of them stirs; something starts to come up */
         begin_landscape(r, STORY_CEMENTERIO, 40.0f);
@@ -177,7 +181,7 @@ static void shot_panteon(SDL_Renderer *r, int line, float t)
 
 static void shot_toque(SDL_Renderer *r, int line, float t, const CharacterSkin *sheriff)
 {
-    static const float LAMPS[] = {260.0f, 620.0f, 980.0f};
+    static const float LAMPS[] = {CINE_X(260.0f), CINE_X(620.0f), CINE_X(980.0f)};
     if (line == 0) { /* Out of the opened graves, walking toward the town */
         begin_landscape(r, STORY_CEMENTERIO, t * 12.0f);
         graves(r, 1.0f);
@@ -185,7 +189,7 @@ static void shot_toque(SDL_Renderer *r, int line, float t, const CharacterSkin *
         for (int k = 0; k < 3; k++) {
             const AnimationDef *walk = zombie_animation(WHO[k], ZOMBIE_ANIM_WALK);
             cine_zombie(r, WHO[k], ZOMBIE_ANIM_WALK, (int)(t * walk->fps * 0.5f) + k * 3,
-                        200.0f + (float)k * 260.0f + t * 36.0f, 0);
+                        CINE_X(200.0f + (float)k * 260.0f) + t * 36.0f, 0);
         }
         stage_end_view(r);
         ui_dim(r, 70);
@@ -194,13 +198,13 @@ static void shot_toque(SDL_Renderer *r, int line, float t, const CharacterSkin *
         for (int k = 0; k < 3; k++)
             draw_lamp(r, LAMPS[k], line == 1 || t < 1.0f + (float)k * 0.9f);
         if (line == 1) {
-            draw_sheriff(r, sheriff, 470.0f);
+            draw_sheriff(r, sheriff, CINE_X(470.0f));
         } else {
             for (int k = 0; k < 2; k++) { /* Shapes coming out of the dark */
                 ZombieKind who = k ? ZOMBIE_KIND_CIVIL_MALE_4 : ZOMBIE_KIND_CIVIL_FEMALE_2;
                 const AnimationDef *walk = zombie_animation(who, ZOMBIE_ANIM_WALK);
                 cine_zombie(r, who, ZOMBIE_ANIM_WALK, (int)(t * walk->fps * 0.5f) + k * 4,
-                            -60.0f + (float)k * 180.0f + t * 45.0f, 0);
+                            CINE_X(-60.0f + (float)k * 180.0f) + t * 45.0f, 0);
             }
         }
         stage_end_view(r);
@@ -213,19 +217,19 @@ static void shot_pueblo(SDL_Renderer *r, int line, float t)
 {
     begin_landscape(r, STORY_PUEBLO, t * (line == 0 ? 20.0f : 8.0f));
     if (line == 0) { /* Nobody in the street: a tumbleweed, the crows leaving */
-        draw_tumbleweed(r, -80.0f + t * 220.0f, t);
+        draw_tumbleweed(r, CINE_X(-80.0f + t * 220.0f), t);
         for (int k = 0; k < 3; k++) {
             float f = t - 1.6f - (float)k * 0.2f;
             if (f < 0.0f)
-                cine_crow(r, (int)(t * 3.0f + (float)k) % 2, 820.0f + (float)k * 50.0f, 0.0f, 1);
+                cine_crow(r, (int)(t * 3.0f + (float)k) % 2, CINE_X(820.0f) + (float)k * 50.0f, 0.0f, 1);
             else
-                cine_crow(r, 2 + (int)(f * 12.0f) % 4, 820.0f + (float)k * 50.0f + f * 240.0f, f * 170.0f, 1);
+                cine_crow(r, 2 + (int)(f * 12.0f) % 4, CINE_X(820.0f) + (float)k * 50.0f + f * 240.0f, f * 170.0f, 1);
         }
     } else { /* The ones still in its streets, swaying where they stand */
         static const ZombieKind WHO[] = {ZOMBIE_KIND_CIVIL_MALE_2, ZOMBIE_KIND_SHERIFF, ZOMBIE_KIND_CIVIL_FEMALE_1,
                                          ZOMBIE_KIND_PRIEST};
         for (int k = 0; k < 4; k++)
-            cine_zombie(r, WHO[k], ZOMBIE_ANIM_IDLE, (int)(t * 3.0f) + k, 220.0f + (float)k * 270.0f, 0);
+            cine_zombie(r, WHO[k], ZOMBIE_ANIM_IDLE, (int)(t * 3.0f) + k, CINE_X(220.0f + (float)k * 270.0f), 0);
     }
     stage_end_view(r);
     ui_dim(r, 40);
@@ -247,7 +251,8 @@ static void shot_lab(SDL_Renderer *r, int line, float t)
         /* Its depth lies between hills_far (.35) and hills_near (.6). Match
          * draw_layer's whole-view-pixel camera rounding throughout the pan. */
         float parallax = 0.45f, start = PLAYER_START_X - VIEW_WIDTH / 2.0f;
-        int bx = 700 + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax), base = 84 * px;
+        int bx = (int)CINE_X(700.0f) + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax);
+        int base = (GROUND_ROW - LAB_VALLEY_ROWS) * px;
         fill(r, bx - 6 * px, base, 46 * px, 2 * px, 0x262c3a, 255); /* Low concrete apron */
         fill(r, bx - 4 * px, base, 42 * px, px, 0x303646, 255);
         fill(r, bx - px, base + px, 36 * px, px, 0x10141e, 255); /* Contact shadow */
@@ -326,7 +331,8 @@ static void far_city(SDL_Renderer *r, float camera_x, float t, float zoom)
 {
     const int px = SPRITE_SCALE;
     float start = PLAYER_START_X - VIEW_WIDTH / 2.0f, parallax = 0.3f;
-    int bx = 420 + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax), base = 78 * px;
+    int bx = (int)CINE_X(420.0f) + (int)lroundf(start * parallax) - (int)lroundf(camera_x * parallax);
+    int base = (GROUND_ROW - FAR_CITY_ROWS) * px;
     int unit = (int)lroundf(zoom);
     for (int k = 0; k < 6; k++) { /* Its glow in the sky: a low dome, brighter toward the roofs */
         int half = (62 - k * 9) * unit * px, cx = bx + 55 * px * unit;
@@ -370,7 +376,7 @@ static void shot_luces(SDL_Renderer *r, int line, float t, const CharacterSkin *
         static int her_line = -1;
         if (her_line != line || t < her_time) { /* A new shot: stood looking at it */
             player_init(&her);
-            her.x = PLAYER_START_X - VIEW_WIDTH / 2.0f + 300.0f;
+            her.x = PLAYER_START_X - VIEW_WIDTH / 2.0f + CINE_X(300.0f);
             her_time = 0.0f;
             her_line = line;
         }
@@ -400,52 +406,54 @@ static void shot_city(SDL_Renderer *r, int scene, int line, float t, const Chara
     switch (scene) {
     case 6: /* The closed city: the checkpoints, the sirens still calling */
         if (line == 0) {
-            draw_piece(r, "sprites/terrain/vehicles", 0, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 300.0f - t * 24.0f);
-            draw_piece(r, "sprites/terrain/vehicles", 2, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 1100.0f - t * 24.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 0, VEHICLE_FRAME_W, VEHICLE_FRAME_H, CINE_X(300.0f) - t * 24.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 2, VEHICLE_FRAME_W, VEHICLE_FRAME_H, CINE_X(1100.0f) - t * 24.0f);
         } else if (line == 1) {
-            draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 420.0f);
-            draw_piece(r, "sprites/terrain/barricade", 15, BARRICADE_FRAME_W, BARRICADE_FRAME_H, 900.0f);
-            draw_piece(r, "sprites/terrain/barricade", 15, BARRICADE_FRAME_W, BARRICADE_FRAME_H, 1180.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, CINE_X(420.0f));
+            draw_piece(r, "sprites/terrain/barricade", 15, BARRICADE_FRAME_W, BARRICADE_FRAME_H, CINE_X(900.0f));
+            draw_piece(r, "sprites/terrain/barricade", 15, BARRICADE_FRAME_W, BARRICADE_FRAME_H, CINE_X(1180.0f));
         } else {
-            draw_piece(r, "sprites/terrain/siren_car", flash, SIREN_FRAME_W, SIREN_FRAME_H, 640.0f);
+            draw_piece(r, "sprites/terrain/siren_car", flash, SIREN_FRAME_W, SIREN_FRAME_H, CINE_X(640.0f));
             static const ZombieKind WHO[] = {ZOMBIE_KIND_CITY_POLICE, ZOMBIE_KIND_CITY_NURSE, ZOMBIE_KIND_CITY_WORKER};
             for (int k = 0; k < 3; k++) {
                 const AnimationDef *walk = zombie_animation(WHO[k], ZOMBIE_ANIM_WALK);
                 cine_zombie(r, WHO[k], ZOMBIE_ANIM_WALK, (int)(t * walk->fps * 0.5f) + k * 3,
-                            -80.0f + (float)k * 150.0f + t * 40.0f, 0);
+                            CINE_X(-80.0f + (float)k * 150.0f) + t * 40.0f, 0);
             }
         }
         break;
     case 7: /* The convoy through downtown, stopping for no one */
         for (int k = 0; k < 3; k++)
             draw_piece(r, "sprites/terrain/vehicles", k == 1 ? 3 : 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H,
-                       -500.0f + (float)k * 820.0f + t * (line == 0 ? 190.0f : 240.0f));
+                       CINE_X(-500.0f + (float)k * 820.0f + t * (line == 0 ? 190.0f : 240.0f)));
         if (line == 1) {
             static const ZombieKind WHO[] = {ZOMBIE_KIND_CITY_OFFICE, ZOMBIE_KIND_CITY_GUARD};
             for (int k = 0; k < 2; k++)
-                cine_zombie(r, WHO[k], ZOMBIE_ANIM_IDLE, (int)(t * 3.0f) + k, 180.0f + (float)k * 620.0f, 0);
+                cine_zombie(r, WHO[k], ZOMBIE_ANIM_IDLE, (int)(t * 3.0f) + k, CINE_X(180.0f + (float)k * 620.0f), 0);
         }
         break;
     case 8: /* The train off its rails; its load going on by truck */
-        draw_piece(r, "sprites/terrain/train", 0, TRAIN_W, TRAIN_H, 560.0f - t * 12.0f);
-        draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, 560.0f - t * 12.0f);
+        draw_piece(r, "sprites/terrain/train", 0, TRAIN_W, TRAIN_H, CINE_X(560.0f) - t * 12.0f);
+        draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, CINE_X(560.0f) - t * 12.0f);
         if (line == 1)
-            draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 700.0f + t * 150.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, CINE_X(700.0f + t * 150.0f));
         break;
     case 9: /* Every track climbs the same hill; the post's alarm still lit */
         if (line == 0) {
-            draw_piece(r, "sprites/terrain/vehicles", 2, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 360.0f);
-            draw_piece(r, "sprites/terrain/siren_car", 3, SIREN_FRAME_W, SIREN_FRAME_H, 960.0f);
+            draw_piece(r, "sprites/terrain/vehicles", 2, VEHICLE_FRAME_W, VEHICLE_FRAME_H, CINE_X(360.0f));
+            draw_piece(r, "sprites/terrain/siren_car", 3, SIREN_FRAME_W, SIREN_FRAME_H, CINE_X(960.0f));
         } else {
-            draw_piece(r, "sprites/terrain/outpost", 1, OUTPOST_FRAME_W, OUTPOST_FRAME_H, 520.0f);
-            draw_piece(r, "sprites/terrain/vehicles", 3, VEHICLE_FRAME_W, VEHICLE_FRAME_H, 1040.0f);
+            draw_piece(r, "sprites/terrain/outpost", 1, OUTPOST_FRAME_W, OUTPOST_FRAME_H, CINE_X(520.0f));
+            draw_piece(r, "sprites/terrain/vehicles", 3, VEHICLE_FRAME_W, VEHICLE_FRAME_H, CINE_X(1040.0f));
         }
         break;
     default: /* The director gone before dawn; what he left in the bunker */
-        draw_piece(r, "sprites/terrain/city_fronts", 3, CITY_FRONT_W, CITY_FRONT_H, 620.0f);
+        draw_piece(r, "sprites/terrain/city_fronts", 3, CITY_FRONT_W, CITY_FRONT_H, CINE_X(620.0f));
         if (line == 0) { /* His helicopter, climbing away */
             const int px = SPRITE_SCALE;
-            int hx = 500 + (int)lroundf(t * 70.0f) / px * px, hy = 320 - (int)lroundf(t * 34.0f) / px * px;
+            /* Over the wall, well up in the sky */
+            int hx = (int)CINE_X(500.0f) / px * px + (int)lroundf(t * 70.0f) / px * px;
+            int hy = BASELINE - 2 - 150 * px - (int)lroundf(t * 34.0f) / px * px;
             fill(r, hx, hy, 22 * px, 7 * px, 0x10080a, 255);
             fill(r, hx - 14 * px, hy + 2 * px, 14 * px, 2 * px, 0x10080a, 255);
             fill(r, hx - 16 * px, hy - px, 3 * px, 5 * px, 0x10080a, 255);
@@ -455,10 +463,10 @@ static void shot_city(SDL_Renderer *r, int scene, int line, float t, const Chara
             if ((int)(t * 4.0f) % 2)
                 fill(r, hx + 20 * px, hy + 5 * px, px, px, 0xe8402a, 255);
         } else if (line == 1) {
-            draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, 620.0f);
+            draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, CINE_X(620.0f));
         } else {
-            draw_piece(r, "sprites/terrain/door", 5, DOOR_FRAME_W, DOOR_FRAME_H, 620.0f);
-            draw_sheriff(r, sheriff, 430.0f);
+            draw_piece(r, "sprites/terrain/door", 5, DOOR_FRAME_W, DOOR_FRAME_H, CINE_X(620.0f));
+            draw_sheriff(r, sheriff, CINE_X(620.0f) - 190.0f);
         }
         break;
     }

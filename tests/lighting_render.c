@@ -80,6 +80,30 @@ static void daylight_without_glow_keeps_the_surface(void)
     CHECK(memcmp(baseline, actual, sizeof(actual)) == 0);
 }
 
+static void both_directional_lights_render_their_own_surfaces_and_bloom(void)
+{
+    Lighting lighting = {.night = false, .count = 2};
+    lighting.lights[0] = (WorldLight){.kind = LIGHT_FLASHLIGHT, .x = 300.0f, .y = 200.0f,
+                                    .direction = 1, .radius = 500.0f, .strength = .9f};
+    lighting.lights[1] = (WorldLight){.kind = LIGHT_FLASHLIGHT, .x = 1400.0f, .y = 600.0f,
+                                    .direction = -1, .tilt = .58f, .radius = 500.0f, .strength = .9f};
+    for (int bloom = 0; bloom < 2; bloom++) {
+        clear_frame();
+        if (bloom)
+            terrain_render_light_bloom(renderer, &lighting, 0.0f);
+        else
+            terrain_render_surface_lights(renderer, &lighting, NULL, NULL, 0, 0.0f);
+        read_frame(actual);
+        Uint8 r, g, b;
+        color_at(actual, 450, 200, &r, &g, &b);
+        CHECK(r > 180 && g > 180); /* First beam, pointing right. */
+        color_at(actual, 1250, 700, &r, &g, &b);
+        CHECK(r > 180 && g > 180); /* Fixed beam, down and left. */
+        color_at(actual, 1500, 200, &r, &g, &b);
+        CHECK(r == 180 && g == 180 && b == 180);
+    }
+}
+
 static void camera_coordinates_match_a_translated_scene(void)
 {
     Lighting a = night_light();
@@ -127,6 +151,7 @@ static void ground_shadows_render_and_hidden_bodies_do_not_cast(void)
 {
     Lighting lighting = night_light();
     lighting.lights[0].x = 500.0f;
+    lighting.lights[0].y = BASELINE - 220.0f;
     lighting.lights[0].radius = 650.0f;
     Zombie zombie;
     zombie_spawn(&zombie, zombie_stats(ZOMBIE_KIND_DOG, false), 650.0f);
@@ -265,6 +290,7 @@ int main(void)
     if (renderer) {
         RUN(night_ambient_and_warm_surface_light);
         RUN(daylight_without_glow_keeps_the_surface);
+        RUN(both_directional_lights_render_their_own_surfaces_and_bloom);
         RUN(camera_coordinates_match_a_translated_scene);
         RUN(viewport_protects_the_surrounding_ui_band);
         RUN(ground_shadows_render_and_hidden_bodies_do_not_cast);

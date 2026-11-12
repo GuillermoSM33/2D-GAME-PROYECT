@@ -149,14 +149,6 @@ static void draw_shadow(SDL_Renderer *renderer, const Lighting *lighting, float 
     }
 }
 
-static const WorldLight *flashlight_of(const Lighting *lighting)
-{
-    for (int i = 0; i < lighting->count; i++)
-        if (lighting->lights[i].kind == LIGHT_FLASHLIGHT && lighting->lights[i].strength > .01f)
-            return &lighting->lights[i];
-    return NULL;
-}
-
 /* What its light falls on, in art-sized steps; stops at what blocks it. */
 static void measure_beam(const Lighting *lighting, const WorldLight *light, float camera_x)
 {
@@ -250,9 +242,9 @@ void terrain_render_surface_lights(SDL_Renderer *renderer, const Lighting *light
             SDL_RenderCopy(renderer, light_mask, NULL, &dst);
         }
     }
-    const WorldLight *flashlight = flashlight_of(lighting);
-    if (flashlight)
-        light_surfaces(renderer, lighting, flashlight, camera_x);
+    for (int i = 0; i < lighting->count; i++)
+        if (lighting->lights[i].kind == LIGHT_FLASHLIGHT && lighting->lights[i].strength > .01f)
+            light_surfaces(renderer, lighting, &lighting->lights[i], camera_x);
     SDL_SetRenderDrawColor(renderer, old_r, old_g, old_b, old_a);
     SDL_SetRenderDrawBlendMode(renderer, old_mode);
 }
@@ -265,6 +257,9 @@ static void draw_beam(SDL_Renderer *renderer, const Lighting *lighting, const Wo
     if (!mask)
         return;
     SDL_SetTextureBlendMode(mask, SDL_BLENDMODE_ADD);
+    /* Another light or the surface pass may have used the shared scratch
+     * pixels. Always measure this beam, including standalone bloom calls. */
+    measure_beam(lighting, light, camera_x);
     beam_to_pixels(lighting->night ? .26f : .2f);
     float c = cosf(light->tilt), s = sinf(light->tilt);
     for (int i = 0; i < 16; i++) { /* Dust, drifting out along the beam */
@@ -306,9 +301,9 @@ void terrain_render_light_bloom(SDL_Renderer *renderer, const Lighting *lighting
 {
     if (!renderer || !lighting)
         return;
-    const WorldLight *flashlight = flashlight_of(lighting);
-    if (flashlight)
-        draw_beam(renderer, lighting, flashlight, camera_x);
+    for (int i = 0; i < lighting->count; i++)
+        if (lighting->lights[i].kind == LIGHT_FLASHLIGHT && lighting->lights[i].strength > .01f)
+            draw_beam(renderer, lighting, &lighting->lights[i], camera_x);
     SDL_Texture *glow = assets_texture("sprites/effects/glow");
     if (glow) {
         Uint8 alpha, red, green, blue;

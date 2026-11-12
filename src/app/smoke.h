@@ -2,11 +2,12 @@
 #define APP_SMOKE_H
 
 #include "engine/input.h"
+#include "config.h"
 #include "game/player.h"
 #include "game/bullet.h"
 #include "game/zombie.h"
 
-#define SMOKE_ZOMBIE_GAP 800.0f
+#define SMOKE_ZOMBIE_GAP (VIEW_WIDTH * .5f + 240.0f)
 
 typedef struct {
     bool enabled;

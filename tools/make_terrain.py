@@ -2661,8 +2661,6 @@ def main() -> int:
         'sprites/terrain/barrel.png': make_barrel(),
         'sprites/terrain/wall.png': clear_beside(make_wall(), 44, 2),
         'sprites/terrain/wall_ruins.png': make_wall_ruins(),
-        'sprites/props/houses.png': join(join(join(make_houses(), make_town_houses()), make_more_houses()),
-                                         city.make_urban_houses()),
         'sprites/terrain/facades.png': make_facades(),
         'sprites/terrain/door.png': join(make_door(), city.make_urban_doors(DOOR_W, DOOR_H)),
         'sprites/terrain/dynamite.png': make_dynamite(),
@@ -2695,6 +2693,12 @@ def main() -> int:
         'sprites/effects/explosion.png': make_explosion(),
         'sprites/effects/blood.png': make_blood(),
     }
+    # Keep this historical entry point safe: the current map uses the large
+    # building frames and material detail, never the old 80 x 64 house sheet.
+    from make_houses import build_assets as houses
+    from refine_terrain import build_assets as terrain
+    out.update(houses())
+    out.update(terrain())
     for name, img in out.items():
         path = assets / name
         path.parent.mkdir(parents=True, exist_ok=True)

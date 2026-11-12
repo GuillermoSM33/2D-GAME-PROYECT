@@ -223,6 +223,41 @@ static void test_night_color_is_warm_near_sources_and_day_stays_white(void)
     CHECK(lighting_color_at(&lighting, 0.0f, 0.0f) == 0xffffffu);
 }
 
+static void test_outpost_switches_on_a_real_beam_beside_her_flashlight(void)
+{
+    Terrain terrain;
+    Lighting lighting;
+    terrain_clear(&terrain);
+    Piece *outpost = terrain_add(&terrain, TERRAIN_OUTPOST, 1400.0f);
+    CHECK(outpost != NULL);
+    if (!outpost)
+        return;
+    lighting_build(&lighting, &terrain, NULL, NULL, true, 0.0f, 0.0f, 0.0);
+    CHECK(lighting.count == 0); /* A locked post has no switched-on light. */
+    outpost->spent = true;
+    Player player;
+    player_init(&player);
+    player.x = 500.0f;
+    lighting_build(&lighting, &terrain, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    CHECK(lighting.count == 2);
+    const WorldLight *beam = find_light(&lighting, LIGHT_FLASHLIGHT);
+    CHECK(beam != NULL);
+    if (!beam)
+        return;
+    CHECK(beam->direction == -1 && beam->tilt > 0.0f);
+    CHECK(beam->x > 1400.0f && beam->y < BASELINE - PLAYER_HEAD_HEIGHT * SPRITE_SCALE);
+    float road_x = beam->x - 500.0f, road_y = BASELINE - 40.0f;
+    CHECK(lighting_strength_at(&lighting, beam, road_x, road_y) > .05f);
+    CHECK(lighting_strength_at(&lighting, beam, beam->x + 100.0f, beam->y) == 0.0f);
+    CHECK(lighting.lights[1].direction == 1); /* Her beam keeps its own direction. */
+    terrain_add(&terrain, TERRAIN_WALL, beam->x - 260.0f);
+    lighting_build(&lighting, &terrain, NULL, &player, true, 1.0f, 0.0f, 0.0);
+    beam = find_light(&lighting, LIGHT_FLASHLIGHT);
+    CHECK(beam != NULL);
+    if (beam)
+        CHECK(lighting_strength_at(&lighting, beam, road_x, road_y) == 0.0f);
+}
+
 static void test_ground_shadows_follow_source_height_and_perspective(void)
 {
     WorldLight light = {.kind = LIGHT_LANTERN, .x = 300.0f, .y = BASELINE - 200.0f,
@@ -261,6 +296,7 @@ int main(void)
     RUN(test_gun_and_light_sink_with_her_in_the_river);
     RUN(test_explosion_flash_tracks_animation_and_expires);
     RUN(test_night_color_is_warm_near_sources_and_day_stays_white);
+    RUN(test_outpost_switches_on_a_real_beam_beside_her_flashlight);
     RUN(test_ground_shadows_follow_source_height_and_perspective);
     return TEST_EXIT();
 }

@@ -107,6 +107,21 @@ SDL_Surface *assets_surface_region(const char *name, int x, int y, int w, int h)
     return region;
 }
 
+/* A texture of these pixels (RGBA, freed here), set up like the embedded ones. */
+static SDL_Texture *texture_from_pixels(SDL_Renderer *renderer, unsigned char *rgba, int width, int height)
+{
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(rgba, width, height, 32, width * 4,
+                                                              SDL_PIXELFORMAT_RGBA32);
+    SDL_Texture *texture = surface ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
+    SDL_FreeSurface(surface);
+    SDL_free(rgba);
+    if (texture) {
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
+    }
+    return texture;
+}
+
 SDL_Texture *assets_texture_recolored(SDL_Renderer *renderer, const char *name,
                                       const unsigned (*pairs)[2], int count)
 {
@@ -129,14 +144,33 @@ SDL_Texture *assets_texture_recolored(SDL_Renderer *renderer, const char *name,
             }
         }
     }
-    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(rgba, image->width, image->height, 32,
-                                                              image->width * 4, SDL_PIXELFORMAT_RGBA32);
-    SDL_Texture *texture = surface ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
-    SDL_FreeSurface(surface);
-    SDL_free(rgba);
-    if (texture) {
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-        SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
+    return texture_from_pixels(renderer, rgba, image->width, image->height);
+}
+
+SDL_Texture *assets_texture_graded(SDL_Renderer *renderer, const char *name, unsigned shadow, unsigned light)
+{
+    const EmbeddedImage *image = assets_find_image(name);
+    if (image == NULL)
+        return NULL;
+    size_t size = (size_t)image->width * (size_t)image->height * 4;
+    unsigned char *rgba = SDL_malloc(size);
+    if (rgba == NULL)
+        return NULL;
+    memcpy(rgba, image->rgba, size);
+    unsigned char map[3][256]; /* Per channel: where each value goes */
+    for (int c = 0; c < 3; c++) {
+        int lo = (int)((shadow >> (16 - 8 * c)) & 0xFF), hi = (int)((light >> (16 - 8 * c)) & 0xFF);
+        for (int v = 0; v < 256; v++)
+            map[c][v] = (unsigned char)(lo + ((hi - lo) * v + 127) / 255);
     }
-    return texture;
+    for (size_t i = 0; i < size; i += 4) {
+        if (rgba[i + 3] == ASSETS_LIGHT_ALPHA) {
+            rgba[i + 3] = 255;
+            continue;
+        }
+        rgba[i] = map[0][rgba[i]];
+        rgba[i + 1] = map[1][rgba[i + 1]];
+        rgba[i + 2] = map[2][rgba[i + 2]];
+    }
+    return texture_from_pixels(renderer, rgba, image->width, image->height);
 }

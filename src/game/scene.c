@@ -11,13 +11,13 @@
 #define PX SPRITE_SCALE
 #define HOUSES_SHEET "sprites/props/houses"
 
-/* The props' sheets in the current theme's colors: the embedded ones for the
- * sunset, palette-swapped copies for the others (made when the theme changes). */
+/* The props' sheets in the current theme's light: copies of the embedded
+ * ones, drawn in daylight colors, graded when the theme changes. */
 static const ThemeDef *props_theme;
 static SDL_Texture *themed_props[PROP_KIND_COUNT];
 static SDL_Texture *themed_houses;
-static bool themed_owned; /* The copies are ours to destroy */
 static SDL_Texture *foreground;
+static int foreground_w, foreground_h;
 static SDL_Renderer *foreground_renderer;
 static SDL_Texture *previous_target;
 static SDL_Rect previous_viewport;
@@ -27,15 +27,25 @@ static bool foreground_active;
 static void release_props(void)
 {
     for (int k = 0; k < PROP_KIND_COUNT; k++) {
-        if (themed_owned && themed_props[k])
+        if (themed_props[k])
             SDL_DestroyTexture(themed_props[k]);
         themed_props[k] = NULL;
     }
-    if (themed_owned && themed_houses)
+    if (themed_houses)
         SDL_DestroyTexture(themed_houses);
     themed_houses = NULL;
-    themed_owned = false;
     props_theme = NULL;
+}
+
+/* A color a share of the way to another (0xRRGGBB). */
+static unsigned toward(unsigned from, unsigned to, float share)
+{
+    unsigned out = 0;
+    for (int shift = 16; shift >= 0; shift -= 8) {
+        float a = (float)((from >> shift) & 0xFF), b = (float)((to >> shift) & 0xFF);
+        out |= (unsigned)lroundf(a + (b - a) * share) << shift;
+    }
+    return out;
 }
 
 static void prepare_props(SDL_Renderer *renderer, const ThemeDef *theme)
@@ -43,17 +53,11 @@ static void prepare_props(SDL_Renderer *renderer, const ThemeDef *theme)
     if (props_theme == theme)
         return;
     release_props();
-    themed_owned = theme->prop_recolor_count > 0;
-    for (int k = 0; k < PROP_KIND_COUNT; k++) {
-        const char *sheet = prop_def(k)->sheet;
-        themed_props[k] = themed_owned
-                              ? assets_texture_recolored(renderer, sheet, theme->prop_recolor,
-                                                         theme->prop_recolor_count)
-                              : assets_texture(sheet);
-    }
-    themed_houses = themed_owned ? assets_texture_recolored(renderer, HOUSES_SHEET, theme->prop_recolor,
-                                                            theme->prop_recolor_count)
-                                 : assets_texture(HOUSES_SHEET);
+    for (int k = 0; k < PROP_KIND_COUNT; k++)
+        themed_props[k] = assets_texture_graded(renderer, prop_def(k)->sheet, theme->prop_shadow, theme->prop_light);
+    /* The houses stand further off: the air between takes some of their contrast. */
+    themed_houses = assets_texture_graded(renderer, HOUSES_SHEET, toward(theme->prop_shadow, theme->haze, HOUSE_HAZE),
+                                          toward(theme->prop_light, theme->haze, HOUSE_HAZE));
     props_theme = theme;
 }
 
@@ -91,6 +95,13 @@ static void draw_layer(SDL_Renderer *renderer, SDL_Texture *texture, const Backg
             SDL_Rect edge = {layer->width - 1, 0, 1, layer->height};
             SDL_Rect rest = {w, y, VIEW_WIDTH - w, h};
             SDL_RenderCopy(renderer, texture, &edge, &rest);
+        }
+        /* ...and its last row, down to the ground line: what shows through
+         * any gap in the land in front of it. */
+        if (y + h < GROUND_ROW * PX) {
+            SDL_Rect foot = {0, layer->height - 1, layer->width, 1};
+            SDL_Rect below = {0, y + h, VIEW_WIDTH > w ? VIEW_WIDTH : w, GROUND_ROW * PX - (y + h)};
+            SDL_RenderCopy(renderer, texture, &foot, &below);
         }
         return;
     }
@@ -172,8 +183,8 @@ static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float cam
     if (themed_houses == NULL || theme->house_chance <= 0)
         return;
     float strip = camera_x * HOUSE_PARALLAX;
-    int w = HOUSE_FRAME_W * HOUSE_SCALE, h = HOUSE_FRAME_H * HOUSE_SCALE;
-    long first = (long)floorf((strip - (float)w) / HOUSE_SPACING);
+    int w = HOUSE_FRAME_W * PX, h = HOUSE_FRAME_H * PX;
+    long first = (long)floorf((strip - (float)w - HOUSE_JITTER) / HOUSE_SPACING);
     long last = (long)floorf((strip + (float)VIEW_WIDTH) / HOUSE_SPACING);
     for (long slot = first; slot <= last; slot++) {
         unsigned hash = (unsigned)slot * 2654435761u;
@@ -184,12 +195,12 @@ static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float cam
             continue;
         int variant = theme->house_count > 0 ? theme->houses[(hash >> 8) % (unsigned)theme->house_count]
                                              : (int)((hash >> 8) % HOUSE_FRAMES_WEST);
-        float jitter = (float)((hash >> 16) % 300u);
+        float jitter = (float)((hash >> 16) % (unsigned)HOUSE_JITTER);
         if (over_a_river((float)slot * HOUSE_SPACING + jitter, (float)w))
             continue;
         SDL_Rect src = {variant * HOUSE_FRAME_W, 0, HOUSE_FRAME_W, HOUSE_FRAME_H};
         SDL_Rect dst = {(int)lroundf((float)slot * HOUSE_SPACING + jitter - strip),
-                        GROUND_ROW * PX - h - 2 * PX, w, h};
+                        GROUND_ROW * PX - h - HOUSE_RAISE * PX, w, h};
         SDL_RenderCopy(renderer, themed_houses, &src, &dst);
     }
 }
@@ -253,12 +264,17 @@ bool scene_begin_foreground(SDL_Renderer *renderer)
 {
     if (!renderer || foreground_active || !SDL_RenderTargetSupported(renderer))
         return false;
-    if (foreground_renderer != renderer || !foreground) {
+    /* As large as what it is drawn over: the view's own texture, or the window. */
+    int out_w = WINDOW_WIDTH, out_h = WINDOW_HEIGHT;
+    SDL_GetRendererOutputSize(renderer, &out_w, &out_h);
+    if (foreground_renderer != renderer || !foreground || out_w != foreground_w || out_h != foreground_h) {
         if (foreground)
             SDL_DestroyTexture(foreground);
         foreground = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
-                                       SDL_TEXTUREACCESS_TARGET, WINDOW_WIDTH, WINDOW_HEIGHT);
+                                       SDL_TEXTUREACCESS_TARGET, out_w, out_h);
         foreground_renderer = renderer;
+        foreground_w = out_w;
+        foreground_h = out_h;
         if (!foreground)
             return false;
         SDL_SetTextureBlendMode(foreground, SDL_BLENDMODE_BLEND);
@@ -288,8 +304,7 @@ void scene_end_foreground(SDL_Renderer *renderer)
     SDL_SetRenderTarget(renderer, previous_target);
     SDL_RenderSetScale(renderer, 1.0f, 1.0f);
     SDL_RenderSetViewport(renderer, NULL);
-    SDL_Rect window = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
-    SDL_RenderCopy(renderer, foreground, NULL, &window);
+    SDL_RenderCopy(renderer, foreground, NULL, NULL); /* The same size: over all of it */
     SDL_RenderSetScale(renderer, previous_scale_x, previous_scale_y);
     SDL_RenderSetViewport(renderer, &previous_viewport);
     foreground_active = false;

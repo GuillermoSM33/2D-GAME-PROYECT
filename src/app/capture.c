@@ -651,4 +651,54 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
         player_update(&play.player, &input, FIXED_DT);
     stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
     save_capture(r, dir, "39_ultimo_golpe_trampa");
+
+    /* All ten stages at the same human scale, with objects on either side.
+     * Keep this fixture independent of progression and the random encounters. */
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        stage_start(&play, stage, &CHARACTERS[0], &profiles[0].progress);
+        terrain_clear(&play.run.terrain);
+        play.run.zombie_count = 0;
+        play.player.x += 6000.0f;
+        play.flashlight = false;
+        const ThemeDef *theme = STAGES[stage].theme;
+        Piece *bench = terrain_add(&play.run.terrain, TERRAIN_BENCH, play.player.x - 440.0f);
+        if (bench)
+            bench->variant = theme->city ? 1 : 0;
+        Piece *fire = terrain_add(&play.run.terrain, TERRAIN_CAMPFIRE, play.player.x - 240.0f);
+        if (fire)
+            fire->variant = theme->city ? 1 : 0;
+        terrain_add(&play.run.terrain, TERRAIN_BARREL, play.player.x + 300.0f);
+        Piece *barrier = terrain_add(&play.run.terrain, TERRAIN_BARRICADE, play.player.x + 660.0f);
+        if (barrier)
+            barrier->variant = theme->barricade_count > 0
+                                   ? theme->barricades[stage % theme->barricade_count]
+                                   : stage % BARRICADE_KINDS_WEST;
+        weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+        char name[64];
+        snprintf(name, sizeof(name), "50_escenario_%s", STAGES[stage].name);
+        save_capture(r, dir, name);
+    }
+
+    /* The post's lens, its real cone on the road, and the handheld beam
+     * together: no painted rays in the sprite and no shared-mask mix-up. */
+    stage_start(&play, STAGE_COUNT - 1, &CHARACTERS[0], &profiles[0].progress);
+    terrain_clear(&play.run.terrain);
+    play.run.zombie_count = 0;
+    play.player.x += 6000.0f;
+    terrain_add(&play.run.terrain, TERRAIN_CRATE, play.player.x - 350.0f);
+    Piece *post = terrain_add(&play.run.terrain, TERRAIN_OUTPOST, play.player.x + 250.0f);
+    weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+    if (post) {
+        play.flashlight = false;
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+        save_capture(r, dir, "51_outpost_apagado");
+        post->spent = true;
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+        save_capture(r, dir, "51_outpost_encendido");
+        play.flashlight = true;
+        play.flashlight_since = 10.0f;
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+        save_capture(r, dir, "51_outpost_y_linterna");
+    }
 }

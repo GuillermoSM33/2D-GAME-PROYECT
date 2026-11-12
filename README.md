@@ -168,9 +168,9 @@ Consulta los valores y el formato del guardado en [docs/PROGRESS.md](docs/PROGRE
 
 Cada nivel es un **camino** hacia una salida (un portón con faroles) a 12–20 vistas de donde
 empieza el personaje (19 000–31 000 px); el HUD muestra cuántos metros faltan. El mundo se
-dibuja a 3 px por píxel de arte (`VIEW_SCALE`), así que se ve un tercio más de camino, y la
-cámara deja al personaje en el primer tercio: unos 870 px por delante. Arriba, en la franja de
-cielo, va el HUD. Lo que hay en cada camino está en la tabla de su nivel (`src/game/stages.c`),
+dibuja a 2 px por píxel de arte (`VIEW_SCALE`), con una vista de 480 × 270 píxeles de arte.
+La cámara mantiene al personaje centrado, con 960 unidades de mundo a cada lado; el HUD
+ocupa la franja superior del cielo. Lo que hay en cada camino está en la tabla de su nivel (`src/game/stages.c`),
 distinta por tema:
 
 - **Grupos de zombis** dormidos, de pie y respirando a la vista; despiertan juntos cuando hasta

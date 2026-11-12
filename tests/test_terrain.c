@@ -111,7 +111,7 @@ static void test_barrels_chain(void)
     terrain_add(&t, TERRAIN_BARREL, 1000.0f + 3.0f * BARREL_CHAIN_RADIUS);
     Bullets bullets;
     bullets_clear(&bullets);
-    bullets_spawn(&bullets, 980.0f, 990.0f, 330.0f, 1); /* Her muzzle's height */
+    bullets_spawn(&bullets, 980.0f, 990.0f, BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE, 1);
     bullets_update(&bullets, FIXED_DT, 500.0f);
     CHECK(terrain_shoot(&t, &bullets) == 1);
     CHECK(bullets_active_count(&bullets) == 0); /* The bullet is spent */
@@ -145,7 +145,7 @@ static void test_wall_blocks_even_jumping(void)
     /* It stops bullets: nothing behind it gets hit. */
     Bullets bullets;
     bullets_clear(&bullets);
-    bullets_spawn(&bullets, 900.0f, 930.0f, 330.0f, 1); /* Her muzzle's height */
+    bullets_spawn(&bullets, 900.0f, 930.0f, BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE, 1);
     bullets_update(&bullets, FIXED_DT, 500.0f);
     CHECK(terrain_shoot(&t, &bullets) == 1 && bullets_active_count(&bullets) == 0);
     CHECK(terrain_blocks(&t.items[0])); /* Bullets don't hurt it */
@@ -222,7 +222,7 @@ static void shoot_at(Terrain *t, float x)
 {
     Bullets bullets;
     bullets_clear(&bullets);
-    bullets_spawn(&bullets, x - 20.0f, x - 10.0f, 330.0f, 1); /* Her muzzle's height */
+    bullets_spawn(&bullets, x - 20.0f, x - 10.0f, BASELINE - PLAYER_MUZZLE_DY * SPRITE_SCALE, 1);
     bullets_update(&bullets, FIXED_DT, x - 500.0f);
     terrain_shoot(t, &bullets);
 }

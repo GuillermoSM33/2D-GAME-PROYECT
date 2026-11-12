@@ -37,7 +37,7 @@ static void draw_rain(SDL_Renderer *renderer, const WeatherState *w, float camer
         if (w->splash_age[i] > 0.15f)
             continue;
         int x = window_x(w->splash_x[i], camera_x);
-        int y = window_y((float)(BASELINE + (i * 37 % 60)));
+        int y = window_y((float)(BASELINE + (i * 37 % WEATHER_SPLASH_DEPTH)));
         SDL_Rect left = {x - 2, y - 1, 1, 1};
         SDL_Rect right = {x + 2, y - 1, 1, 1};
         SDL_RenderFillRect(renderer, &left);
@@ -47,7 +47,7 @@ static void draw_rain(SDL_Renderer *renderer, const WeatherState *w, float camer
 
 /* One art pixel in the window (SPRITE_SCALE at VIEW_SCALE): wind bits are
  * drawn in whole art pixels, so they read as part of the pixel art. */
-#define ART_PX 3
+#define ART_PX ((int)(SPRITE_SCALE * VIEW_SCALE))
 
 static Uint8 wind_alpha(const WeatherState *w, int alpha)
 {

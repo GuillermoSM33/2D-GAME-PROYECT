@@ -199,9 +199,9 @@ int app_run(bool smoke_mode, const char *capture_dir)
         goto cleanup;
     }
     if (smoke.enabled) {
-        /* Straight into 1-1 with the cowgirl. The scripted walk needs the zombie
-         * 800 px away; at the view's edge (400 px, she starts centered) it would
-         * reach and hit her mid-script. */
+        /* Straight into 1-1 with the cowgirl. Leave enough space for the
+         * scripted walk and the shot's longer journey across the wider view,
+         * without the zombie reaching her before the observations finish. */
         stage_start(&play, 0, &CHARACTERS[0], &profiles[0].progress);
         zombie_spawn(&play.run.zombies[0], &ZOMBIE_RIOT, play.player.x + SMOKE_ZOMBIE_GAP);
         play.prev_zombie_x[0] = play.run.zombies[0].x;
@@ -631,6 +631,7 @@ cleanup:
         skin_free(&skins[c]);
     scene_shutdown();
     terrain_render_shutdown();
+    stage_render_shutdown();
     story_audio_stop();
     audio_shutdown();
     hud_shutdown();

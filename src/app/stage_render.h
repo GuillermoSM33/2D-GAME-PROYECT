@@ -15,9 +15,12 @@ void stage_draw_backdrop_at(Platform *platform, World *world, float camera_x, fl
 void stage_backdrop_restart(void);
 /* Seconds since then. */
 double stage_backdrop_seconds(void);
-/* The world's view: scaled, below the sky band. Draw the world between them. */
+/* The world's view, filling the window at VIEW_SCALE. Draw the world between
+ * them, in view px (VIEW_WIDTH x VIEW_HEIGHT). */
 void stage_begin_view(SDL_Renderer *renderer, const ThemeDef *theme);
 void stage_end_view(SDL_Renderer *renderer);
+/* Frees the view's texture (before its renderer goes). */
+void stage_render_shutdown(void);
 void stage_draw_heat(SDL_Renderer *renderer, float camera_x, double time);
 
 #endif

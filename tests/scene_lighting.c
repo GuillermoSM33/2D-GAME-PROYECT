@@ -15,10 +15,9 @@ static SDL_Renderer *renderer;
 
 SDL_Texture *assets_texture(const char *name) { (void)name; return NULL; }
 const EmbeddedImage *assets_find_image(const char *name) { (void)name; return NULL; }
-SDL_Texture *assets_texture_recolored(SDL_Renderer *r, const char *name,
-                                      const unsigned pairs[][2], int count)
+SDL_Texture *assets_texture_graded(SDL_Renderer *r, const char *name, unsigned shadow, unsigned light)
 {
-    (void)r; (void)name; (void)pairs; (void)count;
+    (void)r; (void)name; (void)shadow; (void)light;
     return NULL;
 }
 
@@ -74,7 +73,7 @@ static void viewport_scale_and_parent_target_are_preserved(void)
 {
     clear_scene();
     SDL_Rect viewport = {12, 24, 700, 430}, actual;
-    SDL_RenderSetScale(renderer, .75f, .75f);
+    SDL_RenderSetScale(renderer, VIEW_SCALE, VIEW_SCALE);
     SDL_RenderSetViewport(renderer, &viewport);
     CHECK(scene_begin_foreground(renderer));
     CHECK(!scene_begin_foreground(renderer)); /* Nesting cannot lose the parent target. */
@@ -83,8 +82,8 @@ static void viewport_scale_and_parent_target_are_preserved(void)
     float x, y;
     SDL_RenderGetScale(renderer, &x, &y);
     CHECK(memcmp(&viewport, &actual, sizeof(viewport)) == 0);
-    CHECK_NEAR(x, .75f, .001f);
-    CHECK_NEAR(y, .75f, .001f);
+    CHECK_NEAR(x, VIEW_SCALE, .001f);
+    CHECK_NEAR(y, VIEW_SCALE, .001f);
     CHECK(SDL_GetRenderTarget(renderer) == NULL);
 }
 

@@ -30,12 +30,50 @@ static float interpolate(float before, float after, float alpha)
     return before + (after - before) * alpha;
 }
 
+/* The world is drawn at its own size (VIEW_WIDTH x VIEW_HEIGHT, whole px
+ * wherever a thing stands) into a texture, and that is copied into the window
+ * at VIEW_SCALE. Scaling each sprite on its own would put half of them on
+ * half pixels, their columns uneven as they move. */
+static SDL_Texture *view_target;
+static SDL_Renderer *view_renderer;
+static SDL_Texture *view_parent;
+static bool view_active;
+
+void stage_render_shutdown(void)
+{
+    if (view_active && view_renderer)
+        SDL_SetRenderTarget(view_renderer, view_parent);
+    if (view_target)
+        SDL_DestroyTexture(view_target);
+    view_target = NULL;
+    view_renderer = NULL;
+    view_active = false;
+}
+
 void stage_begin_view(SDL_Renderer *renderer, const ThemeDef *theme)
 {
-    SDL_Rect band = {0, 0, WINDOW_WIDTH, VIEW_TOP + 1};
     platform_set_color(renderer, scene_sky_top(theme));
     SDL_RenderClear(renderer);
-    SDL_RenderFillRect(renderer, &band);
+    if (view_renderer != renderer)
+        stage_render_shutdown();
+    view_renderer = renderer;
+    if (view_target == NULL && SDL_RenderTargetSupported(renderer)) {
+        view_target = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+                                        VIEW_WIDTH, VIEW_HEIGHT);
+        if (view_target) {
+            SDL_SetTextureBlendMode(view_target, SDL_BLENDMODE_NONE);
+            SDL_SetTextureScaleMode(view_target, SDL_ScaleModeNearest);
+        }
+    }
+    view_parent = SDL_GetRenderTarget(renderer);
+    if (view_target && SDL_SetRenderTarget(renderer, view_target) == 0) {
+        view_active = true;
+        SDL_RenderSetScale(renderer, 1.0f, 1.0f);
+        SDL_RenderSetViewport(renderer, NULL);
+        SDL_RenderClear(renderer);
+        return;
+    }
+    /* No render targets here: scaled straight into the window. */
     SDL_RenderSetScale(renderer, VIEW_SCALE, VIEW_SCALE);
     SDL_Rect view = {0, (int)(VIEW_TOP / VIEW_SCALE), VIEW_WIDTH, VIEW_HEIGHT};
     SDL_RenderSetViewport(renderer, &view);
@@ -45,6 +83,16 @@ void stage_end_view(SDL_Renderer *renderer)
 {
     SDL_RenderSetViewport(renderer, NULL);
     SDL_RenderSetScale(renderer, 1.0f, 1.0f);
+    if (!view_active)
+        return;
+    view_active = false;
+    SDL_SetRenderTarget(renderer, view_parent);
+    SDL_RenderSetViewport(renderer, NULL);
+    SDL_RenderSetScale(renderer, 1.0f, 1.0f);
+    /* A quarter of a window px up and left: each window px then reads the
+     * middle of one world px, never the line between two. */
+    SDL_FRect window = {-0.25f, (float)VIEW_TOP - 0.25f, VIEW_WIDTH * VIEW_SCALE, VIEW_HEIGHT * VIEW_SCALE};
+    SDL_RenderCopyF(renderer, view_target, NULL, &window);
 }
 
 /* Her trail of blood on the road (effects/blood), each drop fading as it dries. */
@@ -287,7 +335,13 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     float flashlight = lighting_flashlight_power(play->flashlight, play->flashlight
                                                      ? play->flashlight_since - flashlight_time * PLAYER_LIGHT_CLICK
                                                      : play->flashlight_since);
-    if (play->world.theme->night || flashlight > 0.0f) { /* What it lights apart from the far land */
+    Lighting lighting;
+    lighting_build(&lighting, &play->run.terrain, &play->effects, &player_view,
+                    play->world.theme->night, flashlight, camera_x, platform_time());
+    bool directional_light = false;
+    for (int i = 0; i < lighting.count; i++)
+        directional_light |= lighting.lights[i].kind == LIGHT_FLASHLIGHT;
+    if (play->world.theme->night || directional_light) { /* What it lights apart from the far land */
         scene_draw_distant(platform->renderer, &play->world, camera_x);
         separated_light = scene_begin_foreground(platform->renderer);
         scene_draw_near(platform->renderer, &play->world, camera_x, platform_time());
@@ -325,9 +379,6 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     draw_lightning(platform->renderer, &play->run, camera_x, platform_time());
     effects_render(platform->renderer, &play->effects, camera_x);
     smoke_render(platform->renderer, &play->smoke, camera_x);
-    Lighting lighting;
-    lighting_build(&lighting, &play->run.terrain, &play->effects, &player_view,
-                    play->world.theme->night, flashlight, camera_x, platform_time());
     if (separated_light)
         terrain_render_surface_lights(platform->renderer, &lighting, &player_view, zombie_view, zombie_count, camera_x);
     else

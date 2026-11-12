@@ -62,8 +62,8 @@ static void rain_reaches_the_upper_sky(void)
                 if (baseline[y * WINDOW_WIDTH + x] == actual[y * WINDOW_WIDTH + x])
                     continue;
                 top += y < 30;
-                sky += y < VIEW_TOP;
-                world += y >= VIEW_TOP;
+                sky += y < HUD_BAND;
+                world += y >= HUD_BAND;
             }
         }
         CHECK(top > 0);

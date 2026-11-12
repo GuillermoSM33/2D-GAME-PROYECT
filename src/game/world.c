@@ -7,9 +7,10 @@
 /* Salts keep each random choice independent of the others. */
 enum { SALT_DECOR = 1, SALT_GRASS_COUNT, SALT_GRASS };
 
-#define DECOR_CHANCE 0.6f /* Per half chunk: one big prop (cactus, fence, tree...) */
-#define GRASS_MIN 1       /* Grass tufts scattered over every chunk */
-#define GRASS_MAX 3
+#define DECOR_CHANCE 0.55f /* Per slot of a chunk: one big prop (cactus, fence, tree...) */
+#define DECOR_OVERLAP 0.7f /* Two big props may share this much of their frames' empty edges */
+#define GRASS_MIN 2        /* Grass tufts scattered over every chunk */
+#define GRASS_MAX 6
 
 static uint32_t hash32(uint32_t x)
 {
@@ -60,20 +61,28 @@ void chunk_generate(Chunk *chunk, int index, const ThemeDef *theme)
     chunk->loaded = true;
     chunk->index = index;
 
-    /* Big props first, one chance per half so they never pile up. They keep
-     * clear of the chunk's edges by half their width, so none overlaps the
-     * next chunk's. */
-    for (int half = 0; half < 2; half++) {
-        if (rand01(index, SALT_DECOR, half * 4) >= DECOR_CHANCE)
+    /* Big props first, one chance per slot, somewhere in it. They keep clear
+     * of the chunk's edges by half their width, so none overlaps the next
+     * chunk's (and culling by chunk never cuts one), and of each other: one
+     * that would stand on another is left out. */
+    float slot_w = (float)WORLD_CHUNK_W / WORLD_BIG_SLOTS;
+    for (int slot = 0; slot < WORLD_BIG_SLOTS; slot++) {
+        if (rand01(index, SALT_DECOR, slot * 4) >= DECOR_CHANCE)
             continue;
-        int kind = pick_kind(theme, rand01(index, SALT_DECOR, half * 4 + 1));
+        int kind = pick_kind(theme, rand01(index, SALT_DECOR, slot * 4 + 1));
         if (kind < 0)
             continue;
         float half_w = (float)(prop_def(kind)->frame_w * SPRITE_SCALE) / 2.0f;
-        float lo = (float)half * WORLD_CHUNK_W / 2.0f + half_w;
-        float hi = (float)(half + 1) * WORLD_CHUNK_W / 2.0f - half_w;
-        float x = lo + rand01(index, SALT_DECOR, half * 4 + 2) * fmaxf(0.0f, hi - lo);
-        add_prop(chunk, kind, rand01(index, SALT_DECOR, half * 4 + 3), x);
+        float x = ((float)slot + rand01(index, SALT_DECOR, slot * 4 + 2)) * slot_w;
+        x = fminf((float)WORLD_CHUNK_W - half_w, fmaxf(half_w, x));
+        bool clear = true;
+        for (int p = 0; p < chunk->prop_count; p++) {
+            float other = (float)(prop_def(chunk->props[p].kind)->frame_w * SPRITE_SCALE) / 2.0f;
+            if (fabsf(chunk->props[p].x - x) < (half_w + other) * DECOR_OVERLAP)
+                clear = false;
+        }
+        if (clear)
+            add_prop(chunk, kind, rand01(index, SALT_DECOR, slot * 4 + 3), x);
     }
 
     int tufts = GRASS_MIN + (int)(rand01(index, SALT_GRASS_COUNT, 0) * (GRASS_MAX - GRASS_MIN + 1));

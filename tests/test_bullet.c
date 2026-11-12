@@ -43,7 +43,7 @@ static void test_pool_limit_and_reuse(void)
     for (int i = 0; i < BULLET_MAX; i++)
         CHECK(bullets_spawn(&bullets, 400.0f, 400.0f, 300.0f, 1));
     CHECK(!bullets_spawn(&bullets, 400.0f, 400.0f, 300.0f, 1));
-    for (int i = 0; i < 120; i++) /* Out of the view: 1280 px at 900 px/s */
+    for (int i = 0; i < 120; i++) /* Out of the view: 1920 px at 900 px/s */
         bullets_update(&bullets, FIXED_DT, 0.0f);
     CHECK(bullets_active_count(&bullets) == 0);
     CHECK(bullets_spawn(&bullets, 400.0f, 400.0f, 300.0f, 1)); /* Slots are reused */

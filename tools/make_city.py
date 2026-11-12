@@ -8,8 +8,8 @@ Writes:
   five city themes (docs/LANDSCAPE.md): afueras (dawn on the outskirts),
   centro (downtown, a smoggy afternoon), vias (the rail yard at dusk),
   ciudad_noche (downtown by night) and base_militar (the army post, alarm red).
-  sprites/props/<city prop>.png   Scenery on the ground line, in the props' six
-                                  sunset colours (themes.c recolours them):
+  sprites/props/<city prop>.png   Scenery on the ground line, daylight material
+                                  colours (themes.c grades their light):
                                   hydrant, streetlight, trash, cone, tires,
                                   sandbags, jersey, pole, litter, signal, drums
   sprites/sparrow/sparrow.png     A sparrow, the crow's 8 frames of 16 x 12
@@ -33,9 +33,10 @@ Writes:
                                   its two cars jammed together round a gap the
                                   wall's door fills (300 x 104)
 
-The backgrounds follow the landscape rules: flat bands, no outlines, lighter
-and plainer the farther, dark behind the bodies. Deterministic; standard
-library only (tools/make_sprites.py writes the PNGs).
+The entry point uses make_landscape and make_props for current scenery and
+refine_terrain for material detail on road objects. The older painters remain
+source geometry, never the final exported backgrounds or prop sheets.
+Deterministic; standard library only (tools/make_sprites.py writes the PNGs).
 """
 from __future__ import annotations
 
@@ -1494,10 +1495,9 @@ def make_outpost() -> Image:
         f.fill(mx - 3, b - 3, mx + 4, b, IRON[1])
         f.fill(mx - 10, 2, mx + 4, 12, IRON[1])
         f.fill(mx - 9, 3, mx - 3, 11, rgb(0xfff4c8) if frame else rgb(0x4a4a44))
-        if frame:
-            for i in range(1, 10):
-                f.px(mx - 10 - i * 2, 7 + i * 2, rgb(0xf0e0a0))
-                f.px(mx - 12 - i * 2, 3 + i, rgb(0xf0e0a0))
+        # The switched-on lens is part of the sprite. Its beam is a real
+        # directional world light, rendered with the flashlight's occlusion
+        # and falloff; never bake a dotted triangle into this sheet.
         f.outline()
     return img
 
@@ -1874,17 +1874,18 @@ def make_train() -> Image:
 def main() -> int:
     assets = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / 'assets'
     out: dict[str, Image] = {}
-    for name, t in THEMES.items():
-        folder = f'backgrounds/{name}/'
-        out[folder + 'sky.png'] = make_sky(t)
-        out[folder + 'far.png'] = make_far(name, t)
-        out[folder + 'hills_far.png'] = make_mid(name, t)
-        out[folder + 'hills_near.png'] = make_near(name, t)
-        out[folder + 'ground.png'] = make_ground(name, t)
-        if t['fog']:
-            out[folder + 'fog.png'] = make_fog(t)
-    for name, draw in PROPS.items():
-        out[f'sprites/props/{name}.png'] = draw()
+    # Current landscape and prop geometry, shared with their dedicated tools.
+    # The older painters below remain source geometry for road objects only.
+    from make_landscape import theme_layers
+    from make_props import build_assets as props
+    from refine_terrain import build_assets as terrain
+    for name in THEMES:
+        for layer, image in theme_layers(name).items():
+            out[f'backgrounds/{name}/{layer}.png'] = image
+    current_props = props()
+    for name in PROPS:
+        path = f'sprites/props/{name}.png'
+        out[path] = current_props[path]
     out['sprites/sparrow/sparrow.png'] = make_sparrow()
     out['sprites/terrain/burner.png'] = make_burner()
     out['sprites/effects/flare.png'] = make_flare()
@@ -1898,6 +1899,9 @@ def main() -> int:
     out['sprites/terrain/outpost.png'] = make_outpost()
     out['sprites/terrain/city_fronts.png'] = make_city_fronts()
     out['sprites/terrain/train.png'] = make_train()
+    for name, image in terrain().items():
+        if name in out:
+            out[name] = image
     for name, img in out.items():
         path = assets / name
         path.parent.mkdir(parents=True, exist_ok=True)

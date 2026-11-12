@@ -25,8 +25,6 @@ extern const int BACKGROUND_LAYER_COUNT;
  * also drifts on its own (FOG_DRIFT). */
 extern const BackgroundLayer FOG_LAYER;
 
-#define THEME_MAX_RECOLORS 8
-
 typedef struct {
     const char *name; /* Its folder in assets/backgrounds */
     bool fog;         /* Has a fog.png */
@@ -34,10 +32,11 @@ typedef struct {
     /* How often each prop is picked for a big decoration (0 = never). Grass
      * tufts are scattered on their own and don't use this. */
     int prop_weights[PROP_KIND_COUNT];
-    /* Palette swap for the props, drawn in the sunset's colors: each pair is
-     * {original 0xRRGGBB, this theme's}. None for the sunset itself. */
-    unsigned prop_recolor[THEME_MAX_RECOLORS][2];
-    int prop_recolor_count;
+    /* The scenery (props and houses) is drawn once, in daylight colors, and
+     * takes each theme's light: black becomes prop_shadow and white
+     * prop_light (0xRRGGBB; assets_texture_graded), everything else its place
+     * between them. The houses, further off, also take a share of the haze. */
+    unsigned prop_shadow, prop_light, haze;
     int house_chance; /* Percent of the house slots with a building in the background */
     /* The second route's town. A city theme strews litter instead of grass,
      * has sparrows instead of crows, iron benches and a burning drum to rest

@@ -2,14 +2,15 @@
 
 Medidas tomadas del arte de la vaquera (`assets/sprites/characters/cowgirl/`), que es la
 plantilla de todos los personajes ([`CHARACTERS.md`](CHARACTERS.md)). Todas las medidas están en
-**píxeles del arte (1×)** salvo que diga "en pantalla" (4×).
+**píxeles del arte (1×)**. Las tablas históricas de 4× describen el espacio del
+mundo; la vista actual lo presenta a 0.5×, dos píxeles de ventana por píxel de arte.
 
 ## Reglas para cualquier hoja
 
 | Regla | Valor |
 | --- | --- |
 | Formato | **PNG RGBA de 8 bits, sin entrelazado.** No uses modo indexado ni paleta: `tools/embed_assets.py` lo rechaza. En Aseprite: *Color Mode → RGBA*. |
-| Escala | Dibuja a 1×. El juego escala a 4× sin suavizado. |
+| Escala | Dibuja a 1×. Cuatro unidades de mundo por píxel, presentadas a 0.5×: 2× en ventana sin suavizado. |
 | Distribución | Una sola fila de cuadros del mismo tamaño, pegados y sin separación. El espacio vacío dentro de cada cuadro no importa. |
 | Tamaño de la hoja | Ancho = ancho del cuadro × número de cuadros. Alto = alto del cuadro exacto. `--verify` lo comprueba. |
 | Dirección | Solo mirando a la **derecha**. La izquierda se genera espejando. |
@@ -85,13 +86,13 @@ Otras balas o proyectiles: mismo formato de cuadro (8 × 6) si son del mismo cal
 
 ## Pantalla (fondos y enemigos)
 
-| Medida | En pantalla | Arte (÷4) |
+| Medida | En ventana | Arte (÷2) |
 | --- | --- | --- |
-| Ventana | 960 × 540 | **240 × 135** |
-| Línea del suelo | y = 470 | y ≈ 117 |
-| Altura de la vaquera | 224 px | 56 de los 135 de alto |
+| Ventana | 960 × 540 | **480 × 270** |
+| Línea del suelo | y = 480 | y = 240 |
+| Altura de la vaquera | 112 px | 56 de los 270 de alto |
 
-- Los fondos se dibujan en un lienzo de 240 × 135 a 1×. Capas, medidas, paletas y temas por
+- Los fondos se dibujan en un lienzo de 480 × 270 a 1×. Capas, medidas, paletas y temas por
   nivel: [`LANDSCAPE.md`](LANDSCAPE.md).
 - Los enemigos van a la misma escala que la vaquera: un humano de unos 56 px de alto. Estilo
   y plantilla: [`ZOMBIE.md`](ZOMBIE.md).

@@ -477,7 +477,7 @@ static void scene_road(SDL_Renderer *r, float t)
 {
     float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + t * 60.0f;
     begin_world(r, &road_world, camera_x);
-    float vx = -320.0f + t * 200.0f;
+    float vx = CINE_X(-320.0f + t * 200.0f);
     int frame = (int)(t * 10.0f) % VAN_FRAMES;
     /* Dust kicked up behind it */
     for (int i = 0; i < 14; i++) {
@@ -515,11 +515,11 @@ static void scene_town(SDL_Renderer *r, float t)
     begin_world(r, &town_world, camera_x);
     /* Someone staggering down the empty street */
     const AnimationDef *walk = zombie_animation(ZOMBIE_KIND_CIVIL_FEMALE_2, ZOMBIE_ANIM_WALK);
-    float zx = 120.0f + t * 34.0f;
+    float zx = CINE_X(120.0f) + t * 34.0f;
     draw_zombie_frame(r, ZOMBIE_KIND_CIVIL_FEMALE_2, ZOMBIE_ANIM_WALK, (int)(t * walk->fps * 0.55f), zx, 1, 0);
     static const float crows_x[] = {760.0f, 830.0f, 880.0f};
     for (int i = 0; i < 3; i++) {
-        float x = crows_x[i] - t * 18.0f; /* They stay put while the view drifts */
+        float x = CINE_X(crows_x[i]) - t * 18.0f; /* They stay put while the view drifts */
         if (t < TOWN_CROWS_FLY + (float)i * 0.15f) {
             draw_crow(r, (int)(t * 3.0f + (float)i) % 2, x, 0.0f, 1);
         } else {
@@ -556,8 +556,10 @@ static void draw_tombstone(SDL_Renderer *r, float x, int variant)
     SDL_Texture *tex = assets_texture("sprites/props/tombstone");
     if (tex == NULL)
         return;
-    SDL_Rect src = {variant * 14, 0, 14, 18};
-    SDL_Rect dst = {(int)lroundf(x) - 7 * SPRITE_SCALE, BASELINE - 18 * SPRITE_SCALE, 14 * SPRITE_SCALE, 18 * SPRITE_SCALE};
+    const PropDef *def = prop_def(PROP_TOMBSTONE);
+    SDL_Rect src = {variant % def->variants * def->frame_w, 0, def->frame_w, def->frame_h};
+    SDL_Rect dst = {(int)lroundf(x) - def->frame_w * SPRITE_SCALE / 2, BASELINE - def->frame_h * SPRITE_SCALE,
+                    def->frame_w * SPRITE_SCALE, def->frame_h * SPRITE_SCALE};
     SDL_SetTextureColorMod(tex, 150, 140, 160);
     SDL_RenderCopy(r, tex, &src, &dst);
     SDL_SetTextureColorMod(tex, 255, 255, 255);
@@ -599,9 +601,9 @@ static void scene_grave(SDL_Renderer *r, float t)
 {
     float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f;
     begin_world(r, &grave_world, camera_x);
-    const float grave_a = 330.0f, coffin_x = 690.0f, grave_b = 1010.0f;
-    draw_tombstone(r, grave_a + 92.0f, 1);
-    draw_tombstone(r, grave_b + 92.0f, 0);
+    const float grave_a = CINE_X(330.0f), coffin_x = CINE_X(690.0f), grave_b = CINE_X(1010.0f);
+    draw_tombstone(r, grave_a + TOMBSTONE_GAP, 1);
+    draw_tombstone(r, grave_b + TOMBSTONE_GAP, 0);
     /* The coffin stood against the dark: rattling, then burst open */
     SDL_Texture *coffin = assets_texture("sprites/terrain/coffin");
     if (coffin) {
@@ -671,7 +673,7 @@ static void step_sheriff(float t)
 {
     if (sheriff_time < 0.0f || t < sheriff_time) {
         player_init(&sheriff_view);
-        sheriff_view.x = PLAYER_START_X + 640.0f; /* Mid-view, looking at the town */
+        sheriff_view.x = PLAYER_START_X + VIEW_WIDTH / 2.0f; /* Mid-view, looking at the town */
         sheriff_time = 0.0f;
     }
     InputState input;

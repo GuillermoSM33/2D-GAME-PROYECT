@@ -17,29 +17,33 @@
 
 /* World */
 /* The world is laid out in a view VIEW_WIDTH x VIEW_HEIGHT px (its art at
- * SPRITE_SCALE) and drawn at VIEW_SCALE of that: 3 window px per art px,
- * still whole pixels, so she sees a third more of the road. It fills the
- * window's bottom; the band above it is sky, where the HUD sits. */
-#define VIEW_WIDTH 1280
-#define VIEW_HEIGHT 540
-#define VIEW_SCALE 0.75f
-#define VIEW_TOP (WINDOW_HEIGHT - (int)(VIEW_HEIGHT * VIEW_SCALE)) /* Window y of the view's top: 135 */
-#define BASELINE 470
+ * SPRITE_SCALE) and drawn at VIEW_SCALE of that: 2 window px per art px,
+ * whole pixels, a view of 480 x 270 art px that fills the window. She stands
+ * in its middle and sees 960 px (20 m) to each side: far enough for a pole, a
+ * house or a tree to be drawn at its real size beside her (56 px, 1.70 m).
+ * The HUD sits over the top of the sky (HUD_BAND). */
+#define VIEW_WIDTH 1920
+#define VIEW_HEIGHT 1080
+#define VIEW_SCALE 0.5f
+#define VIEW_TOP (WINDOW_HEIGHT - (int)(VIEW_HEIGHT * VIEW_SCALE)) /* Window y of the view's top: 0 */
+#define HUD_BAND 135   /* Window px at the top that the HUD may use: the sky is dark and plain there */
 #define SPRITE_SCALE 4
-#define GROUND_ROW 117 /* Art row of the ground line (window y 468); props rest on it */
-#define FOG_DRIFT 24.0f /* Window px per second the fog slides on its own (6 art px) */
+#define GROUND_ROW 240 /* Art row of the ground line (window y 480); props rest on it */
+#define BASELINE (GROUND_ROW * SPRITE_SCALE + 2) /* View y where feet stand: 962 */
+#define FOG_DRIFT 24.0f /* View px per second the fog slides on its own (6 art px) */
 
 /* The level is a long strip of chunks whose props are generated from a seed.
  * Only the chunks in view (plus WORLD_LOAD_MARGIN on each side) exist in
  * memory: walking left loads the left ones and drops those left behind on the
  * right, and vice versa. The background layers are images (themes.c). */
-#define WORLD_CHUNK_W 480                /* px, half a window */
-#define WORLD_CHUNKS 200                 /* 96 000 px, about 100 windows */
+#define WORLD_CHUNK_W 960                /* px, half a view: room for a tree or a fallen pole whole */
+#define WORLD_CHUNKS 100                 /* 96 000 px, 50 views */
 #define WORLD_WIDTH ((float)(WORLD_CHUNK_W * WORLD_CHUNKS))
 #define WORLD_LOAD_MARGIN 1              /* Chunks loaded past each side of the view */
 #define WORLD_CACHE_CHUNKS 8             /* Chunk slots: view (3) + margins */
 #define WORLD_SEED 0x7a51e7u             /* Same seed, same landscape */
-#define WORLD_MAX_PROPS 8                /* Props per chunk: 2 big ones and the grass */
+#define WORLD_BIG_SLOTS 4                /* Places for a big prop (a cactus, a pole, a tree) per chunk */
+#define WORLD_MAX_PROPS 12               /* Props per chunk: the big ones and the grass */
 
 /* Player sprite sheets: frames in a single row, facing right.
  * Sheet width must be exactly frame width * frame count. */
@@ -286,9 +290,9 @@
 #define PLAYER_HALF_WIDTH (PLAYER_WALK_FRAME_W * SPRITE_SCALE / 2.0f)
 
 #define PLAYER_START_X (WORLD_WIDTH / 2.0f) /* Mid-level: room to walk both ways */
-/* Where she stands in the view, from its left edge: the roads lead right, so
- * two thirds of the screen show what is coming. */
-#define CAMERA_PLAYER_SHARE 0.32f
+/* Where she stands in the view, from its left edge: in the middle. Ambushes
+ * and hordes come from both sides, so she sees as far behind as ahead. */
+#define CAMERA_PLAYER_SHARE 0.5f
 /* Whole pixels per 60 Hz step (4 walking, 6 running), so scrolling moves the
  * same amount every frame instead of an uneven 6, 7, 6, 6, 7... */
 #define PLAYER_WALK_SPEED 240.0f   /* px per second */
@@ -316,15 +320,15 @@
  * many zombies: more zombies make it harder, not a faster climb. */
 #define STAGE_XP_ZOMBIES 6.0f
 /* A group wakes when even its farthest zombie is this close: they all stand
- * in view first (she sees 870 px ahead), none walks in from off screen. */
+ * in view first (she sees 960 px ahead), none walks in from off screen. */
 #define ROUTE_WAKE_DISTANCE 820.0f
 #define ROUTE_GROUP_SPACING 150.0f /* Window px between the zombies of a group */
 #define ROUTE_LOCK_MARGIN 260.0f   /* A woken group keeps her from going past its last zombie + this */
 /* An ambush (SPOT_AMBUSH): when she reaches its spot, its zombies walk in
- * from off screen, behind her (she sees 410 px back) and, if the road ahead
- * is open, ahead too. */
-#define AMBUSH_BEHIND 560.0f
-#define AMBUSH_AHEAD 1000.0f
+ * from off screen (she sees 960 px to each side), behind her and, if the road
+ * ahead is open, ahead too: from just as far on both sides. */
+#define AMBUSH_BEHIND 1100.0f
+#define AMBUSH_AHEAD 1100.0f
 #define AMBUSH_SPACING 120.0f      /* Window px between ambushers on one side */
 #define AMBUSH_ROOM 560.0f         /* Window px past the spot she may move while it holds her */
 #define AMBUSH_WALL_SPAN 1200.0f   /* A wall this close past the spot: she may walk on up to it */
@@ -361,14 +365,19 @@
 #define RICOCHET_BURST_FRAMES 6   /* ...and the impact */
 #define RICOCHET_FPS 18.0f
 #define GRENADE_FRAME 8           /* weapons/grenade: 4 frames tumbling */
-#define HOUSE_FRAME_W 80          /* Buildings off the road, behind it (props/houses) */
-#define HOUSE_FRAME_H 64
+/* Buildings off the road, behind it (props/houses, tools/make_houses.py): at
+ * their real size a little way back (a door is about her height), each
+ * standing on the last row of its frame, in its middle. */
+#define HOUSE_FRAME_W 256
+#define HOUSE_FRAME_H 192
 #define HOUSE_FRAMES_WEST 13     /* Five houses; church, sheriff, smithy, stable, bank; store, adobe, fallen silo */
 #define HOUSE_FRAMES 21          /* ...then the city's: billboard, gas station, shops, flats, warehouse,
                                   * hangar, watchtower, radar (ThemeDef.houses picks) */
-#define HOUSE_SCALE 3             /* Smaller than the props: further away */
-#define HOUSE_PARALLAX 0.8f       /* ...and slower */
-#define HOUSE_SPACING 700.0f      /* A slot for a house every this many px of their strip */
+#define HOUSE_PARALLAX 0.8f       /* Further away than the road: slower */
+#define HOUSE_SPACING 1200.0f     /* A slot for a house every this many px of their strip... */
+#define HOUSE_JITTER 176          /* ...each this far into it at most: frames never overlap */
+#define HOUSE_RAISE 2             /* Art rows over the ground line they stand: behind the road's edge */
+#define HOUSE_HAZE 0.22f          /* Share of the theme's haze in their colors */
 #define BARRICADE_FRAME_W 68
 #define BARRICADE_FRAME_H 36
 #define BARRICADE_TOP 146.0f      /* Window px: under her face, over her jump's peak: only N gets her over */
@@ -505,8 +514,9 @@
 #define SPLASH_FPS 14.0f
 #define SPLASH_EVERY 0.25f        /* Seconds between splashes of a walker in water */
 /* Weather (weather.c). */
-#define WEATHER_DROPS 160
-#define WEATHER_DUST 28          /* Wind bits: dust motes, leaves and gust lines */
+#define WEATHER_DROPS 240
+#define WEATHER_DUST 40          /* Wind bits: dust motes, leaves and gust lines */
+#define WEATHER_SPLASH_DEPTH 100 /* View px under the ground line where drops land: the road has depth */
 #define WEATHER_LEAF_CHANCE 0.12f
 #define WEATHER_STREAK_CHANCE 0.22f /* Of the bits, gust lines higher up */
 #define WEATHER_SPLASHES 24
@@ -699,6 +709,10 @@
  * full magazines, a little health) and switches its floodlight on. */
 #define OUTPOST_FRAME_W 168
 #define OUTPOST_FRAME_H 92
+#define OUTPOST_LIGHT_COL 137      /* Art column of the left-facing floodlight lens */
+#define OUTPOST_LIGHT_ROW 7        /* Art row, matching tools/make_city.py */
+#define OUTPOST_LIGHT_REACH 1040.0f
+#define OUTPOST_LIGHT_TILT 0.58f   /* Down toward the road, radians below horizontal */
 #define OUTPOST_RANGE 170.0f
 #define OUTPOST_HEAL_SHARE 0.2f
 #define BURNER_SPACING 300.0f

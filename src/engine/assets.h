@@ -29,4 +29,12 @@ SDL_Surface *assets_surface_region(const char *name, int x, int y, int w, int h)
 SDL_Texture *assets_texture_recolored(SDL_Renderer *renderer, const char *name,
                                       const unsigned (*pairs)[2], int count);
 
+/* New texture of an embedded image in a place's light (caller destroys it):
+ * each channel of each pixel goes from 0..255 into shadow..light (0xRRGGBB),
+ * so art drawn in daylight colors keeps its shading and its hues inside that
+ * range. A pixel with alpha ASSETS_LIGHT_ALPHA is a light (a lit window, a
+ * lamp): kept as drawn, and made opaque. */
+#define ASSETS_LIGHT_ALPHA 254
+SDL_Texture *assets_texture_graded(SDL_Renderer *renderer, const char *name, unsigned shadow, unsigned light);
+
 #endif

@@ -12,7 +12,10 @@
 #define SMOKE_LEFT_START 2.25f
 #define SMOKE_STOP 2.60f
 #define SMOKE_SHOOT_AT 2.70f
-#define SMOKE_END 3.70f
+/* Let the shot finish and cross the actual left half of the current view.
+ * A fixed one-second tail expired while the bullet was still on the wider map. */
+#define SMOKE_END (SMOKE_SHOOT_AT + PLAYER_SHOOT_FRAMES / PLAYER_SHOOT_FPS + \
+                   (VIEW_WIDTH * CAMERA_PLAYER_SHARE + BULLET_FRAME_W * SPRITE_SCALE) / BULLET_SPEED + .1f)
 
 void smoke_override(const SmokeTest *smoke, bool down[ACTION_COUNT])
 {

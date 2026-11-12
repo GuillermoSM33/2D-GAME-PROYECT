@@ -32,7 +32,7 @@ static int view_y(float y)
 /* Three columns inside the sky band, ordered by what a player looks for:
  * herself on the left, the mission in the middle, the gun on the right. Each
  * has one main plate; everything under it appears only when it applies. The
- * world starts at VIEW_TOP, so none of this ever covers the fight. */
+ * fight is well below HUD_BAND, so none of this ever covers it. */
 #define HUD_MARGIN 12
 #define HUD_GAP 12
 #define HUD_TOP 8
@@ -602,7 +602,7 @@ static void draw_states(SDL_Renderer *renderer, const Player *player, const Stag
     }
     if (open < 0)
         return;
-    int w = STATE_TIP_W, px = open_x, py = VIEW_TOP + 6;
+    int w = STATE_TIP_W, px = open_x, py = HUD_BAND + 6;
     if (px + w > WINDOW_WIDTH - HUD_MARGIN)
         px = WINDOW_WIDTH - HUD_MARGIN - w;
     hud_plate(renderer, px, py, w, STATE_TIP_H);
@@ -819,7 +819,7 @@ static void draw_mission_goals(SDL_Renderer *renderer, const StageRun *run)
     if (!SDL_PointInRect(&pointer, &HUD_REGIONS[HUD_MISSION]) || run->phase != RUN_FIGHTING)
         return;
     MissionGoals goals = mission_goals(run->stage_index);
-    int left = (WINDOW_WIDTH - MISSION_GOALS_W) / 2, top = VIEW_TOP + 6;
+    int left = (WINDOW_WIDTH - MISSION_GOALS_W) / 2, top = HUD_BAND + 6;
     ui_panel(renderer, left, top, MISSION_GOALS_W, MISSION_GOALS_H);
     ui_text(renderer, "METAS DE ESTA MISIÓN", WINDOW_WIDTH / 2, top + 12, 2, COLOR_HUD_TITLE, ANCHOR_N);
     ui_text(renderer, "TIEMPO MÁX.", left + 124, top + 36, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
@@ -993,7 +993,7 @@ bool hud_verify_layout(void)
     if (!pixfont_init())
         return false;
     bool ok = true;
-    SDL_Rect sky = {0, 0, WINDOW_WIDTH, VIEW_TOP};
+    SDL_Rect sky = {0, 0, WINDOW_WIDTH, HUD_BAND};
     for (int i = 0; i < 3; i++) {
         const SDL_Rect *r = &HUD_REGIONS[i];
         SDL_Rect intersection;
@@ -1069,7 +1069,7 @@ bool hud_verify_layout(void)
     /* The longest save message stays right of the conditions and inside the
      * sky band, and every condition at once still fits as bare icons. */
     int save_x = WINDOW_WIDTH - HUD_MARGIN - (38 + ui_text_width("NO SE PUDO GUARDAR", 2) + 10);
-    if (save_x < VITALS_X + STATES_W || STATE_Y + STATE_H > VIEW_TOP) {
+    if (save_x < VITALS_X + STATES_W || STATE_Y + STATE_H > HUD_BAND) {
         fprintf(stderr, "HUD: autoguardado fuera de su espacio.\n");
         ok = false;
     }

@@ -1,3 +1,4 @@
+#include <math.h>
 #include <string.h>
 
 #include "config.h"
@@ -30,22 +31,35 @@ static void test_same_index_same_chunk(void)
 
 static void test_props_fit_their_chunk_and_sheet(void)
 {
-    int big = 0;
-    for (int i = 0; i < 200; i++) {
-        Chunk c;
-        chunk_generate(&c, i, &THEME_ATARDECER);
-        CHECK(c.prop_count > 0 && c.prop_count <= WORLD_MAX_PROPS); /* Grass at least */
-        for (int p = 0; p < c.prop_count; p++) {
-            const Prop *prop = &c.props[p];
-            const PropDef *def = prop_def(prop->kind);
-            float half_w = (float)(def->frame_w * SPRITE_SCALE) / 2.0f;
-            /* Whole sprite inside the chunk, so culling by chunk never cuts one. */
-            CHECK(prop->x - half_w >= -0.01f && prop->x + half_w <= WORLD_CHUNK_W + 0.01f);
-            CHECK(prop->variant >= 0 && prop->variant < def->variants);
-            big += prop->kind != PROP_GRASS;
+    /* Every stage's theme: the town's props are the widest (a fallen pole, 600 px). */
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        const ThemeDef *theme = STAGES[s].theme;
+        int big = 0;
+        for (int i = 0; i < WORLD_CHUNKS; i++) {
+            Chunk c;
+            chunk_generate(&c, i, theme);
+            CHECK(c.prop_count > 0 && c.prop_count <= WORLD_MAX_PROPS); /* Grass at least */
+            for (int p = 0; p < c.prop_count; p++) {
+                const Prop *prop = &c.props[p];
+                const PropDef *def = prop_def(prop->kind);
+                float half_w = (float)(def->frame_w * SPRITE_SCALE) / 2.0f;
+                /* Whole sprite inside the chunk, so culling by chunk never cuts one. */
+                CHECK(prop->x - half_w >= -0.01f && prop->x + half_w <= WORLD_CHUNK_W + 0.01f);
+                CHECK(prop->variant >= 0 && prop->variant < def->variants);
+                bool tuft = prop->kind == PROP_GRASS || prop->kind == PROP_LITTER;
+                big += !tuft;
+                for (int q = 0; q < p && !tuft; q++) { /* Big props never stand on each other */
+                    const Prop *other = &c.props[q];
+                    if (other->kind == PROP_GRASS || other->kind == PROP_LITTER)
+                        continue;
+                    float reach = half_w + (float)(prop_def(other->kind)->frame_w * SPRITE_SCALE) / 2.0f;
+                    CHECK(fabsf(prop->x - other->x) >= reach * 0.69f);
+                }
+            }
         }
+        /* At most WORLD_BIG_SLOTS a chunk, a little over half of them taken. */
+        CHECK(big > WORLD_CHUNKS && big < WORLD_CHUNKS * 3);
     }
-    CHECK(big > 100 && big < 400); /* About 0.6 per half chunk */
 }
 
 static void test_theme_picks_its_props(void)
@@ -74,20 +88,30 @@ static void test_theme_picks_its_props(void)
         CHECK(STAGES[s].theme->city && STAGES[s].theme->prop_weights[PROP_CACTUS] == 0);
 }
 
-static void test_recolors_cover_every_prop_color(void)
+static void test_every_theme_lights_its_scenery(void)
 {
-    /* The sunset keeps the props' own colors; the others swap all six. */
-    const ThemeDef *themes[] = {&THEME_CEMENTERIO, &THEME_NOCHE, &THEME_PUEBLO_FANTASMA};
-    const unsigned colors[] = {0x312224, 0x4f2b2a, 0x45332a, 0x5e302a, 0x6d3d1f, 0x5a4334};
-    CHECK(THEME_ATARDECER.prop_recolor_count == 0 && !THEME_ATARDECER.fog);
-    for (int t = 0; t < 3; t++) {
-        CHECK(themes[t]->fog);
-        for (int c = 0; c < 6; c++) {
-            int found = 0;
-            for (int k = 0; k < themes[t]->prop_recolor_count; k++)
-                found += themes[t]->prop_recolor[k][0] == colors[c];
-            CHECK(found == 1);
+    /* The scenery is drawn once, in daylight. Each theme preserves its tonal
+     * range, with haze inside it or darker. Warm/red illumination can have
+     * little blue contrast: shading needs luminance contrast, not identical
+     * minimum contrast in every RGB channel. */
+    CHECK(!THEME_ATARDECER.fog);
+    const ThemeDef *nights[] = {&THEME_CEMENTERIO, &THEME_NOCHE, &THEME_PUEBLO_FANTASMA};
+    for (int t = 0; t < 3; t++)
+        CHECK(nights[t]->fog && nights[t]->night);
+    for (int s = 0; s < STAGE_COUNT; s++) {
+        const ThemeDef *theme = STAGES[s].theme;
+        const unsigned luminance_weights[] = {114, 587, 299}; /* B, G, R, /1000 */
+        unsigned contrast = 0;
+        for (int shift = 0; shift <= 16; shift += 8) {
+            unsigned lo = (theme->prop_shadow >> shift) & 0xFF, hi = (theme->prop_light >> shift) & 0xFF;
+            CHECK(hi > lo);
+            contrast += (hi - lo) * luminance_weights[shift / 8];
+            CHECK(((theme->haze >> shift) & 0xFF) <= hi);
         }
+        CHECK(contrast >= 48 * 1000); /* Room for the art's shading in the theme's actual light */
+        /* By night the scenery stays under the lights that matter. */
+        unsigned red = (theme->prop_light >> 16) & 0xFF, green = (theme->prop_light >> 8) & 0xFF;
+        CHECK(!theme->night || (red + green) / 2 < 150);
     }
 }
 
@@ -141,10 +165,10 @@ static void test_background_layers_cover_the_view(void)
 {
     /* Back to front, the sky from the top and the ground down to the bottom. */
     CHECK(BACKGROUND_LAYERS[0].top_row == 0 && !BACKGROUND_LAYERS[0].repeat);
-    CHECK(BACKGROUND_LAYERS[0].width * SPRITE_SCALE >= WINDOW_WIDTH);
+    CHECK(BACKGROUND_LAYERS[0].width * SPRITE_SCALE >= VIEW_WIDTH);
     const BackgroundLayer *ground = &BACKGROUND_LAYERS[BACKGROUND_LAYER_COUNT - 1];
     CHECK(ground->top_row == GROUND_ROW && ground->parallax == 1.0f);
-    CHECK((ground->top_row + ground->height) * SPRITE_SCALE >= WINDOW_HEIGHT);
+    CHECK((ground->top_row + ground->height) * SPRITE_SCALE >= VIEW_HEIGHT);
     for (int i = 1; i < BACKGROUND_LAYER_COUNT; i++) {
         CHECK(BACKGROUND_LAYERS[i].parallax > BACKGROUND_LAYERS[i - 1].parallax);
         CHECK(BACKGROUND_LAYERS[i].repeat);
@@ -158,7 +182,7 @@ int main(void)
     RUN(test_same_index_same_chunk);
     RUN(test_props_fit_their_chunk_and_sheet);
     RUN(test_theme_picks_its_props);
-    RUN(test_recolors_cover_every_prop_color);
+    RUN(test_every_theme_lights_its_scenery);
     RUN(test_loads_only_what_is_in_view);
     RUN(test_walking_streams_new_side_and_drops_old);
     RUN(test_background_layers_cover_the_view);

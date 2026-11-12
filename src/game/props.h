@@ -14,7 +14,7 @@ typedef enum {
     PROP_SKULL,
     PROP_TOMBSTONE,
     PROP_SIGN,
-    /* The city (tools/make_city.py) */
+    /* The town (tools/make_props.py) */
     PROP_HYDRANT,
     PROP_STREETLIGHT,
     PROP_TRASH,
@@ -28,6 +28,9 @@ typedef enum {
     PROP_DRUMS,
     PROP_FALLEN_POLE,
     PROP_TRAFFIC_LIGHT,
+    /* More of the desert (tools/make_props.py) */
+    PROP_SHRUB,     /* Sagebrush, a yucca, a prickly pear, a dry bush */
+    PROP_TELEGRAPH, /* A telegraph pole: whole, leaning with its wire down */
     PROP_KIND_COUNT
 } PropKind;
 

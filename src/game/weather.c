@@ -48,7 +48,7 @@ static void new_dust(WeatherState *w, WeatherBit *d, float camera_x, bool anywhe
     d->x = anywhere ? camera_x + roll(w) * (float)VIEW_WIDTH : camera_x - 20.0f - roll(w) * 200.0f;
     /* Dust and leaves low, along the road (not in her way); gusts across the
      * open air above it. */
-    d->y = d->streak ? (float)BASELINE - 380.0f + roll(w) * 300.0f
+    d->y = d->streak ? (float)BASELINE - 760.0f + roll(w) * 600.0f
                      : (float)BASELINE - 170.0f + roll(w) * 160.0f;
     d->speed = d->streak ? 1.3f + roll(w) * 0.5f : 0.6f + roll(w) * 0.8f;
 }
@@ -76,7 +76,7 @@ static void rain(WeatherState *w, float camera_x, float dt)
         d->y += RAIN_SPEED * d->speed * dt;
         d->x += drift * d->speed * dt;
         /* Each lands somewhere on the road's depth, below the ground line. */
-        float ground = (float)BASELINE + (float)((i * 37) % 60);
+        float ground = (float)BASELINE + (float)((i * 37) % WEATHER_SPLASH_DEPTH);
         if (d->y < ground)
             continue;
         if (i % 3 == 0) { /* Some leave a splash */

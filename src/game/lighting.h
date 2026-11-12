@@ -14,7 +14,7 @@ typedef enum { LIGHT_FLAME, LIGHT_LANTERN, LIGHT_EXPLOSION, LIGHT_FLASHLIGHT } L
 typedef struct {
     LightKind kind;
     float x, y, radius, strength;
-    int direction; /* A flashlight points with its owner; point lights use 0. */
+    int direction; /* Handheld or fixed beam: left -1, right 1; point lights use 0. */
     float tilt;    /* Its beam, radians below level (a hair: it sways in the hand) */
 } WorldLight;
 

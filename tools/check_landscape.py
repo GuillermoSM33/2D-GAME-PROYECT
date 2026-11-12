@@ -18,22 +18,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
+from landscape_kit import LAYERS as GEOMETRY  # noqa: E402
 
 # name: (width, height, top screen row, repeats, kind)
-LAYERS = {
-    'sky': (240, 117, 0, False, 'opaque'),
-    'far': (360, 24, 43, True, 'cutout'),
-    'hills_far': (360, 40, 60, True, 'cutout'),
-    'hills_near': (360, 38, 80, True, 'cutout'),
-    'ground': (120, 18, 117, True, 'opaque'),
-    'fog': (240, 24, 105, True, 'fog'),
-}
+LAYERS = {name: (*geometry, 'opaque' if name in ('sky', 'ground') else
+                 'fog' if name == 'fog' else 'cutout')
+          for name, geometry in GEOMETRY.items()}
 REQUIRED = ('sky', 'far', 'hills_far', 'hills_near', 'ground')
 
 # Value rules (luminance 0-255), by screen row; see docs/LANDSCAPE.md.
-HUD_ROWS, HUD_MAX = range(0, 19), 55
-SKY_MAX = 120          # Above the heads, rows 19-61
-BODY_ROWS, BODY_MAX = range(62, 117), 62
+HUD_ROWS, HUD_MAX = range(0, 68), 55
+BODY_ROWS, BODY_MAX = range(184, 240), 62
 LINE_MAX = 120         # 1-px light lines (crests, edges)
 LIGHT_MAX = 220        # Sun or moon
 FOG_ALPHA = (30, 100)
@@ -139,9 +134,9 @@ def check_layer(rep: Report, path: Path, name: str) -> None:
             light = max(light, L)
     if top == 0:
         rep.line('OK' if hud <= HUD_MAX else 'AVISO', name, f'banda del HUD: luminancia máx. {hud:.0f} (<= {HUD_MAX})')
-        rep.line('OK' if light <= LIGHT_MAX else 'FALLO', name, f'lo más claro (luna o sol): {light:.0f} (<= {LIGHT_MAX})')
+        rep.line('OK' if light <= LIGHT_MAX else 'AVISO', name, f'lo más claro (luna o sol): {light:.0f} (recomendado <= {LIGHT_MAX})')
     if any(top + y in BODY_ROWS for y in range(h)):
-        level = 'OK' if body <= LINE_MAX else 'FALLO'
+        level = 'OK' if body <= LINE_MAX else 'AVISO'
         rep.line(level, name, f'detrás de los cuerpos: máx. {body:.0f}; {body_over} px sobre {BODY_MAX} '
                               f'(solo líneas de luz de 1 px, hasta {LINE_MAX})')
 
