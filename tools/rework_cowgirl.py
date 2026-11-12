@@ -49,6 +49,14 @@ LEATHER = [rgb(0x4a2e18), rgb(0x6c4626)]
 HOLSTER = [rgb(0x6c4626), rgb(0x4a2e18)]
 CORD = rgb(0x6a6a68)
 CORSET_TONES = {(0x2c, 0x36, 0x3c), (0x48, 0x56, 0x5e), (0x38, 0x44, 0x4a), (0x24, 0x2c, 0x32)}
+# Canonical material tags for the short open jacket. It is part of the shared
+# body before poses are derived, so its lapels rotate with a fall and stay put
+# when the head nods in SIT. detail_cowgirl applies the finished wine palette.
+JACKET = [rgb(0x8f5968), rgb(0x704052), rgb(0x4c2938)]
+JACKET_TONES = {color[:3] for color in JACKET}
+# Separate brass snap tags: distinct from the buckle and the sheriff's star.
+JACKET_BUTTON = [rgb(0xac8b52), rgb(0x7a5931), rgb(0x34281e)]
+BUTTON_TONES = {color[:3] for color in JACKET_BUTTON}
 HIP_CURVE = (7, 7, 7, 7, 7, 6)    # Art columns from her belt's middle to her hip, rows down from the belt
 HIP_MOST = 2                      # ...and at most this much on what the leg already is
 STRAP_UNDER_BELT = 9              # Art rows from her belt to the strap on her thigh
@@ -66,7 +74,7 @@ BROWN_SKIN = {(0x89, 0x41, 0x1f), (0x8a, 0x43, 0x22)}
 CHOKER = rgb(0x1e1a20)
 # The blouse's neckline, a smile: rows under the choker its lace runs at, by art
 # columns from the middle of her neck. High at her shoulders, lowest on her chest.
-LACE_SMILE = (5, 5, 5, 4, 4, 3, 3, 2)
+LACE_SMILE = (5, 4, 4, 4, 3, 3, 2, 2)
 BARE_WIDTH = {1: 2, 2: 3, 3: 4, 4: 2}  # Rows under the choker: bare columns each side of her neck
 CORSET_HALF = 8                   # Art columns from her belt's middle that are her corset
 TRAPEZIUS_WIDEST = 5              # Art columns from the middle of her neck that the bare slope reaches
@@ -75,7 +83,7 @@ CHOKER_UNDER_FACE = 8             # Rows from the top of her face to it
 # Her one body, in every pose where she stands: from her belt's row to the last column of
 # her side, from her buckle's middle. A curve in runs of two rows: one column a row reads as
 # a staircase. Her arms never change it.
-TORSO_FRONT = {-10: 5, -9: 5, -8: 5, -7: 4, -6: 4, -5: 3, -4: 3, -3: 4, -2: 4}
+TORSO_FRONT = {-10: 6, -9: 6, -8: 5, -7: 5, -6: 4, -5: 3, -4: 3, -3: 4, -2: 4}
 BELT_FRONT = {-1: 5, 0: 5, 1: 6}
 BACK_SIDE = {-8: -8, -7: -8, -6: -7, -5: -6, -4: -6, -3: -6, -2: -7}  # Its outline, where no arm covers it
 CORSET_EDGE = [rgb(0x2c363c), rgb(0x242c32)]
@@ -104,14 +112,15 @@ SASH_FROM = -9                    # Columns from her buckle's middle to the sash
 NEAR_SHOULDER, FAR_SHOULDER = (7, -12), (-9, -12)  # At her chest's edges, level
 ON_HIPS = (((-9, -12), (-14, -7), (-8, -2)), ((7, -12), (12, -7), (6, -2)))
 ARM_BONE = 6.5
-ARM_REACH = 12.6                  # Art px, shoulder to wrist: all but straight, her glove past it down to her hip
-# The arm swings from the shoulder: px the hand hangs from under it, and swings each way.
-# Out from her sides, so neither lies against her waist.
-SWING_NEAR, SWING_FAR = (4.5, 1.5), (-4.5, 1.5)  # Air between arm and waist all the way, no wings
+# A fixed, relaxed elbow rotated from the shoulder. Solving a fresh elbow
+# after rounding the hand made adjacent frames alternate bent/straight.
+WALK_ARM_ELBOW = (0.8, 6.4)
+WALK_ARM_HAND = (3.3, 12.3)
+WALK_ARM_SWING = 4.0              # Degrees each way; a quiet counter-swing to the legs
 WALK_COLUMN = 22                  # Her buckle on every walk frame, as on stand and shoot: her body stays put, only bobbing
 # In the air: where each hand is, from its shoulder, frame by frame of her jump.
-JUMP_FAR = ((-5, 11), (-5, 11), (-6, 10), (-8, 9), (-9, 8), (-9, 8), (-7, 10), (-5, 11))
-JUMP_NEAR = ((5, 11), (6, 11), (8, 9), (9, 8), (9, 8), (9, 8), (7, 10), (5, 11))
+JUMP_FAR = ((-3, 12), (-5, 10), (-7, 8), (-8, 7), (-7, 8), (-5, 10), (-4, 11), (-3, 12))
+JUMP_NEAR = ((3, 12), (5, 10), (8, 8), (9, 7), (8, 8), (6, 10), (4, 11), (3, 12))
 COLLAR_FROM = 5                   # Art columns from the middle of her neck that the chest's shading is evened over
 
 
@@ -204,7 +213,7 @@ def holster(x0: int, belt: int) -> dict:
 def fit_torso(out: dict, belt: int, mid: int) -> None:
     """Her side and her belt's end, the same on every sheet: all that lay past them goes, and
     her clothes carry on where a hand lay on them."""
-    keep = LACE_TONES | {CORD_TONE} | SKIN | CORSET_TONES
+    keep = LACE_TONES | {CORD_TONE} | SKIN | CORSET_TONES | JACKET_TONES | BUTTON_TONES
     for row, front in TORSO_FRONT.items():
         y, edge = belt + row, mid + front
         for x in [x for (x, yy) in out if yy == y and x > edge + 1]:
@@ -226,7 +235,7 @@ def fit_torso(out: dict, belt: int, mid: int) -> None:
 def fit_back(out: dict, belt: int, mid: int) -> None:
     """Her back whole, with none of the art's arm on it, and her belt to its end."""
     hair = {h[:3] for h in HAIR}
-    keep = LACE_TONES | {CORD_TONE} | SKIN | CORSET_TONES
+    keep = LACE_TONES | {CORD_TONE} | SKIN | CORSET_TONES | JACKET_TONES | BUTTON_TONES
     for row, back in {**CHEST_BACK, **BACK_SIDE}.items():
         y, line = belt + row, mid + back
         for x in [x for (x, yy) in out if yy == y and x < line and out[(x, y)][:3] not in hair]:
@@ -278,12 +287,17 @@ def bent(top: tuple, hand: tuple) -> tuple:
 
 
 def walk_arms(f: int) -> tuple:
-    """Her two arms, frame f of the walk: swinging against each other, in time with her legs."""
+    """Both arms swing as fixed limbs: stable elbows, float coordinates until rasterization."""
     swing = math.cos(2 * math.pi * f / WALK_FRAMES)
     arms = []
-    for top, x in ((FAR_SHOULDER, SWING_FAR[0] - SWING_FAR[1] * swing), (NEAR_SHOULDER, SWING_NEAR[0] + SWING_NEAR[1] * swing)):
-        hand = (top[0] + round(x), top[1] + round(math.sqrt(ARM_REACH * ARM_REACH - x * x)))
-        arms.append(bent(top, hand))
+    for top, side in ((FAR_SHOULDER, -1), (NEAR_SHOULDER, 1)):
+        angle = math.radians(WALK_ARM_SWING * swing * side)
+        ca, sa = math.cos(angle), math.sin(angle)
+        points = [top]
+        for x, y in (WALK_ARM_ELBOW, WALK_ARM_HAND):
+            x *= side
+            points.append((top[0] + x * ca + y * sa, top[1] - x * sa + y * ca))
+        arms.append(tuple(points))
     return tuple(arms)
 
 
@@ -318,16 +332,67 @@ def legs_apart(out: dict, belt: int, boots: int) -> None:
 
 
 def sheriff_badge(out: dict, neck_x: float, face: int) -> None:
-    """Her badge on her chest, the same on every pose that builds her body: over
-    the corset only, so an arm or a gun in front keeps it hidden."""
+    """Her badge on the corset/jacket fabric, so an arm or gun in front hides it."""
     for j, row in enumerate(BADGE):
         for i, mark in enumerate(row):
             x, y = round(neck_x) + BADGE_X + i, face + BADGE_UNDER_FACE + j
-            if mark != '.' and out.get((x, y), (0, 0, 0, 0))[:3] in CORSET_TONES:
+            if mark != '.' and out.get((x, y), (0, 0, 0, 0))[:3] in CORSET_TONES | JACKET_TONES:
                 out[(x, y)] = BADGE_TONES[mark]
 
 
-def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple = None, dual: bool = False) -> dict:
+def corset_bust(out: dict, belt: int, mid: float) -> None:
+    """A small rounded volume in the covered chest, on the same body in every pose."""
+    cups = {-10: (2, 3), -9: (1, 4), -8: (1, 4), -7: (2, 3)}
+    for (x, y), color in list(out.items()):
+        if color[:3] not in CORSET_TONES:
+            continue
+        row, distance = y - belt, abs(x - mid)
+        if row in cups and cups[row][0] <= distance <= cups[row][1]:
+            out[(x, y)] = rgb(0x48565e)
+        elif row == -6 and 1 <= distance <= 4:
+            out[(x, y)] = rgb(0x242c32)
+
+
+def cropped_jacket(out: dict, belt: int, mid: float, front: bool = False) -> None:
+    """Open wine side panels over the corset; lapels taper and stop above the belt.
+
+    Outer lace ends are tucked under the lapels, so no pale flecks sit on the
+    wine fabric. Hair, arms, lacing and the badge remain in front.
+    """
+    lapels = {-12: (-3, 2), -11: (-4, 2), -10: (-4, 3),
+              -9: (-5, 3), -8: (-5, 4)}
+    for (x, y), color in list(out.items()):
+        row, column = y - belt, x - mid
+        if not -12 <= row <= -3:
+            continue
+        far, near = lapels.get(row, (-6, 4))
+        if front:
+            far = -near  # SIT faces the viewer: equal lapels on both sides.
+        on_panel = column <= far or column >= near
+        if (color[:3] in LACE_TONES and (on_panel or abs(column) >= 4)) or \
+                (color[:3] in SKIN and abs(column) >= 4):
+            out[(x, y)] = JACKET[1]
+            continue
+        if color[:3] not in CORSET_TONES:
+            continue
+        if on_panel:
+            fold = row in lapels and min(abs(column - far), abs(column - near)) < 1
+            out[(x, y)] = JACKET[0 if fold else 2 if row == -3 else 1]
+
+
+def jacket_buttons(out: dict, belt: int, mid: float, front: bool = False) -> None:
+    """Two small, bevelled brass snaps on the lapels; never paint over skin or an arm."""
+    snaps = ((-5.5, -10), (4.5, -10)) if front else ((-7, -11), (4, -10))
+    under = JACKET_TONES | BUTTON_TONES
+    for dx, dy in snaps:
+        x, y = round(mid + dx), belt + dy
+        at = ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1))
+        if all(out.get(p, (0, 0, 0, 0))[:3] in under for p in at):
+            for p, color in zip(at, (JACKET_BUTTON[0], JACKET_BUTTON[1], JACKET_BUTTON[1], JACKET_BUTTON[2])):
+                out[p] = color
+
+
+def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple = None, dual: bool = False, motion: int = 0) -> dict:
     """One frame. Lying or fallen frames (no belt under a face) get colours only. Arms: her
     one body with no arm of the art on it, and these drawn on it (from walk_arms and so on).
     Dual: a second holster, on her far hip."""
@@ -445,7 +510,10 @@ def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple =
         fit_torso(out, belt, mid)
         fit_back(out, belt, mid)
         no_art_arms(out, belt, mid)
+    corset_bust(out, belt, mid)
     sheriff_badge(out, neck_x, face)                     # On her finished body, before any arm crosses it
+    cropped_jacket(out, belt, mid)
+    jacket_buttons(out, belt, mid)
     # The gun in its holster on her near hip, when it isn't in her hand
     if armed:
         outlined_on(out, holster(mid + NEAR_HOLSTER, belt))
@@ -455,7 +523,7 @@ def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple =
     for i in range(SASH_ROWS):
         width = 5 - i // 3
         for w in range(width):
-            x = back + 1 + w - (i // 5)
+            x = back + 1 + w - (i // 5) - round(motion * i / (SASH_ROWS - 1))
             if i == SASH_ROWS - 1 and w % 2:
                 continue
             sash[(x, belt + 1 + i)] = SASH[(w + i // 3) % 2] if w else SASH[2]
@@ -472,7 +540,7 @@ def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple =
         left = min(x for x, y in hair if y >= lowest - 4)
         for y in range(lowest - 2, belt - 3):
             k = y - (lowest - 2)
-            wave = (k // 3) % 3 - 1
+            wave = (k // 3) % 3 - 1 + round(motion * min(1.0, k / 8))
             width = max(2, 4 - k // 6)
             x0 = left + 1 + wave
             if all(over_arm(out, x0 + w, y) for w in range(width)):
@@ -550,7 +618,11 @@ def dressed_sheet(name: str, armed: bool, dual: bool = False, no_arms: bool = Fa
         if pose:
             if name == 'walk':                           # As with the flashlight up: one upper body, on the legs of each frame
                 px = on_legs(steady(first), steady(px))
-            dressed = dress(px, armed=armed, arms=() if no_arms else pose(f), dual=dual)
+            # Cloth and the ends of her hair lag behind the step/takeoff;
+            # the belt and head remain fixed on the shared body landmarks.
+            motion = {'walk': (0, -1, -1, 0, 1, 1, 0, 0),
+                      'jump': (-1, -1, -1, 0, 1, 1, 0, 0)}[name][f]
+            dressed = dress(px, armed=armed, arms=() if no_arms else pose(f), dual=dual, motion=motion)
         else:
             here = landmarks(px)
             moved = set()

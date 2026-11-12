@@ -1177,7 +1177,8 @@ def make_bat() -> Image:
                 if ch in colors:
                     f.px(x, y, colors[ch])
         f.outline()
-    return img
+    from support_finishes import finish_bird
+    return finish_bird(img, 'bat')
 
 
 def make_crow() -> Image:
@@ -1238,7 +1239,8 @@ def make_crow() -> Image:
                     y = body_y + round((tip[1] - body_y) * i / steps)
                     f.px(x, y, k[2] if bx in (6, 10) else k[1])
         f.outline()
-    return img
+    from support_finishes import finish_bird
+    return finish_bird(img, 'crow')
 
 
 WATER = [rgb(0x1c3446), rgb(0x24485e), rgb(0x2f5f78), rgb(0x4a86a0), rgb(0x8cc4d4), rgb(0xd8f0f4)]

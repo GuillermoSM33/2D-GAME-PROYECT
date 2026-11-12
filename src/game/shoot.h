@@ -24,8 +24,12 @@ typedef struct {
     float burst_timer; /* Seconds until the next of them */
     int magazine;          /* The gun's shots per magazine; 0 = it never runs dry */
     float mag_reload_time; /* ...and seconds to put a full one in */
-    int rounds;            /* Shots left in the magazine */
+    int rounds;            /* Shots left in the primary gun's magazine */
+    int other_rounds;      /* With two guns, the second has its own magazine */
     float mag_reload;      /* Seconds left of a magazine reload; > 0 while reloading */
+    bool reload_other;     /* The magazine being reloaded belongs to the second gun */
+    bool reload_all;       /* R: reload each incomplete magazine in turn */
+    bool reload_pair;      /* A paired reload: keep the spare holstered across the handoff */
 } Shot;
 
 /* Idle, with the revolver's reload time and single shot. */
@@ -46,17 +50,21 @@ void shot_set_burst(Shot *shot, int burst, float burst_gap, bool automatic);
 void shot_set_piston(Shot *shot, bool piston);
 
 /* The trigger this step: a click, and whether it is held (only an automatic gun
- * fires on while held). With two guns they keep the turns coming. */
+ * fires on while held). With two guns a fresh click cuts a reload if either
+ * has rounds left; held input waits. The unfinished cylinder keeps its count. */
 void shot_trigger(Shot *shot, bool pressed, bool held);
 
 /* The gun changed: shots per magazine (0 = no magazine), seconds to reload
  * one, and the shots it still has (a gun put away keeps its count). */
 void shot_set_magazine(Shot *shot, int magazine, float reload_time, int rounds);
+/* Restore the second gun's saved count after setting the magazine capacity. */
+void shot_set_other_rounds(Shot *shot, int rounds);
 
 /* Starts a shot. While one is active, a new shot is only accepted once the
  * previous bullet is out, its muzzle flash was shown and she reloaded; it then
  * skips the draw and restarts already aimed. With the magazine empty it starts
- * the magazine reload instead. Returns whether it started. */
+ * the magazine reload instead. Duals use the loaded hand when the nominal
+ * next hand is empty. Returns whether it started. */
 bool shot_start(Shot *shot);
 
 /* Advances the sequence. Returns true on each step a bullet fires: once per

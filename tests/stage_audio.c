@@ -184,8 +184,8 @@ static void test_every_weapon_fires_its_own_cues(void)
 
 static void test_magazine_reload_and_jump_cancellation(void)
 {
-    const WeaponId guns[] = {WEAPON_RIFLE, WEAPON_SHOTGUN};
-    for (int id = 0; id < 2; id++) {
+    const WeaponId guns[] = {WEAPON_REVOLVER, WEAPON_RIFLE, WEAPON_SHOTGUN};
+    for (int id = 0; id < 3; id++) {
         setup_weapon(guns[id]);
         const WeaponDef *w = weapon_def(guns[id]);
         game.player.shot.rounds = 1;
@@ -213,8 +213,8 @@ static void test_magazine_reload_and_jump_cancellation(void)
 
 static void test_last_round_gives_one_empty_cue(void)
 {
-    const WeaponId guns[] = {WEAPON_RIFLE, WEAPON_SHOTGUN};
-    for (int id = 0; id < 2; id++) {
+    const WeaponId guns[] = {WEAPON_REVOLVER, WEAPON_RIFLE, WEAPON_SHOTGUN};
+    for (int id = 0; id < 3; id++) {
         setup_weapon(guns[id]);
         const WeaponDef *w = weapon_def(guns[id]);
         game.player.shot.rounds = 1;
@@ -383,6 +383,192 @@ static void test_q_takes_the_second_pistol_out_and_away(void)
     step(&input);
     CHECK(game.guns[0] == WEAPON_REVOLVER && game.player.swap_back);
 #endif
+}
+
+static void test_dual_swap_keeps_revolver_rounds_and_cancels_reload(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    profile.progress.level = POWER_LEVEL;
+    game.player.level = POWER_LEVEL;
+    game.player.shot.rounds = 3;
+    press(ACTION_RELOAD);
+    const WeaponDef *revolver = weapon_def(WEAPON_REVOLVER);
+    CHECK(shot_reloading(&game.player.shot));
+    press(ACTION_SWAP);
+    CHECK(game.duals_out && game.guns[0] == WEAPON_DUAL);
+    CHECK(!shot_reloading(&game.player.shot) && game.rounds[0] == 3);
+    CHECK(stops(revolver->reload_sound) >= 1);
+    for (int i = 0; i < (int)(PLAYER_SWAP_TIME / FIXED_DT) + 2; i++)
+        idle();
+    press(ACTION_SWAP);
+    CHECK(!game.duals_out && game.guns[0] == WEAPON_REVOLVER);
+    CHECK(game.player.shot.rounds == 3 && game.player.shot.magazine == 8);
+}
+
+static void test_dual_cylinders_survive_q_and_reload_separately(void)
+{
+    setup_weapon(WEAPON_DUAL);
+    game.player.shot.rounds = 3;
+    game.player.shot.other_rounds = 5;
+    press(ACTION_SWAP);
+    CHECK(game.guns[0] == WEAPON_REVOLVER && game.player.shot.rounds == 3);
+    CHECK(game.dual_rounds == 5);
+    for (int i = 0; i < (int)(PLAYER_SWAP_TIME / FIXED_DT) + 2; i++)
+        idle();
+    press(ACTION_SWAP);
+    CHECK(game.player.shot.rounds == 3 && game.player.shot.other_rounds == 5);
+    for (int i = 0; i < (int)(PLAYER_SWAP_TIME / FIXED_DT) + 2; i++)
+        idle();
+    game.player.shot.next_other = false;
+    clear_cues();
+    const WeaponDef *gun = weapon_def(WEAPON_DUAL);
+    press(ACTION_RELOAD);
+    CHECK(plays(gun->reload_sound) == 1);
+    for (int guard = 0; guard < 180 && !game.player.shot.reload_other; guard++)
+        idle();
+    CHECK(game.player.shot.rounds == 8 && game.player.shot.other_rounds == 5);
+    CHECK(shot_reloading(&game.player.shot) && plays(gun->reload_sound) == 2);
+    press(ACTION_SWAP); /* Interrupt the second cylinder: no free ammunition. */
+    CHECK(game.player.shot.rounds == 8 && game.dual_rounds == 5);
+    CHECK(stops(gun->reload_sound) >= 1);
+}
+
+static void test_dual_power_spends_one_round_from_each_hand(void)
+{
+    setup_weapon(WEAPON_DUAL);
+    press(ACTION_POWER);
+    for (int i = 0; i < 60 && !game.player.shot_fired; i++)
+        idle();
+    CHECK(game.player.shot_fired && game.ricochet_fired);
+    CHECK(game.player.shot.rounds == 7 && game.player.shot.other_rounds == 7);
+    CHECK(bullets_active_count(&game.bullets) == 2);
+
+    setup_weapon(WEAPON_DUAL);
+    game.player.shot.other_rounds = 0;
+    press(ACTION_POWER);
+    CHECK(!game.ricochet_armed && !game.player.shot.active);
+    CHECK(game.player.shot.rounds == 8 && game.player.shot.other_rounds == 0);
+    CHECK(game.power_cooldown == 0.0f);
+}
+
+static int spare_rounds(void)
+{
+    int rounds = game.player.shot.piston ? game.player.shot.other_rounds : game.dual_rounds;
+    return rounds < 0 ? REVOLVER_CAPACITY : rounds;
+}
+
+static void test_normal_dual_clicks_keep_both_ammunition_accounts(void)
+{
+    setup_weapon(WEAPON_DUAL);
+    game.player.shot.rounds = 3;
+    game.player.shot.other_rounds = 1;
+    unsigned seed = 731;
+    bool held = false;
+    int fired = 0, completed = 0;
+    for (int tick = 0; tick < 12000; tick++) {
+        Shot before = game.player.shot;
+        int old_spare = spare_rounds();
+        seed = seed * 1664525u + 1013904223u;
+        bool down = seed % 19 < 13;
+        InputState input = {0};
+        input.down[ACTION_SHOOT] = down;
+        input.pressed[ACTION_SHOOT] = down && !held;
+        input.pressed[ACTION_RELOAD] = seed % 61 == 0;
+        input.pressed[ACTION_JUMP] = seed % 157 == 0;
+        input.pressed[ACTION_SWAP] = seed % 241 == 0;
+        held = down;
+        clear_cues();
+        step(&input);
+        int main_change = game.player.shot.rounds - before.rounds;
+        int spare_change = spare_rounds() - old_spare;
+        if (game.player.shot_fired) {
+            bool other = game.player.shot.piston && game.player.shot.other_gun;
+            CHECK(main_change == (other ? 0 : -1));
+            CHECK(spare_change == (other ? -1 : 0));
+            fired++;
+        } else {
+            CHECK(main_change >= 0 && spare_change >= 0);
+        }
+        if (main_change > 0 || spare_change > 0) {
+            CHECK(before.mag_reload > 0.0f && before.mag_reload <= FIXED_DT + .00001f);
+            CHECK(main_change == (before.reload_other ? 0 : REVOLVER_CAPACITY - before.rounds));
+            CHECK(spare_change == (before.reload_other ? REVOLVER_CAPACITY - old_spare : 0));
+            completed++;
+        }
+        CHECK(game.player.shot.rounds >= 0 && game.player.shot.rounds <= 8);
+        CHECK(spare_rounds() >= 0 && spare_rounds() <= 8);
+        CHECK(!game.ricochet_armed && !game.player.power_shot);
+    }
+    CHECK(fired > 30 && completed > 5);
+}
+
+static void test_click_after_one_dual_reload_uses_only_the_loaded_cylinder(void)
+{
+    for (int first_other = 0; first_other < 2; first_other++) {
+        setup_weapon(WEAPON_DUAL);
+        game.player.shot.rounds = game.player.shot.other_rounds = 0;
+        game.player.shot.next_other = first_other != 0;
+        press(ACTION_RELOAD);
+        for (int guard = 0; guard < 100 && game.player.shot.reload_other == (first_other != 0); guard++)
+            idle();
+        CHECK(shot_reloading(&game.player.shot));
+        CHECK(game.player.shot.rounds == (first_other ? 0 : 8));
+        CHECK(game.player.shot.other_rounds == (first_other ? 8 : 0));
+        for (int i = 0; i < 12; i++) idle(); /* Leave the second cylinder unfinished. */
+        press(ACTION_SHOOT);
+        CHECK(!shot_reloading(&game.player.shot));
+        for (int guard = 0; guard < 60 && !game.player.shot_fired; guard++) idle();
+        CHECK(game.player.shot_fired && game.player.shot.other_gun == (first_other != 0));
+        CHECK(game.player.shot.rounds == (first_other ? 0 : 7));
+        CHECK(game.player.shot.other_rounds == (first_other ? 7 : 0));
+        CHECK(bullets_active_count(&game.bullets) == 1);
+        CHECK(!game.ricochet_fired && !game.player.power_shot);
+
+        press(ACTION_RELOAD);
+        CHECK(shot_reloading(&game.player.shot));
+        CHECK(game.player.shot.reload_other != (first_other != 0));
+        int main = game.player.shot.rounds, spare = game.player.shot.other_rounds;
+        for (int i = 0; i < 30; i++) idle();
+        CHECK(game.player.shot.rounds == main && game.player.shot.other_rounds == spare);
+    }
+}
+
+static void test_an_interrupted_power_does_not_spend_both_cylinders_on_a_normal_click(void)
+{
+    const Action interrupts[] = {ACTION_RELOAD, ACTION_JUMP, ACTION_SWAP};
+    for (int action = 0; action < 3; action++) {
+        setup_weapon(WEAPON_DUAL);
+        press(ACTION_POWER);
+        CHECK(game.ricochet_armed && !game.player.shot_fired);
+        press(interrupts[action]);
+        CHECK(!game.ricochet_armed && !game.player.power_shot);
+        for (int tick = 0; tick < 120; tick++) idle();
+        if (!game.duals_out) {
+            press(ACTION_SWAP);
+            for (int tick = 0; tick < 60; tick++) idle();
+        }
+        int main = game.player.shot.rounds, spare = game.player.shot.other_rounds;
+        press(ACTION_SHOOT);
+        for (int guard = 0; guard < 60 && !game.player.shot_fired; guard++) idle();
+        CHECK(game.player.shot_fired && !game.ricochet_fired && !game.player.power_shot);
+        bool other = game.player.shot.other_gun;
+        CHECK(game.player.shot.rounds == main - (other ? 0 : 1));
+        CHECK(game.player.shot.other_rounds == spare - (other ? 1 : 0));
+        CHECK(bullets_active_count(&game.bullets) == 1);
+    }
+
+    setup_weapon(WEAPON_DUAL);
+    press(ACTION_SWAP);
+    press(ACTION_POWER);
+    CHECK(!game.ricochet_armed && !game.player.power_shot && game.power_cooldown == 0.0f);
+
+    setup_weapon(WEAPON_DUAL);
+    game.ricochet_armed = true; /* A stale checkpoint cannot hide an extra ammo cost. */
+    game.player.power_shot = false;
+    press(ACTION_SHOOT);
+    for (int guard = 0; guard < 60 && !game.player.shot_fired; guard++) idle();
+    CHECK(game.player.shot.rounds == 7 && game.player.shot.other_rounds == 8);
+    CHECK(bullets_active_count(&game.bullets) == 1 && !game.ricochet_armed);
 }
 
 static void test_footsteps_are_quiet_and_uneven(void)
@@ -1206,6 +1392,12 @@ int main(void)
     RUN(test_bench_latch_aligns_with_completion_and_swap_keeps_it);
     RUN(test_q_takes_the_second_pistol_out_and_away);
     RUN(test_footsteps_are_quiet_and_uneven);
+    RUN(test_dual_swap_keeps_revolver_rounds_and_cancels_reload);
+    RUN(test_dual_cylinders_survive_q_and_reload_separately);
+    RUN(test_dual_power_spends_one_round_from_each_hand);
+    RUN(test_normal_dual_clicks_keep_both_ammunition_accounts);
+    RUN(test_click_after_one_dual_reload_uses_only_the_loaded_cylinder);
+    RUN(test_an_interrupted_power_does_not_spend_both_cylinders_on_a_normal_click);
     RUN(test_footsteps_keep_time_with_the_legs);
     RUN(test_footsteps_sound_by_the_ground);
     RUN(test_blocked_feet_stay_quiet);

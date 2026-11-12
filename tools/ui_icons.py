@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 
 SIZE = 24
-INK = (0x1a, 0x12, 0x10, 255)
+INK = (0x25, 0x20, 0x18, 255)
 
 
 def rgb(value: int) -> tuple:
@@ -27,21 +27,21 @@ def ramp(*values: int) -> tuple:
 
 
 # Light to shade: highlight, lit, base, shade, deep shade.
-BRASS = ramp(0xfff0b0, 0xf0d27a, 0xd0a848, 0x9c7a32, 0x6a4e1e)
-RED = ramp(0xffb090, 0xf0705a, 0xd8402e, 0x9c2a20, 0x661814)
-BONE = ramp(0xfffaea, 0xf0e6cc, 0xcfc4a8, 0xa0947c, 0x6e6452)
-IRON = ramp(0xf0f0f6, 0xc8c8d2, 0x9a9aa6, 0x6c6c78, 0x44444e)
-WOOD = ramp(0xecb884, 0xc98f58, 0x9a643a, 0x76492a, 0x4e2f1b)
-WATER = ramp(0xe8f8ff, 0x9ad6f4, 0x58aee4, 0x2f7cb6, 0x1c4f80)
-ICE = ramp(0xffffff, 0xe2f2fb, 0xb8dcf0, 0x84b4d2, 0x5a88a8)
-GREEN = ramp(0xe0f8c0, 0xa8e080, 0x7cc45c, 0x4f8f3e, 0x2e5f28)
-FIRE = ramp(0xfff2b0, 0xffcf5a, 0xf6962a, 0xd8592a, 0x9c3420)
-COPPER = ramp(0xffcfa8, 0xeea06e, 0xcc7440, 0x9a4f2c, 0x66331c)
+BRASS = ramp(0xe2c58c, 0xc4a069, 0xa98247, 0x77552d, 0x483624)
+RED = ramp(0xedb190, 0xc57860, 0xa45040, 0x72392f, 0x402927)
+BONE = ramp(0xe4dcc4, 0xcac0a7, 0xa99e83, 0x81755f, 0x514a3f)
+IRON = ramp(0xbbc1b4, 0x909d97, 0x657571, 0x465451, 0x2b3534)
+WOOD = ramp(0xc8a777, 0xaa8556, 0x83613f, 0x5b452f, 0x362b23)
+WATER = ramp(0xc4d9d4, 0x8cb8be, 0x5b94a4, 0x3d677b, 0x2a455b)
+ICE = ramp(0xe0e5dc, 0xc5d5d1, 0xa3bbbf, 0x78979f, 0x4d6977)
+GREEN = ramp(0xc8c68f, 0xa2ad71, 0x7f9656, 0x576b3d, 0x34472f)
+FIRE = ramp(0xf9e3a1, 0xe8bd6c, 0xcf8c44, 0xa85a32, 0x713b29)
+COPPER = ramp(0xe6b38a, 0xc18a60, 0x9d633f, 0x71462e, 0x463023)
 UNLIT = ramp(0x9c8c76, 0x7e705e, 0x64584a, 0x4e443a, 0x3a322c)
-FEATHER = ramp(0x7a7a9c, 0x5a5a7a, 0x40405c, 0x2c2c44, 0x1e1e30)
-GUNMETAL = ramp(0xb4bac4, 0x868c98, 0x5c606c, 0x40434c, 0x2a2c32)
-OLIVE = ramp(0xc8d48a, 0xa0ac62, 0x7a8644, 0x565e30, 0x34381e)
-BLACK = ramp(0x7c808a, 0x565962, 0x3a3c44, 0x28292f, 0x1a1b1f)
+FEATHER = ramp(0x8a9294, 0x646f75, 0x46545b, 0x2f3a41, 0x1e282d)
+GUNMETAL = ramp(0xacb7b3, 0x7d8d89, 0x576963, 0x394c47, 0x25342f)
+OLIVE = ramp(0xb9b78a, 0x93996d, 0x707e52, 0x4d5c3b, 0x2e3d2c)
+BLACK = ramp(0x8c8e83, 0x62685f, 0x434d45, 0x2c362f, 0x1b2420)
 
 
 def hex_of(color: tuple) -> int:
@@ -110,7 +110,7 @@ class Art:
         for x, y in mask:
             out = lambda dx, dy: (x + dx, y + dy) not in mask
             if out(-1, 0) or out(0, -1):
-                tone = 0
+                tone = 1  # Broad diffuse plane; reserve the lightest tone for small material details.
             elif out(1, 0) or out(0, 1):
                 tone = 4
             elif out(-2, 0) or out(0, -2) or out(-1, -1):
@@ -479,7 +479,7 @@ def draw_all() -> list:
 # ---- The guns, 72 x 28: each traced over its sprite in play ---------------
 #
 # In coordinates of that sprite: _Trace places them on the bigger grid, part by
-# part, so the shape stays the game's. Her hand cannon is pistol.png (17 x 11);
+# part, so the shape stays the game's. Her revolver is pistol.png (17 x 11);
 # the SWAT's guns are tools/make_swat.py's templates, with the flashlight fixed
 # under both barrels and the rifle's bayonet.
 
@@ -501,29 +501,22 @@ class _Trace:
 
 
 def _cannon(trace: _Trace) -> None:
-    """Her hand cannon: thin wooden grip, grey frame, wood along the barrel over
-    a brass band, the rod under it and the flared brass muzzle."""
+    """Her revolver: walnut grip, fluted steel cylinder, slim straight barrel."""
     a, box, shape = trace.art, trace.box, trace.shape
     a.fill(shape((3.4, 6.8), (5.6, 7), (2.4, 10.8), (0, 10.8)), WOOD)
     a.flat(shape((3.6, 7.6), (4.4, 7.6), (1.8, 10.2), (1, 10.2)), WOOD[3])
     a.fill(shape((0, 9.6), (2.4, 9.6), (2.2, 11), (.2, 11)), BRASS)
-    a.fill(box(7, 6, 13, 7), GUNMETAL)
-    a.fill(box(13, 6, 14, 7), BRASS)
-    a.fill(box(6.6, 6, 7.8, 8), BRASS)
-    a.fill(box(3, 1, 6, 4), GUNMETAL)
-    a.fill(box(3, 4, 6, 7), IRON)
-    a.flat(box(3.8, 4.8, 4.2, 6.2), IRON[3])
-    a.flat(box(5, 4.8, 5.4, 6.2), IRON[3])
-    a.fill(box(6, 4, 9, 6), GUNMETAL)
-    a.fill(box(6, 1, 13.4, 2), IRON)
-    a.fill(box(6.6, 2, 13.4, 4), WOOD)
-    a.flat(box(9, 2.1, 13.2, 2.8), WOOD[4])
-    a.fill(box(7.8, 3, 9, 4), BRASS, outline=False)
-    a.fill(box(9, 4, 14, 5), BRASS)
-    a.fill(box(13.4, 1, 15, 5), GUNMETAL)
-    a.fill(box(15, 0.6, 16, 5.4), BRASS)
-    a.fill(box(16, 1.4, 17, 4.6), GUNMETAL)
-    a.fill(box(14.8, 0, 15.8, 1), GUNMETAL)
+    a.fill(box(4, 5, 9, 7), GUNMETAL)
+    a.fill(box(5, 6, 8, 8), BRASS)
+    a.flat(box(6, 6.4, 7.3, 7.2), BLACK[4])
+    a.fill(shape((3, 1), (4, 1), (5, 3), (3, 3)), GUNMETAL)  # Hammer
+    a.fill(box(4, 2, 9, 5), IRON)                            # Cylinder
+    a.flat(box(5, 3, 5.7, 5) | box(7.2, 3, 7.9, 5), GUNMETAL[3])
+    a.flat(box(4.6, 2.1, 8.4, 2.6), IRON[0])
+    a.fill(box(9, 2, 16, 4), GUNMETAL)
+    a.flat(box(9, 2, 15, 2.5), IRON[1])
+    a.fill(box(14, 1, 15, 2), GUNMETAL)                     # Front sight
+    a.flat(box(15.6, 2.4, 16.2, 3.6), BLACK[4])
 
 
 def gun_cannon(a: Art) -> None:

@@ -9,6 +9,7 @@
 #include "game/damage.h"
 #include "game/progression.h"
 #include "game/stage_run.h"
+#include "game/weapons.h"
 
 static unsigned round_quarter_minute(float seconds)
 {
@@ -22,11 +23,13 @@ MissionGoals mission_goals(int index)
     if (index < 16 && known[index].seconds[2]) return known[index];
     const StageDef *stage = &STAGES[index];
     /* A walking route, actual profession/armor/health at the mission level,
-     * cannon cadence, reaction time and room for the route's obstacles.
+     * revolver cadence, cylinder reloads, reaction time and the route's obstacles.
      * No sprint or particular character is required for three stars. */
     float budget = run_road_length(index) / PLAYER_WALK_SPEED;
-    float cadence = PLAYER_SHOOT_RELOAD_TIME +
-                    (PLAYER_SHOOT_FRAMES - PLAYER_SHOOT_FIRE_FRAME) / PLAYER_SHOOT_FPS;
+    const WeaponDef *revolver = weapon_def(WEAPON_REVOLVER);
+    float cadence = revolver->reload_time +
+                    (PLAYER_SHOOT_FRAMES - PLAYER_SHOOT_FIRE_FRAME) / PLAYER_SHOOT_FPS +
+                    revolver->magazine_reload / (float)revolver->magazine;
     for (int i = 0; i < stage->zombies; i++) {
         Zombie foe;
         zombie_spawn(&foe, stage_zombie_stats(stage, i), 0.0f);

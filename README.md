@@ -58,9 +58,11 @@ solo cuando aplica. Los estados llevan icono y explicación al pasar el mouse, y
 la misión abre las metas de sus tres estrellas. Los números muy largos reducen su escala para
 no salirse del panel.
 Mientras recarga puede caminar a media velocidad.
-`--capturas DIR` guarda 31 pantallas como BMP para revisar el arte sin jugar: menús,
+`--capturas DIR` guarda pantallas como BMP para revisar el arte sin jugar: menús,
 combate, obstáculos, pausa, derrota, clima, farol, linterna y destello de explosión,
 además de las siete páginas completas del catálogo (`23_catalogo_01` a `23_catalogo_07`).
+`52_sheriff_rework`, `52_sheriff_disparo` y `52_sheriff_recarga_0` a `_7` muestran
+la sheriff y la recarga del revólver dentro del escenario.
 
 Hay **tres personajes**: la Vaquera (sus zombis sueltan cofres), el SWAT (cambia entre rifle
 y escopeta) y el Héroe (cañón de plasma que atraviesa la armadura; aún en desarrollo, todavía no
@@ -71,9 +73,25 @@ nivel y progreso. Detalles, armas y la plantilla para dibujarlos en
 Si se presionan izquierda y derecha a la vez, manda la última que se presionó.
 
 El disparo se hace con los pies plantados: mientras dura no camina. Saltar lo cancela.
-En el aire no se dispara. Tras cada bala recarga el cañón de mano (0.38 s, con el
-arma en alto); un clic al terminar la recarga encadena otro disparo sin volver a
-desenfundar, así que sale como máximo una bala cada 0.445 s. Del cañón salen
+En el aire no se dispara. La sheriff lleva un **revólver de 8 balas**: entre tiros
+acciona el mecanismo (0.285 s) y puede encadenarlos sin volver a desenfundar.
+Al vaciar el tambor lo recarga en **1.2 s, igual que el rifle del SWAT**; `R` permite
+recargar antes. Abre el tambor, expulsa los casquillos, introduce un cargador rápido
+y lo cierra. Mientras recarga puede caminar a media velocidad; saltar interrumpe
+la recarga y conserva la munición anterior. El HUD muestra las balas restantes.
+Con las duales, **cada revólver conserva su propio tambor de 8 balas**; el HUD
+muestra los dos contadores. Se recarga el arma que se vació; `R` recarga los
+tambores incompletos uno tras otro, **1.2 s por arma**. Guardar el segundo
+revólver con `Q` conserva ambas cuentas. El rebote con las dos armas gasta una
+bala de cada una.
+La recarga de las duales tiene poses propias: enfunda el arma libre, carga la
+primera, la enfunda, saca y carga la segunda, y termina con ambas en la mano.
+La secuencia se ve también quieta o mientras recibe daño por fuego.
+Un clic nuevo puede cortar la recarga y disparar con un revólver que aún tenga
+balas; el tambor que quedó a medias conserva su cuenta. Mantener el clic espera
+a que termine la recarga. Si ambos están vacíos, debe completarse al menos una.
+Su arte y todas sus poses usan cuero gastado, tela, latón y acero con la misma luz
+superior izquierda del escenario (`tools/rebuild_cowgirl.py`). Del cañón salen
 bocanadas de humo animadas (`smoke.c`) que suben, avanzan, crecen y se desvanecen. La bala sale de la boca del cañón, vuela recta a 900 px/s
 y desaparece al salir de la pantalla (hasta 16 a la vez).
 
@@ -481,9 +499,10 @@ repositorio, sin material de terceros, con su barra de volumen en Opciones ([doc
 **Efectos:** Audio con SDL2_mixer: los once sonidos legacy se conservan y los efectos nuevos se
 montan con grabaciones CC0 y capas de los originales. `tools/make_sfx.py` coordina su
 generación; fuentes, edición y comprobaciones en [docs/AUDIO.md](docs/AUDIO.md).
-Todos se incrustan en el ejecutable. La vaquera conserva el disparo (`player/shot`) y la
-recarga del cañón de mano (`player/reload`: baqueta, bala asentada y martillo), que
-dura lo mismo que la espera entre disparos (`PLAYER_SHOOT_RELOAD_TIME`). El zombi tiene
+Todos se incrustan en el ejecutable. La sheriff conserva el disparo (`player/shot`)
+y usa `weapons/revolver_cycle` para el mecanismo y `weapons/revolver_reload` para
+la recarga completa de 1.2 s (`tools/make_revolver.py --audio`). La antigua baqueta
+(`player/reload`) queda preservada como recurso histórico. El zombi tiene
 tres voces, todas sacadas de una misma grabación con `tools/crush_sfx.py` (ver abajo): al
 aparecer (`zombie/spawn`), cada 6 s mientras vive (`zombie/idle`,
 `ZOMBIE_GROWL_INTERVAL`) y al morir (`zombie/death`, con el tono cayendo). Se

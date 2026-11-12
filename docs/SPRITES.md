@@ -49,8 +49,12 @@ de `src/game/player.c`.
 
 ## Arma (medida en `shoot.png`)
 
-El revólver está dibujado dentro de cada cuadro, no es un sprite aparte. Separarlo solo
-vale la pena para armas intercambiables, y eso implica dibujar también el brazo aparte.
+El revólver se genera una sola vez con `tools/make_revolver.py` en
+`characters/cowgirl/weapons/pistol.png` (17 × 11). `cowgirl_arm.py` coloca esa
+misma arma sobre el brazo en cada pose, incluidas las duales. Tiene tambor de ocho
+balas, acero acanalado y empuñadura de nogal; las hojas finales lo llevan integrado.
+La recarga (`cowgirl/reload.png`, 8 × 81 × 80) dura 1.2 s: abre, expulsa, carga con
+cargador rápido y cierra. El contrato de la boca y los pivotes permanece igual.
 
 | Medida | Cuadro 3 (apunta) | Cuadro 4 (dispara) |
 | --- | --- | --- |
@@ -98,7 +102,7 @@ Otras balas o proyectiles: mismo formato de cuadro (8 × 6) si son del mismo cal
   y plantilla: [`ZOMBIE.md`](ZOMBIE.md).
 - Dónde va cada archivo y cómo se nombra: [`ASSETS.md`](ASSETS.md).
 
-## Paleta (23 colores en uso)
+## Paleta original de la vaquera (referencia histórica)
 
 ```text
 #252018 #463322 #2c2c2c #424242 #684833 #d99a5b #902004 #fedca3
@@ -108,6 +112,16 @@ Otras balas o proyectiles: mismo formato de cuadro (8 × 6) si son del mismo cal
 
 Los naranjas y amarillos (`#d03305`, `#e55d22`, `#fbaa38`, `#fff1a0`) son los del
 fogonazo y sirven para la bala.
+
+La ropa actual de la sheriff y sus materiales están en [CHARACTERS.md](CHARACTERS.md).
+La UI y los elementos de apoyo usan las rampas de `tools/ui_icons.py`: latón
+envejecido, hierro gris verdoso, madera terrosa, papel marfil y rojo apagado.
+Los reflejos más claros se reservan para detalles del material; no contornear
+toda la figura con ellos. En el cofre, las vetas siguen las tablas; en las pistas,
+las fibras y dobleces respetan el texto; las plumas y las membranas de las aves
+y murciélagos tienen detalles propios. `tools/support_finishes.py` comparte el
+acabado de estas siete familias. El equipo del mercenario conserva sombras más
+profundas por la contraluz de la cinemática, sin revelar su identidad.
 
 ## Qué indicar al entregar una hoja nueva
 

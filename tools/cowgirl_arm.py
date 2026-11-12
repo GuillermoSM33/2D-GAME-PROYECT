@@ -47,21 +47,16 @@ def arm_limb(top: tuple, elbow: tuple, hand: tuple) -> dict:
             x, y = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
         samples.append((x, y, ARM_AT_SHOULDER + (ARM_AT_WRIST - ARM_AT_SHOULDER) * t))
     px, nearest = {}, {}
-    for i, (x, y, r) in enumerate(samples):
-        ax, ay, _ = samples[max(i - 1, 0)]
-        bx, by, _ = samples[min(i + 1, STEPS)]
-        tx, ty = bx - ax, by - ay
-        length = max(math.hypot(tx, ty), 0.01)
-        nx, ny = ty / length, -tx / length
-        if ny > 0.2 or (abs(ny) <= 0.2 and nx > 0):      # Its lit edge: up, or to the left
-            nx, ny = -nx, -ny
+    for x, y, r in samples:
         for py in range(int(y - r - 1), int(y + r + 2)):
             for pxx in range(int(x - r - 1), int(x + r + 2)):
                 dx, dy = pxx + 0.5 - x, py + 0.5 - y
                 d = dx * dx + dy * dy
                 if d <= r * r and d < nearest.get((pxx, py), 1e9):
                     nearest[(pxx, py)] = d
-                    side = (dx * nx + dy * ny) / r
+                    # Fixed upper-left light. Flipping a tangent normal near
+                    # vertical made the sleeve highlight swap sides mid-stride.
+                    side = (-0.7 * dx - dy) / (r * 1.22)
                     px[(pxx, py)] = SLEEVE[0] if side > 0.2 else SLEEVE[1] if side > -0.4 else SLEEVE[2]
     out = dict(px)
     for (x, y) in px:

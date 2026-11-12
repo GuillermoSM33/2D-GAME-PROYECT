@@ -7,6 +7,7 @@
 #include "engine/assets.h"
 #include "engine/pixfont.h"
 #include "game/character_skin.h"
+#include "game/casefile.h"
 #include "game/player.h"
 #include "game/props.h"
 #include "game/hud.h"
@@ -115,13 +116,15 @@ static int verify_characters(void)
         }
         for (int w = 0; w < gun_count; w++) {
             const WeaponDef *def = weapon_def(guns[w]);
-            const char *sheets[] = {def->shoot_sheet, def->reload_sheet};
-            for (int k = 0; k < 2; k++) {
+            const char *sheets[] = {def->shoot_sheet, def->reload_sheet, def->reload_other_sheet,
+                                    def->reload_lower_sheet, def->reload_other_lower_sheet};
+            for (int k = 0; k < 5; k++) {
                 char name[96];
                 if (sheets[k] == NULL)
                     continue;
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, sheets[k]);
-                failures += !verify_image(name, k == 0 && def->piston ? PLAYER_PISTON_FRAMES * PLAYER_SHOOT_FRAME_W : shoot->width, shoot->height);
+                int frames = !def->piston ? PLAYER_SHOOT_FRAMES : k == 0 ? PLAYER_PISTON_FRAMES : PLAYER_DUAL_RELOAD_SHEET_FRAMES;
+                failures += !verify_image(name, frames * PLAYER_SHOOT_FRAME_W, shoot->height);
             }
             if (def->sit_sheet) { /* ...and its sit sheet, the size of sit.png */
                 const EmbeddedImage *sit = assets_find_image("sprites/characters/cowgirl/sit");
@@ -239,6 +242,10 @@ int app_verify_assets(void)
         {"sprites/ui/icons", ICON_COUNT * UI_ICON_SIZE, UI_ICON_SIZE},
         {"sprites/ui/icons_hd", ICON_COUNT * UI_ICON_HD_SIZE, UI_ICON_HD_SIZE},
         {"sprites/ui/weapons", (WEAPON_COUNT + 1) * UI_WEAPON_W, UI_WEAPON_H}, {"sprites/ui/weapons_hd", (WEAPON_COUNT + 1) * UI_WEAPON_W * 2, UI_WEAPON_H * 2}, /* + the grenade */
+        {"sprites/clues/clues", CLUE_COUNT * 24, 24}, {"sprites/clues/stamp", 81, 40},
+        {"sprites/vial/held", 64, 100},
+        {"sprites/mercenary/walk", 12 * PLAYER_SHOOT_FRAME_W, PLAYER_SHOOT_FRAME_H},
+        {"sprites/mercenary/aim", 4 * 110, 130},
     };
     for (size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++)
         failures += !verify_image(kit[i].name, kit[i].w, kit[i].h);

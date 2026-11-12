@@ -38,6 +38,7 @@ typedef struct {
     bool ricochet_armed;  /* The next shot's bullets glance on to a second target */
     bool ricochet_fired;  /* ...and it has gone: her hands part when the shot ends */
     int rounds[CHARACTER_MAX_WEAPONS]; /* Shots left in each gun's magazine while put away */
+    int dual_rounds; /* Sheriff's second cylinder while holstered; -1 = full */
     Player player;
     Bullets bullets;
     Effects effects;

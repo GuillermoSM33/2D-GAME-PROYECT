@@ -162,7 +162,7 @@ def make_badge(style: dict) -> Image:
 SPARK_FRAME = 72
 SPARK_FRAMES = 8
 ORIGIN = (36, 33)  # Where the lid opens, on the chest's 72 x 72 template
-SPARK_WHITE, SPARK_GOLD, SPARK_ORANGE = 0xfff7d6, 0xffd25a, 0xe08a2a
+SPARK_WHITE, SPARK_GOLD, SPARK_ORANGE = 0xe2c58c, 0xc49b60, 0xa56840
 
 
 def lcg(seed: int):
@@ -186,7 +186,7 @@ def make_sparks() -> Image:
     rand = lcg(7)
     # Sparkles that fly out of the chest, mostly upward.
     particles = []
-    for _ in range(22):
+    for _ in range(14):
         angle = math.radians(-90 + (next(rand) - 0.5) * 160)
         speed = 2.5 + next(rand) * 3.0
         color = (SPARK_WHITE, SPARK_GOLD, SPARK_GOLD, SPARK_ORANGE)[int(next(rand) * 4)]

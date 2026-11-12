@@ -200,6 +200,20 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     int gun = guns[weapon_slot];
     SDL_Texture *sheet = def ? skin_sheet(skin, def->sheet, gun) : NULL;
     int frame = player->anim.frame;
+    bool reloading = def && player_reload_animation(def);
+    if (reloading && player->shot.piston && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_reload_other[gun]) {
+        sheet = player->shot.reload_other ? skin->weapon_reload_other[gun] : skin->weapon_reload[gun];
+        frame = (int)(shot_reload_progress(&player->shot) * PLAYER_DUAL_RELOAD_FRAMES);
+        if (frame >= PLAYER_DUAL_RELOAD_FRAMES) frame = PLAYER_DUAL_RELOAD_FRAMES - 1;
+        if (player->shot.reload_pair) {
+            if (player->shot.reload_all) {
+                /* Keep the first loaded gun in hand; the next strip puts it away. */
+                if (frame > PLAYER_DUAL_RELOAD_HANDOFF_FRAME) frame = PLAYER_DUAL_RELOAD_HANDOFF_FRAME;
+            } else {
+                frame += PLAYER_DUAL_RELOAD_FRAMES;
+            }
+        }
+    }
     if (player->state == PLAYER_IDLE && def && def->frame_w == PLAYER_WALK_FRAME_W && skin_stand(skin, gun)) {
         sheet = skin_stand(skin, gun); /* Stood still: its own pose, if it has one */
         frame = 0;
@@ -245,9 +259,9 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     if (player->state == PLAYER_SHOOT && player->light_on && !lit_duals && player_light_progress(player) >= 1.0f &&
         !shot_reloading(&player->shot) && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_light[gun])
         frame = player_lit_shoot_frame(frame);
-    if (player->state == PLAYER_SHOOT && player->shot.piston) /* Two guns: their own, finer sheets */
+    if (player->state == PLAYER_SHOOT && player->shot.piston && !reloading) /* Shooting alone uses the piston clock. */
         frame = player->shot.active ? shot_piston_frame(&player->shot) : frame * PLAYER_PISTON_FRAMES / PLAYER_SHOOT_FRAMES;
-    if (player->state == PLAYER_SHOOT && player->power_shot && gun >= 0 && gun < WEAPON_COUNT) { /* Her ricochet */
+    if (player->state == PLAYER_SHOOT && player->power_shot && !reloading && gun >= 0 && gun < WEAPON_COUNT) { /* Her ricochet */
         SDL_Texture *power = player->light_on ? skin->weapon_power_lit[gun] : skin->weapon_power[gun];
         if (power) {
             sheet = power;
@@ -308,6 +322,15 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         tint(sheet, player);
         draw_rows(renderer, sheet, def, frame, 0, waist, player, camera_x);
         untint(sheet);
+        if (reloading && player->shot.piston && gun >= 0 && gun < WEAPON_COUNT) {
+            SDL_Texture *lower = player->shot.reload_other ? skin->weapon_reload_other_lower[gun]
+                                                          : skin->weapon_reload_lower[gun];
+            if (lower) {
+                tint(lower, player);
+                draw_rows(renderer, lower, def, frame, waist, def->frame_h, player, camera_x);
+                untint(lower);
+            }
+        }
         heal_glow(renderer, player, camera_x);
         draw_drips(renderer, player, camera_x);
         return;
@@ -316,7 +339,7 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         tint(sheet, player);
         draw_rows(renderer, sheet, def, frame, 0, def->frame_h, player, camera_x);
         untint(sheet);
-        if (player->light_on && !lit_duals && player->state == PLAYER_SHOOT && skin->flashlight_sheet &&
+        if (player->light_on && !lit_duals && !reloading && player->state == PLAYER_SHOOT && skin->flashlight_sheet &&
             player_light_progress(player) >= PLAYER_LIGHT_CLICK && frame < PLAYER_SHOOT_FRAMES)
             draw_rows(renderer, skin->flashlight_sheet, def, frame, 0, def->frame_h, player, camera_x);
     }

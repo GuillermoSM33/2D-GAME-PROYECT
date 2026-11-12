@@ -44,6 +44,7 @@ typedef struct {
     int id;            /* WeaponId: its picture */
     const char *name;
     int rounds, magazine; /* magazine 0: it never runs dry */
+    int other_rounds;     /* The second revolver's separate count, for WEAPON_DUAL */
     bool reloading;
     bool can_swap;
     int other_id;      /* The other gun, if can_swap */

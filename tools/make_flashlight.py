@@ -14,6 +14,10 @@ Writes in assets/sprites/characters/cowgirl/ (81 x 80 frames, the shoot template
   shoot_dual_lit.png, shoot_dual_b_lit.png  The same turns with the flashlight on: its
       gun stays up, lit, and the other swings up and fires from her hip.
   shoot.png  Her draw and holster frames redrawn with her own arm turned.
+  reload.png  Eight frames: open, eject, speedload, close the single revolver.
+  reload_dual.png, reload_dual_b.png  48 frames per hand: 24 for one cylinder,
+      24 for the second of a pair; hands work low at the belt, shoulders stay fixed.
+  reload_dual_lower.png, reload_dual_b_lower.png  Only the low barrels, over walking legs.
   melee.png  7 frames: the blow with the gun (poses in make_melee), her other hand on her hip.
   melee_dual.png  7 frames: the blow with her near gun, as on melee.png; her far arm
       apart from it, its pistol down by her own leg, pulling back against the swing.
@@ -181,6 +185,208 @@ def make_shoot(shoot: Image) -> Image:
     for f in range(8):
         put(img, f, arm_frame(shoot, f))
     return img
+
+
+def make_reload(shoot: Image) -> Image:
+    """Eight keys: draw inward, unlatch, eject, fetch, load, close, return, aim.
+
+    Both arms are rebuilt on the same body as the shot. The open cylinder is
+    seen end-on, with eight chambers; a speedloader fills it in one gesture.
+    """
+    body = body_without_arm(frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER), False)
+    keys = [((44, 41), 10, (32, 45)), ((40, 43), 18, (39, 39)),
+            ((39, 42), 35, (39, 39)), ((39, 43), 15, (29, 49)),
+            ((39, 43), 15, (36, 45)), ((39, 43), 15, (41, 41)),
+            ((42, 41), 7, (40, 40))]
+    image = Image(W * 8, H)
+    bores = ((0, -2), (1, -1), (2, 0), (1, 1), (0, 2), (-1, 1), (-2, 0), (-1, -1))
+    for f, (hand, angle, far) in enumerate(keys):
+        px = dict(body)
+        elbow, at = two_bones(FAR_TOP, far, FAR_ARM)
+        px.update(bent_arm(FAR_TOP, elbow, at))
+        near_elbow, near = two_bones(SHOULDER, hand, (7, 7))
+        px.update(bent_arm(SHOULDER, near_elbow, near))
+        px.update(pistol_pointing(near, angle))
+        px.update(glove(near, near_elbow))
+        if 1 <= f <= 5:
+            cx, cy = 42, 41
+            for y in range(-3, 4):
+                for x in range(-3, 4):
+                    if x * x + y * y <= 12:
+                        px[(cx + x, cy + y)] = rgb(0xb3b8b6) if x + y < -1 else rgb(0x4c535b)
+            for x, y in bores:
+                px[(cx + x, cy + y)] = rgb(0xb59050) if f == 5 else INK
+            px[(cx, cy)] = rgb(0xe0dbc9)
+        if f == 2:
+            for x, y in ((43, 47), (46, 49), (48, 46)):
+                px[(x, y)] = rgb(0xd0a848)
+                px[(x, y + 1)] = rgb(0x8e6c28)
+        if f == 4:
+            for x, y in bores:
+                px[(round(at[0]) + x, round(at[1]) - 2 + y)] = rgb(0xd0a848)
+        px.update(glove(at, elbow))
+        put(image, f, px)
+    put(image, 7, arm_frame(shoot, AIM))
+    return image
+
+
+DUAL_RELOAD_FRAMES = 24            # PLAYER_DUAL_RELOAD_FRAMES; 50 ms per pose
+DUAL_RELOAD_HANDOFF = 18           # Loaded gun down at the belt, before drawing the spare
+RELOAD_REST = ((49, 48), (18, 49))
+RELOAD_BELT = ((40, 49), (26, 49))
+RELOAD_HELD = ((37, 49), (30, 50)) # Work at the belt, with the upper arms hanging down.
+RELOAD_ANGLE = (-80, -65)          # Barrels low; no wrist folded back toward the shoulder.
+RELOAD_REST_ANGLE = (-80, -110)
+
+
+def toward(a: tuple, b: tuple, k: float) -> tuple:
+    k = k * k * (3.0 - 2.0 * k)
+    return tuple(x + (y - x) * k for x, y in zip(a, b))
+
+
+def turn_toward(a: float, b: float, k: float) -> float:
+    """Use the short arc; a holster gesture must not spin the wrist backwards."""
+    return a + ((b - a + 180) % 360 - 180) * k
+
+
+def reload_bones(top: tuple, want: tuple, lengths: tuple, side: int = -1) -> tuple:
+    """Stable elbows, hanging below fixed shoulders; rasterize only at the end."""
+    upper, fore = lengths
+    dx, dy = want[0] - top[0], want[1] - top[1]
+    distance = max(math.hypot(dx, dy), 1e-6)
+    ux, uy = dx / distance, dy / distance
+    reach = min(upper + fore - .5, max(abs(upper - fore) + .5, distance))
+    wrist = (top[0] + ux * reach, top[1] + uy * reach)
+    along = (upper * upper - fore * fore + reach * reach) / (2 * reach)
+    out = math.sqrt(max(0.0, upper * upper - along * along))
+    return (top[0] + ux * along + side * uy * out,
+            top[1] + uy * along - side * ux * out), wrist
+
+
+def reload_reach(hand: int, a: tuple, b: tuple, k: float) -> tuple:
+    """Interpolate the two bone rotations, so the elbow travels in a steady arc.
+
+    Interpolating the hand alone made the elbow whip sideways halfway through
+    fetching the loader, despite each isolated pose having valid bone lengths.
+    """
+    top, lengths, side = (FAR_TOP, FAR_ARM, -1) if hand else (SHOULDER, (7, 7), 1)
+    ea, wa = reload_bones(top, a, lengths, side)
+    eb, wb = reload_bones(top, b, lengths, side)
+    upper_a = math.degrees(math.atan2(ea[1] - top[1], ea[0] - top[0]))
+    upper_b = math.degrees(math.atan2(eb[1] - top[1], eb[0] - top[0]))
+    fore_a = math.degrees(math.atan2(wa[1] - ea[1], wa[0] - ea[0]))
+    fore_b = math.degrees(math.atan2(wb[1] - eb[1], wb[0] - eb[0]))
+    upper = math.radians(turn_toward(upper_a, upper_b, k))
+    fore = math.radians(turn_toward(fore_a, fore_b, k))
+    return (top[0] + lengths[0] * math.cos(upper) + lengths[1] * math.cos(fore),
+            top[1] + lengths[0] * math.sin(upper) + lengths[1] * math.sin(fore))
+
+
+def dual_reload_pose(other: bool, f: int, second: bool) -> tuple:
+    """Hands, barrel angles and held guns. The second block starts with the
+    previous loaded gun still in hand, and the next one in its own holster.
+    First block 18 and second block 0 are the same low handoff pose.
+    """
+    target, helper = int(other), int(not other)
+    hands = list(RELOAD_REST)
+    angles, held = list(RELOAD_REST_ANGLE), [True, True]
+    if f <= 5:
+        k = f / 5
+        if second:
+            hands[helper] = toward(RELOAD_HELD[helper], RELOAD_BELT[helper], k)
+            hands[target] = toward(RELOAD_BELT[target], RELOAD_HELD[target], k)
+            angles[helper] = turn_toward(RELOAD_ANGLE[helper], -90, k)
+            angles[target] = turn_toward(-90, RELOAD_ANGLE[target], k)
+            held[target] = f > 0
+        else:
+            hands[helper] = toward(RELOAD_REST[helper], RELOAD_BELT[helper], k)
+            hands[target] = toward(RELOAD_REST[target], RELOAD_HELD[target], k)
+            angles[helper] = turn_toward(angles[helper], -90, k)
+            angles[target] = turn_toward(angles[target], RELOAD_ANGLE[target], k)
+        held[helper] = f < 5
+    elif f <= DUAL_RELOAD_HANDOFF:
+        hands[target], angles[target] = RELOAD_HELD[target], RELOAD_ANGLE[target]
+        held[helper] = False
+        # Unlock/eject, fetch a speedloader at the helper's belt, load, close.
+        at_cylinder = (36, 49)
+        path = ((5, RELOAD_BELT[helper]), (8, at_cylinder), (11, RELOAD_BELT[helper]),
+                (14, at_cylinder), (15, at_cylinder), (18, RELOAD_BELT[helper]))
+        for (start, a), (end, b) in zip(path, path[1:]):
+            if start <= f <= end:
+                hands[helper] = reload_reach(helper, a, b, (f - start) / (end - start))
+                break
+    else:
+        k = (f - DUAL_RELOAD_HANDOFF) / (DUAL_RELOAD_FRAMES - 1 - DUAL_RELOAD_HANDOFF)
+        hands[target] = toward(RELOAD_HELD[target], RELOAD_REST[target], k)
+        hands[helper] = toward(RELOAD_BELT[helper], RELOAD_REST[helper], k)
+        angles[target] = turn_toward(RELOAD_ANGLE[target], RELOAD_REST_ANGLE[target], k)
+        angles[helper] = turn_toward(-90, RELOAD_REST_ANGLE[helper], k)
+    return hands, angles, held
+
+
+def make_dual_reload(shoot: Image, other: bool, lower_only: bool = False) -> Image:
+    """48 frames per hand: one cylinder (0..23), then the second (24..47).
+    Work stays at the belt. Runtime holds first-block frame 18 before the swap.
+    """
+    body = body_without_arm(frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER), False)
+    image = Image(W * DUAL_RELOAD_FRAMES * 2, H)
+    bores = ((0, -2), (1, -1), (2, 0), (1, 1), (0, 2), (-1, 1), (-2, 0), (-1, -1))
+    for second in (False, True):
+        for f in range(DUAL_RELOAD_FRAMES):
+            gun_layer = {}
+            hands, angles, held = dual_reload_pose(other, f, second)
+            tops = [SHOULDER, FAR_TOP]
+            elbows, wrists = [], []
+            for hand in range(2):
+                elbow, wrist = reload_bones(tops[hand], hands[hand], FAR_ARM if hand else (7, 7), -1 if hand else 1)
+                elbows.append(elbow)
+                wrists.append(wrist)
+            far_sleeve = bent_arm(tops[1], elbows[1], wrists[1])
+            # The far upper arm stays behind her torso. Its lower forearm and
+            # hand pass in front at the belt, never across the neckline.
+            px = dict(far_sleeve)
+            px.update(body)
+            for hand, x in enumerate((SHOOT_BUCKLE + 5, SHOOT_BUCKLE - FAR_HOLSTER)):
+                # Only a holstered revolver shows its wooden grip above the case.
+                for (hx, hy), color in belt_holster(x, SHOOT_BELT).items():
+                    if hy >= SHOOT_BELT + 2 or not held[hand]:
+                        px[(hx, hy)] = color
+            # Far sleeve first; the nearer arm and both hands occlude it naturally.
+            for hand in (1, 0):
+                limb = bent_arm(tops[hand], elbows[hand], wrists[hand])
+                if hand == 1:
+                    limb = {p: c for p, c in limb.items() if p[1] >= 44}
+                px.update(limb)
+                if held[hand]:
+                    gun = pistol_pointing(wrists[hand], angles[hand])
+                    px.update(gun)
+                    gun_layer.update(gun)
+                px.update(glove(wrists[hand], elbows[hand]))
+            if 7 <= f <= 16:
+                cx, cy = (33, 51) if other else (39, 51)
+                for y in range(-3, 4):
+                    for x in range(-3, 4):
+                        if x * x + y * y <= 12:
+                            px[(cx + x, cy + y)] = rgb(0xa1aaa9) if x + y < -1 else rgb(0x4c535b)
+                for x, y in bores:
+                    px[(cx + x, cy + y)] = rgb(0xb59050) if f >= 14 else INK
+                px[(cx, cy)] = rgb(0x727f86)
+                if f in (8, 9):
+                    for dx, dy in ((2, 6), (5, 8), (7, 5)):
+                        x = cx + (-dx if other else dx)
+                        px[(x, cy + dy)] = rgb(0xb59050)
+                        px[(x, cy + dy + 1)] = rgb(0x8e6c28)
+                helper = int(not other)
+                if f in (11, 12, 13):
+                    wx, wy = (round(value) for value in wrists[helper])
+                    for x, y in bores:
+                        px[(wx + x, wy - 2 + y)] = rgb(0xb59050)
+                px.update(glove(wrists[helper], elbows[helper]))
+            # Walking replaces the static legs below row 61. Keep the low
+            # barrels whole over those legs, without drawing the static trousers.
+            output = {p: c for p, c in gun_layer.items() if p[1] >= 60} if lower_only else px
+            put(image, f + second * DUAL_RELOAD_FRAMES, output)
+    return image
 
 
 def posed(shoot: Image, key: tuple) -> dict:
@@ -643,7 +849,10 @@ def main() -> int:
                       ('ricochet', make_power(shoot, False, False)), ('ricochet_lit', make_power(shoot, False, True)),
                       ('ricochet_dual', make_power(shoot, True, False)), ('ricochet_dual_lit', make_power(shoot, True, True)),
                       ('swap_far', make_swap(shoot, dual, False, True)), ('light_dual_far', make_light_dual(shoot, dual, True)),
-                      ('flashlight', make_overlay(shoot))):
+                      ('flashlight', make_overlay(shoot)), ('reload', make_reload(shoot)),
+                      ('reload_dual', make_dual_reload(shoot, False)), ('reload_dual_b', make_dual_reload(shoot, True)),
+                      ('reload_dual_lower', make_dual_reload(shoot, False, True)),
+                      ('reload_dual_b_lower', make_dual_reload(shoot, True, True))):
         img.save(OUT / f'{name}.png')
         print(f'make_flashlight: {name} ({img.width} x {img.height})')
     for f, pose in enumerate(POSES):                     # For player_light_kick

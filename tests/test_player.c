@@ -134,7 +134,7 @@ static void test_reload_key(void)
     down[ACTION_RELOAD] = true;
     input_update(&input, down);
     player_update(&player, &input, FIXED_DT);
-    CHECK(!player.shot.active); /* The revolver has no magazine */
+    CHECK(!player.shot.active); /* No weapon configured on the bare player */
     shot_set_magazine(&player.shot, 5, 1.0f, 5);
     input_init(&input);
     input_update(&input, down);

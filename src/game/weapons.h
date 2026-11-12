@@ -7,11 +7,11 @@
  * the character's weapon level damage (progression.c), so every gun scales
  * with her or his level the same way. */
 typedef enum {
-    WEAPON_REVOLVER,  /* The cowgirl's hand cannon */
+    WEAPON_REVOLVER,  /* The sheriff's eight-shot revolver */
     WEAPON_RIFLE,     /* SWAT: fast, light */
     WEAPON_SHOTGUN,   /* SWAT: slow, three pellets, short reach */
     WEAPON_PLASMA,    /* Hero: experimental, goes through part of the armor */
-    WEAPON_DUAL,      /* The cowgirl from level 3: a hand cannon in each hand */
+    WEAPON_DUAL,      /* The sheriff from level 3: two independent eight-shot revolvers */
     WEAPON_COUNT
 } WeaponId;
 
@@ -23,7 +23,7 @@ typedef struct {
     float burst_gap;      /* Seconds between the bullets of a burst */
     bool automatic;       /* Holding the trigger keeps firing */
     bool piston;          /* Two guns taking turns, each shot played whole */
-    int magazine;         /* Shots (bursts count as one) before a magazine reload; 0 = never */
+    int magazine;         /* Shots per gun (bursts count as one); 0 = never runs dry */
     float magazine_reload; /* Seconds that reload takes */
     /* K: a second fire mode, one bullet per click, with the magazine's bullets
      * counted one by one (magazine x burst); 0 = the gun has none. */
@@ -61,6 +61,9 @@ typedef struct {
     /* The character's sheet while putting a magazine in (needed with a
      * magazine), same size and template as shoot.png. */
     const char *reload_sheet;
+    const char *reload_other_sheet; /* The second revolver's reload and handoff */
+    const char *reload_lower_sheet; /* Low barrels over walking legs during a reload */
+    const char *reload_other_lower_sheet;
     /* The character's sheet sat on a bench with this gun on the lap (its
      * reload there), instead of "sit", or NULL. Same size as sit.png. */
     const char *sit_sheet;

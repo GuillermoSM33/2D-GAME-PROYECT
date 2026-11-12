@@ -38,7 +38,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
 from rework_cowgirl import (BADGE, BADGE_TONES, BADGE_UNDER_FACE, BADGE_X, BARE_WIDTH, CHOKER, CHOKER_UNDER_FACE,  # noqa: E402
-                            CORSET_TONES, LACE, LACE_SMILE)
+                            BELT_UNDER_FACE, CORSET_TONES, HAIR, JACKET_TONES, LACE, LACE_SMILE,
+                            corset_bust, cropped_jacket, jacket_buttons)
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 72, 67          # Frame
@@ -107,6 +108,7 @@ SWAT_BOTTOM = 52       # Frame row of the template's last row
 # column COWGIRL_FACE kept and mirrored); hat and body stay as drawn.
 COWGIRL_FACE_ROWS = (18, 30)   # Face, hair, neck
 COWGIRL_FACE = 22              # First column right of her face's middle
+COWGIRL_EAR_ROWS = (20, 24)    # Walk rows: long side locks cover the ears from the front
 # Below, her corset is made symmetric about the pivot from her right side
 # (its brown and gold); her arms are drawn on it from COWGIRL_ARM_ROWS, the
 # left one (column 0 the outer edge, at COWGIRL_ARM_OUTER columns from the
@@ -298,6 +300,8 @@ def cowgirl_upper(img: Image, ox: int, walk: Image, dy: int, nod: int, arm: tupl
         if face0 <= y <= face1:
             for d in range(COWGIRL_FACE):
                 c = walk.get(COWGIRL_FACE - 1 - d, y)
+                if COWGIRL_EAR_ROWS[0] <= y <= COWGIRL_EAR_ROWS[1] and d >= 5 and c[:3] in COWGIRL_SKIN:
+                    c = HAIR[1]  # Her hair falls in front of both ears, including while nodding
                 if c[3]:
                     put(img, ox, CX - 1 - d, ry, c)
                     put(img, ox, CX + d, ry, c)
@@ -481,7 +485,7 @@ def tidy_cowgirl(img: Image, ox: int, dy: int, nod: int = 0) -> None:
 
 def badge_front(img: Image, ox: int) -> None:
     """Her sheriff's badge, as on every other pose (rework_cowgirl.sheriff_badge):
-    the same star, the same place under her neckline, over her corset only.
+    the same star, the same place under her neckline, over her corset or jacket.
     Mirroring her walk's other side left it out. It is placed from the lace at
     the middle of her neckline, which stays put while her head nods. Sat, her
     corset is narrower than standing, so the star may lie over the dark band down
@@ -490,7 +494,7 @@ def badge_front(img: Image, ox: int) -> None:
     if not laces:
         return
     face = laces[0] - LACE_SMILE[0] - CHOKER_UNDER_FACE   # The lace's middle is LACE_SMILE[0] under the choker
-    under = CORSET_TONES | {(0x25, 0x20, 0x18)}
+    under = CORSET_TONES | JACKET_TONES | {(0x25, 0x20, 0x18)}
     for j, row in enumerate(BADGE):
         for i, mark in enumerate(row):
             x, y = CX + BADGE_X + i, face + BADGE_UNDER_FACE + j
@@ -532,6 +536,11 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
     weapons = load(ROOT / 'assets/sprites/ui/weapons.png')
     # Her walk with no arms: hers are drawn here, none of the swinging ones on her
     walk = load(ROOT / 'assets/sprites/characters' / name / ('legs.png' if name == 'cowgirl' else 'walk.png'))
+    if name == 'cowgirl':
+        # Match dress()/landmarks(): the light face plane defines the body,
+        # not the skin shadow two rows higher under the hat.
+        face = min(y for y in range(walk.height) for x in range(42) if walk.get(x, y)[:3] == (0xfe, 0xdc, 0xa3))
+        belt = face + BELT_UNDER_FACE + DROP
     out = Image(W * 14, H)
     for f in range(14):
         ox = f * W
@@ -550,6 +559,12 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
             reload_step(out, ox, weapons, char, gun, kind, f - 4)
         if name == 'cowgirl':
             tidy_cowgirl(out, ox, dy, nod)
+            body = {(x, y): out.get(ox + x, y) for y in range(H) for x in range(W) if out.get(ox + x, y)[3]}
+            corset_bust(body, belt + dy, CX - 0.5)
+            cropped_jacket(body, belt + dy, CX - 0.5, front=True)
+            jacket_buttons(body, belt + dy, CX - 0.5, front=True)
+            for (x, y), color in body.items():
+                out.set(ox + x, y, color)
             badge_front(out, ox)
         if f >= 12:
             zs(out, ox, 1 if f == 12 else 2, char['ink'])

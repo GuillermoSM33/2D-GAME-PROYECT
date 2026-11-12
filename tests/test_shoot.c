@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "game/shoot.h"
+#include "game/weapons.h"
 #include "test.h"
 
 static float frame_time(void)
@@ -229,7 +230,46 @@ static void test_cut_reload_resumes_and_keeps_rounds(void)
     shot_set_magazine(&shot, 8, 1.1f, 3);
     CHECK(shot.rounds == 3);
     shot_set_magazine(&shot, 0, 0.0f, -1);
-    CHECK(shot.magazine == 0); /* The revolver never runs dry */
+    CHECK(shot.magazine == 0); /* A weapon with unlimited ammunition */
+}
+
+static void test_revolver_eight_rounds_then_swat_length_reload(void)
+{
+    const WeaponDef *gun = weapon_def(WEAPON_REVOLVER);
+    Shot shot;
+    shot_reset(&shot);
+    shot_set_reload(&shot, gun->reload_time);
+    shot_set_magazine(&shot, gun->magazine, gun->magazine_reload, -1);
+    CHECK(shot.rounds == 8);
+    int fired = 0, steps = 0;
+    while (!shot_reloading(&shot) && steps++ < 600) {
+        shot_start(&shot);
+        if (shot_update(&shot, FIXED_DT)) {
+            fired++;
+            CHECK(shot.rounds == 8 - fired);
+        }
+    }
+    CHECK(fired == 8 && shot.rounds == 0 && shot_reloading(&shot));
+    CHECK_NEAR(shot.mag_reload, weapon_def(WEAPON_RIFLE)->magazine_reload, 1e-5f);
+    float elapsed = 0.0f;
+    while (shot_reloading(&shot) && elapsed < 2.0f) {
+        CHECK(!shot_start(&shot));
+        CHECK(!shot_update(&shot, FIXED_DT));
+        elapsed += FIXED_DT;
+    }
+    CHECK_NEAR(elapsed, 1.2f, FIXED_DT * 1.1f);
+    CHECK(shot.rounds == 8);
+    /* R also replaces a partially spent cylinder, without an extra bullet. */
+    shot_cancel(&shot);
+    shot.rounds = 3;
+    CHECK(shot_reload_now(&shot));
+    CHECK(!shot_update(&shot, .6f) && shot.rounds == 3);
+    shot_cancel(&shot);
+    CHECK(shot.rounds == 3 && !shot_reloading(&shot));
+    CHECK(shot_reload_now(&shot));
+    CHECK(!shot_update(&shot, gun->magazine_reload) && shot.rounds == 8);
+    shot_cancel(&shot);
+    CHECK(!shot_reload_now(&shot));
 }
 
 static void test_infinite_ammo_never_spends_a_magazine_counter(void)
@@ -339,6 +379,144 @@ static void test_released_trigger_stops_after_its_turn(void)
     CHECK(!next_bullet(&shot, false, 2.0f) && !shot.active);
 }
 
+static void finite_duals(Shot *shot)
+{
+    const WeaponDef *gun = weapon_def(WEAPON_DUAL);
+    piston_guns(shot);
+    shot_set_magazine(shot, gun->magazine, gun->magazine_reload, -1);
+    CHECK(shot->rounds == 8 && shot->other_rounds == 8);
+}
+
+static void test_duals_spend_only_the_firing_cylinder(void)
+{
+    Shot shot;
+    finite_duals(&shot);
+    CHECK(shot_start(&shot));
+    for (int n = 1; n <= 15; n++) {
+        CHECK(next_bullet(&shot, true, 1.0f));
+        CHECK(shot.rounds == 8 - (n + 1) / 2);
+        CHECK(shot.other_rounds == 8 - n / 2);
+    }
+    CHECK(shot.rounds == 0 && shot.other_rounds == 1);
+    for (int i = 0; i < 60 && !shot_reloading(&shot); i++)
+        CHECK(!shot_update(&shot, FIXED_DT));
+    CHECK(shot_reloading(&shot) && !shot.reload_other);
+    CHECK_NEAR(shot.mag_reload, weapon_def(WEAPON_RIFLE)->magazine_reload, 1e-6f);
+    CHECK(!shot_update(&shot, shot.mag_reload_time));
+    CHECK(shot.rounds == 8 && shot.other_rounds == 1);
+    CHECK(next_bullet(&shot, true, 1.0f));
+    CHECK(shot.other_gun && shot.rounds == 8 && shot.other_rounds == 0);
+    for (int i = 0; i < 60 && !shot_reloading(&shot); i++)
+        CHECK(!shot_update(&shot, FIXED_DT));
+    CHECK(shot_reloading(&shot) && shot.reload_other);
+    CHECK(!shot_update(&shot, shot.mag_reload_time));
+    CHECK(shot.rounds == 8 && shot.other_rounds == 8);
+}
+
+static void test_dual_reload_is_independent_and_interruptible(void)
+{
+    Shot shot;
+    finite_duals(&shot);
+    shot.rounds = 2;
+    shot.other_rounds = 5;
+    CHECK(shot_reload_now(&shot) && !shot.reload_other);
+    CHECK(shot.reload_pair && shot.reload_all);
+    CHECK(!shot_update(&shot, .6f));
+    shot_cancel(&shot);
+    CHECK(shot.rounds == 2 && shot.other_rounds == 5);
+    CHECK(shot_reload_now(&shot));
+    CHECK(!shot_update(&shot, shot.mag_reload_time));
+    CHECK(shot.rounds == 8 && shot.other_rounds == 5);
+    CHECK(shot_reloading(&shot) && shot.reload_other);
+    CHECK(shot.reload_pair && !shot.reload_all);
+    shot_cancel(&shot);
+    CHECK(shot.rounds == 8 && shot.other_rounds == 5 && !shot.reload_pair);
+    CHECK(shot_reload_now(&shot) && shot.reload_other);
+    CHECK(!shot.reload_pair); /* Only one cylinder needs ammunition now. */
+    CHECK(!shot_update(&shot, shot.mag_reload_time));
+    CHECK(!shot_reloading(&shot) && shot.rounds == 8 && shot.other_rounds == 8);
+    CHECK(!shot_reload_now(&shot));
+
+    shot.other_rounds = 0;
+    shot.next_other = true;
+    CHECK(shot_start(&shot) && !shot_reloading(&shot) && !shot.other_gun);
+    CHECK(next_bullet(&shot, false, 1.0f));
+    CHECK(shot.rounds == 7 && shot.other_rounds == 0);
+}
+
+static void test_duals_do_not_overdraw_during_sustained_fire(void)
+{
+    Shot shot;
+    finite_duals(&shot);
+    int fired = 0, reloads[2] = {0};
+    bool was_reloading = false;
+    for (int step = 0; step < 2400; step++) {
+        shot_trigger(&shot, false, true);
+        shot_start(&shot);
+        fired += shot_update(&shot, FIXED_DT);
+        CHECK(shot.rounds >= 0 && shot.rounds <= 8);
+        CHECK(shot.other_rounds >= 0 && shot.other_rounds <= 8);
+        if (!was_reloading && shot_reloading(&shot))
+            reloads[shot.reload_other]++;
+        was_reloading = shot_reloading(&shot);
+    }
+    CHECK(fired > 32 && reloads[0] >= 2 && reloads[1] >= 2);
+}
+
+static void test_partial_dual_reload_can_resume_with_the_loaded_gun(void)
+{
+    for (int other = 0; other < 2; other++) {
+        Shot shot;
+        finite_duals(&shot);
+        shot.rounds = 0;
+        shot.other_rounds = 0;
+        shot.next_other = other != 0;
+        CHECK(shot_reload_now(&shot));
+        CHECK(!shot_update(&shot, shot.mag_reload_time));
+        CHECK(shot_reloading(&shot)); /* Only the first cylinder has finished. */
+        CHECK(shot.reload_other != (other != 0));
+        CHECK(!shot_update(&shot, .2f));
+        shot_trigger(&shot, true, false); /* A new click cuts the unfinished second. */
+        CHECK(!shot_reloading(&shot));
+        CHECK(shot_start(&shot));
+        CHECK(shot.other_gun == (other != 0));
+        CHECK(next_bullet(&shot, false, 1.0f));
+        CHECK(shot.rounds == (other ? 0 : 7));
+        CHECK(shot.other_rounds == (other ? 7 : 0));
+        shot_cancel(&shot);
+        CHECK(shot_reload_now(&shot));
+        CHECK(shot.reload_other != (other != 0));
+        CHECK(!shot_update(&shot, .2f));
+        CHECK(shot.rounds == (other ? 0 : 7));
+        CHECK(shot.other_rounds == (other ? 7 : 0));
+    }
+}
+
+static void test_duals_choose_a_loaded_hand_and_do_not_refill_on_a_click(void)
+{
+    for (int other = 0; other < 2; other++) {
+        Shot shot;
+        finite_duals(&shot);
+        shot.rounds = other ? 0 : 3;
+        shot.other_rounds = other ? 3 : 0;
+        shot.next_other = other == 0; /* The nominal next hand is empty. */
+        CHECK(shot_start(&shot) && !shot_reloading(&shot));
+        CHECK(next_bullet(&shot, false, 1.0f));
+        CHECK(shot.other_gun == (other != 0));
+        CHECK(shot.rounds == (other ? 0 : 2));
+        CHECK(shot.other_rounds == (other ? 2 : 0));
+        shot_cancel(&shot);
+        shot.rounds = shot.other_rounds = 0;
+        CHECK(shot_reload_now(&shot));
+        CHECK(!shot_update(&shot, .2f));
+        float remaining = shot.mag_reload;
+        shot_trigger(&shot, true, true);
+        CHECK(shot_reloading(&shot) && !shot_start(&shot));
+        CHECK_NEAR(shot.mag_reload, remaining, 1e-6f);
+        CHECK(shot.rounds == 0 && shot.other_rounds == 0);
+    }
+}
+
 int main(void)
 {
     printf("test_shoot\n");
@@ -354,10 +532,16 @@ int main(void)
     RUN(test_magazine_runs_dry_and_reloads);
     RUN(test_burst_counts_as_one_shot);
     RUN(test_cut_reload_resumes_and_keeps_rounds);
+    RUN(test_revolver_eight_rounds_then_swat_length_reload);
     RUN(test_infinite_ammo_never_spends_a_magazine_counter);
     RUN(test_held_trigger_alternates_the_guns);
     RUN(test_turn_plays_whole_between_shots);
     RUN(test_clicks_during_a_turn_are_kept_and_alternate);
     RUN(test_released_trigger_stops_after_its_turn);
+    RUN(test_duals_spend_only_the_firing_cylinder);
+    RUN(test_dual_reload_is_independent_and_interruptible);
+    RUN(test_duals_do_not_overdraw_during_sustained_fire);
+    RUN(test_partial_dual_reload_can_resume_with_the_loaded_gun);
+    RUN(test_duals_choose_a_loaded_hand_and_do_not_refill_on_a_click);
     return TEST_EXIT();
 }

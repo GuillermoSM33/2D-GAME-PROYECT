@@ -19,6 +19,12 @@ static void play_sound(const char *name)
         audio_play_in(name, SOUND_PLAYER);
 }
 
+static void cancel_ricochet(StagePlay *play)
+{
+    play->ricochet_armed = play->ricochet_fired = false;
+    play->player.power_shot = false;
+}
+
 /* Which take a step uses: walking or running, on dry ground or in water. */
 static const char *footstep_sound(bool running, bool water, unsigned step)
 {
@@ -82,6 +88,15 @@ static void equip_weapon(StagePlay *play)
     shot_set_reload(shot, w->reload_time);
     shot_set_burst(shot, w->burst, w->burst_gap, w->automatic);
     shot_set_magazine(shot, w->magazine, w->magazine_reload, play->rounds[play->weapon_slot]);
+    if (w->piston)
+        shot_set_other_rounds(shot, play->dual_rounds);
+}
+
+static void store_rounds(StagePlay *play)
+{
+    play->rounds[play->weapon_slot] = play->player.shot.rounds;
+    if (play->player.shot.piston)
+        play->dual_rounds = play->player.shot.other_rounds;
 }
 
 void stage_refresh_weapons(StagePlay *play, int level)
@@ -148,6 +163,7 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
                      character_armor(play->character, progress->armor_level), true);
     for (int w = 0; w < CHARACTER_MAX_WEAPONS; w++)
         play->rounds[w] = -1; /* Full magazines */
+    play->dual_rounds = -1;
     equip_weapon(play);
     bullets_clear(&play->bullets);
     effects_clear(&play->effects);
@@ -217,7 +233,7 @@ void stage_fire_weapon(StagePlay *play, const Progress *progress)
     }
     BulletSpec spec = {progress_damage(progress) * w->damage_mult, w->speed, w->range,
                        w->armor_share, w->tint, 0.0f, false};
-    if (play->ricochet_armed) { /* F: both hands together, two bullets that glance on to a second target */
+    if (play->ricochet_armed && player->power_shot) { /* F: both hands together, two bullets that glance on to a second target */
         spec.ricochet = true;
         spec.tint = 0xffffff; /* Gold on her own sprite */
         spec.damage *= RICOCHET_SHARE;
@@ -226,6 +242,12 @@ void stage_fire_weapon(StagePlay *play, const Progress *progress)
         float nx, ny;
         player_muzzle(player, &nx, &ny);
         bool both = w->shoot_other_sheet != NULL;
+        if (w->piston && w->magazine > 0) {
+            /* shot_update spent the firing hand's round; F fires both hands. */
+            int *other = play->player.shot.other_gun ? &play->player.shot.rounds
+                                                   : &play->player.shot.other_rounds;
+            (*other)--;
+        }
         for (int k = 0; k < 2; k++) {
             int back = both && k ? PLAYER_POWER_FAR_BACK : PLAYER_POWER_BACK;
             int rows = both ? (k ? PLAYER_POWER_FAR_ROWS : PLAYER_POWER_ROWS)
@@ -256,6 +278,7 @@ static void refill_guns(StagePlay *play)
 {
     for (int w = 0; w < CHARACTER_MAX_WEAPONS; w++)
         play->rounds[w] = -1;
+    play->dual_rounds = -1;
     if (shot_reloading(&play->player.shot))
         shot_cancel(&play->player.shot);
     equip_weapon(play);
@@ -273,6 +296,11 @@ static unsigned guns_need_reload(const StagePlay *play)
         if (magazine > 0 && rounds >= 0 && rounds < magazine)
             guns |= 1u << w;
     }
+    if (c->power == POWER_DUAL_PISTOLS) {
+        int rounds = play->player.shot.piston ? play->player.shot.other_rounds : play->dual_rounds;
+        if (rounds >= 0 && rounds < REVOLVER_CAPACITY)
+            guns |= 1u;
+    }
     return guns;
 }
 
@@ -280,6 +308,8 @@ static unsigned guns_need_reload(const StagePlay *play)
 static void refill_gun(StagePlay *play, int slot)
 {
     play->rounds[slot] = -1;
+    if (slot == 0 && play->character->power == POWER_DUAL_PISTOLS)
+        play->dual_rounds = -1;
     if (slot != play->weapon_slot)
         return;
     if (shot_reloading(&play->player.shot))
@@ -291,6 +321,8 @@ static void refill_gun(StagePlay *play, int slot)
 static void refill_gun_in_hand(StagePlay *play)
 {
     play->rounds[play->weapon_slot] = -1;
+    if (play->player.shot.piston)
+        play->dual_rounds = -1;
     if (shot_reloading(&play->player.shot))
         shot_cancel(&play->player.shot);
     equip_weapon(play);
@@ -309,7 +341,7 @@ void stage_swap_weapon(StagePlay *play)
     audio_stop(before->cycle_sound);
     if (play->player.shot.active)
         shot_cancel(&play->player.shot);
-    play->rounds[play->weapon_slot] = play->player.shot.rounds;
+    store_rounds(play);
     play->weapon_slot = (play->weapon_slot + 1) % play->character->weapon_count;
     equip_weapon(play);
     play_sound("weapons/switch");
@@ -331,9 +363,11 @@ static void swap_duals(StagePlay *play, const Progress *progress)
         player->state == PLAYER_SIT || player->state == PLAYER_CAUGHT || player->swap_time > 0.0f)
         return;
     const WeaponDef *before = stage_weapon(play);
+    audio_stop(before->reload_sound);
     audio_stop(before->cycle_sound);
     if (player->shot.active)
         shot_cancel(&player->shot);
+    store_rounds(play);
     play->duals_out = !play->duals_out;
     set_guns(play, progress->level);
     equip_weapon(play);
@@ -366,8 +400,12 @@ static void use_power(StagePlay *play, InputState *input, const Progress *progre
         if (player_throw(player))
             play->power_cooldown = POWER_COOLDOWN;
     } else if (c->power == POWER_DUAL_PISTOLS) {
-        if (player->shot.active || player->jump.airborne)
+        if (player->shot.active || player->jump.airborne || player->swap_time > 0.0f ||
+            player->plant_time > 0.0f || player->drink_time > 0.0f || player->bandage > 0.0f ||
+            player->state == PLAYER_CAUGHT)
             return;
+        if (player->shot.piston && (player->shot.rounds <= 0 || player->shot.other_rounds <= 0))
+            return; /* Both barrels need an actual round for the paired shot. */
         play->ricochet_armed = true;
         player->power_shot = true;
         play->power_cooldown = POWER_COOLDOWN;
@@ -689,7 +727,10 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     for (int k = 0; k < RUN_MAX_ZOMBIES; k++)
         play->prev_zombie_x[k] = play->run.zombies[k].x;
     bool was_reloading = shot_reloading(&player->shot);
+    bool previous_reload_other = player->shot.reload_other;
     int previous_rounds = player->shot.rounds;
+    int previous_other_rounds = player->shot.other_rounds;
+    bool next_other = player->shot.piston && player->shot.next_other;
     const WeaponDef *weapon = stage_weapon(play);
     run_place_player(&play->run, player);
     InputState in = *input;
@@ -697,6 +738,11 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     if (in.pressed[ACTION_POWER])
         use_power(play, &in, progress);
     player_update(player, &in, FIXED_DT);
+    if (play->ricochet_armed &&
+        (!player->power_shot || !player->shot.active || shot_reloading(&player->shot) ||
+         in.pressed[ACTION_RELOAD] || in.pressed[ACTION_JUMP] ||
+         player->swap_time > 0.0f || player->plant_time > 0.0f))
+        cancel_ricochet(play);
     if (player->threw) {
         run_throw(&play->run, player);
         play_sound("weapons/grenade_throw");
@@ -714,13 +760,16 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         play->blood_age[play->blood_next] = 0.0f;
         play->blood_next = (play->blood_next + 1) % BLOOD_DROPS;
     }
-    if (shot_reloading(&player->shot) && !was_reloading)
+    if (shot_reloading(&player->shot) &&
+        (!was_reloading || previous_reload_other != player->shot.reload_other))
         play_sound(weapon->reload_sound);
     if (was_reloading && input->pressed[ACTION_JUMP])
         audio_stop(weapon->cycle_sound);
     if (weapon->magazine > 0 &&
         ((previous_rounds > 0 && player->shot.rounds == 0) ||
-         (previous_rounds == 0 && input->pressed[ACTION_SHOOT] && !was_reloading)))
+         (weapon->piston && previous_other_rounds > 0 && player->shot.other_rounds == 0) ||
+         ((next_other ? previous_other_rounds : previous_rounds) == 0 &&
+          input->pressed[ACTION_SHOOT] && !was_reloading)))
         play_sound(weapon->empty_sound);
     bullets_update(&play->bullets, FIXED_DT, camera_left(player->x));
     if (player->shot_fired) {
@@ -747,6 +796,8 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     StageRun *run = &play->run;
     float previous_bolt_warning = run->bolt_warn;
     run_update(run, player, progress, FIXED_DT);
+    if (play->ricochet_armed && (!player->shot.active || shot_reloading(&player->shot) || player->state != PLAYER_SHOOT))
+        cancel_ricochet(play); /* A hit, trap or pickup can cancel the draw inside run_update. */
     collect_clues(play, was_beaten);
     if (run->phase != RUN_FIGHTING && play->music_on) { /* Won or lost: it makes room */
         audio_music_stop(MUSIC_FADE_MS);
@@ -773,8 +824,10 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
             effects_spawn(&play->effects, terrain_heal_effect(), player->x,
                           BASELINE - player->jump.height, 1);
         }
-        if (progress->level - run->levels_gained < POWER_LEVEL && progress->level >= POWER_LEVEL)
+        if (progress->level - run->levels_gained < POWER_LEVEL && progress->level >= POWER_LEVEL) {
+            store_rounds(play);
             play->duals_out = true; /* Its power's gun, from now on */
+        }
         if (set_guns(play, progress->level))
             equip_weapon(play);
         if (progress->level - run->levels_gained < POWER_LEVEL && progress->level >= POWER_LEVEL &&

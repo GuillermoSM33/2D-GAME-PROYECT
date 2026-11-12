@@ -46,6 +46,7 @@ PERSISTENCE_TEST := $(BUILD)/tests/persistence
 LIGHTING_RENDER_TEST := $(BUILD)/tests/lighting_render
 ZOMBIE_RENDER_TEST := $(BUILD)/tests/zombie_render
 SCENE_LIGHTING_TEST := $(BUILD)/tests/scene_lighting
+PLAYER_RENDER_TEST := $(BUILD)/tests/player_render
 ASSETS   := $(shell find assets -type f \( -iname '*.png' -o -iname '*.ttf' -o -iname '*.otf' -o -iname '*.wav' -o -iname '*.ogg' \))
 # The list of asset paths, rewritten only when it changes: moving, renaming or
 # deleting a file re-embeds the assets even though no file got newer.
@@ -117,6 +118,10 @@ $(PERSISTENCE_TEST): tests/persistence.c tests/test.h $(CORE_OBJ) $(filter-out $
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(filter-out -Dmain=SDL_main,$(SDL_CFLAGS)) $(CFLAGS) tests/persistence.c $(CORE_OBJ) $(filter-out $(BUILD)/obj/src/main.o,$(APP_OBJ)) -o $@ $(filter-out -lmingw32 -mwindows -lSDL2main,$(SDL_LIBS)) $(LDLIBS)
 
+$(PLAYER_RENDER_TEST): tests/player_render.c tests/test.h $(CORE_OBJ) $(filter-out $(BUILD)/obj/src/main.o,$(APP_OBJ))
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(filter-out -Dmain=SDL_main,$(SDL_CFLAGS)) $(CFLAGS) tests/player_render.c $(CORE_OBJ) $(filter-out $(BUILD)/obj/src/main.o,$(APP_OBJ)) -o $@ $(filter-out -lmingw32 -mwindows -lSDL2main,$(SDL_LIBS)) $(LDLIBS)
+
 $(LIGHTING_RENDER_TEST): tests/lighting_render.c tests/test.h src/game/terrain_render.c src/game/terrain_render.h src/game/lighting.h $(CORE_OBJ) | $(GEN)/assets_data.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(filter-out -Dmain=SDL_main,$(SDL_CFLAGS)) $(CFLAGS) tests/lighting_render.c src/game/terrain_render.c $(CORE_OBJ) -o $@ $(filter-out -lmingw32 -mwindows -lSDL2main,$(SDL_LIBS)) $(LDLIBS)
@@ -132,10 +137,11 @@ $(SCENE_LIGHTING_TEST): tests/scene_lighting.c tests/test.h src/game/scene.c src
 check-architecture:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tools/check_architecture.py
 
-test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(STORY_AUDIO_TEST) $(PERSISTENCE_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST)
-	@set -e; for t in $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(STORY_AUDIO_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST); do $$t; done
+test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(STORY_AUDIO_TEST) $(PERSISTENCE_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST) $(PLAYER_RENDER_TEST)
+	@set -e; for t in $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_RENDER_TEST) $(STAGE_AUDIO_TEST) $(STORY_AUDIO_TEST) $(LIGHTING_RENDER_TEST) $(ZOMBIE_RENDER_TEST) $(SCENE_LIGHTING_TEST) $(PLAYER_RENDER_TEST); do $$t; done
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/audio_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_zombie_assets.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/cowgirl_reload_art.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/project_tools.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/persistence_process.py $(PERSISTENCE_TEST)
 

@@ -2,8 +2,9 @@
 
 Los mecanismos del rifle y de la escopeta proceden de grabaciones CC0.
 Los disparos conservan el ataque y la resonancia de armas grabadas. Los
-originales `player/shot` y `player/reload` siguen intactos y solo pertenecen
-al cañón de mano de la vaquera; las duales derivan sus capas en archivos propios.
+originales `player/shot` y `player/reload` siguen intactos. La sheriff conserva el
+disparo original; la baqueta de `player/reload` queda como recurso histórico.
+Las duales derivan sus capas en archivos propios.
 
 | Fuente y autor | Licencia | Uso |
 | --- | --- | --- |
@@ -32,13 +33,25 @@ existente abstrae una recarga completa en ese tiempo y no se alteró.
 El rifle usa los cortes 0.18–0.40, 0.94–1.16 y 1.16–1.48 s de su grabación,
 colocados en 0.015, 0.51 y 0.84 s. El golpe final del cerrojo coincide con el
 final de los 1.20 s de recarga. Las duales conservan dos capas ligeramente
-separadas de los sonidos legacy en sus propios WAV. Los gatillos vacíos se
+separadas de los sonidos legacy para sus disparos. Entre tiros usan
+`weapons/revolver_cycle`; el antiguo `dual_reload` queda sin asignar, para no
+simular una recarga después de cada bala. Cada recarga real de su tambor usa
+`weapons/revolver_reload`. Los gatillos vacíos se
 basan en un disparador grabado, sin pitidos.
 
 La anilla/lanzamiento es una composición de manejo metálico, no una
 grabación de una granada real. Los efectos de vacío solo se activan cuando
-la mecánica de esa arma permite quedarse sin cargador; el cañón de mano, las
-duales y el plasma actualmente tienen munición ilimitada.
+la mecánica de esa arma permite quedarse sin cargador; el plasma tiene munición
+ilimitada. Cada revólver de la sheriff tiene ocho balas, también con las duales,
+que producen su aviso de vacío y recarga por cada tambor independiente.
+
+El rework del revólver usa `tools/make_revolver.py --audio`, sin descargas ni FFmpeg:
+recorta los WAV CC0 ya exportados `weapons/rifle_empty` (0.01–0.15 s),
+`weapons/shotgun_cycle` (0.12–0.30 y 0.34–0.56 s) y `weapons/switch`
+(0.01–0.24 s). `revolver_cycle` dura 0.285 s. `revolver_reload` dura 1.2 s:
+pestillo a 0.01, expulsión a 0.22, cargador rápido a 0.55 y cierre a 0.96 s.
+Es una composición de mecanismos grabados, sin pretensión de ser una grabación
+documental de un revólver real. No cambia las fuentes ni los originales protegidos.
 
 Todos se guardan como PCM16 mono a 22050 Hz. Filtros suaves a 65–6700 Hz,
 entradas/salidas breves y margen de pico conservan los detalles mecánicos y

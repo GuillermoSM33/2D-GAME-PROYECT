@@ -32,6 +32,9 @@ OUTPUT_MANIFESTS = {
     'make_cinematic_sfx': 'AUDIO_CINEMATIC_MANIFEST.json',
 }
 RATE = 22050
+# Retain this authoring output for old references; it is deliberately no
+# longer assigned to the dual revolvers' action between ordinary shots.
+RETIRED = {'weapons/dual_reload'}
 
 
 def rms(values: list[int] | array.array) -> float:
@@ -133,7 +136,8 @@ class Audit:
         references = set(re.findall(pattern, code))
         expected = names | originals
         self.check(not references - expected, f'unknown C sound references: {sorted(references - expected)}')
-        self.check(not expected - references, f'WAVs without a C reference: {sorted(expected - references)}')
+        unreferenced = expected - references - RETIRED
+        self.check(not unreferenced, f'WAVs without a C reference: {sorted(unreferenced)}')
         actual = {path.relative_to(self.assets / 'sounds').with_suffix('').as_posix()
                   for path in (self.assets / 'sounds').rglob('*')
                   if path.is_file() and path.suffix.lower() in {'.wav', '.ogg', '.mp3', '.flac'}}
@@ -141,15 +145,18 @@ class Audit:
 
     def weapon_timings(self) -> None:
         code = (ROOT / 'src/game/weapons.c').read_text(encoding='utf-8')
+        config = (ROOT / 'src/config.h').read_text(encoding='utf-8')
+        constants = dict(re.findall(r'^#define\s+(\w+)\s+([0-9.]+)f\b', config, re.M))
         blocks = re.findall(r'\[(WEAPON_[A-Z_]+)\]\s*=\s*\{(.*?)\n\s*\}', code, re.S)
         checked = 0
         for weapon, block in blocks:
             for sound_field, time_field in (('reload_sound', 'magazine_reload'), ('cycle_sound', 'reload_time')):
                 sound = re.search(r'\.' + sound_field + r'\s*=\s*"([^"]+)"', block)
-                duration = re.search(r'\.' + time_field + r'\s*=\s*([0-9.]+)f', block)
-                if sound and duration and sound[1] in self.metrics:
+                duration = re.search(r'\.' + time_field + r'\s*=\s*([0-9.]+f|[A-Z][A-Z0-9_]*)\b', block)
+                value = constants.get(duration[1], duration[1].removesuffix('f')) if duration else ''
+                if sound and value and re.fullmatch(r'[0-9.]+', value) and sound[1] in self.metrics:
                     measured = self.metrics[sound[1]]['seconds']
-                    target = float(duration[1])
+                    target = float(value)
                     self.check(abs(measured - target) < .03,
                                f'{weapon}: {sound[1]} lasts {measured:.3f}s, {time_field} is {target:.3f}s')
                     checked += 1

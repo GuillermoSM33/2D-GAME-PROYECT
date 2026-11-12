@@ -285,15 +285,15 @@ def icon(img: Image, frame: int, rows: list[str], colors: dict) -> None:
 # closed one-pixel ink outline, the light from the top left, and three tones
 # of a shared material (H light, M base, S shade) bright enough to read on the
 # dark leather. check_icon enforces what can be measured.
-BRASS_ICON = {'H': rgb(0xffe9a0), 'M': BRASS[3], 'S': BRASS[1]}
-RED_ICON = {'H': RED[3], 'M': rgb(0xdc4a34), 'S': RED[1]}
+BRASS_ICON = {'H': KIT.BRASS[0], 'M': BRASS[3], 'S': BRASS[1]}
+RED_ICON = {'H': RED[3], 'M': KIT.RED[2], 'S': RED[1]}
 BONE_ICON = {'H': BONE[2], 'M': BONE[1], 'S': BONE[0]}
-IRON_ICON = {'H': rgb(0xe4e4ea), 'M': IRON[4], 'S': IRON[3]}
-WOOD_ICON = {'H': rgb(0xe0a870), 'M': WOOD[4], 'S': WOOD[3]}
-WATER_ICON = {'H': rgb(0xd8f0fa), 'M': rgb(0x62b4e6), 'S': rgb(0x2f76aa)}
-ICE_ICON = {'H': rgb(0xffffff), 'M': rgb(0xc8e4f4), 'S': rgb(0x7fb0cc)}
-GREEN_ICON = {'H': rgb(0xcfeeb0), 'M': rgb(0x8ccc70), 'S': GREEN[1]}
-FIRE_ICON = {'H': rgb(0xffe08a), 'M': rgb(0xf49a2c), 'S': rgb(0xd0502a)}
+IRON_ICON = {'H': KIT.IRON[0], 'M': IRON[3], 'S': IRON[2]}
+WOOD_ICON = {'H': WOOD[4], 'M': WOOD[3], 'S': WOOD[2]}
+WATER_ICON = {'H': KIT.WATER[0], 'M': KIT.WATER[2], 'S': KIT.WATER[3]}
+ICE_ICON = {'H': KIT.ICE[0], 'M': KIT.ICE[2], 'S': KIT.ICE[3]}
+GREEN_ICON = {'H': KIT.GREEN[0], 'M': KIT.GREEN[2], 'S': GREEN[1]}
+FIRE_ICON = {'H': KIT.FIRE[0], 'M': KIT.FIRE[2], 'S': KIT.FIRE[3]}
 UNLIT_ICON = {'H': rgb(0x8a7a66), 'M': rgb(0x64574a), 'S': rgb(0x4c4238)}
 
 
@@ -829,6 +829,8 @@ def main() -> int:
         'weapons': make_weapons(), 'weapons_hd': make_weapons_hd(), 'notice_dev': make_notice_dev(),
     }
     for name, img in out.items():
+        from support_finishes import finish_ui
+        finish_ui(img, name)
         path = assets / 'sprites' / 'ui' / f'{name}.png'
         path.parent.mkdir(parents=True, exist_ok=True)
         img.save(path)

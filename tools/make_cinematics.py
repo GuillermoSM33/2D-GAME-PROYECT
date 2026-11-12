@@ -463,8 +463,9 @@ def make_mercenary(assets: Path) -> Image:
                 solid.add((x, y))
                 lum[(x, y)] = 0.3 * r + 0.59 * g + 0.11 * b
     for (x, y) in solid:
-        # Two near-blacks keep the folds readable; nothing of his colors shows.
-        img.set(x, y, LAB[1] if lum[(x, y)] > 70 else INK)
+        # Four cloth planes retain the anonymous silhouette and the equipment.
+        value = lum[(x, y)]
+        img.set(x, y, LAB[3] if value > 145 else LAB[2] if value > 95 else LAB[1] if value > 50 else INK)
     for (x, y) in solid:
         # A cold rim on his top and back edges from the emergency lights.
         if (x, y - 1) not in solid or ((x - 1, y) not in solid and (x, y - 2) not in solid):
@@ -472,7 +473,8 @@ def make_mercenary(assets: Path) -> Image:
         # The flashlight's lens: bright pixels out on the gun, past his face
         if lum[(x, y)] > 150 and x % MERC_FRAME_W > 52:
             img.set(x, y, GLASS[3])
-    return img
+    from support_finishes import finish_mercenary
+    return finish_mercenary(img, MERC_FRAME_W, LAB, GUN, GLASS, TEAL, INK, RIM)
 
 
 # --- The mercenary facing her camera, firing -----------------------------------
@@ -511,17 +513,37 @@ def front_body(c: Canvas, lift: int, breathe: int) -> None:
              (32, FRONT_H), (30, 70 + d), (24, 56 + h), (30, 48 + h)], INK)
     poly(c, [(36, 52 + h), (74, 52 + h), (76, 90 + d), (74, FRONT_H), (36, FRONT_H), (34, 90 + d)], LAB[0])
     c.hline(37, 73, 52 + h, LAB[1])                                                          # The plate's top edge
+    # The plate carrier has broad fabric planes, webbing and separate shoulder
+    # straps. No identifying marks or skin: his identity stays hidden.
+    poly(c, [(36, 50 + h), (42, 51 + h), (40, 68 + d), (35, 66 + d)], LAB[2])
+    poly(c, [(68, 51 + h), (74, 50 + h), (76, 67 + d), (70, 68 + d)], LAB[1])
+    poly(c, [(40, 55 + h), (70, 55 + h), (72, 91 + d), (38, 91 + d)], LAB[1])
+    poly(c, [(40, 55 + h), (66, 55 + h), (67, 88 + d), (39, 88 + d)], LAB[2])
+    c.hline(41, 66, 55 + h, LAB[3])
+    c.vline(39, 60 + d, 86 + d, LAB[3])
+    for y in (61, 67, 83):
+        c.hline(41, 67, y + d, LAB[0])
+        for x in range(42, 66, 6):
+            c.hline(x, x + 2, y - 1 + d, LAB[3])
     for (x0, x1) in ((38, 48), (62, 72)):                                                    # Pouches
         c.fill(x0, 98 + d, x1, 108 + d, LAB[1])
         c.hline(x0, x1, 98 + d, LAB[2])
         c.fill(x0, 112 + d, x1, 122 + d, LAB[1])
         c.hline(x0, x1, 112 + d, LAB[2])
+        for top in (98 + d, 112 + d):
+            c.fill(x0 + 1, top + 2, x1 - 1, top + 8, LAB[2])
+            c.hline(x0 + 1, x1 - 1, top + 2, LAB[3])
+            c.hline(x0 + 2, x1 - 1, top + 5, LAB[0])
+            c.px(x0 + 5, top + 4, LAB[3])
     c.vline(55, 92 + d, FRONT_H - 1, INK)
     # Head: hood, helmet, goggles
     c.fill(48, 36 + h, 62, 44 + h, INK)
     c.disc(55, 26 + h, 11, 13, INK)
     c.disc(55, 19 + h, 14, 11, LAB[1])
     c.disc(52, 15 + h, 8, 5, LAB[2])                                                         # The light on its dome
+    c.hline(47, 56, 10 + h, LAB[3])
+    c.hline(44, 47, 13 + h, LAB[3])
+    c.fill(64, 16 + h, 66, 20 + h, LAB[0])
     c.fill(41, 19 + h, 69, 21 + h, LAB[1])
     c.hline(42, 68, 22 + h, INK)
     c.fill(40, 21 + h, 43, 29 + h, LAB[1])
@@ -536,6 +558,15 @@ def front_body(c: Canvas, lift: int, breathe: int) -> None:
              (20, 56 + h)], INK)
     poly(c, [(84, 50 + h), (90, 56 + h), (94, 72 + d), (88, 82 + d), (66, 86 + d), (64, 80 + d), (84, 74 + d),
              (80, 58 + h)], INK)
+    poly(c, [(25, 54 + h), (31, 56 + h), (25, 69 + d), (29, 73 + d), (39, 76 + d),
+             (38, 79 + d), (25, 77 + d), (21, 71 + d)], LAB[1])
+    poly(c, [(25, 55 + h), (28, 56 + h), (23, 68 + d), (22, 68 + d)], LAB[2])
+    poly(c, [(85, 55 + h), (88, 58 + h), (91, 71 + d), (86, 77 + d), (68, 82 + d),
+             (68, 84 + d), (87, 80 + d), (93, 72 + d)], LAB[1])
+    c.hline(24, 27, 65 + d, LAB[2])
+    c.hline(87, 90, 68 + d, LAB[2])
+    c.hline(29, 36, 76 + d, LAB[2])
+    c.hline(72, 81, 81 + d, LAB[2])
     c.hline(20, 26, 70 + d, LAB[1])
     c.hline(87, 92, 70 + d, LAB[1])
     c.hline(24, 30, 54 + h, LAB[1])                                                          # Shoulder seams
@@ -624,7 +655,8 @@ def make_mercenary_front() -> Image:
             muzzle_flash(c, mx, my, 24)
         elif f == 3:
             muzzle_flash(c, FRONT_MUZZLE[0], FRONT_MUZZLE[1] - lift, 9)
-    return img
+    from support_finishes import finish_mercenary
+    return finish_mercenary(img, FRONT_W, LAB, GUN, GLASS, TEAL, INK, RIM)
 
 
 # --- Valeria's fist and the sample ---------------------------------------------
@@ -700,7 +732,8 @@ def make_vial() -> Image:
                 break
             if col[3] == 255:
                 break
-    return img
+    from support_finishes import finish_vial
+    return finish_vial(img, SKIN_SHADE, LAB, GLASS, VIAL, RIM)
 
 
 # --- The ambulance ---------------------------------------------------------------

@@ -44,7 +44,12 @@ static void test_weapons_are_on_par(void)
         }
     }
     CHECK(weapon_def(WEAPON_SHOTGUN)->pellets == 3 && weapon_def(WEAPON_SHOTGUN)->range > 0.0f);
-    CHECK(weapon_def(WEAPON_RIFLE)->reload_time < weapon_def(WEAPON_REVOLVER)->reload_time);
+    CHECK(weapon_def(WEAPON_REVOLVER)->magazine == 8);
+    CHECK_NEAR(weapon_def(WEAPON_REVOLVER)->magazine_reload,
+               weapon_def(WEAPON_RIFLE)->magazine_reload, 1e-6f);
+    CHECK(weapon_def(WEAPON_DUAL)->magazine == 8 && weapon_def(WEAPON_DUAL)->piston);
+    CHECK_NEAR(weapon_def(WEAPON_DUAL)->magazine_reload,
+               weapon_def(WEAPON_RIFLE)->magazine_reload, 1e-6f);
 }
 
 #define KILLS 3 /* A stage's worth of riot zombies, one after another */
@@ -62,6 +67,7 @@ static float time_to_kill(WeaponId id, int weapon_level, int zombie_level)
     shot_reset(&shot);
     shot_set_reload(&shot, w->reload_time);
     shot_set_burst(&shot, w->burst, w->burst_gap, w->automatic);
+    shot_set_piston(&shot, w->piston);
     shot_set_magazine(&shot, w->magazine, w->magazine_reload, -1);
     int kills = 0;
     for (int step = 0; step < 20000; step++) {
@@ -106,20 +112,21 @@ static void test_guns_kill_about_as_fast(void)
 
 static void test_dual_pistols_are_a_reward(void)
 {
-    /* The cowgirl's level-3 guns, one shot from each in turn: faster than her
-     * single cannon by 10% to 50% on average. Barely slower at worst, on a zombie
-     * so weak that the cannon takes one bullet where they take two. */
+    /* The level-3 pair keeps its damage and cadence, now including the two
+     * independent reloads. Faster on average; a kill across a reload can lag. */
     float sum = 0.0f;
+    float slowest = 100.0f;
     int n = 0;
     for (int wl = POWER_LEVEL; wl <= 8; wl++)
         for (int zl = wl - 2; zl <= wl + 2; zl++) {
             float speedup = time_to_kill(WEAPON_REVOLVER, wl, zl) / time_to_kill(WEAPON_DUAL, wl, zl);
-            CHECK(speedup >= 0.95f);
+            if (speedup < slowest) slowest = speedup;
+            CHECK(speedup >= 0.9f);
             sum += speedup;
             n++;
         }
-    printf("    duales: %.2fx el revolver\n", sum / (float)n);
-    CHECK(sum / (float)n > 1.1f && sum / (float)n < 1.5f);
+    printf("    duales: %.2fx el revolver (mínimo %.2fx, con ambas recargas)\n", sum / (float)n, slowest);
+    CHECK(sum / (float)n > 1.05f && sum / (float)n < 1.5f);
 }
 
 static void test_armor_by_character(void)
@@ -187,18 +194,21 @@ static void test_each_weapon_has_its_own_sound(void)
 {
     const WeaponDef *cowgirl = weapon_def(WEAPON_REVOLVER);
     CHECK(strcmp(cowgirl->shot_sound, "player/shot") == 0);
-    CHECK(strcmp(cowgirl->cycle_sound, "player/reload") == 0);
+    CHECK(strcmp(cowgirl->cycle_sound, "weapons/revolver_cycle") == 0);
+    CHECK(strcmp(cowgirl->reload_sound, "weapons/revolver_reload") == 0);
     for (int id = 0; id < WEAPON_COUNT; id++) {
         const WeaponDef *w = weapon_def((WeaponId)id);
         CHECK(w->shot_sound && w->reload_sound && w->empty_sound && w->melee_sound);
         if (id != WEAPON_REVOLVER) {
             CHECK(strcmp(w->shot_sound, cowgirl->shot_sound) != 0);
-            CHECK(strcmp(w->reload_sound, cowgirl->reload_sound) != 0);
+            if (id != WEAPON_DUAL) /* The two revolvers use the same cylinder mechanism. */
+                CHECK(strcmp(w->reload_sound, cowgirl->reload_sound) != 0);
         }
         for (int other = id + 1; other < WEAPON_COUNT; other++) {
             const WeaponDef *next = weapon_def((WeaponId)other);
             CHECK(strcmp(w->shot_sound, next->shot_sound) != 0);
-            CHECK(strcmp(w->reload_sound, next->reload_sound) != 0);
+            if (!(id == WEAPON_REVOLVER && other == WEAPON_DUAL))
+                CHECK(strcmp(w->reload_sound, next->reload_sound) != 0);
             CHECK(strcmp(w->empty_sound, next->empty_sound) != 0);
             CHECK(strcmp(w->melee_sound, next->melee_sound) != 0);
         }

@@ -18,22 +18,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_cinematics import Canvas, GLYPHS, poly  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+import ui_icons as KIT  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = 24
 OUTLINE = rgb(0x231a14)
-PAPER = [rgb(0xa89a7c), rgb(0xcfc3a4), rgb(0xebe1c6), rgb(0xfaf4e2)]
+PAPER = [KIT.BONE[3], KIT.BONE[2], KIT.BONE[1], KIT.BONE[0]]
 INK = rgb(0x3a3430)
 INK_LIGHT = rgb(0x7a7064)
-RED = [rgb(0x5a1410), rgb(0x902004), rgb(0xc03a14), rgb(0xe8573a)]
-WOOD = [rgb(0x3a2316), rgb(0x56351f), rgb(0x76492a), rgb(0x9a643a)]
-METAL = [rgb(0x3c3c44), rgb(0x6a6a74), rgb(0xa8a8b0), rgb(0xd8d8e0)]
+RED = [KIT.RED[4], KIT.RED[3], KIT.RED[2], KIT.RED[1]]
+WOOD = [KIT.WOOD[4], KIT.WOOD[3], KIT.WOOD[2], KIT.WOOD[1]]
+METAL = [KIT.IRON[4], KIT.IRON[3], KIT.IRON[2], KIT.IRON[0]]
 TAPE = [rgb(0x141418), rgb(0x24242a), rgb(0x3a3a42), rgb(0x5a5a64)]
-TEAL = [rgb(0x123636), rgb(0x1c5250), rgb(0x2f7a72), rgb(0x6cc4b4)]
-GREEN = [rgb(0x0f3a22), rgb(0x1f7a3e), rgb(0x46c060), rgb(0x9cf08a)]
-BLUE = [rgb(0x142a5a), rgb(0x24489a), rgb(0x4a78d0), rgb(0xa8c8f0)]
-GOLD = [rgb(0x6a4e1e), rgb(0x9c7a32), rgb(0xd0a848), rgb(0xf0d27a)]
-SEPIA = [rgb(0x4a3422), rgb(0x7a5a3a), rgb(0xa88458), rgb(0xd8bc8a)]
+TEAL = [rgb(0x243e38), rgb(0x3d6256), rgb(0x668c72), rgb(0xa3baa0)]
+GREEN = [KIT.GREEN[4], KIT.GREEN[3], KIT.GREEN[2], KIT.GREEN[1]]
+BLUE = [rgb(0x293c4c), rgb(0x415f73), rgb(0x7896a2), rgb(0xb7c9c3)]
+GOLD = [KIT.BRASS[4], KIT.BRASS[3], KIT.BRASS[2], KIT.BRASS[0]]
+SEPIA = [rgb(0x4c3b2c), rgb(0x766043), rgb(0xa28b63), rgb(0xc8b58d)]
 BLOOD = rgb(0x6a1410)
 
 
@@ -276,7 +277,8 @@ def make_clues() -> Image:
     c.px(20, 4, PAPER[0])
     outline(c)
     city_clues(frame)
-    return img
+    from support_finishes import finish_clues
+    return finish_clues(img, PAPER)
 
 
 OLIVE = [rgb(0x2a2c1c), rgb(0x3e4228), rgb(0x565c36), rgb(0x707848)]
@@ -480,7 +482,7 @@ def city_clues(frame) -> None:
     outline(c)
 
 
-STAMP_RED = [rgb(0x7a1a10), rgb(0x9c2414)]
+STAMP_RED = [rgb(0x753b30), rgb(0xa05743)]
 STAMP_GLYPHS = dict(GLYPHS, U=['#.#', '#.#', '#.#', '#.#', '###'])
 
 

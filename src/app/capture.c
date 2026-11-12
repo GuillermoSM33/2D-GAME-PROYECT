@@ -351,6 +351,81 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
                play.player.x, play.player.jump.height, options);
     save_capture(r, dir, "15_hud_contadores_largos");
 
+    Progress sheriff = profiles[0].progress;
+    sheriff.level = POWER_LEVEL;
+    stage_start(&play, 0, &CHARACTERS[0], &sheriff);
+    play.player.shot.rounds = 3;
+    play.player.shot.other_rounds = 6;
+    stage_draw(platform, &play, &skins[0], &sheriff, 1.0f, play.player.x, 0.0f, options);
+    save_capture(r, dir, "15_duales_cargadores_independientes");
+    input = (InputState){0};
+    input.pressed[ACTION_RELOAD] = true;
+    player_update(&play.player, &input, FIXED_DT);
+    stage_draw(platform, &play, &skins[0], &sheriff, 1.0f, play.player.x, 0.0f, options);
+    save_capture(r, dir, "15_duales_recarga");
+    for (int fire = 0; fire < 2; fire++) {
+        stage_start(&play, 0, &CHARACTERS[0], &sheriff);
+        terrain_clear(&play.run.terrain);
+        play.run.zombie_count = 0;
+        if (fire) {
+            terrain_add(&play.run.terrain, TERRAIN_BARREL, play.player.x)->blowing = true;
+            input = (InputState){0};
+            player_update(&play.player, &input, FIXED_DT);
+            run_update(&play.run, &play.player, &sheriff, FIXED_DT);
+            terrain_add(&play.run.terrain, TERRAIN_FIRE, play.player.x);
+        }
+        play.player.shot.rounds = 2;
+        play.player.shot.other_rounds = 5;
+        input = (InputState){0};
+        input.pressed[ACTION_RELOAD] = true;
+        for (int tick = 0; tick <= 150; tick++) {
+            player_update(&play.player, &input, FIXED_DT);
+            input.pressed[ACTION_RELOAD] = false;
+            run_update(&play.run, &play.player, &sheriff, FIXED_DT);
+            if (tick % 3 != 0) continue;
+            stage_draw(platform, &play, &skins[0], &sheriff, 1.0f, play.player.x, 0.0f, options);
+            char name[64];
+            snprintf(name, sizeof(name), "15_duales_recarga_%s_%03d", fire ? "fuego" : "quieta", tick);
+            save_capture(r, dir, name);
+        }
+    }
+
+    /* Resume ordinary fire after only the first cylinder finished reloading. */
+    stage_start(&play, 0, &CHARACTERS[0], &sheriff);
+    terrain_clear(&play.run.terrain);
+    play.run.zombie_count = 0;
+    play.player.shot.rounds = play.player.shot.other_rounds = 0;
+    input = (InputState){0};
+    for (int tick = 0; tick <= 180; tick++) {
+        input.pressed[ACTION_RELOAD] = tick == 0;
+        input.pressed[ACTION_SHOOT] = input.down[ACTION_SHOOT] = tick == 85;
+        player_update(&play.player, &input, FIXED_DT);
+        run_update(&play.run, &play.player, &sheriff, FIXED_DT);
+        if (tick % 3 != 0) continue;
+        stage_draw(platform, &play, &skins[0], &sheriff, 1.0f, play.player.x, 0.0f, options);
+        char name[64];
+        snprintf(name, sizeof(name), "15_duales_recarga_cortada_%03d", tick);
+        save_capture(r, dir, name);
+    }
+
+    stage_start(&play, 0, &CHARACTERS[0], &sheriff);
+    terrain_clear(&play.run.terrain);
+    play.run.zombie_count = 0;
+    play.player.shot.rounds = 2;
+    play.player.shot.other_rounds = 5;
+    input = (InputState){0};
+    input.down[ACTION_RIGHT] = true;
+    for (int tick = 0; tick <= 150; tick++) {
+        input.pressed[ACTION_RELOAD] = tick == 0;
+        player_update(&play.player, &input, FIXED_DT);
+        run_update(&play.run, &play.player, &sheriff, FIXED_DT);
+        if (tick != 18 && tick != 54 && tick != 114 && tick != 150) continue;
+        stage_draw(platform, &play, &skins[0], &sheriff, 1.0f, play.player.x, 0.0f, options);
+        char name[64];
+        snprintf(name, sizeof(name), "15_duales_recarga_caminando_%03d", tick);
+        save_capture(r, dir, name);
+    }
+
     Almanac review_book;
     AlmanacView review_view;
     almanac_init(&review_book);
@@ -451,6 +526,20 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     weather_start(&play.weather, WEATHER_CLEAR, camera_left(px));
     stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, px + 300.0f, 0.0f, options);
     save_capture(r, dir, "27_props");
+
+    /* The reworked chest in context: identical ground contact through the lid
+     * poses, with its body and lock clear beside the sheriff. */
+    chest_place(&play.run.chests[0], px + 180.0f, 1);
+    const int chest_frames[] = {0, 3, 5};
+    for (int k = 0; k < 3; k++) {
+        play.run.chests[0].state = k ? CHEST_OPENING : CHEST_CLOSED;
+        play.run.chests[0].anim.frame = chest_frames[k];
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, px, 0.0f, options);
+        char name[40];
+        snprintf(name, sizeof(name), "27_cofre_%d", chest_frames[k]);
+        save_capture(r, dir, name);
+    }
+    chest_clear(&play.run.chests[0]);
 
     /* Wading the river's deep middle, to the waist; a puddle on the bank. */
     terrain_clear(&play.run.terrain);
@@ -615,6 +704,35 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
             snprintf(name, sizeof(name), "30_disparo_linterna_%d_%d", turn, f);
             save_capture(r, dir, name);
         }
+    }
+    /* The sheriff's rework and cylinder reload, through the real stage/render path. */
+    {
+        Progress kept = profiles[0].progress;
+        profiles[0].progress.level = 1;
+        stage_start(&play, 0, &CHARACTERS[0], &profiles[0].progress);
+        play.run.zombie_count = 0;
+        play.flashlight = false;
+        weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+        save_capture(r, dir, "52_sheriff_rework");
+        InputState click = {0};
+        click.pressed[ACTION_SHOOT] = true;
+        stage_step(&play, &click, &profiles[0], options);
+        for (int i = 0; i < 60 && !play.player.shot.fired; i++)
+            idle_steps(&play, &profiles[0], &input, 1, options);
+        stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+        save_capture(r, dir, "52_sheriff_disparo");
+        click = (InputState){0};
+        click.pressed[ACTION_RELOAD] = true;
+        stage_step(&play, &click, &profiles[0], options);
+        for (int f = 0; f < PLAYER_RELOAD_FRAMES; f++) {
+            char name[64];
+            stage_draw(platform, &play, &skins[0], &profiles[0].progress, 1.0f, play.player.x, 0.0f, options);
+            snprintf(name, sizeof(name), "52_sheriff_recarga_%d", f);
+            save_capture(r, dir, name);
+            idle_steps(&play, &profiles[0], &input, 9, options);
+        }
+        profiles[0].progress = kept;
     }
     /* The new mission HUD and results use the same rules as real play. */
     stage_start(&play, 2, &CHARACTERS[0], &profiles[0].progress);

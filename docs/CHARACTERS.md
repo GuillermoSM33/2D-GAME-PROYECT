@@ -7,7 +7,7 @@ de cuadros, mirando a la derecha) y el estilo de la vaquera descrito en
 
 | Personaje | Habilidad | Armas | Arte |
 | --- | --- | --- | --- |
-| **La Sheriff** (`cowgirl`; antes la vaquera) | **Botín:** los zombis que vence sueltan cofres | Cañón de mano | Hecho |
+| **La Sheriff** (`cowgirl`; antes la vaquera) | **Botín:** los zombis que vence sueltan cofres | Revólver de 8 balas | Rework de materiales y movimientos |
 | **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Hecho |
 | **El Héroe** (`hero`) | **Prototipo:** arma experimental que atraviesa la armadura | Cañón de plasma | En desarrollo |
 
@@ -47,11 +47,12 @@ Los tres comparten controles, cuerpo, vida y reglas de nivel (ver el
 Al llegar a nivel 3 (`POWER_LEVEL`) cada personaje gana un poder; el de `F` (o clic central)
 espera 15 s entre usos (`POWER_COOLDOWN`) y su panel, bajo el del arma, dice si está listo.
 
-- **Vaquera:** cambia su cañón por **pistolas duales**, una en cada mano: se turnan (una
-  bala cada 0.4 s, ×1.09, manteniendo el clic siguen; más o menos 1.2 veces más rápida que el cañón,
+- **Vaquera:** lleva **revólveres duales**, uno en cada mano: se turnan (una
+  bala cada 0.4 s entre recargas, ×1.09, manteniendo el clic siguen; alrededor de 1.1 veces más rápida que el revólver,
   `tests/test_characters.c`). Con `F`
   dispara un **tiro de rebote**: sus balas doradas pegan al primer zombi y siguen al segundo
-  con 45 % menos de daño, o 30 % más si el primero cayó.
+  con 45 % menos de daño, o 30 % más si el primero cayó. Cada arma tiene su propio
+  tambor de ocho balas y recarga de 1.2 s; el rebote consume una bala de cada arma.
 - **SWAT:** con `F` lanza una **granada** (`throw.png`): vuela en arco, rebota en el suelo y en
   los muros y estalla a los 1.5 s como un barril (radio 260 px, ×3 su daño), sin abrir muros.
 - **Héroe:** ninguno todavía.
@@ -76,22 +77,50 @@ todas crecen igual con el personaje (y con las mejoras de arma que vengan). Est�
 por **tiempo para matar** a los 3 zombis antidisturbios de una etapa seguidos, medido con el
 disparo real (desenfunde, ráfagas, recargas y cargadores): `tests/test_characters.c` lo mide
 con el arma de nivel 1 a 8 contra zombis de hasta 2 niveles arriba o abajo, y falla si el promedio de alguna se aleja más de 10 % del
-cañón de mano o algún caso más de 25 % (los tiros enteros hacen escalones).
+revólver o algún caso más de 25 % (los tiros enteros hacen escalones).
 
-| Arma | Tiempo para matar (antidisturbios) | Contra el zombi común | Su manera |
-| --- | --- | --- | --- |
-| Cañón de mano | 1.00 (la referencia) | 1.00 | Tiros fuertes y parejos |
-| Rifle | 1.00 | 0.96 | Ráfagas que pegan duro, pero cada 5 cambia el cargador (1.2 s) |
-| Escopeta | 0.96 si pegan los 3 perdigones | 0.95 | Fuerte de cerca; de lejos el abanico falla; 8 cartuchos |
-| Cañón de plasma | 0.94 | 1.08 | Atraviesa parte de la armadura: especialista contra blindados |
+| Arma | Tiempo para matar (antidisturbios, relativo al revólver) | Su manera |
+| --- | --- | --- |
+| Revólver | 1.00 (la referencia) | Ocho tiros fuertes y cambio de tambor de 1.2 s |
+| Rifle | 0.93 | Ráfagas que pegan duro, pero cada 5 cambia el cargador (1.2 s) |
+| Escopeta | 0.91 si pegan los 3 perdigones | Fuerte de cerca; de lejos el abanico falla; 8 cartuchos |
+| Cañón de plasma | 0.91 | Atraviesa parte de la armadura: especialista contra blindados |
 
-Menos es más rápido. En nivel 1, los 3 antidisturbios de nivel 1 seguidos: cañón de mano 30
-tiros (13.3 s), rifle 18 ráfagas con 3 cambios de cargador (12.9 s), escopeta 18 disparos con
-2 recargas (13.4 s), plasma 18 (12.1 s). Cada zombi: 10 tiros, 6 ráfagas o 6 escopetazos.
+Menos es más rápido. Son promedios de niveles 1–8 contra enemigos de hasta dos niveles
+arriba o abajo. El mecanismo de 0.285 s entre tiros compensa parte de las recargas del
+tambor; conserva el daño anterior. Las duales son una recompensa de nivel 3 y mantienen
+su mecánica alternada, daño y cadencia. Sus tambores son independientes: cada tiro
+descuenta solo de la mano que dispara y la recarga automática rellena solo esa arma.
+`R` recarga ambos tambores incompletos en secuencia, 1.2 s por arma. `Q` conserva las
+dos cuentas, incluyendo las balas del revólver principal cuando se usa solo. El HUD
+muestra ambos cargadores. El promedio con las dos recargas es 1.09 veces más rápido
+que el revólver solo; un combate que cruza una recarga puede tardar algo más.
+Las duales usan `reload_dual.png` y `reload_dual_b.png` (48 cuadros de 81 × 80
+por mano): enfunda el arma libre, abre y carga la primera, la enfunda, saca y
+carga la segunda y termina con ambas. Cada tambor ocupa 24 cuadros en 1.2 s.
+El segundo bloque conserva el cambio de mano entre recargas (`reload_pair`),
+incluido al guardar y volver a cargar una partida. Se dibujan por progreso de
+recarga; el reloj de disparo de las duales no debe sustituir esos cuadros.
+Un clic nuevo durante la recarga cancela lo pendiente si queda algún revólver
+con munición y retoma un gesto de disparo desde el principio. La mano vacía se
+omite al retomar; no se rellena al cambiar de mano. Un clic mantenido espera la
+recarga y los dos tambores vacíos requieren completar al menos uno. Cada bala
+normal se descuenta solo de la mano que dispara. La recarga llena su tambor a
+ocho únicamente al terminar los 1.2 s; cortarla conserva la cuenta anterior.
+Las manos trabajan a la altura del cinturón, con codos bajos y hombros fijos.
+El antebrazo lejano sale delante del cuerpo solo bajo el pecho. Se evita el
+gesto encogido y rectangular delante del escote que el usuario identificó como
+un brazo roto. Los giros de los huesos se interpolan para que el codo avance
+sin saltos; las transiciones de enfundar y sacar usan cinco cuadros cada una.
+Al caminar, las capas `reload_dual_lower` y `reload_dual_b_lower` conservan la
+parte del cañón que cae por debajo de la cintura, sobre las piernas animadas.
+Un rebote cancelado antes del disparo no queda pendiente: un clic normal
+posterior gasta una sola bala de su propia mano. R, saltar, Q y los golpes o
+trampas que cortan el gesto eliminan tanto el poder pendiente como su pose.
 
 | Arma | Daño por bala | Recarga | Cargador | Balas por disparo | Alcance | Armadura que cuenta | Color de la bala | Humo |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Cañón de mano | ×1.0 | 0.38 s | — | 1 | Pantalla | 100 % | Original | 6 bocanadas, ×1 |
+| Revólver | ×1.0 | 0.285 s entre tiros | **8 balas, 1.2 s (igual al rifle SWAT)** | 1 | Pantalla | 100 % | Original | 6 bocanadas, ×1 |
 | Rifle | ×0.53 | 0.35 s | **5 ráfagas, 1.2 s** | **Ráfaga de 3** (cada 0.07 s) | Pantalla | 100 % | Blanco azulado | 3 bocanadas, ×0.7 |
 | Escopeta | ×0.60 | 0.62 s | **8 cartuchos, 1.1 s** | 3 en abanico | 380 px | 100 % | Naranja claro | 10 bocanadas, ×1.5 |
 | Cañón de plasma | ×1.3 | 0.62 s | — | 1 | Pantalla | **60 %** | Verde azulado | 6 bocanadas, ×1 |
@@ -120,7 +149,9 @@ SWAT usa `shoot_shotgun.png`. `--verify` la exige en cuanto el personaje tiene a
 **Hoja de recarga por arma:** un arma con cargador nombra su `reload_sheet`
 (`sprites/characters/<id>/<reload_sheet>.png`, mismo tamaño y plantilla que `shoot.png`, 8
 cuadros repartidos en el tiempo de recarga). La del rifle del SWAT es `reload.png` y la de la
-escopeta `reload_shotgun.png`. Sin ella (un personaje con arte provisional) se sostiene el
+escopeta `reload_shotgun.png`. La sheriff usa `reload.png`: abre el tambor, expulsa los
+casquillos, toma el cargador rápido del cinturón, lo inserta, cierra y vuelve a apuntar.
+Sin ella (un personaje con arte provisional) se sostiene el
 cuadro de retroceso.
 
 ## La plantilla: lo que todo personaje comparte
@@ -169,6 +200,36 @@ Si cambian las hojas de la vaquera, `python3 tools/make_character_base.py` regen
 las guías.
 
 ## Estilo
+
+El rework de la sheriff del 2026-11-12 mantiene su cuerpo, placa y pivotes. Usa
+sombrero de fieltro gastado, **cabello con el rojo original anterior al rework**, chaquetita
+corta **color vino** encima del corsé gris pizarra/carbón y pantalón con **dos tonos de
+gris**, además de cuero marrón oscuro y pañuelo vino. La chaquetita reemplaza el azul:
+tiene mangas vino, solapas abiertas y paneles que terminan por encima del cinturón,
+dejando visibles el corsé y la placa. El encaje termina bajo las solapas para evitar
+puntos blancos sobre la chamarra; dos botones pequeños de latón completan los cierres.
+El busto tiene un aumento sutil en el contorno y dos volúmenes suaves en el corsé,
+sin variar el cuerpo entre poses. Su dibujo sale de `cropped_jacket` en el cuerpo
+común y acompaña todas las poses, incluido el desmayo y SIT.
+La ropa conserva un acabado **sobrio**, con volumen mediante planos suaves, encaje gris
+marfil y latón envejecido. El cabello conserva exactamente `#6b333a`, `#902004` y
+`#d03305`, los tonos del arte original, sin recolorear sus luces ni añadir reflejos
+rosados. No hay ribetes blancos ni halo luminoso sobre la ropa.
+Mechones continuos, costuras, cordones y pliegues de rodilla mantienen el detalle.
+`tools/detail_cowgirl.py` aplica los materiales a todas las poses al final de
+`tools/rebuild_cowgirl.py`; no se retoca una sola hoja. Las manos se balancean en
+oposición al paso: el codo conserva su flexión y el brazo gira 4° por lado desde el hombro,
+sin cambios de forma entre cuadros ni saltos del sombreado de la manga. El salto recoge
+y abre los brazos antes de amortiguar la caída.
+El pelo y el pañuelo llevan un pequeño retraso respecto al paso, anclados a cabeza y cinturón.
+La nueva cara tiene sombra bajo el ala, ojo de perfil y volumen en mejilla/mandíbula.
+
+![Comparación de la prenda vino y el cabello rojo en el escenario](img/sheriff_rework.png)
+
+[Comparación animada de la caminata](img/sheriff_walk_comparison.gif).
+
+Las siguientes rampas y métricas describen la plantilla original y los otros personajes;
+el acabado actual de la sheriff usa rampas adicionales para sus distintos materiales.
 
 Lo mismo que hace funcionar a la vaquera y al zombi
 ([`ZOMBIE.md`](ZOMBIE.md#estilo-de-la-vaquera) tiene las medidas):
@@ -285,7 +346,7 @@ cuadro siga sobre las líneas de las guías.
 1. Su fila en `CHARACTERS` (`src/game/characters.c`): carpeta, nombre, habilidad con su
    descripción corta, armas y un color provisional.
 2. Si necesita un arma nueva, su fila en `src/game/weapons.c`, dentro del 20 % de daño por
-   segundo del cañón de mano.
+   segundo del revólver.
 3. Si su habilidad es nueva, agrégala a `Ability` (`characters.h`) y aplícala donde actúe:
    los cofres en `stage_run.c`, el arma en mano en `app/stage.c` (`stage_fire_weapon`, `stage_swap_weapon`).
 4. Sus hojas, cuando existan, como en *Entregar*.

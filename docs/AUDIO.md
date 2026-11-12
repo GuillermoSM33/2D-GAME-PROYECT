@@ -6,7 +6,9 @@ el carácter del juego. El pixel art no obliga a usar pitidos electrónicos.
 
 Se conservan **byte por byte los once originales**: `zombie/*`, los seis
 archivos legacy de `world/`, `player/shot` y `player/reload`. Estos dos últimos
-son exclusivos del cañón de mano de la vaquera. En la ampliación anterior
+son el disparo de la sheriff y la baqueta histórica del antiguo cañón de mano.
+El revólver usa ahora `weapons/revolver_cycle` y `weapons/revolver_reload`
+(`tools/make_revolver.py --audio`, mecanismos CC0 ya exportados). En la ampliación anterior
 se reemplazaron `player/drink`, `crow/caw` y `crow/death`.
 
 Los efectos nuevos o rehechos son WAV PCM16 mono a 22050 Hz. Los 16 bits
@@ -77,6 +79,9 @@ existentes. `tools/crush_sfx.py` sigue disponible para grabación manual.
 | Expediente | Papel al abrir, examinar y cerrar; navegación y respuestas con una sola señal; golpe de sello a los 0.55 s, sin rotura de madera |
 
 Las armas con munición ilimitada no producen falsos avisos de cargador vacío.
+Las duales tienen dos tambores finitos: cada uno produce su aviso de vacío y
+su sonido de recarga de revólver. Al recargar ambos con R, el sonido vuelve a
+empezar una sola vez al pasar al segundo tambor.
 Las recargas de banco retrasan el inicio del sonido para que su cierre
 coincida con la animación, manteniendo la velocidad natural del mecanismo.
 El volumen afecta inmediatamente a los canales activos. Pausar congela los

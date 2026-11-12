@@ -5,6 +5,11 @@
 
 #include "config.h"
 
+static int *firing_rounds(Shot *shot)
+{
+    return shot->piston && shot->other_gun ? &shot->other_rounds : &shot->rounds;
+}
+
 void shot_reset(Shot *shot)
 {
     memset(shot, 0, sizeof(*shot));
@@ -16,7 +21,7 @@ void shot_cancel(Shot *shot)
 {
     Shot gun = *shot;
     if (gun.magazine > 0 && gun.fired && gun.burst_left > 0)
-        gun.rounds--; /* A burst cut short still spent its shot */
+        (*firing_rounds(&gun))--; /* A burst cut short still spent its shot */
     memset(shot, 0, sizeof(*shot));
     shot->reload_time = gun.reload_time;
     shot->burst = gun.burst;
@@ -28,6 +33,7 @@ void shot_cancel(Shot *shot)
     shot->magazine = gun.magazine;
     shot->mag_reload_time = gun.mag_reload_time;
     shot->rounds = gun.rounds;
+    shot->other_rounds = gun.other_rounds;
 }
 
 void shot_set_reload(Shot *shot, float reload_time)
@@ -49,6 +55,11 @@ void shot_set_piston(Shot *shot, bool piston)
 
 void shot_trigger(Shot *shot, bool pressed, bool held)
 {
+    /* A fresh click can leave the unfinished cylinder alone and use the
+     * loaded revolver. A held trigger never cancels a reload by itself. */
+    if (pressed && shot->piston && shot->mag_reload > 0.0f &&
+        (shot->rounds > 0 || shot->other_rounds > 0))
+        shot_cancel(shot);
     shot->held = held && shot->automatic;
     /* A click while a turn plays asks for the next only as that turn ends (its
      * holster, PISTON_QUEUE_FRAMES): clicks hammered in mid-turn are not kept,
@@ -68,18 +79,52 @@ void shot_set_magazine(Shot *shot, int magazine, float reload_time, int rounds)
     shot->magazine = magazine > 0 ? magazine : 0;
     shot->mag_reload_time = reload_time;
     shot->rounds = rounds < 0 || rounds > shot->magazine ? shot->magazine : rounds;
+    shot_set_other_rounds(shot, -1);
+}
+
+void shot_set_other_rounds(Shot *shot, int rounds)
+{
+    shot->other_rounds = !shot->piston ? 0
+        : rounds < 0 || rounds > shot->magazine ? shot->magazine : rounds;
 }
 
 static bool empty(const Shot *shot)
 {
-    return shot->magazine > 0 && shot->rounds <= 0;
+    int rounds = shot->piston && shot->other_gun ? shot->other_rounds : shot->rounds;
+    return shot->magazine > 0 && rounds <= 0;
 }
 
-static void start_magazine_reload(Shot *shot)
+static void begin_piston_turn(Shot *shot, float phase)
+{
+    bool other = shot->next_other;
+    if (shot->magazine > 0) {
+        int wanted = other ? shot->other_rounds : shot->rounds;
+        int spare = other ? shot->rounds : shot->other_rounds;
+        if (wanted == 0 && spare > 0)
+            other = !other;
+    }
+    shot->active = true;
+    shot->fired = false;
+    shot->start_frame = 0;
+    shot->time = fmaxf(0.0f, phase);
+    shot->reload = 0.0f;
+    shot->burst_left = 0;
+    shot->burst_timer = 0.0f;
+    shot->queued = false;
+    shot->other_gun = other;
+    shot->reload_other = shot->reload_all = shot->reload_pair = false;
+}
+
+static void start_magazine_reload(Shot *shot, bool other)
 {
     shot->active = true;
     shot->fired = true;
     shot->burst_left = 0;
+    shot->burst_timer = 0.0f;
+    shot->time = 0.0f;
+    shot->start_frame = 0;
+    shot->reload = 0.0f;
+    shot->reload_other = other;
     shot->mag_reload = shot->mag_reload_time > 0.0f ? shot->mag_reload_time : 1e-3f;
 }
 
@@ -89,11 +134,15 @@ bool shot_reload_now(Shot *shot)
         return false;
     if (shot->active)
         shot_cancel(shot);
-    if (shot->rounds >= shot->magazine)
+    bool main_short = shot->rounds < shot->magazine;
+    bool other_short = shot->piston && shot->other_rounds < shot->magazine;
+    if (!main_short && !other_short)
         return false;
     shot->time = 0.0f;
     shot->start_frame = 0;
-    start_magazine_reload(shot);
+    shot->reload_all = shot->piston;
+    shot->reload_pair = main_short && other_short;
+    start_magazine_reload(shot, other_short && (!main_short || shot->next_other));
     return true;
 }
 
@@ -112,20 +161,18 @@ bool shot_start(Shot *shot)
 {
     if (shot->mag_reload > 0.0f)
         return false;
+    if (shot->piston) {
+        if (shot->active)
+            return false;
+        begin_piston_turn(shot, 0.0f);
+        if (empty(shot))
+            start_magazine_reload(shot, shot->other_gun);
+        return true;
+    }
     if (empty(shot)) {
         if (shot->active) /* The recoil still showing: the reload follows it */
             return false;
-        start_magazine_reload(shot);
-        return true;
-    }
-    if (shot->piston) { /* A turn under way plays whole: shot_update starts the next */
-        if (shot->active)
-            return false;
-        shot->active = true;
-        shot->fired = false;
-        shot->start_frame = 0;
-        shot->time = 0.0f;
-        shot->other_gun = shot->next_other;
+        start_magazine_reload(shot, shot->piston && shot->other_gun);
         return true;
     }
     bool follow_up = shot->active;
@@ -149,7 +196,30 @@ bool shot_update(Shot *shot, float dt)
             return false;
         /* Full again, standing aimed after the recoil: the trigger fires on. */
         shot->mag_reload = 0.0f;
-        shot->rounds = shot->magazine;
+        if (shot->reload_other)
+            shot->other_rounds = shot->magazine;
+        else
+            shot->rounds = shot->magazine;
+        if (shot->reload_all) {
+            bool other = !shot->reload_other;
+            int rounds = other ? shot->other_rounds : shot->rounds;
+            shot->reload_all = false;
+            if (rounds < shot->magazine) {
+                start_magazine_reload(shot, other);
+                return false;
+            }
+        }
+        if (shot->piston) {
+            shot->reload_pair = false;
+            if (!shot->held && !shot->queued) {
+                shot_cancel(shot);
+                return false;
+            }
+            begin_piston_turn(shot, 0.0f);
+            if (empty(shot))
+                start_magazine_reload(shot, shot->other_gun);
+            return false;
+        }
         shot->reload = 0.0f;
         shot->time = 0.0f;
         hold_frame(shot, PLAYER_SHOOT_FIRE_FRAME + 1);
@@ -170,14 +240,14 @@ bool shot_update(Shot *shot, float dt)
         if (shot->burst_left == 0) {
             shot->reload = shot->reload_time;
             if (shot->magazine > 0)
-                shot->rounds--;
+                (*firing_rounds(shot))--;
         }
         return true;
     }
     int frame = raw_frame(shot);
     if (shot->fired && empty(shot) && frame >= PLAYER_SHOOT_RELOAD_FRAME) {
         /* The magazine ran dry: once the recoil has shown, put a new one in. */
-        start_magazine_reload(shot);
+        start_magazine_reload(shot, shot->piston && shot->other_gun);
         return false;
     }
     if (!shot->piston && shot->fired && shot->reload > 0.0f && frame > PLAYER_SHOOT_RELOAD_FRAME) {
@@ -188,10 +258,9 @@ bool shot_update(Shot *shot, float dt)
     if (frame >= PLAYER_SHOOT_FRAMES) {
         if (shot->piston && (shot->held || shot->queued)) {
             /* The other gun is on its way up already: its turn, no stop between. */
-            shot->time -= (float)PLAYER_SHOOT_FRAMES / shot_fps(shot);
-            shot->fired = false;
-            shot->queued = false;
-            shot->other_gun = shot->next_other;
+            begin_piston_turn(shot, shot->time - (float)PLAYER_SHOOT_FRAMES / shot_fps(shot));
+            if (empty(shot))
+                start_magazine_reload(shot, shot->other_gun);
             return false;
         }
         shot_cancel(shot);
@@ -204,7 +273,7 @@ bool shot_update(Shot *shot, float dt)
         shot->burst_timer = shot->burst_gap;
         shot->reload = shot->burst_left > 0 ? 0.0f : shot->reload_time;
         if (shot->burst_left == 0 && shot->magazine > 0)
-            shot->rounds--;
+            (*firing_rounds(shot))--;
         return true;
     }
     return false;

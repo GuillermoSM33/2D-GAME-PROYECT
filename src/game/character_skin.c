@@ -90,6 +90,9 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_shoot_lit[guns[g]] = own_sheet(character, def->shoot_lit_sheet);
             skin->weapon_shoot_other_lit[guns[g]] = own_sheet(character, def->shoot_other_lit_sheet);
             skin->weapon_reload[guns[g]] = own_sheet(character, def->reload_sheet);
+            skin->weapon_reload_other[guns[g]] = own_sheet(character, def->reload_other_sheet);
+            skin->weapon_reload_lower[guns[g]] = own_sheet(character, def->reload_lower_sheet);
+            skin->weapon_reload_other_lower[guns[g]] = own_sheet(character, def->reload_other_lower_sheet);
             skin->weapon_sit[guns[g]] = own_sheet(character, def->sit_sheet);
             skin->weapon_melee[guns[g]] = own_sheet(character, def->melee_sheet);
             skin->weapon_melee_lit[guns[g]] = own_sheet(character, def->melee_lit_sheet);

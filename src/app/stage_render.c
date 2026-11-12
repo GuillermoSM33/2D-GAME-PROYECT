@@ -401,6 +401,7 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
         snprintf(gun_name, sizeof(gun_name), "%s", w->name);
     HudWeapon gun = {
         .id = play->guns[play->weapon_slot], .name = gun_name, .rounds = play->player.shot.rounds,
+        .other_rounds = play->player.shot.other_rounds,
         .magazine = play->player.shot.magazine, .reloading = shot_reloading(&play->player.shot),
         .can_swap = c->weapon_count > 1 || stage_can_swap_duals(play, progress),
         .other_id = c->weapon_count > 1 ? play->guns[(play->weapon_slot + 1) % c->weapon_count]

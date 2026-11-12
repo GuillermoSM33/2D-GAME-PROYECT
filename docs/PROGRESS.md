@@ -94,10 +94,17 @@ escriben dentro del ejecutable ni de `assets/`:
 Cada archivo lleva cabecera, generación, tamaño y CRC32. Al cargar se elige la
 copia más reciente cuyo contenido y esquema sean válidos; si falla se intenta
 la anterior. Una escritura fallida conserva la copia activa. El esquema actual
-es 4; se aceptan los anteriores. El 3 agregó el volumen de la música y el 4 el
+es 8; se aceptan los anteriores. El 3 agregó el volumen de la música y el 4 el
 Expediente (pistas encontradas, casos resueltos y escenas de fin de nivel vistas,
-compartido por todos los personajes); una partida vieja lo empieza vacío. Desde el
-1 se inicializan las estrellas, récords e inventario sin inventar puntuaciones
+compartido por todos los personajes); una partida vieja lo empieza vacío. El 5 amplió
+la segunda ruta y sus enemigos. El 6 convierte el antiguo cañón de mano en un
+revólver de ocho balas, con un tambor lleno al migrar una partida anterior; las
+partidas nuevas conservan exactamente la munición y las recargas en curso. El 7 agrega
+el tambor independiente del segundo revólver, incluso guardado con Q, el arma que
+se está recargando y la recarga secuencial pendiente. Al migrar duales antes infinitas,
+el revólver principal recupera su cuenta guardada y el segundo empieza lleno. Desde el
+8 también se conserva el cambio de mano de una recarga doble (`reload_pair`),
+incluido el segundo tambor. Desde el 1 se inicializan las estrellas, récords e inventario sin inventar puntuaciones
 históricas. La codificación usa campos explícitos
 little endian, sin direcciones de memoria ni estructuras nativas.
 

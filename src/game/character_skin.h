@@ -37,6 +37,9 @@ typedef struct {
     SDL_Texture *weapon_shoot_other_lit[WEAPON_COUNT]; /* ...(shoot_other_lit_sheet) */
     /* Per gun: its reload sheet (WeaponDef.reload_sheet), or NULL. */
     SDL_Texture *weapon_reload[WEAPON_COUNT];
+    SDL_Texture *weapon_reload_other[WEAPON_COUNT];
+    SDL_Texture *weapon_reload_lower[WEAPON_COUNT];
+    SDL_Texture *weapon_reload_other_lower[WEAPON_COUNT];
     /* Per gun: its sit sheet (WeaponDef.sit_sheet), or NULL to use the
      * character's sit sheet. */
     SDL_Texture *weapon_sit[WEAPON_COUNT];

@@ -44,6 +44,16 @@ static AppOptions options;
 static unsigned char bytes[SAVE_GAME_CAPACITY];
 static const char *directory;
 
+/* The appended cylinder/handoff fields precede the three case-file masks. */
+static void legacy_checkpoint(unsigned schema, size_t *size)
+{
+    size_t extra = schema == 7 ? 4 : 20;
+    CHECK(*size >= extra + 12 && source.has_checkpoint);
+    memmove(bytes + *size - extra - 12, bytes + *size - 12, 12);
+    *size -= extra;
+    bytes[4] = (unsigned char)schema;
+}
+
 static void fixture(int health, int gold)
 {
     save_game_init(&source);
@@ -124,6 +134,106 @@ static void test_roundtrip_preserves_live_mission_and_rebinds_references(void)
     CHECK(!save_game_resume(&decoded, &resumed, 0, 0));
     const InputState idle = {0};
     CHECK(stage_step(&resumed, &idle, &decoded.profiles[1], &options));
+}
+
+static void test_revolver_checkpoint_keeps_ammo_and_migrates_hand_cannon(void)
+{
+    save_game_init(&source);
+    stage_start(&play, 0, &CHARACTERS[0], &source.profiles[0].progress);
+    play.player.shot.rounds = 3;
+    CHECK(shot_reload_now(&play.player.shot));
+    CHECK(!shot_update(&play.player.shot, .4f));
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    size_t size = 0;
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(save_game_resume(&decoded, &resumed, 0, 0));
+    CHECK(resumed.player.shot.rounds == 3 && resumed.player.shot.magazine == 8);
+    CHECK_NEAR(resumed.player.shot.mag_reload, .8f, .0001f);
+
+    /* Schema 5 had unlimited hand-cannon ammunition. */
+    shot_cancel(&play.player.shot);
+    shot_set_magazine(&play.player.shot, 0, 0.0f, 0);
+    shot_set_reload(&play.player.shot, PLAYER_SHOOT_RELOAD_TIME);
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    legacy_checkpoint(5, &size);
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(save_game_resume(&decoded, &resumed, 0, 0));
+    CHECK(resumed.player.shot.magazine == 8 && resumed.player.shot.rounds == 8);
+    CHECK_NEAR(resumed.player.shot.mag_reload_time, 1.2f, .0001f);
+    CHECK_NEAR(resumed.player.shot.reload_time, weapon_def(WEAPON_REVOLVER)->reload_time, .0001f);
+    CHECK_NEAR(resumed.player.x, play.player.x, .0001f);
+}
+
+static void test_dual_cylinders_and_reload_target_survive_a_save(void)
+{
+    save_game_init(&source);
+    source.profiles[0].progress.level = POWER_LEVEL;
+    stage_start(&play, 0, &CHARACTERS[0], &source.profiles[0].progress);
+    play.player.shot.rounds = 3;
+    play.player.shot.other_rounds = 5;
+    play.player.shot.next_other = true;
+    CHECK(shot_reload_now(&play.player.shot));
+    CHECK(!shot_update(&play.player.shot, .4f));
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    size_t size = 0;
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(save_game_resume(&decoded, &resumed, 0, 0));
+    CHECK(resumed.player.shot.rounds == 3 && resumed.player.shot.other_rounds == 5);
+    CHECK(resumed.player.shot.reload_other && resumed.player.shot.reload_all);
+    CHECK(resumed.player.shot.reload_pair);
+    CHECK_NEAR(resumed.player.shot.mag_reload, .8f, .0001f);
+    CHECK(!shot_update(&resumed.player.shot, resumed.player.shot.mag_reload));
+    CHECK(resumed.player.shot.rounds == 3 && resumed.player.shot.other_rounds == 8);
+    CHECK(shot_reloading(&resumed.player.shot) && !resumed.player.shot.reload_other);
+    CHECK(resumed.player.shot.reload_pair);
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &resumed);
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(decoded.checkpoint.player.shot.reload_pair && !decoded.checkpoint.player.shot.reload_all);
+    CHECK(!decoded.checkpoint.player.shot.reload_other);
+
+    /* Last version's in-progress paired reload keeps its counters and target. */
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    legacy_checkpoint(7, &size);
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(decoded.checkpoint.player.shot.reload_pair && decoded.checkpoint.player.shot.reload_other);
+    CHECK(decoded.checkpoint.player.shot.rounds == 3 && decoded.checkpoint.player.shot.other_rounds == 5);
+
+    /* Holstered ammunition is serialized separately from the primary gun. */
+    shot_cancel(&play.player.shot);
+    play.dual_rounds = 2;
+    play.duals_out = false;
+    play.rounds[0] = 3;
+    stage_refresh_weapons(&play, POWER_LEVEL);
+    save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+    CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+    CHECK(save_game_decode(bytes, size, &decoded));
+    CHECK(save_game_resume(&decoded, &resumed, 0, 0));
+    CHECK(!resumed.duals_out && resumed.dual_rounds == 2 && resumed.player.shot.rounds == 3);
+}
+
+static void test_legacy_duals_gain_two_finite_cylinders(void)
+{
+    for (unsigned schema = 5; schema <= 6; schema++) {
+        save_game_init(&source);
+        source.profiles[0].progress.level = POWER_LEVEL;
+        stage_start(&play, 0, &CHARACTERS[0], &source.profiles[0].progress);
+        shot_set_magazine(&play.player.shot, 0, 0.0f, 0);
+        play.rounds[0] = 3;
+        save_game_snapshot(&source, source.profiles, 0, &source.volumes, &play);
+        size_t size = 0;
+        CHECK(save_game_encode(&source, bytes, sizeof(bytes), &size));
+        legacy_checkpoint(schema, &size);
+        CHECK(save_game_decode(bytes, size, &decoded));
+        CHECK(save_game_resume(&decoded, &resumed, 0, 0));
+        CHECK(resumed.player.shot.magazine == 8 && resumed.player.shot.other_rounds == 8);
+        CHECK(resumed.player.shot.rounds == (schema == 6 ? 3 : 8));
+        CHECK_NEAR(resumed.player.shot.mag_reload_time, 1.2f, .0001f);
+    }
 }
 
 static void test_invalid_or_truncated_data_never_mutates_profiles(void)
@@ -380,6 +490,9 @@ int main(int argc, char **argv)
         }
     } else if (strcmp(argv[1], "checks") == 0) {
         RUN(test_roundtrip_preserves_live_mission_and_rebinds_references);
+        RUN(test_revolver_checkpoint_keeps_ammo_and_migrates_hand_cannon);
+        RUN(test_dual_cylinders_and_reload_target_survive_a_save);
+        RUN(test_legacy_duals_gain_two_finite_cylinders);
         RUN(test_invalid_or_truncated_data_never_mutates_profiles);
         RUN(test_level_up_checkpoint_roundtrip_for_every_character);
         RUN(test_combat_checkpoints_through_first_level_up);

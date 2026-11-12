@@ -10,7 +10,7 @@
 
 /* Increment this schema when changing field order, enum/catalogue order or
  * the meaning of saved data. Never serialize native padding or addresses. */
-#define SAVE_SCHEMA 5u /* 5: the second route (more stages and zombies, hordes, fear) */
+#define SAVE_SCHEMA 8u /* 8: preserve the paired reload's holster/handoff animation */
 #define SAVE_MAGIC 0x31535156u
 #define ANIMATION_LIMIT 512
 
@@ -239,7 +239,9 @@ static void checkpoint(Codec *c, SaveGame *game)
         I(p->guns[i]); I(p->rounds[i]);
         CHECK(p->guns[i] >= 0 && p->guns[i] < WEAPON_COUNT);
         if (p->guns[i] >= 0 && p->guns[i] < WEAPON_COUNT)
-            CHECK(p->rounds[i] >= -1 || weapon_def(p->guns[i])->magazine == 0);
+            CHECK(p->rounds[i] >= -1 || weapon_def(p->guns[i])->magazine == 0 ||
+                  (c->schema < 7 && p->guns[i] == WEAPON_DUAL) ||
+                  (c->schema < 6 && p->guns[i] == WEAPON_REVOLVER));
     }
     codec_Player(c, &p->player);
     run(c, &p->run);
@@ -273,6 +275,28 @@ static void checkpoint(Codec *c, SaveGame *game)
         CHECK(p->player.level == game->profiles[game->checkpoint_hero].progress.level);
     }
     CHECK(p->player.state != PLAYER_DEAD && p->player.health > 0);
+    /* Append new fields so the existing checkpoint layout remains readable. */
+    if (c->schema >= 7) {
+        I(p->dual_rounds);
+        I(p->player.shot.other_rounds);
+        B(p->player.shot.reload_other);
+        B(p->player.shot.reload_all);
+        CHECK(p->dual_rounds >= -1 && p->dual_rounds <= REVOLVER_CAPACITY);
+        CHECK(p->player.shot.other_rounds >= 0 &&
+              p->player.shot.other_rounds <= p->player.shot.magazine);
+        CHECK(p->player.shot.piston ||
+              (!p->player.shot.reload_other && !p->player.shot.reload_all));
+    } else if (c->reading) {
+        p->dual_rounds = -1;
+    }
+    if (c->schema >= 8) {
+        B(p->player.shot.reload_pair);
+        CHECK(p->player.shot.piston || !p->player.shot.reload_pair);
+    } else if (c->reading) {
+        p->player.shot.reload_pair = p->player.shot.reload_all &&
+            p->player.shot.rounds < p->player.shot.magazine &&
+            p->player.shot.other_rounds < p->player.shot.magazine;
+    }
 }
 
 static void game_codec(Codec *c, SaveGame *game)
@@ -382,6 +406,29 @@ bool save_game_decode(const unsigned char *bytes, size_t size, void *output)
         *game = *candidate;
         if (game->has_checkpoint) {
             rebind_targets(game, &game->checkpoint);
+            if (c.schema < 6 && game->checkpoint.character->power == POWER_DUAL_PISTOLS) {
+                StagePlay *cp = &game->checkpoint;
+                /* Old hand-cannon saves had no ammunition counter. Give them
+                 * one full cylinder, including when the duals are in hand. */
+                cp->rounds[0] = -1;
+                if (cp->guns[cp->weapon_slot] == WEAPON_REVOLVER) {
+                    Shot *shot = &cp->player.shot;
+                    const WeaponDef *gun = weapon_def(WEAPON_REVOLVER);
+                    shot_set_reload(shot, gun->reload_time);
+                    shot_set_magazine(shot, gun->magazine, gun->magazine_reload, -1);
+                    shot->reload = fminf(shot->reload, gun->reload_time);
+                }
+            }
+            if (c.schema < 7 && game->checkpoint.guns[game->checkpoint.weapon_slot] == WEAPON_DUAL) {
+                StagePlay *cp = &game->checkpoint;
+                Shot *shot = &cp->player.shot;
+                const WeaponDef *gun = weapon_def(WEAPON_DUAL);
+                /* The primary is the same revolver used alone. Older duals
+                 * had no counters; keep its holstered count and add a full second. */
+                shot_set_magazine(shot, gun->magazine, gun->magazine_reload,
+                                  cp->rounds[cp->weapon_slot]);
+                shot_set_reload(shot, gun->reload_time);
+            }
             if (c.schema == 1)
                 game->profiles[game->checkpoint_hero].inventory =
                     (Inventory){game->checkpoint.player.water, game->checkpoint.run.dynamite};
@@ -412,6 +459,7 @@ bool save_game_resume(const SaveGame *game, StagePlay *play, int hero, int stage
     play->ricochet_armed = cp->ricochet_armed; play->ricochet_fired = cp->ricochet_fired;
     memcpy(play->guns, cp->guns, sizeof(play->guns));
     memcpy(play->rounds, cp->rounds, sizeof(play->rounds));
+    play->dual_rounds = cp->dual_rounds;
     play->player = cp->player; play->run = cp->run; play->encounter = cp->encounter;
     play->bullets = cp->bullets; play->crows = cp->crows; play->bats = cp->bats;
     play->progress_at_start = cp->progress_at_start;

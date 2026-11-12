@@ -81,7 +81,15 @@
 /* Seconds from a bullet until the next shot can start. With the aim frame
  * a follow-up fires 1/16 s later: one bullet every 0.445 s. */
 #define PLAYER_SHOOT_RELOAD_TIME 0.3825f
+/* The sheriff's eight-shot cylinder; the full reload matches the SWAT rifle.
+ * A shorter action between shots offsets the time spent replacing all eight. */
+#define REVOLVER_SHOT_DELAY 0.285f
+#define REVOLVER_CAPACITY 8
+#define RIFLE_MAGAZINE_RELOAD_TIME 1.2f
 #define PLAYER_RELOAD_FRAMES 8 /* A magazine going in (reload sheets), over the gun's reload time */
+#define PLAYER_DUAL_RELOAD_FRAMES 24 /* Per cylinder, 50 ms per frame at the usual 1.2 s */
+#define PLAYER_DUAL_RELOAD_HANDOFF_FRAME 18 /* Loaded gun low, before stowing it for the next */
+#define PLAYER_DUAL_RELOAD_SHEET_FRAMES (2 * PLAYER_DUAL_RELOAD_FRAMES) /* First/alone, then second */
 #define PLAYER_RELOAD_WALK_MULT 0.5f /* Walking while a magazine goes in: half speed */
 #define PLAYER_VAULT_SPEED 520.0f  /* Window px per second over a barricade: clears it in one jump */
 #define VAULT_REACH 80.0f          /* Window px from where a barricade stops her to vault it */

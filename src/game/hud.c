@@ -626,7 +626,10 @@ void hud_set_pointer(int x, int y)
 
 static bool weapon_readout(const HudWeapon *weapon, char *str, size_t size)
 {
-    if (weapon->magazine > 0)
+    if (weapon->id == WEAPON_DUAL && weapon->magazine > 0)
+        snprintf(str, size, "%d/%d  %d/%d", weapon->rounds, weapon->magazine,
+                 weapon->other_rounds, weapon->magazine);
+    else if (weapon->magazine > 0)
         snprintf(str, size, "%d/%d", weapon->rounds, weapon->magazine);
     else if (weapon->reloading)
         snprintf(str, size, "RECARGANDO");
@@ -1038,14 +1041,17 @@ bool hud_verify_layout(void)
     for (int id = 0; id < WEAPON_COUNT; id++) {
         const WeaponDef *def = weapon_def((WeaponId)id);
         ok = layout_text_stays_large(def->name, gun_w) && ok;
-        HudWeapon weapon = {.id = id, .name = def->name, .rounds = INT_MAX,
-                            .magazine = INT_MAX, .reloading = true};
+        HudWeapon weapon = {.id = id, .name = def->name,
+                            .rounds = def->piston ? def->magazine : INT_MAX,
+                            .other_rounds = def->magazine,
+                            .magazine = def->piston ? def->magazine : INT_MAX, .reloading = true};
         weapon_readout(&weapon, str, sizeof(str));
         ok = layout_text_fits(str, gun_w - 26, 2) && ok;
     }
     /* What a player reads in play stays at scale two with ordinary values. */
     ok = layout_text_stays_large("SALIDA 9999 M", EXIT_W) && ok;
     ok = layout_text_stays_large("0/99 RECARGANDO", gun_w - 26) && ok;
+    ok = layout_text_stays_large("8/8  8/8", gun_w - 26) && ok;
     ok = layout_text_stays_large("¡ALÉJATE DEL FUEGO!", MISSION_W - 12) && ok;
     ok = layout_text_stays_large("VENDANDO 100%", MISSION_W - 12) && ok;
     if (ui_text_width("SED GRAVE", 2) + 10 + ui_text_width("BEBE", 2) + 6 + HUD_KEY_SIZE > MISSION_W - 12 ||

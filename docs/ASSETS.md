@@ -40,7 +40,10 @@ assets/
     characters/cowgirl/walk_dual, jump_dual  Caminar y saltar con las duales: una funda en cada cadera
     characters/cowgirl/weapons/bullet  La bala del rebote (14 × 20 × 16, tools/make_ricochet.py): 0-3 en vuelo, 4-7 girando tras rebotar, 8-13 el impacto
     characters/cowgirl/ricochet, ricochet_dual, y sus _lit  El rebote (F): 8 cuadros de plantilla de shoot, las dos manos juntas y dos balas, con una o con las dos armas
-    characters/cowgirl/weapons/pistol  Su pistola sola: el mismo dibujo en las dos manos y en todas las hojas; se cambia aquí y se regeneran con tools/rebuild_cowgirl.py. La mano la toma por la empuñadura (GRIP_AT en tools/cowgirl_arm.py)
+    characters/cowgirl/weapons/pistol  Revólver de 8 balas (17 × 11), generado por tools/make_revolver.py; el mismo dibujo en las dos manos. La mano lo toma por GRIP_AT en tools/cowgirl_arm.py
+    characters/cowgirl/reload  Recarga del tambor con cargador rápido, 8 × 81 × 80 en 1.2 s; tools/make_flashlight.py, acabado final de tools/detail_cowgirl.py
+    characters/cowgirl/reload_dual, reload_dual_b  Recarga de cada mano, 48 × 81 × 80: dos bloques de 24 (recarga individual/primera y segunda de una pareja), con trabajo al cinturón, hombros fijos y transición de enfundado; 1.2 s por tambor
+    characters/cowgirl/reload_dual_lower, reload_dual_b_lower  Solo las puntas bajas de los cañones, misma plantilla y cuadros; se superponen a las piernas al recargar caminando
     characters/cowgirl/swap_far, light_dual_far  Solo su brazo lejano y su pistola, en los cuadros de swap y light_dual que la lleva: se dibujan enteros sobre las piernas al caminar
     characters/cowgirl/legs, legs_dual  Su caminar sin brazos (8 cuadros como walk): las piernas bajo otra pose mientras camina
     characters/cowgirl/stand, stand_dual  De pie, quieta: las manos en la cadera (1 cuadro del tamaño de walk; sin ella, el primer cuadro de walk)
@@ -56,7 +59,7 @@ assets/
                          pip, bar, icons, weapons, notice_dev (la interfaz)
     mercenary/           walk: un mercenario en silueta con rifle y linterna (12 × 81 × 80, el cuerpo de swat/light_walk: 8 de caminar y 4 parado);
                          aim: de frente a la cámara, apuntando y disparando (4 × 110 × 130, de la cintura arriba)
-    clues/               clues: las 15 pistas del Expediente, un cuadro de 24 × 24 por pista en el orden de CLUES; stamp: el sello RESUELTO inclinado (tools/make_clues.py)
+    clues/               clues: las 30 pistas del Expediente, un cuadro de 24 × 24 por pista en el orden de CLUES; stamp: el sello RESUELTO inclinado (tools/make_clues.py)
     vial/                held: el puño de Valeria levantando la muestra, a contraluz (64 × 100)
     ambulance/           drive: la ambulancia hacia la derecha, llantas girando y luces alternando (4 × 72 × 34)
   cinematics/<lugar>/    Pantallas completas de las cinemáticas, a 320 × 180 px de arte (1 px = 3 px de ventana)
@@ -112,11 +115,11 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `sprites/characters/swat/melee.png`, `melee_shotgun.png` | `tools/make_swat.py` | el propio script | 7 × 81 × 80, plantilla de disparo; una por arma (`WeaponDef.melee_sheet`) |
 | `sprites/zombies/riot/{walk,hurt,death,attack}.png` | Originales preservados; las cuatro hojas del élite mantienen el mismo arte base | [ZOMBIE.md](ZOMBIE.md) | 72 × 72 por cuadro; 8/3/8/6 cuadros respectivamente |
 | `sprites/zombies/<id>/{idle,walk,run,attack,hurt,death,caught}.png` | Prendas y equipo editados sobre la base original en `docs/templates/zombies/`; exportación nativa con `tools/make_zombies.py` | [ZOMBIE.md](ZOMBIE.md), `tests/test_zombie_catalog.c`, `tests/test_zombie_assets.py` | 72 × 72 por cuadro: idle/caught 4, walk/run/death 8, attack 6, hurt 3 |
-| `sprites/chest/open.png` | Dibujado | este documento | 6 cuadros de 72 × 72 |
+| `sprites/chest/open.png` | `tools/make_chest.py`: madera, hierro y cerradura de latón | este documento | 6 cuadros de 72 × 72; base fija en fila 66 |
 | `sprites/effects/armor_sparks.png` | Recortado de `zombies/riot/hurt.png` | [ZOMBIE.md](ZOMBIE.md) | 2 cuadros de 20 × 12 |
 | `sprites/characters/swat/*` | `tools/make_swat.py`, a partir de `docs/templates/swat/walk_source.png` | [CHARACTERS.md](CHARACTERS.md#el-swat) | Los de la vaquera |
 | `music/*.ogg` | `tools/make_music.py`, compuesta y sintetizada aquí | [AUDIO_MUSIC.md](AUDIO_MUSIC.md) | Vorbis estéreo, 22050 Hz, bucle continuo |
-| `sprites/ui/{font,panel,button,key,pip,bar,icons,icons_hd,weapons,weapons_hd,notice_dev}.png` | `tools/make_ui.py` y `tools/ui_icons.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
+| `sprites/ui/{font,panel,button,key,pip,bar,icons,icons_hd,weapons,weapons_hd,notice_dev}.png` | `tools/make_ui.py`, `tools/ui_icons.py` y acabado de `tools/support_finishes.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
 | `sprites/ui/badge_*.png`, `sprites/chest/sparks.png` | `tools/make_sprites.py` | el propio script | 17 × 19; 8 cuadros de 72 × 72 |
 | `sprites/props/*` | `tools/make_props.py`, materiales diurnos graduados por tema | [LANDSCAPE.md](LANDSCAPE.md) | 24 hojas y 49 variantes; tabla de `src/game/props.c` |
 | `sprites/props/houses.png` | `tools/make_houses.py`, graduación de luz y neblina por tema | [LANDSCAPE.md](LANDSCAPE.md) | 21 cuadros de 256 × 192; hoja 5376 × 192. Edificios del oeste, urbanos y militares a escala humana; `HOUSE_*` en `config.h` |
@@ -127,6 +130,7 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `sprites/zombies/city_{guard,nurse,police,worker,office}/*` | `tools/make_city_zombies.py`: dibujados por oficio desde un esqueleto propio (no derivan de otra familia) | [ZOMBIE.md](ZOMBIE.md) | Las 7 hojas de cada familia, cuadros de 72 × 72 |
 | `sprites/zombies/*/attack.png` (cuadros 3 y 4) | `tools/fix_zombie_attack.py`, después de `make_zombies.py` | [ZOMBIE.md](ZOMBIE.md) | Quita la segunda cabeza (el casco del antidisturbios) del zarpazo |
 | `sprites/clues/clues.png` | `tools/make_clues.py` | [LORE.md](LORE.md) | 30 × 24 × 24 |
+| `sprites/mercenary/{walk,aim}.png`, `sprites/vial/held.png` | `tools/make_cinematics.py` y `tools/support_finishes.py` | [LORE.md](LORE.md) | walk: 12 × 81 × 80; aim: 4 × 110 × 130; held: 64 × 100 |
 | `backgrounds/<tema>/*` | `tools/make_landscape.py` y `landscape_{west,city,kit}.py`; revisión con `tools/check_landscape.py` | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/themes.c`; vista 480 × 270 de arte |
 | Efectos nuevos de `sounds/` | `tools/make_sfx.py`, grabaciones CC0 y capas originales | [AUDIO.md](AUDIO.md), fuentes y generadores por familia | PCM16 mono, 22050 Hz |
 | Sonidos legacy de `player/` y `world/` | Originales conservados, sin regeneración automática | [AUDIO.md](AUDIO.md) y hashes de referencia | Sin cambios |
@@ -137,12 +141,27 @@ contra los PNG sin modificarlos. `refine_terrain.py` aplica los detalles de
 material a las fuentes de terreno de la tabla anterior. `make_houses.py` es la
 fuente actual de toda la hoja de casas, incluidas las variantes urbanas.
 
+El rework de las siete carpetas `ui`, `vial`, `mercenary`, `chest`, `bat`, `clues`
+y `crow` se reconstruye con `python3 tools/rebuild_support_art.py`. Genera 22
+hojas sin tocar los escenarios ni el audio. `--verify` compara la salida con los
+archivos finales sin escribirlos, y `build.sh` ejecuta esa comprobación.
+Conserva las celdas, los pivotes y el orden de animación. El cofre comparte base
+en sus seis poses; el cuervo y el murciélago conservan los estados de vuelo y daño.
+El mercenario mantiene el rostro oculto, con pliegues, costuras y bolsas legibles;
+el vial usa vidrio, tapa estriada y piel a contraluz. Las pistas llevan papel
+envejecido y símbolos intactos. La fuente de UI conserva su máscara blanca y
+`weapons.png` conserva los sprites de las armas que se ven en la partida.
+
+[Comparación del rework](img/support_rework.png) ·
+[Animaciones de apoyo](img/support_rework_motion.gif) ·
+[Capturas dentro del juego](img/support_rework_game.png).
+
 Todo `sprites/ui` y `sprites/weapons` sigue una sola regla, para que parezca de la misma mano:
 los materiales de `tools/ui_icons.py` (rampas de cinco tonos: latón, hierro, madera, hueso...),
 contorno de tinta de 1 px y luz siempre desde arriba a la izquierda. Un recurso nuevo para estas
 carpetas toma sus colores de ahí, no de una paleta propia.
 
-`sprites/ui/icons_hd.png` tiene 29 celdas de 24 × 24 px, dibujadas en `tools/ui_icons.py`;
+`sprites/ui/icons_hd.png` tiene 32 celdas de 24 × 24 px, dibujadas en `tools/ui_icons.py`;
 `ui_icon` las usa desde la escala 2 (se ven nítidas en 2, 4 y 6). `sprites/ui/icons.png` son los
 mismos iconos en 12 × 12 para los huecos sin espacio (escala 1); `make_icons` de `tools/make_ui.py`
 rechaza uno descentrado o con el contorno abierto. Ambas usan el orden de `UiIcon` en
