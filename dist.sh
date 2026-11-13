@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Genera el zip para jugadores del sistema actual, listo para descomprimir y jugar:
 #   dist/linux/TheMiracle-<versión>-linux.zip      (al correrlo en Linux)
-#   dist/windows/TheMiracle-<versión>-windows.zip  (al correrlo en MSYS2 UCRT64)
+#   dist/windows/TheMiracle-<versión>-windows.zip  (Windows con MSYS2 UCRT64)
 #
 #   ./dist.sh    Pregunta la versión, prueba, compila y reemplaza el zip anterior.
 #
@@ -18,8 +18,23 @@ case "$(uname -s)" in
     *)            PLATFORM=linux;   EXE=TheMiracle ;;
 esac
 
+# Activa el mismo compilador y las mismas DLL aunque se abra desde MSYS,
+# MINGW64 o Git Bash. MSYS2_ROOT permite una instalación fuera de C:/msys64.
+if [[ $PLATFORM == windows ]] &&
+   [[ ${MSYSTEM:-} != UCRT64 || ${MINGW_PREFIX:-} != /ucrt64 || ! -d /ucrt64 ]]; then
+    MSYS2_BASH=/usr/bin/bash
+    if [[ ! -d /ucrt64 ]]; then
+        MSYS2_BASH="$(cygpath -u "${MSYS2_ROOT:-C:/msys64}")/usr/bin/bash.exe"
+    fi
+    [[ -x $MSYS2_BASH ]] || fail "instala MSYS2 y abre su terminal UCRT64, o indica su carpeta con MSYS2_ROOT"
+    step "Activando MSYS2 UCRT64"
+    export MSYSTEM=UCRT64 CHERE_INVOKING=1
+    exec "$MSYS2_BASH" --login "$PWD/${0##*/}" "$@"
+fi
+
 while true; do
     read -r -p "Versión a generar (ej.: 0.3.0): " VERSION || fail "no se recibió ninguna versión"
+    VERSION=${VERSION%$'\r'} # Acepta también una entrada CRLF desde Windows.
     [[ $VERSION =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]] && break
     echo "Usa solo letras, números, punto, guion o guion bajo, sin espacios."
 done
@@ -119,8 +134,12 @@ if [[ $PLATFORM == linux ]]; then
     MIN_GLIBC="$(objdump -T "$STAGE/$EXE" "$STAGE"/lib/* | grep -oE 'GLIBC_[0-9]+\.[0-9]+' \
         | sort -Vu | tail -n 1 || true)"
 else
-    # Same DLL selection as build.sh: only the MSYS2 ones, never Windows' own.
-    ldd "$STAGE/$EXE" | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u | xargs -r cp -t "$STAGE/"
+    # Incluye las dependencias transitivas de UCRT64, sin copiar DLL del sistema.
+    ldd "$STAGE/$EXE" | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u |
+        while IFS= read -r dll; do cp "$dll" "$STAGE/"; done
+    for dll in SDL2.dll SDL2_ttf.dll SDL2_mixer.dll; do
+        [[ -f "$STAGE/$dll" ]] || fail "falta $dll en el paquete; revisa la instalación de MSYS2 UCRT64"
+    done
 fi
 
 step "Probando el contenido del zip sin los recursos del proyecto"
@@ -151,10 +170,11 @@ with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as arch
             archive.write(path, path.relative_to(parent).as_posix())
 PY
 
-if ((${#OLD[@]})); then
-    rm -f "${OLD[@]}"
-fi
-mv "$NEW_ZIP" "$OUT_DIR/$NAME.zip"
+# Publica primero: si el traslado falla, los distribuibles anteriores siguen ahí.
+mv -f "$NEW_ZIP" "$OUT_DIR/$NAME.zip"
+for old in "${OLD[@]}"; do
+    [[ $old == "$OUT_DIR/$NAME.zip" ]] || rm -f "$old"
+done
 
 step "Listo"
 ls -lh "$OUT_DIR/$NAME.zip"
