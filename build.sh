@@ -39,6 +39,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 tools/make_zombies.py --verify
 step "Comprobando el arte de UI, objetos y reparto de apoyo"
 PYTHONDONTWRITEBYTECODE=1 python3 tools/rebuild_support_art.py --verify
 
+step "Comprobando el arte de las cinemáticas"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/make_cinematics.py --only lab ambulance --verify
+
 if [[ "${1:-}" == "--clean" ]]; then
     step "Limpiando build/"
     make clean

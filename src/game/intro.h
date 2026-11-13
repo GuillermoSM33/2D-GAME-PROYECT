@@ -57,7 +57,7 @@ typedef struct {
 /* Seconds each scene lasts; their sum is the full cinematic. */
 float intro_scene_length(IntroScene scene);
 float intro_total_length(void);
-/* Where INTRO_SHORT starts: into INTRO_TITLE, after the sheriff is gone. */
+/* Where INTRO_SHORT starts: into INTRO_TITLE, omitting the sheriff's walk. */
 float intro_short_start(void);
 
 void intro_start(Intro *intro, IntroMode mode);

@@ -149,9 +149,11 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
         const char *name;
     } intro_shots[] = {
         {4.0f, "0a_intro_pasillo"}, {13.0f, "0b_intro_monitores"}, {21.5f, "0c_intro_alarma"}, {37.40f, "0f1_intro_disparo"}, {37.62f, "0f2_intro_sacudida"}, {40.0f, "0f3_intro_sin_senal"},
-        {29.0f, "0d_intro_mercenarios"}, {35.0f, "0e_intro_muestra"}, {38.8f, "0f_intro_camara_caida"},
+        {29.0f, "0d_intro_mercenarios"}, {30.7f, "0d1_intro_mercenarios_cerca"},
+        {35.0f, "0e_intro_muestra"}, {38.8f, "0f_intro_camara_caida"},
         {46.0f, "0g_intro_ambulancia"}, {54.0f, "0h_intro_pueblo"}, {57.0f, "0i_intro_cuervos"},
         {63.0f, "0j_intro_tumba"}, {68.0f, "0k_intro_sheriff"}, {69.5f, "0l_intro_sheriff_camina"},
+        {71.5f, "0l1_intro_sheriff_sigue"}, {72.8f, "0l2_intro_sheriff_fuera"},
         {75.9f, "0m_intro_titulo"},
     };
     for (size_t i = 0; i < sizeof(intro_shots) / sizeof(intro_shots[0]); i++) {

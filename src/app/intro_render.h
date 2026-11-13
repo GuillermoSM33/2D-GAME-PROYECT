@@ -21,6 +21,19 @@ void intro_draw_dust(SDL_Renderer *renderer, float t, float thick);
  * left it: since is seconds since the title screen came up. */
 void intro_draw_title_dust(SDL_Renderer *renderer, double since);
 
+/* Shared art treatment for the intro and tapes, in window coordinates. Draw
+ * the lab's practical light before actors, and the framing before captions. */
+void cine_lab_atmosphere(SDL_Renderer *renderer, float pan, float t, bool emergency);
+void cine_frame(SDL_Renderer *renderer);
+/* A camera move eases in and out over the shot, covering speed * length. */
+float cine_pan(float t, float length, float speed);
+
+/* Wheels roll clockwise for positive travel. Centers and travel use view
+ * pixels; radius uses art pixels, scale is view pixels per art pixel. Camera
+ * motion alone is not travel. The vehicle helper covers jeep (3) and truck (4). */
+void cine_wheel(SDL_Renderer *renderer, int cx, int cy, float radius, int scale, float travel);
+void cine_vehicle_wheels(SDL_Renderer *renderer, int variant, float view_x, float travel);
+
 /* The intro's pieces, for the tapes' own shots. All in the world's view
  * (between stage_begin_view and stage_end_view), x in view px, on the road.
  * Zombies face right (mirrored sprites shift in the captures' renderer). */

@@ -26,8 +26,8 @@ static const SceneDef SCENES[INTRO_SCENES] = {
     [INTRO_TITLE] = {9.0f, 1.0f, 0.0f, NULL, 0.0f, false},
 };
 
-/* Seconds into INTRO_TITLE where the short version starts: the sheriff has
- * faded and the dust is about to bring the title up. */
+/* Seconds into INTRO_TITLE where the short version starts. The short version
+ * omits the sheriff and her footsteps while the dust brings the title up. */
 #define SHORT_INTO_TITLE 4.0f
 #define CAPTION_RATE 26.0f   /* Letters typed per second */
 #define CAPTION_FADE 0.5f    /* Seconds it takes to fade out, before the scene's own fade */
@@ -96,6 +96,11 @@ static const IntroCue CUES[] = {
     {INTRO_TITLE, 3.333333f, CUE_PLAY, "world/footstep_3", SOUND_PLAYER, 0.2f},
     {INTRO_TITLE, 3.666667f, CUE_PLAY, "world/footstep_4", SOUND_PLAYER, 0.2f},
     {INTRO_TITLE, 4.0f, CUE_MUSIC, MENU_MUSIC, 0, 1.0f},                      /* The title's theme */
+    {INTRO_TITLE, 4.0f, CUE_PLAY, "world/footstep", SOUND_PLAYER, 0.18f},
+    {INTRO_TITLE, 4.333333f, CUE_PLAY, "world/footstep_2", SOUND_PLAYER, 0.16f},
+    {INTRO_TITLE, 4.666667f, CUE_PLAY, "world/footstep_3", SOUND_PLAYER, 0.13f},
+    {INTRO_TITLE, 5.0f, CUE_PLAY, "world/footstep_4", SOUND_PLAYER, 0.10f},
+    {INTRO_TITLE, 5.333333f, CUE_PLAY, "world/footstep", SOUND_PLAYER, 0.06f},
     {INTRO_TITLE, 8.6f, CUE_STOP_LOOP, "weather/wind", SOUND_PLAYER, 0.0f},
 };
 #define CUE_COUNT ((int)(sizeof(CUES) / sizeof(CUES[0])))
@@ -154,7 +159,7 @@ int intro_update(Intro *intro, float dt, bool skip, const IntroCue **fired, int 
     intro->time += dt;
     int count = 0;
     while (intro->next_cue < CUE_COUNT && cue_time(&CUES[intro->next_cue]) <= intro->time) {
-        if (count < max)
+        if (count < max && !(intro->mode == INTRO_SHORT && CUES[intro->next_cue].kind == CUE_PLAY))
             fired[count++] = &CUES[intro->next_cue];
         intro->next_cue++;
     }

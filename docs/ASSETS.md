@@ -61,7 +61,7 @@ assets/
                          aim: de frente a la cámara, apuntando y disparando (4 × 110 × 130, de la cintura arriba)
     clues/               clues: las 30 pistas del Expediente, un cuadro de 24 × 24 por pista en el orden de CLUES; stamp: el sello RESUELTO inclinado (tools/make_clues.py)
     vial/                held: el puño de Valeria levantando la muestra, a contraluz (64 × 100)
-    ambulance/           drive: la ambulancia hacia la derecha, llantas girando y luces alternando (4 × 72 × 34)
+    ambulance/           drive: ambulancia hacia la derecha, luces alternando (4 × 72 × 34); el renderer gira las ruedas según la distancia recorrida
   cinematics/<lugar>/    Pantallas completas de las cinemáticas, a 320 × 180 px de arte (1 px = 3 px de ventana)
     lab/                 corridor (pasillo del Laboratorio 4, 480 de ancho para paneo), monitors (6 cuadros),
                          alarm (MRC-1 dividiéndose, 8 cuadros)
@@ -131,6 +131,7 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `sprites/zombies/*/attack.png` (cuadros 3 y 4) | `tools/fix_zombie_attack.py`, después de `make_zombies.py` | [ZOMBIE.md](ZOMBIE.md) | Quita la segunda cabeza (el casco del antidisturbios) del zarpazo |
 | `sprites/clues/clues.png` | `tools/make_clues.py` | [LORE.md](LORE.md) | 30 × 24 × 24 |
 | `sprites/mercenary/{walk,aim}.png`, `sprites/vial/held.png` | `tools/make_cinematics.py` y `tools/support_finishes.py` | [LORE.md](LORE.md) | walk: 12 × 81 × 80; aim: 4 × 110 × 130; held: 64 × 100 |
+| `cinematics/lab/{corridor,monitors,alarm}.png` | `tools/make_cinematics.py` y `tools/cinematic_art.py` | [CINEMATICS.md](CINEMATICS.md) | corridor: 480 × 180; monitors: 6 × 320 × 180; alarm: 8 × 320 × 180 |
 | `backgrounds/<tema>/*` | `tools/make_landscape.py` y `landscape_{west,city,kit}.py`; revisión con `tools/check_landscape.py` | [LANDSCAPE.md](LANDSCAPE.md) | Tabla de `src/game/themes.c`; vista 480 × 270 de arte |
 | Efectos nuevos de `sounds/` | `tools/make_sfx.py`, grabaciones CC0 y capas originales | [AUDIO.md](AUDIO.md), fuentes y generadores por familia | PCM16 mono, 22050 Hz |
 | Sonidos legacy de `player/` y `world/` | Originales conservados, sin regeneración automática | [AUDIO.md](AUDIO.md) y hashes de referencia | Sin cambios |
@@ -148,7 +149,10 @@ archivos finales sin escribirlos, y `build.sh` ejecuta esa comprobación.
 Conserva las celdas, los pivotes y el orden de animación. El cofre comparte base
 en sus seis poses; el cuervo y el murciélago conservan los estados de vuelo y daño.
 El mercenario mantiene el rostro oculto, con pliegues, costuras y bolsas legibles;
-el vial usa vidrio, tapa estriada y piel a contraluz. Las pistas llevan papel
+su rifle separa el acero del tejido y mantiene libre la boca del cañón. El vial
+usa vidrio, tapa estriada y piel a contraluz. El arte del laboratorio y el acabado
+compartido de las cintas se describen en [CINEMATICS.md](CINEMATICS.md).
+Las pistas llevan papel
 envejecido y símbolos intactos. La fuente de UI conserva su máscara blanca y
 `weapons.png` conserva los sprites de las armas que se ven en la partida.
 

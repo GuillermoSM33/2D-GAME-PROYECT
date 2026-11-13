@@ -407,11 +407,32 @@ def ruined() -> Canvas:
     for x in range(125,215):
         for y in range(136,136+int(hash2(x//7,0,404)*11)):
             c.clear(x,y)
+    # The surviving fireplace belongs to the right-hand wall: a broad masonry
+    # breast rises from the shared foundation and narrows into the flue. Keep
+    # it in front of the broken cladding so it cannot read as an isolated post.
+    masonry(c,(172,133,214,184),hx(0x8e7a69),seed=407,brick=(10,6))
+    c.poly([(178,133),(184,114),(205,114),(212,133)],hx(0x7d7163))
+    for yy in (119,125,131):
+        c.hline(183-(yy-119)//3,207+(yy-119)//4,yy,hx(0x554f47))
+    box(c,(169,143,217,148),hx(0x9c8e77))
+    c.hline(169,217,143,TRIM)
+    c.fill(182,153,203,181,HOLE)
+    c.fill(184,154,201,179,hx(0x191c1e))
+    c.hline(181,204,151,hx(0x4a423a))
+    c.hline(180,205,182,hx(0xb0a18a))
+    for xx in range(185,201,4):
+        c.line(xx,177,xx+2,179,hx(0x5b5145))
     sash(c,49,127,23,30,boards=True)
     beam(c,32,85,151,145,GREY_WOOD,5)
     beam(c,95,54,169,135,WOOD,5)
     beam(c,73,84,115,184,WOOD,4)
     beam(c,105,100,179,184,GREY_WOOD,3)
+    # Broken roof timbers meet the flue at a visible flashing collar.
+    beam(c,118,88,183,105,GREY_WOOD,4)
+    beam(c,160,132,183,105,WOOD,3)
+    box(c,(181,101,207,105),hx(0x686b62))
+    c.hline(181,207,101,hx(0x9b9c8c))
+    c.vline(181,103,111,hx(0x424a45))
     for i in range(24):
         x=40+i*7
         y=181-int(hash2(i,0,406)*7)

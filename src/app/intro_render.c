@@ -65,7 +65,7 @@
 #define GRAVE_B_FROM 3.3f       /* The second grave */
 #define GRAVE_B_TO 5.8f
 #define TITLE_WALK_FROM 1.0f
-#define TITLE_WALK_TO 3.9f
+#define TITLE_WALK_TO 6.0f      /* She has walked beyond the right edge before this. */
 #define TITLE_DUST_FROM 3.2f
 #define TITLE_RISE_FROM 4.6f
 #define TITLE_RISE_TO 7.0f
@@ -84,6 +84,11 @@ static float smooth(float edge0, float edge1, float t)
 {
     float k = clamp01((t - edge0) / (edge1 - edge0));
     return k * k * (3.0f - 2.0f * k);
+}
+
+float cine_pan(float t, float length, float speed)
+{
+    return length > 0.0f ? smooth(0.0f, length, t) * length * speed : 0.0f;
 }
 
 static unsigned hash(unsigned h)
@@ -120,6 +125,50 @@ static void light_disc(SDL_Renderer *r, int cx, int cy, int radius, unsigned rgb
     }
 }
 
+/* The same practical lights in her footage and in the later lab tape. Light
+ * and dust belong to the set; keep them behind actors and their equipment. */
+void cine_lab_atmosphere(SDL_Renderer *r, float pan, float t, bool emergency)
+{
+    for (int k = 0; k < 4; k++) {
+        int x = (int)lroundf((50.0f + (float)k * 120.0f - pan) * ART);
+        for (int ring = 3; ring >= 1; ring--)
+            light_disc(r, x, 16 * ART, ring * 4 * ART, 0x060604);
+    }
+    if (emergency) {
+        unsigned v = (unsigned)lroundf(3.0f + 4.0f * (0.5f + 0.5f * sinf(t * 4.0f)));
+        for (int k = 0; k < 3; k++) {
+            int ex = k == 0 ? 62 : k == 1 ? 238 : 422;
+            int x = (int)lroundf(((float)ex - pan) * ART);
+            light_disc(r, x, 26 * ART, 12 * ART, v << 16 | (v / 3) << 8);
+            for (int row = 0; row < 4; row++)
+                add_light(r, x - (8 + row * 3) * ART, (140 + row * 6) * ART,
+                          (16 + row * 6) * ART, ART, v << 16 | (v / 3) << 8);
+        }
+    }
+    for (int k = 0; k < 28; k++) {
+        unsigned h = hash((unsigned)k * 97u + 541u);
+        float x = (float)(h % CORRIDOR_W) - pan + sinf(t * 0.23f + (float)k) * 3.0f;
+        float y = 32.0f + fmodf((float)((h >> 10) % 104) + t * (0.5f + (float)(k % 3) * 0.2f), 104.0f);
+        fill(r, (int)lroundf(x) * ART, (int)lroundf(y) * ART, ART, ART, 0xb1b799, 30);
+    }
+}
+
+/* Restrained edge shadows and a caption scrim unify the landscape shots with
+ * the lab. Native pixel steps keep the scenery crisp at every window size. */
+void cine_frame(SDL_Renderer *r)
+{
+    for (int row = 0; row < 28; row++) {
+        fill(r, 0, row * ART, WINDOW_WIDTH, ART, 0x101515, (Uint8)(52 - row * 52 / 28));
+        fill(r, 0, WINDOW_HEIGHT - (row + 1) * ART, WINDOW_WIDTH, ART,
+             0x151312, (Uint8)(40 - row * 40 / 28));
+    }
+    for (int col = 0; col < 10; col++) {
+        Uint8 alpha = (Uint8)(20 - col * 2);
+        fill(r, col * ART, 0, ART, WINDOW_HEIGHT, 0x111516, alpha);
+        fill(r, WINDOW_WIDTH - (col + 1) * ART, 0, ART, WINDOW_HEIGHT, 0x111516, alpha);
+    }
+}
+
 /* One frame (or a slice, at pan) of a cinematic image, filling the window. */
 static void draw_screen(SDL_Renderer *r, const char *name, int src_x, int src_w, int dx)
 {
@@ -135,12 +184,11 @@ static void draw_screen(SDL_Renderer *r, const char *name, int src_x, int src_w,
 static void draw_corridor(SDL_Renderer *r, float pan, float t, bool handheld)
 {
     int sway = handheld ? (int)lroundf(sinf(t * 1.7f) * 0.8f + sinf(t * 3.3f) * 0.5f) : 0;
-    int p = (int)pan;
-    if (p < 2)
-        p = 2;
-    if (p > CORRIDOR_W - LAB_W - 2)
-        p = CORRIDOR_W - LAB_W - 2;
-    draw_screen(r, "cinematics/lab/corridor", p - 2, LAB_W + 4, (sway - 2) * ART);
+    pan = fmaxf(2.0f, fminf(CORRIDOR_W - LAB_W - 2.0f, pan));
+    int p = (int)floorf(pan);
+    int sub = (int)lroundf(((float)p - pan) * ART);
+    draw_screen(r, "cinematics/lab/corridor", p - 2, LAB_W + 4, (sway - 2) * ART + sub);
+    cine_lab_atmosphere(r, pan - (float)sway, t, true);
 }
 
 /* Her camera's overlay: corners, the blinking REC and its clock. */
@@ -168,7 +216,7 @@ static void draw_rec(SDL_Renderer *r, float clock, float t)
 static void draw_footage(SDL_Renderer *r)
 {
     for (int y = 0; y < WINDOW_HEIGHT; y += ART * 2)
-        fill(r, 0, y, WINDOW_WIDTH, 1, 0x000000, 40);
+        fill(r, 0, y, WINDOW_WIDTH, 1, 0x000000, 17);
     for (int i = 0; i < 6; i++) {
         int e = (i + 1) * 2 * ART;
         Uint8 a = (Uint8)(14 * (6 - i));
@@ -209,7 +257,9 @@ static void draw_mercenary(SDL_Renderer *r, float x, float pan, float t, float p
         SDL_Rect dst = {left, top, MERC_W * ART, MERC_H * ART};
         SDL_RenderCopyEx(r, tex, &src, &dst, 0.0, NULL, SDL_FLIP_HORIZONTAL);
     }
-    int lx = left + (MERC_W - 1 - MERC_LENS_X) * ART, ly = top + MERC_LENS_Y * ART;
+    static const int bob[] = {0, 0, 1, 0, 0, 0, 1, 0, 0, -1, -1, 0};
+    int lx = left + (MERC_W - 1 - MERC_LENS_X) * ART;
+    int ly = top + (MERC_LENS_Y + bob[frame]) * ART;
     if (lens_x)
         *lens_x = lx;
     if (lens_y)
@@ -265,7 +315,7 @@ static void scene_rec(SDL_Renderer *r, float t, float clock)
         fill(r, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0x000000, 255);
         return;
     }
-    float walk = (t - REC_CAMERA_ON) / (7.0f - REC_CAMERA_ON);
+    float walk = smooth(REC_CAMERA_ON, 7.0f, t);
     draw_corridor(r, 4.0f + walk * 146.0f, t, true);
     if (t < REC_CAMERA_ON + 0.25f) /* It comes on with a jolt of white */
         fill(r, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0xffffff, (Uint8)(200.0f * (1.0f - (t - REC_CAMERA_ON) / 0.25f)));
@@ -313,11 +363,11 @@ static void scene_mercs(SDL_Renderer *r, float t, float clock)
 /* A flashlight straight into her lens: a hot core and a streak across it. */
 static void lens_glare(SDL_Renderer *r, int x, int y, float power)
 {
-    for (int ring = 6; ring >= 1; ring--) {
-        unsigned v = (unsigned)lroundf(power * (float)(7 - ring) * 7.0f);
+    for (int ring = 4; ring >= 1; ring--) {
+        unsigned v = (unsigned)lroundf(power * (float)(5 - ring) * 5.0f);
         light_disc(r, x, y, ring * 2 * ART, v << 16 | v << 8 | (v * 7 / 8));
     }
-    unsigned s1 = (unsigned)lroundf(power * 26.0f), s2 = (unsigned)lroundf(power * 14.0f);
+    unsigned s1 = (unsigned)lroundf(power * 12.0f), s2 = (unsigned)lroundf(power * 6.0f);
     add_light(r, x - 46 * ART, y - ART / 2, 92 * ART, ART, s1 << 16 | s1 << 8 | s1);
     add_light(r, x - 80 * ART, y - ART / 2, 160 * ART, ART, s2 << 16 | s2 << 8 | s2);
 }
@@ -473,9 +523,73 @@ static void draw_zombie_frame(SDL_Renderer *r, ZombieKind kind, ZombieAnimation 
         SDL_RenderCopyEx(r, sheet, &src, &dst, 0.0, NULL, left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 }
 
+/* Rotate the tire's tread, valve mark and rim around a stationary axle. Shade
+ * from above remains fixed in space. Drawing native pixels avoids rotating a
+ * low-resolution texture into blurred or wobbling wheel silhouettes. */
+static unsigned wheel_color(int x, int y, float radius, float phase)
+{
+    float distance = sqrtf((float)(x * x + y * y));
+    if (distance > radius)
+        return 0;
+    float angle = atan2f((float)y, (float)x) - phase;
+    if (distance > radius * 0.72f) {
+        if (distance < radius * 0.96f && cosf(angle) > 0.94f)
+            return 0x94886b; /* One worn sidewall mark makes direction readable. */
+        if (distance > radius * 0.85f && cosf(angle * 12.0f) > 0.3f)
+            return 0x131419;
+        return y < 0 ? 0x3b3c3e : 0x222429;
+    }
+    if (distance > radius * 0.57f)
+        return 0x25292d;
+    if (distance < radius * 0.19f)
+        return 0x545c60;
+    int spokes = radius < 7.0f ? 3 : 5;
+    if (cosf(angle * (float)spokes) > 0.4f)
+        return 0x20282c;
+    return y < 0 ? 0xb7b2a4 : 0x7b8281;
+}
+
+void cine_wheel(SDL_Renderer *r, int cx, int cy, float radius, int scale, float travel)
+{
+    if (radius <= 0.0f || scale <= 0)
+        return;
+    const float tau = 6.28318530718f;
+    float phase = fmodf(travel / (radius * (float)scale), tau);
+    int edge = (int)ceilf(radius);
+    for (int y = -edge; y <= edge; y++) {
+        unsigned previous = 0;
+        int start = -edge;
+        for (int x = -edge; x <= edge + 1; x++) {
+            unsigned color = x > edge ? 0 : wheel_color(x, y, radius, phase);
+            if (color == previous)
+                continue;
+            if (previous)
+                fill(r, cx + start * scale, cy + y * scale, (x - start) * scale, scale, previous, 255);
+            previous = color;
+            start = x;
+        }
+    }
+}
+
+void cine_vehicle_wheels(SDL_Renderer *r, int variant, float view_x, float travel)
+{
+    const int px = SPRITE_SCALE;
+    int left = (int)lroundf(view_x) - VEHICLE_FRAME_W * px / 2;
+    int top = BASELINE - VEHICLE_FRAME_H * px;
+    if (variant == 3) {
+        cine_wheel(r, left + 32 * px, top + 57 * px, 12.1f, px, travel);
+        cine_wheel(r, left + 122 * px, top + 57 * px, 12.1f, px, travel);
+    } else if (variant == 4) {
+        static const int axles[] = {26, 50, 152};
+        for (int k = 0; k < 3; k++)
+            cine_wheel(r, left + axles[k] * px, top + 59 * px, 10.1f, px, travel);
+    }
+}
+
 static void scene_road(SDL_Renderer *r, float t)
 {
-    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + t * 60.0f;
+    float drift = cine_pan(t, intro_scene_length(INTRO_ROAD), 60.0f);
+    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + drift;
     begin_world(r, &road_world, camera_x);
     float vx = CINE_X(-320.0f + t * 200.0f);
     int frame = (int)(t * 10.0f) % VAN_FRAMES;
@@ -493,6 +607,12 @@ static void scene_road(SDL_Renderer *r, float t)
         SDL_Rect dst = {(int)lroundf(vx), BASELINE - VAN_H * SPRITE_SCALE + SPRITE_SCALE, VAN_W * SPRITE_SCALE,
                         VAN_H * SPRITE_SCALE};
         SDL_RenderCopy(r, van, &src, &dst);
+        /* Screen travel plus the camera's advance is travel over the road. */
+        float travel = CINE_X(t * 200.0f) + drift;
+        cine_wheel(r, dst.x + 13 * SPRITE_SCALE, dst.y + 28 * SPRITE_SCALE,
+                   5.0f, SPRITE_SCALE, travel);
+        cine_wheel(r, dst.x + 57 * SPRITE_SCALE, dst.y + 28 * SPRITE_SCALE,
+                   5.0f, SPRITE_SCALE, travel);
     }
     stage_end_view(r);
 }
@@ -511,15 +631,16 @@ static void draw_crow(SDL_Renderer *r, int frame, float view_x, float height, in
 
 static void scene_town(SDL_Renderer *r, float t)
 {
-    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + t * 18.0f;
+    float drift = cine_pan(t, intro_scene_length(INTRO_TOWN), 18.0f);
+    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + 6400.0f + drift;
     begin_world(r, &town_world, camera_x);
     /* Someone staggering down the empty street */
     const AnimationDef *walk = zombie_animation(ZOMBIE_KIND_CIVIL_FEMALE_2, ZOMBIE_ANIM_WALK);
-    float zx = CINE_X(120.0f) + t * 34.0f;
+    float zx = CINE_X(120.0f) + t * 52.0f - drift;
     draw_zombie_frame(r, ZOMBIE_KIND_CIVIL_FEMALE_2, ZOMBIE_ANIM_WALK, (int)(t * walk->fps * 0.55f), zx, 1, 0);
     static const float crows_x[] = {760.0f, 830.0f, 880.0f};
     for (int i = 0; i < 3; i++) {
-        float x = CINE_X(crows_x[i]) - t * 18.0f; /* They stay put while the view drifts */
+        float x = CINE_X(crows_x[i]) - drift; /* They stay put while the view drifts */
         if (t < TOWN_CROWS_FLY + (float)i * 0.15f) {
             draw_crow(r, (int)(t * 3.0f + (float)i) % 2, x, 0.0f, 1);
         } else {
@@ -599,7 +720,7 @@ static void grave_zombie(SDL_Renderer *r, ZombieKind kind, float x, float from, 
 
 static void scene_grave(SDL_Renderer *r, float t)
 {
-    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f;
+    float camera_x = PLAYER_START_X - VIEW_WIDTH / 2.0f + 3700.0f;
     begin_world(r, &grave_world, camera_x);
     const float grave_a = CINE_X(330.0f), coffin_x = CINE_X(690.0f), grave_b = CINE_X(1010.0f);
     draw_tombstone(r, grave_a + TOMBSTONE_GAP, 1);
@@ -680,7 +801,7 @@ static void step_sheriff(float t)
     input_init(&input);
     while (sheriff_time + FIXED_DT <= t) {
         bool down[ACTION_COUNT] = {false};
-        down[ACTION_RIGHT] = sheriff_time >= TITLE_WALK_FROM && sheriff_time < TITLE_WALK_TO;
+        down[ACTION_RIGHT] = sheriff_time >= TITLE_WALK_FROM;
         input_update(&input, down);
         player_update(&sheriff_view, &input, FIXED_DT);
         sheriff_time += FIXED_DT;
@@ -693,7 +814,7 @@ static void scene_title(SDL_Renderer *r, float t, World *title_world, const Char
     world_stream(title_world, camera_x);
     stage_begin_view(r, title_world->theme);
     scene_draw(r, title_world, camera_x, platform_time());
-    if (full && sheriff && t < TITLE_WALK_TO + 0.5f) {
+    if (full && sheriff && t < TITLE_WALK_TO) {
         step_sheriff(t);
         player_render(r, &sheriff_view, sheriff, sheriff->character->weapons, 0, camera_x);
     }
@@ -733,6 +854,9 @@ void intro_render(Platform *platform, const Intro *intro, World *title_world, co
     case INTRO_GRAVE: scene_grave(r, local); break;
     default: scene_title(r, local, title_world, sheriff, intro->mode == INTRO_FULL); break;
     }
+    /* The title must meet the menu's exact backdrop at the end of the intro. */
+    if (scene != INTRO_TITLE)
+        cine_frame(r);
     draw_caption(r, intro);
     float black = intro_black(intro);
     if (black > 0.0f)

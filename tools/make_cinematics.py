@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Make the art of the opening cinematic (docs/LORE.md, "La filtración").
 
-Usage: tools/make_cinematics.py [assets_dir]   (default: assets)
+Usage: tools/make_cinematics.py [assets_dir] [--only lab mercenary] [--verify]
 
 Writes:
   cinematics/lab/corridor.png   Laboratorio 4's corridor at night, wider than
@@ -19,24 +19,28 @@ Writes:
                                 recoil settling (4 frames of 110 x 130, waist up)
   sprites/vial/held.png         Valeria's fist raising the sample against a
                                 flashlight, seen from her camera (64 x 100)
-  sprites/ambulance/drive.png   The ambulance driving right, wheels turning and
-                                lights flashing (4 frames of 72 x 34)
+  sprites/ambulance/drive.png   The ambulance facing right, lights flashing
+                                (4 frames of 72 x 34). The renderer rotates
+                                wheels continuously from road travel.
 
 The cinematic images are whole screens at the world's pixel size: one art px
 is 3 window px (the window is 320 x 180 art px). The lab is cool and dark, the
-opposite of the warm desert outside. No dithering, light from the top left
-(the flashlights from the right in their scenes). Deterministic; uses only the
-standard library.
+opposite of the warm desert outside. Material finishes and stepped practical
+light are in cinematic_art.py; the rifle uses steel separate from the cloth.
+Deterministic, native pixels, no dithering; uses only the standard library.
 """
 from __future__ import annotations
 
 import math
+import argparse
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+from cinematic_art import dress_alarm, dress_corridor, dress_monitors  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CLEAR = (0, 0, 0, 0)
@@ -79,18 +83,18 @@ GLYPHS = {
 class Canvas:
     """One frame of a sheet: drawing clipped to (ox, 0, w, h)."""
 
-    def __init__(self, img: Image, ox: int = 0, w: int | None = None) -> None:
-        self.img, self.ox = img, ox
+    def __init__(self, img: Image, ox: int = 0, w: int | None = None, oy: int = 0) -> None:
+        self.img, self.ox, self.oy = img, ox, oy
         self.w = img.width if w is None else w
         self.h = img.height
 
     def px(self, x: int, y: int, c) -> None:
         if 0 <= x < self.w and 0 <= y < self.h:
-            self.img.set(self.ox + x, y, c)
+            self.img.set(self.ox + x, self.oy + y, c)
 
     def get(self, x: int, y: int):
         if 0 <= x < self.w and 0 <= y < self.h:
-            return self.img.get(self.ox + x, y)
+            return self.img.get(self.ox + x, self.oy + y)
         return CLEAR
 
     def fill(self, x0: int, y0: int, x1: int, y1: int, c) -> None:
@@ -103,6 +107,23 @@ class Canvas:
 
     def vline(self, x: int, y0: int, y1: int, c) -> None:
         self.fill(x, y0, x, y1, c)
+
+    def line(self, x0: int, y0: int, x1: int, y1: int, color) -> None:
+        """A connected stroke in native pixels, including both endpoints."""
+        dx, dy = abs(x1 - x0), -abs(y1 - y0)
+        sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+        error = dx + dy
+        while True:
+            self.px(x0, y0, color)
+            if x0 == x1 and y0 == y1:
+                break
+            twice = 2 * error
+            if twice >= dy:
+                error += dy
+                x0 += sx
+            if twice <= dx:
+                error += dx
+                y0 += sy
 
     def frame(self, x0: int, y0: int, x1: int, y1: int, light, dark) -> None:
         """A bevel: lit top/left edges, dark bottom/right."""
@@ -248,7 +269,7 @@ def make_corridor() -> Image:
             c.hline(x + 3, x + 30, y, LAB[2])
     for ex in (60, 236, 420):
         c.hline(ex, ex + 5, 141, RED[1])
-    return img
+    return dress_corridor(c)
 
 
 # --- The desk where the AI works -----------------------------------------------
@@ -370,6 +391,7 @@ def make_monitors() -> Image:
         c.fill(30, DESK_TOP - 9, 36, DESK_TOP - 1, GLASS[0])   # A mug
         c.frame(30, DESK_TOP - 9, 36, DESK_TOP - 1, GLASS[1], LAB[1])
         c.vline(37, DESK_TOP - 7, DESK_TOP - 4, GLASS[1])
+        dress_monitors(c, f)
     return img
 
 
@@ -379,10 +401,29 @@ ALARM_FRAMES = 8
 
 
 def cell(c: Canvas, cx: float, cy: float, rx: float, ry: float, spikes: int, frame: int) -> None:
-    c.disc(cx, cy, rx + 1, ry + 1, RED[4])                    # Membrane
-    c.disc(cx, cy, rx, ry, RED[2])
-    c.disc(cx - rx * 0.25, cy - ry * 0.25, rx * 0.55, ry * 0.5, RED[3])
-    c.disc(cx + rx * 0.15, cy + ry * 0.1, max(1.5, rx * 0.22), max(1.5, ry * 0.22), RED[5])  # Nucleus
+    # Uneven living membrane and shaded cytoplasm, seen through a microscope.
+    # Its folds follow the cell's volume instead of a flat disc with an outline.
+    for y in range(int(cy - ry) - 3, int(cy + ry) + 4):
+        for x in range(int(cx - rx) - 3, int(cx + rx) + 4):
+            dx, dy = (x + .5 - cx) / rx, (y + .5 - cy) / ry
+            angle = math.atan2(dy, dx)
+            radius = math.hypot(dx, dy)
+            edge = 1 + .055 * math.sin(angle * 5 + frame * .4) + .035 * math.cos(angle * 3)
+            if radius > edge + .08:
+                continue
+            if radius > edge - .06:
+                color = RED[4] if dx + dy < .15 else RED[3]
+            elif radius > edge - .17:
+                color = RED[1]
+            else:
+                color = RED[3] if (dx + .25) ** 2 + (dy + .3) ** 2 < .42 else RED[2]
+                if (x + y * 2) % 11 in (0, 1) and (x * 2 - y) % 7 < 2:
+                    color = rgb(0xc4603e) if dx + dy < 0 else RED[1]
+            c.px(x, y, color)
+    nx, ny = cx + rx * .12, cy + ry * .14
+    c.disc(nx, ny, max(2, rx * .3), max(2, ry * .28), RED[1])
+    c.disc(nx - .8, ny - .8, max(1.5, rx * .23), max(1.5, ry * .2), RED[4])
+    c.disc(nx - 1.1, ny - 1, max(1, rx * .10), max(1, ry * .09), RED[5])
     for k in range(spikes):                                    # Mutation: barbs pushing out
         a = k * 2 * math.pi / spikes + frame * 0.2
         for d in range(3):
@@ -400,15 +441,14 @@ def make_alarm() -> Image:
         x0, y0, x1, y1 = 14, 12, SCREEN_W - 15, SCREEN_H - 13
         c.fill(x0, y0, x1, y1, RED[0])
         c.frame(x0 - 1, y0 - 1, x1 + 1, y1 + 1, INK, LAB[3])
-        for y in range(y0, y1, 3):                             # Scanlines
-            c.hline(x0, x1, y, RED[1])
+        for y in range(y0 + 14, y1, 24):                       # Faint scientific grid
+            c.hline(x0, x1, y, rgb(0x260f0e))
         cx, cy, r = 160, 92, 56                                # The microscope's field
         c.disc(cx, cy, r + 2, r + 2, RED[3])
-        c.disc(cx, cy, r, r, RED[1])
-        for y in range(cy - r, cy + r, 3):
-            for x in range(cx - r, cx + r):
-                if (x - cx) ** 2 + (y - cy) ** 2 < r * r:
-                    c.px(x, y, RED[0])
+        c.disc(cx, cy, r, r, rgb(0x1c1012))
+        for y in range(cy - r, cy + r, 12):
+            half = int(math.sqrt(max(0, r * r - (y - cy) ** 2)))
+            c.hline(cx - half + 1, cx + half - 1, y, rgb(0x2a1515))
         # The cell divides and divides, then mutates
         if f == 0:
             cell(c, cx, cy, 14, 12, 0, f)
@@ -442,12 +482,14 @@ def make_alarm() -> Image:
             c.px(gx0 + 2 + k, y, RED[5] if k > 40 else RED[4])
         pct = str(min(99, 12 + f * 12)) + '%'
         c.text(gx0 + 54, gy1 - 6, pct, RED[4])
+        dress_alarm(c, f)
     return img
 
 
 # --- Mercenaries in silhouette --------------------------------------------------
 
 MERC_FRAME_W, MERC_FRAME_H = 81, 80
+MERC_BOB = (0, 0, 1, 0, 0, 0, 1, 0, 0, -1, -1, 0)
 
 
 def make_mercenary(assets: Path) -> Image:
@@ -470,9 +512,16 @@ def make_mercenary(assets: Path) -> Image:
         # A cold rim on his top and back edges from the emergency lights.
         if (x, y - 1) not in solid or ((x - 1, y) not in solid and (x, y - 2) not in solid):
             img.set(x, y, LAB[5] if (x, y - 1) not in solid else LAB[4])
-        # The flashlight's lens: bright pixels out on the gun, past his face
-        if lum[(x, y)] > 150 and x % MERC_FRAME_W > 52:
-            img.set(x, y, GLASS[3])
+    # Replace the source weapon AND its arms: stock into the shoulder, trigger
+    # hand at the grip and a forearm carrying the handguard. All move with the
+    # torso's stride/breath instead of a separate level weapon on top of it.
+    for f in range(w // MERC_FRAME_W):
+        c = Canvas(img, f * MERC_FRAME_W, MERC_FRAME_W)
+        bob = MERC_BOB[f]
+        c.fill(43, 23, 80, 43, CLEAR)
+        c.fill(34, 30 + bob, 44, 41 + bob, CLEAR)
+        c = Canvas(img, f * MERC_FRAME_W, MERC_FRAME_W, oy=bob)
+        side_rifle(c)
     from support_finishes import finish_mercenary
     return finish_mercenary(img, MERC_FRAME_W, LAB, GUN, GLASS, TEAL, INK, RIM)
 
@@ -484,6 +533,58 @@ FRONT_LENS = (67, 81)       # The flashlight's lens under his rifle, at rest (fr
 FRONT_MUZZLE = (54, 72)     # The rifle's bore, at rest
 GUN = [rgb(0x14171b), rgb(0x22272e), rgb(0x343b44), rgb(0x4e5864), rgb(0x76828e)]  # Gunmetal, a step lighter than him
 GLOVE = [rgb(0x0b0a09), rgb(0x16130f), rgb(0x24201a)]
+
+
+def side_rifle(c: Canvas) -> None:
+    """A level carbine with a stock, receiver, curved magazine and free barrel."""
+    # Far sleeve and forearm support the handguard from below.
+    poly(c, [(32, 30), (37, 29), (43, 34), (49, 36), (57, 33), (60, 36),
+             (49, 41), (41, 39), (33, 35)], INK)
+    poly(c, [(34, 31), (38, 31), (44, 36), (49, 38), (56, 35), (57, 37),
+             (49, 40), (41, 37)], LAB[2])
+    c.line(35, 31, 40, 34, LAB[3])
+    # Dark separators are part of the weapon, with narrow steel planes above.
+    poly(c, [(37, 28), (44, 27), (47, 29), (66, 27), (69, 28), (75, 28),
+             (75, 31), (65, 31), (63, 35), (54, 35), (52, 42), (47, 41),
+             (48, 35), (44, 35), (41, 33), (37, 34)], INK)
+    c.fill(38, 29, 43, 32, GUN[1])
+    c.hline(38, 42, 28, GUN[3])
+    c.vline(38, 29, 32, GUN[2])
+    c.fill(44, 29, 54, 33, GUN[2])
+    c.hline(44, 54, 29, GUN[4])
+    c.hline(47, 52, 31, GUN[0])
+    c.px(53, 32, GUN[4])
+    poly(c, [(49, 34), (53, 34), (52, 39), (50, 41), (47, 40)], GUN[1])
+    c.line(51, 35, 49, 39, GUN[3])
+    c.fill(55, 28, 64, 32, GUN[2])
+    c.hline(55, 64, 28, GUN[4])
+    for x in (56, 59, 62):
+        c.vline(x, 30, 31, GUN[0])
+    c.fill(65, 29, 74, 30, GUN[2])
+    c.hline(66, 73, 29, GUN[4])
+    c.vline(74, 28, 31, GUN[0])
+    c.fill(46, 25, 51, 27, INK)
+    c.hline(46, 50, 25, GUN[3])
+    c.px(50, 26, TEAL[2])
+    # Near arm crosses the stock into the pistol grip. Cloth occludes the
+    # stock's lower corner, fingers occlude the grip: these are one held pose.
+    poly(c, [(32, 29), (36, 29), (40, 33), (43, 37), (46, 33), (49, 34),
+             (45, 42), (41, 42), (35, 36)], INK)
+    poly(c, [(33, 30), (36, 31), (41, 37), (43, 39), (46, 35), (47, 36),
+             (44, 40), (41, 40), (36, 35)], LAB[2])
+    c.line(34, 31, 38, 35, LAB[3])
+    c.line(39, 38, 42, 40, LAB[1])
+    # Trigger hand and support hand sit below the receiver/handguard.
+    c.fill(43, 33, 46, 36, GLOVE[1])
+    c.hline(43, 46, 33, GLOVE[2])
+    c.px(46, 34, GLOVE[2])
+    c.fill(57, 33, 61, 35, GLOVE[1])
+    c.hline(57, 61, 33, GLOVE[2])
+    c.fill(64, 32, 71, 35, INK)
+    c.hline(65, 69, 32, GUN[3])
+    c.fill(65, 33, 69, 34, GUN[1])
+    c.vline(70, 32, 34, GLASS[2])
+    c.px(70, 33, rgb(0xfff3cf))
 
 
 def poly(c: Canvas, pts: list[tuple[float, float]], col) -> None:
@@ -571,34 +672,61 @@ def front_body(c: Canvas, lift: int, breathe: int) -> None:
     c.hline(87, 92, 70 + d, LAB[1])
     c.hline(24, 30, 54 + h, LAB[1])                                                          # Shoulder seams
     c.hline(80, 86, 54 + h, LAB[1])
-    # The rifle: stock in his shoulder, receiver and sight, the handguard
-    # coming down toward her, the muzzle nearest
-    poly(c, [(28, 54 + d), (36, 52 + d), (58, 66 + d), (60, 76 + d), (52, 78 + d), (30, 62 + d)], GUN[1])
-    poly(c, [(36, 52 + d), (58, 66 + d), (57, 68 + d), (34, 55 + d)], GUN[3])               # Its lit top edge
-    c.fill(38, 47 + d, 46, 52 + d, GUN[2])                                                   # Sight on its rail
-    c.hline(38, 46, 47 + d, GUN[4])
-    c.fill(39, 48 + d, 41, 50 + d, TEAL[1])                                                  # Its glass
-    c.px(39, 48 + d, TEAL[3])
-    poly(c, [(40, 64 + d), (46, 66 + d), (44, 80 + d), (38, 78 + d)], GUN[0])                # Magazine
-    c.vline(45, 67 + d, 78 + d, GUN[2])
-    for k in range(3):                                                                       # Vent slots on the handguard
-        c.fill(48 + k * 3, 66 + d + k * 2, 49 + k * 3, 67 + d + k * 2, GUN[0])
+    # A fabric sling passes behind the stock and down to his carrier.
+    poly(c, [(28, 51 + d), (31, 51 + d), (42, 90 + d), (39, 92 + d)], LAB[1])
+    c.line(29, 54 + d, 39, 88 + d, LAB[3])
+    # Three-quarter carbine. A full stock, box receiver and magazine distinguish
+    # it from the carrier. Its free barrel ends at the existing muzzle anchor.
+    poly(c, [(25, 51 + d), (34, 49 + d), (43, 55 + d), (48, 54 + d), (60, 66 + d),
+             (61, 74 + d), (54, 79 + d), (46, 73 + d), (43, 91 + d), (34, 87 + d),
+             (36, 70 + d), (25, 61 + d)], INK)
+    poly(c, [(27, 53 + d), (33, 51 + d), (41, 57 + d), (37, 63 + d), (27, 59 + d)], GUN[1])
+    c.line(28, 53 + d, 33, 52 + d, GUN[3])
+    c.line(33, 52 + d, 39, 57 + d, GUN[3])
+    c.line(27, 54 + d, 27, 59 + d, GUN[0])
+    poly(c, [(39, 57 + d), (45, 55 + d), (53, 62 + d), (47, 69 + d), (37, 64 + d)], GUN[2])
+    c.line(40, 57 + d, 45, 56 + d, GUN[4])
+    c.line(45, 56 + d, 52, 62 + d, GUN[4])
+    c.line(41, 60 + d, 47, 64 + d, GUN[0])
+    c.line(41, 61 + d, 46, 65 + d, GUN[3])
+    c.px(40, 64 + d, GUN[4])
+    # The magazine projects below the hand; two ribs show its curved volume.
+    poly(c, [(39, 68 + d), (46, 70 + d), (44, 80 + d), (41, 88 + d), (36, 86 + d)], GUN[1])
+    c.line(43, 72 + d, 41, 84 + d, GUN[3])
+    c.line(40, 72 + d, 38, 83 + d, GUN[2])
+    c.line(36, 86 + d, 41, 88 + d, GUN[3])
+    # Optic and toothed rail above the receiver.
+    poly(c, [(35, 50 + d), (39, 47 + d), (46, 51 + d), (43, 56 + d), (36, 53 + d)], GUN[0])
+    c.line(39, 48 + d, 45, 51 + d, GUN[4])
+    c.fill(38, 50 + d, 40, 51 + d, TEAL[2])
+    c.px(38, 50 + d, GLASS[2])
+    # Foreshortened handguard: a dark side and a lit upper face, inset vents.
+    poly(c, [(49, 60 + d), (54, 62 + d), (60, 68 + d), (55, 73 + d), (46, 66 + d)], GUN[2])
+    c.line(49, 60 + d, 54, 63 + d, GUN[4])
+    c.line(54, 63 + d, 58, 67 + d, GUN[3])
+    for x, y in ((49, 64), (52, 66), (55, 68)):
+        c.line(x, y + d, x + 1, y + 1 + d, GUN[0])
     mx, my = FRONT_MUZZLE[0], FRONT_MUZZLE[1] + d
-    c.disc(mx + 0.5, my + 0.5, 4.2, 4.6, GUN[0])                                             # The muzzle, end on
-    c.disc(mx + 0.5, my + 0.5, 3.2, 3.6, GUN[2])
-    c.disc(mx + 0.5, my + 0.5, 1.6, 1.8, INK)                                                # The bore, at her
+    c.disc(mx + 0.5, my + 0.5, 5.2, 5.2, INK)
+    c.disc(mx + 0.5, my + 0.5, 4.2, 4.2, GUN[3])
+    c.disc(mx + 1, my + 1, 3.1, 3.1, GUN[1])
+    c.disc(mx + 0.5, my + 0.5, 1.9, 1.9, INK)
+    c.hline(mx - 2, mx + 1, my - 4, GUN[4])
     lx, ly = FRONT_LENS[0], FRONT_LENS[1] + d
-    poly(c, [(lx - 10, ly - 6), (lx - 2, ly - 4), (lx - 2, ly + 4), (lx - 10, ly + 2)], GUN[1])  # The light's body
+    c.line(60, 73 + d, lx - 2, ly - 3, GUN[0])
+    c.line(60, 74 + d, lx - 3, ly - 2, GUN[3])
+    poly(c, [(lx - 6, ly - 7), (lx - 2, ly - 4), (lx - 2, ly + 4), (lx - 7, ly + 1)], GUN[1])
     c.disc(lx + 0.5, ly + 0.5, 4.2, 4.2, GUN[2])
     c.disc(lx + 0.5, ly + 0.5, 3, 3, GLASS[3])                                               # Its lens, burning
     c.disc(lx + 0.5, ly + 0.5, 1.8, 1.8, rgb(0xffffff))
     # Gloves on the grip and around the handguard
     c.fill(36, 68 + d, 42, 75 + d, GLOVE[1])
     c.hline(36, 42, 68 + d, GLOVE[2])
-    c.fill(52, 72 + d, 60, 77 + d, GLOVE[1])                                                 # (clear of the lens)
-    c.hline(52, 59, 72 + d, GLOVE[2])
+    # His support hand wraps the SIDE of the handguard, clear of the bore.
+    poly(c, [(61, 69 + d), (66, 72 + d), (65, 78 + d), (60, 79 + d), (59, 76 + d)], GLOVE[1])
+    c.line(62, 70 + d, 65, 73 + d, GLOVE[2])
     for k in range(3):
-        c.px(53 + k * 2, 74 + d, GLOVE[0])
+        c.hline(61, 64, 73 + k * 2 + d, GLOVE[0])
 
 
 def front_rim(c: Canvas) -> None:
@@ -741,13 +869,14 @@ def make_vial() -> Image:
 VAN_W, VAN_H, VAN_FRAMES = 72, 34, 4
 
 
-def wheel(c: Canvas, cx: int, cy: int, f: int) -> None:
+def wheel(c: Canvas, cx: int, cy: int) -> None:
+    """Resting wheel; continuous rotation is drawn by cine_wheel at runtime."""
     c.disc(cx + 0.5, cy + 0.5, 5, 5, TYRE[0])
     c.disc(cx + 0.5, cy + 0.5, 4, 4, TYRE[1])
     c.disc(cx + 0.5, cy + 0.5, 2.5, 2.5, TYRE[3])
     c.disc(cx + 0.5, cy + 0.5, 1.2, 1.2, TYRE[2])
-    for k in range(3):                                         # Lug nuts turning
-        a = k * 2 * math.pi / 3 + f * math.pi / 6
+    for k in range(3):
+        a = k * 2 * math.pi / 3
         c.px(cx + round(math.cos(a) * 2), cy + round(math.sin(a) * 2), TYRE[1])
     c.hline(cx - 3, cx + 3, cy - 5, TYRE[2])                   # The tyre's lit top
 
@@ -796,7 +925,7 @@ def make_ambulance() -> Image:
         c.fill(4, 27, 66, 27, TYRE[0])                         # Underside shadow
         for wx in (13, 57):                                    # Wheel arches
             c.disc(wx + 0.5, 27.5, 7, 5, TYRE[0])
-            wheel(c, wx, 28, f)
+            wheel(c, wx, 28)
         # Light bars: on the box's front corner and the cab, alternating
         lit_red = f % 2 == 0
         reds, blues = (SIREN_RED, SIREN_BLUE)
@@ -816,20 +945,37 @@ def make_ambulance() -> Image:
 
 
 def main() -> int:
-    assets = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'assets'
-    outputs = {
-        'cinematics/lab/corridor.png': make_corridor(),
-        'cinematics/lab/monitors.png': make_monitors(),
-        'cinematics/lab/alarm.png': make_alarm(),
-        'sprites/mercenary/walk.png': make_mercenary(assets),
-        'sprites/mercenary/aim.png': make_mercenary_front(),
-        'sprites/vial/held.png': make_vial(),
-        'sprites/ambulance/drive.png': make_ambulance(),
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('assets_dir', nargs='?', type=Path, default=ROOT / 'assets')
+    parser.add_argument('--only', nargs='+', choices=('lab', 'mercenary', 'vial', 'ambulance'))
+    parser.add_argument('--verify', action='store_true')
+    args = parser.parse_args()
+    groups = {
+        'lab': {'cinematics/lab/corridor.png': make_corridor,
+                'cinematics/lab/monitors.png': make_monitors,
+                'cinematics/lab/alarm.png': make_alarm},
+        'mercenary': {'sprites/mercenary/walk.png': lambda: make_mercenary(ROOT / 'assets'),
+                      'sprites/mercenary/aim.png': make_mercenary_front},
+        'vial': {'sprites/vial/held.png': make_vial},
+        'ambulance': {'sprites/ambulance/drive.png': make_ambulance},
     }
-    for name, image in outputs.items():
-        image.save(assets / name)
-        print(f'{name}: {image.width} x {image.height}')
-    return 0
+    outputs = {name: factory for group in (args.only or groups) for name, factory in groups[group].items()}
+    bad = []
+    with tempfile.TemporaryDirectory(prefix='themiracle-cinematics-') as temp:
+        for name, factory in outputs.items():
+            image = factory()
+            destination = Path(temp) / name if args.verify else args.assets_dir / name
+            image.save(destination)
+            if args.verify:
+                target = args.assets_dir / name
+                if not target.is_file() or target.read_bytes() != destination.read_bytes():
+                    bad.append(name)
+                    print('FALLO:', name)
+            else:
+                print(f'{name}: {image.width} x {image.height}')
+    if args.verify:
+        print(f'cinematics: {len(outputs)} sheets; {len(bad)} differences')
+    return bool(bad)
 
 
 if __name__ == '__main__':

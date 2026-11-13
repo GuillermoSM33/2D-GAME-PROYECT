@@ -246,6 +246,7 @@ int app_verify_assets(void)
         {"sprites/vial/held", 64, 100},
         {"sprites/mercenary/walk", 12 * PLAYER_SHOOT_FRAME_W, PLAYER_SHOOT_FRAME_H},
         {"sprites/mercenary/aim", 4 * 110, 130},
+        {"sprites/ambulance/drive", 4 * 72, 34},
     };
     for (size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++)
         failures += !verify_image(kit[i].name, kit[i].w, kit[i].h);

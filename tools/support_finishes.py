@@ -78,7 +78,9 @@ def finish_bird(image, kind):
 
 def finish_mercenary(image, width, lab, gun, glass, teal, ink, rim):
     cloth = [rgb(v) for v in (0x101816, 0x1c2823, 0x2a3930, 0x3b4a3d, 0x4e5c4b, 0x65715c)]
-    steel = [rgb(v) for v in (0x182522, 0x2c3b34, 0x48594c, 0x6c7b68, 0x96a18a)]
+    # Slate steel is lighter and cooler than the olive carrier. Keep the broad
+    # receiver face visible; reserve the brightest value for the rail and bore.
+    steel = [rgb(v) for v in (0x182023, 0x2c3737, 0x465658, 0x73817c, 0xa8ad96)]
     mapping = dict(zip(lab, cloth))
     mapping.update(zip(gun, steel))
     mapping.update(zip(glass, (rgb(0x203333), rgb(0x526b60), rgb(0x94aaa0), rgb(0xccd6bb))))

@@ -61,6 +61,8 @@ Mientras recarga puede caminar a media velocidad.
 `--capturas DIR` guarda pantallas como BMP para revisar el arte sin jugar: menús,
 combate, obstáculos, pausa, derrota, clima, farol, linterna y destello de explosión,
 además de las siete páginas completas del catálogo (`23_catalogo_01` a `23_catalogo_07`).
+El arte del laboratorio, el rifle de los mercenarios y las herramientas para
+trabajar las cinemáticas están en [docs/CINEMATICS.md](docs/CINEMATICS.md).
 `52_sheriff_rework`, `52_sheriff_disparo` y `52_sheriff_recarga_0` a `_7` muestran
 la sheriff y la recarga del revólver dentro del escenario.
 
