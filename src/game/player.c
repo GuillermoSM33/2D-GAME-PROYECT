@@ -457,8 +457,10 @@ int player_light_sway(const Player *player)
     static const int STRIDE[PLAYER_WALK_FRAMES] = {0, 0, 1, 0, 0, 0, 1, 0};
     if (player->state == PLAYER_IDLE)
         return BREATH[player_light_breath(player)];
-    if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && player->anim.frame < PLAYER_WALK_FRAMES)
-        return STRIDE[player->anim.frame];
+    if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && player->anim.frame < PLAYER_WALK_FRAMES) {
+        static const int SWAT_STRIDE[PLAYER_WALK_FRAMES] = {1, 0, 0, 1, 1, 0, 0, 1};
+        return player->light_dx > 0.0f ? SWAT_STRIDE[player->anim.frame] : STRIDE[player->anim.frame];
+    }
     return 0;
 }
 

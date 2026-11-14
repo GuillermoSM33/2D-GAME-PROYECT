@@ -21,11 +21,10 @@ the boots:
 The cowgirl's walk is drawn nearly from the front, so her upper half is her
 own walk frame 0 turned to the front: head and corset made symmetric, and
 her arms (grey puffed sleeves, bare forearms) hanging by her sides, hands on
-her thighs. The SWAT is drawn in profile, so his front (rounded helmet,
-goggles, ear cups, gaiter, vest with pouches, arms) is the template below,
-in his colors; reloading, his forearms reach from the elbows to the gun,
-the magazine or the pouch. The legs are drawn here for both in each one's
-trouser and boot colors. The gun on the lap is the in-play gun of
+her thighs. The SWAT uses his approved tactical bitmap in swat_sit.py,
+with the same helmet, mask and carrier as the standing poses; reloading,
+his forearms reach from the elbows to the gun, magazine or pouch. The legs
+use each character's trouser and boot colors. The gun on the lap is the in-play gun of
 assets/sprites/ui/weapons.png (run tools/make_ui.py first). Uses only the
 standard library.
 """
@@ -52,56 +51,7 @@ LAP_RISE = 6           # Rows the lap reaches up behind the torso
 FEET = 59              # Last row of the boots (the walk's)
 WEAPON_W, WEAPON_H = 36, 14
 
-# The SWAT from the front, left half (columns CX-14 .. CX-1); the right half
-# is its mirror. Row 0 lands on row 4 + DROP. Keys -> his colors below.
-SWAT_HALF = [
-    "........oooooo",
-    "......oo566666",
-    ".....o56677666",
-    "....o566776666",
-    "....o456666666",
-    "...o44oooooooo",
-    "...o4oabbcdeoo",
-    "...o3oaabbcooo",
-    "...o34oooooooo",
-    "...o3444444444",
-    "...o32oooooooo",
-    "...o3qp1oSSSSS",
-    "...o3rp1oTTTTT",
-    "...o3rp1oTTTTT",
-    "...o2qp1oTTTTS",
-    "....oo1ooSTTTT",
-    ".......ouvvvvv",
-    "...ooooouvvvvv",
-    "..oqqqoouuuuuu",
-    ".oqrrqpouvwwww",
-    ".oqrrqqpovwxxx",
-    ".o5qqp5oovwxyy",
-    ".o455621ovwxyz",
-    ".o455621ovxxxx",
-    ".o345521oooooo",
-    ".o345521oxyzxo",
-    ".o345521oxyyxo",
-    ".o344521owxxwo",
-    ".o234421oooooo",
-    "..o234ooouvwww",
-    "..oo2233ouvvvv",
-    "...o12233ouuuu",
-    "....oGGgGoggzz",
-    "....oGgGGGoGzz",
-    ".....ooooooooo",
-]
-SWAT_ELBOW_ROW = 29    # Template row of the elbows (column 4 and its mirror)
-# Reloading, the forearms leave the template: they reach for the gun.
-SWAT_HALF_RELOAD = SWAT_HALF[:30] + [
-    "...oooo.ouvvvv",
-    "........ouuuuu",
-    "........ogggzz",
-    "........oGGGzz",
-    "........oooooo",
-]
-SWAT_HEAD_ROWS = 16    # Template rows 0..15 nod with the head
-SWAT_BOTTOM = 52       # Frame row of the template's last row
+SEATED_ELBOW_ROW = 47
 # The cowgirl's walk is drawn nearly from the front: her sat front is its
 # upper half, her own pixels, so she keeps her art. Only her head is turned:
 # its rows are made symmetric about her face's middle (the columns left of
@@ -144,18 +94,6 @@ COWGIRL_WAIST_SKIN = 36        # From this walk row on, skin on her body is that
 COWGIRL_SKIN = {(0xfe, 0xdc, 0xa3), (0xd9, 0x9a, 0x5b), (0x89, 0x41, 0x1f), (0x8a, 0x43, 0x22)}
 COWGIRL_CORSET = rgb(0x2c363c)
 
-SWAT_COLORS = {
-    'o': rgb(0x140e0e),
-    '1': rgb(0x2e2426), '2': rgb(0x352929), '3': rgb(0x3e3233), '4': rgb(0x463733),
-    '5': rgb(0x4d3e3b), '6': rgb(0x594845), '7': rgb(0x6e5a52),
-    'a': rgb(0x3b4352), 'b': rgb(0x50596a), 'c': rgb(0x7d8794), 'd': rgb(0xb7bec8), 'e': rgb(0xeef3f8),
-    'S': rgb(0xb98f71), 'T': rgb(0xedc09e),
-    'u': rgb(0x323226), 'v': rgb(0x413f2f), 'w': rgb(0x494632), 'x': rgb(0x575338),
-    'y': rgb(0x65633d), 'z': rgb(0x807b4c),
-    'p': rgb(0x494649), 'q': rgb(0x615e5e), 'r': rgb(0x7f7b78),
-    'g': rgb(0x191313), 'G': rgb(0x271e1f),
-}
-
 # Trousers dark to light, boots dark to light, outline, gloves; and her guns:
 # (sheet, weapons.png frame, kind of reload).
 CHARS = {
@@ -168,16 +106,16 @@ CHARS = {
         'guns': [('sit', 0, 'revolver')],
     },
     'swat': {
-        'trousers': [rgb(0x271e1f), rgb(0x392c2b), rgb(0x4d3e3b)],
-        'boots': [rgb(0x140e0e), rgb(0x211919), rgb(0x352929)],
-        'ink': rgb(0x140e0e),
-        'hand': rgb(0x271e1f),
-        'sleeve': (rgb(0x4d3e3b), rgb(0x3e3233)),
-        'slim': 0,
+        'trousers': [rgb(c) for c in (0x29343b, 0x41494a, 0x697174)],
+        'boots': [rgb(c) for c in (0x252018, 0x29343b, 0x41494a)],
+        'ink': rgb(0x252018),
+        'hand': rgb(0x5d6870),
+        'sleeve': (rgb(0x697174), rgb(0x41494a)),
+        'slim': 1,
         'guns': [('sit', 1, 'rifle'), ('sit_shotgun', 2, 'shotgun')],
     },
 }
-RIFLE_MAGAZINE = (13, 18, 8)   # Its box on the rifle's icon: columns, first row
+RIFLE_MAGAZINE = (8, 12, 8)    # Updated receiver: columns and first magazine row on the icon
 SHELL = [rgb(0x8a2a1c), rgb(0xc84a32), rgb(0xf0c860)]
 
 
@@ -279,14 +217,6 @@ def upper(img: Image, ox: int, half: list, colors: dict, bottom: int, head_rows:
             put(img, ox, CX + 13 - i, y, c)
 
 
-def swat_upper(img: Image, ox: int, dy: int, nod: int, reloading: bool) -> None:
-    half = SWAT_HALF_RELOAD if reloading else SWAT_HALF
-    upper(img, ox, half, SWAT_COLORS, SWAT_BOTTOM, SWAT_HEAD_ROWS, dy, nod)
-    # The goggles' glint only on the left lens, as light from the top left.
-    top = SWAT_BOTTOM + 1 - len(SWAT_HALF)
-    put(img, ox, CX - 8, top + dy + 6 + nod, SWAT_COLORS['e'])
-
-
 def cowgirl_upper(img: Image, ox: int, walk: Image, dy: int, nod: int, arm: tuple) -> None:
     """Her walk frame 0's upper half centered on CX and turned to the front:
     the head symmetric from its left side (the long hair), the body from her
@@ -335,20 +265,20 @@ def cowgirl_upper(img: Image, ox: int, walk: Image, dy: int, nod: int, arm: tupl
 # the gun's icon, or 'pouch'), what it holds, the magazine's state.
 RELOAD_STEPS = {
     'rifle': [
-        {'hand': (21, 7)},                                   # On the handguard
-        {'hand': (14, 9)},                                   # On the magazine
-        {'hand': (14, 12), 'mag': 'pulled'},                 # Pulling it out
+        {'hand': (17, 7)},                                   # On the handguard
+        {'hand': (9, 9)},                                    # On the magazine
+        {'hand': (9, 12), 'mag': 'pulled'},                  # Pulling it out
         {'hand': 'pouch', 'mag': 'gone', 'hold': 'mag'},     # A fresh one from the vest
-        {'hand': (14, 11)},                                  # Pushed in
-        {'hand': (17, 2), 'jolt': True},                     # The charging handle: click
+        {'hand': (9, 11)},                                   # Pushed in
+        {'hand': (3, 3), 'jolt': True},                      # The charging handle: click
     ],
     'shotgun': [
-        {'hand': (20, 6)},                                   # On the pump
+        {'hand': (22, 6)},                                   # On the pump
         {'hand': 'pouch', 'hold': 'shell'},                  # A shell from the vest
-        {'hand': (14, 8), 'hold': 'shell'},                  # Into the loading port
+        {'hand': (13, 8), 'hold': 'shell'},                  # Into the loading port
         {'hand': 'pouch', 'hold': 'shell'},
-        {'hand': (14, 8), 'hold': 'shell'},
-        {'hand': (17, 6), 'jolt': True},                     # The pump racked back: click
+        {'hand': (13, 8), 'hold': 'shell'},
+        {'hand': (18, 6), 'jolt': True},                     # The pump racked back: click
     ],
     'revolver': [
         {},
@@ -412,8 +342,8 @@ def reload_step(img: Image, ox: int, weapons: Image, char: dict, gun: int, kind:
             put(img, ox, cx, cy, c)
 
     if 'sleeve' in char:                                     # His arms: one on the grip...
-        elbow_y = SWAT_BOTTOM + 1 - len(SWAT_HALF) + SWAT_ELBOW_ROW
-        grip = (gx + 9, gy + 8)
+        elbow_y = SEATED_ELBOW_ROW
+        grip = (gx + (3 if kind == 'rifle' else 6), gy + 8)
         spot = plan['hand']
         free = (CX + 1, LAP - 9) if spot == 'pouch' else (gx + spot[0], gy + spot[1])
         forearm((CX - 11, elbow_y), *grip)
@@ -532,11 +462,14 @@ def neckline_front(img: Image, ox: int, nod: int) -> None:
 
 
 def make_sit(name: str, gun: int, kind: str) -> Image:
+    if name == 'swat':
+        from swat_sit import make
+        return make(gun, kind)
     char = CHARS[name]
     weapons = load(ROOT / 'assets/sprites/ui/weapons.png')
     # Her walk with no arms: hers are drawn here, none of the swinging ones on her
-    walk = load(ROOT / 'assets/sprites/characters' / name / ('legs.png' if name == 'cowgirl' else 'walk.png'))
     if name == 'cowgirl':
+        walk = load(ROOT / 'assets/sprites/characters/cowgirl/legs.png')
         # Match dress()/landmarks(): the light face plane defines the body,
         # not the skin shadow two rows higher under the hat.
         face = min(y for y in range(walk.height) for x in range(42) if walk.get(x, y)[:3] == (0xfe, 0xdc, 0xa3))
@@ -548,13 +481,9 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
         nod = {10: 1, 11: 2, 12: 3, 13: 2}.get(f, 0)
         reloading = 4 <= f <= 9
         legs(out, ox, char, 1 if f == 0 else 0)
-        if name == 'swat':
-            swat_upper(out, ox, dy, nod, reloading)
-        else:
-            # Breathing in, her shoulders rise and open; out, they settle a
-            # row low; dozing, her arms sag with her head.
-            arm = {2: (1, 0), 3: (0, 1)}.get(f, (0, (nod + 1) // 2 if f >= 10 else 0))
-            cowgirl_upper(out, ox, walk, dy, nod, arm)
+        # Breathing in, her shoulders rise; dozing, the arms sag with her head.
+        arm = {2: (1, 0), 3: (0, 1)}.get(f, (0, (nod + 1) // 2 if f >= 10 else 0))
+        cowgirl_upper(out, ox, walk, dy, nod, arm)
         if reloading:
             reload_step(out, ox, weapons, char, gun, kind, f - 4)
         if name == 'cowgirl':
@@ -575,6 +504,9 @@ def main() -> int:
     for name, char in CHARS.items():
         for sheet_name, gun, kind in char['guns']:
             sheet = make_sit(name, gun, kind)
+            if name == 'swat':
+                from swat_materials import finish
+                finish(sheet)
             path = ROOT / 'assets/sprites/characters' / name / f'{sheet_name}.png'
             sheet.save(path)
             print(f'make_sit: {path.relative_to(ROOT)} ({sheet.width} x {sheet.height})')

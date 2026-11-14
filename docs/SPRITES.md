@@ -114,6 +114,11 @@ Los naranjas y amarillos (`#d03305`, `#e55d22`, `#fbaa38`, `#fff1a0`) son los de
 fogonazo y sirven para la bala.
 
 La ropa actual de la sheriff y sus materiales están en [CHARACTERS.md](CHARACTERS.md).
+El SWAT comparte ese acabado de materiales separados y reflejos discretos, con casco
+mate, uniforme y chaleco carbón, correas marrones y ópticas verdes. Las 28 hojas
+de `tools/rebuild_swat.py` combinan las [mangas pintadas y el porte del arma](templates/swat/authored_arms.md)
+con piernas animadas y ópticas comunes. Las fuentes grandes conservan su alfa;
+`tools/swat_authored.py` compone las poses principales en la cuadrícula nativa.
 La UI y los elementos de apoyo usan las rampas de `tools/ui_icons.py`: latón
 envejecido, hierro gris verdoso, madera terrosa, papel marfil y rojo apagado.
 Los reflejos más claros se reservan para detalles del material; no contornear

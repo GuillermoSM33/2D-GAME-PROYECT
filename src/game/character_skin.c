@@ -83,6 +83,7 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_walk[guns[g]] = own_sheet(character, def->walk_sheet);
             skin->weapon_jump[guns[g]] = own_sheet(character, def->jump_sheet);
             skin->weapon_stand[guns[g]] = own_sheet(character, def->stand_sheet);
+            skin->weapon_carry[guns[g]] = own_sheet(character, def->carry_sheet);
             skin->weapon_legs[guns[g]] = own_sheet(character, def->legs_sheet);
             skin->weapon_power[guns[g]] = own_sheet(character, def->power_sheet);
             skin->weapon_power_lit[guns[g]] = own_sheet(character, def->power_lit_sheet);

@@ -93,6 +93,13 @@ static void draw_drips(SDL_Renderer *renderer, const Player *player, float camer
     }
 }
 
+/* Each drawing joins its moving legs at its own belt. */
+static int walk_waist_row(const CharacterSkin *skin)
+{
+    return !skin->placeholder && skin->character && skin->character->walk_waist_row > 0
+               ? skin->character->walk_waist_row : PLAYER_WAIST_ROW;
+}
+
 /* Drinking or binding a wound: her own sheet for it (<id>/drink, <id>/bandage,
  * the shoot template). Walking meanwhile, the walk's legs below and it above
  * (for the bandage, down to her thigh). Returns whether it drew her. */
@@ -110,10 +117,10 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
     SDL_Texture *walk = walking ? skin_legs(skin, gun, skin_sheet(skin, walk_def->sheet, gun)) : NULL;
     int split = care->frame_h;
     if (walk) {
-        int waist = PLAYER_WAIST_ROW + (care->ground_y - walk_def->ground_y);
+        int waist = walk_waist_row(skin) + (care->ground_y - walk_def->ground_y);
         split = player->bandage > 0.0f ? waist + 8 : waist;
         tint(walk, player);
-        draw_rows(renderer, walk, walk_def, player->anim.frame, PLAYER_WAIST_ROW, walk_def->frame_h, player, camera_x);
+        draw_rows(renderer, walk, walk_def, player->anim.frame, walk_waist_row(skin), walk_def->frame_h, player, camera_x);
         untint(walk);
     }
     tint(sheet, player);
@@ -290,10 +297,10 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         }
         int split = light->frame_h;
         if (walking) {
-            split = PLAYER_WAIST_ROW + (light->ground_y - def->ground_y);
+            split = walk_waist_row(skin) + (light->ground_y - def->ground_y);
             SDL_Texture *under = skin_legs(skin, gun, sheet);
             tint(under, player);
-            draw_rows(renderer, under, def, frame, PLAYER_WAIST_ROW, def->frame_h, player, camera_x);
+            draw_rows(renderer, under, def, frame, walk_waist_row(skin), def->frame_h, player, camera_x);
             untint(under);
         }
         tint(light_sheet, player);
@@ -315,16 +322,16 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         /* Walking while reloading: the walk's legs below her waist, the
          * reload above it. Every sheet shares the ground row, so the waist is
          * the same height above it in both. */
-        int waist = PLAYER_WAIST_ROW + (def->ground_y - legs->ground_y);
+        int waist = walk_waist_row(skin) + (def->ground_y - legs->ground_y);
         tint(walk, player);
-        draw_rows(renderer, walk, legs, player->legs.frame, PLAYER_WAIST_ROW, legs->frame_h, player, camera_x);
+        draw_rows(renderer, walk, legs, player->legs.frame, walk_waist_row(skin), legs->frame_h, player, camera_x);
         untint(walk);
         tint(sheet, player);
         draw_rows(renderer, sheet, def, frame, 0, waist, player, camera_x);
         untint(sheet);
-        if (reloading && player->shot.piston && gun >= 0 && gun < WEAPON_COUNT) {
-            SDL_Texture *lower = player->shot.reload_other ? skin->weapon_reload_other_lower[gun]
-                                                          : skin->weapon_reload_lower[gun];
+        if (reloading && gun >= 0 && gun < WEAPON_COUNT) {
+            SDL_Texture *lower = player->shot.piston && player->shot.reload_other
+                                     ? skin->weapon_reload_other_lower[gun] : skin->weapon_reload_lower[gun];
             if (lower) {
                 tint(lower, player);
                 draw_rows(renderer, lower, def, frame, waist, def->frame_h, player, camera_x);
@@ -335,7 +342,16 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         draw_drips(renderer, player, camera_x);
         return;
     }
-    if (!draw_care(renderer, player, skin, gun, camera_x)) {
+    SDL_Texture *carry = gun >= 0 && gun < WEAPON_COUNT ? skin->weapon_carry[gun] : NULL;
+    int care_frame;
+    if (carry && !player->fainted && player_care_animation(player, &care_frame) == NULL &&
+        (player->state == PLAYER_IDLE || player->state == PLAYER_WALK || player->state == PLAYER_RUN)) {
+        int shown = player->state == PLAYER_IDLE ? PLAYER_WALK_FRAMES : player->anim.frame;
+        const AnimationDef *pose = player_melee_animation(); /* Same action pivot and ground row */
+        tint(carry, player);
+        draw_rows(renderer, carry, pose, shown, 0, pose->frame_h, player, camera_x);
+        untint(carry);
+    } else if (!draw_care(renderer, player, skin, gun, camera_x)) {
         tint(sheet, player);
         draw_rows(renderer, sheet, def, frame, 0, def->frame_h, player, camera_x);
         untint(sheet);

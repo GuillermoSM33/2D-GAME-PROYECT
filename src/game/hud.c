@@ -1333,11 +1333,19 @@ static void draw_card(SDL_Renderer *renderer, const CharacterSkin *skin, const P
     /* Stood still, in its own pose if it has one, else its walk's first frame; a little
      * smaller than in play. */
     SDL_Texture *walk = skin->stand_sheet ? skin->stand_sheet : skin->sheets[0];
+    SDL_Texture *carry = skin->weapon_carry[c->weapons[0]];
     int portrait_top = CARD_TOP + 2;
     if (walk) {
         SDL_Rect src = {0, 0, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H};
         SDL_Rect dst = {cx - PLAYER_WALK_FRAME_W * PORTRAIT_SCALE / 2, portrait_top,
                         PLAYER_WALK_FRAME_W * PORTRAIT_SCALE, PLAYER_WALK_FRAME_H * PORTRAIT_SCALE};
+        if (carry) {
+            walk = carry;
+            src = (SDL_Rect){PLAYER_WALK_FRAMES * PLAYER_SHOOT_FRAME_W, 0,
+                             PLAYER_SHOOT_FRAME_W, PLAYER_SHOOT_FRAME_H};
+            dst = (SDL_Rect){cx - (int)(31.5f * PORTRAIT_SCALE), portrait_top - 7 * PORTRAIT_SCALE,
+                             PLAYER_SHOOT_FRAME_W * PORTRAIT_SCALE, PLAYER_SHOOT_FRAME_H * PORTRAIT_SCALE};
+        }
         Uint8 shade = c->in_development ? 90 : selected ? 255 : 140;
         SDL_SetTextureColorMod(walk, shade, shade, shade);
         SDL_RenderCopy(renderer, walk, &src, &dst);

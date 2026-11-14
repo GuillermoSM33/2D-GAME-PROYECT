@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
-"""Make the SWAT's sheets from his drawing.
+"""Make all 23 SWAT sheets in the sheriff's compact pixel-art style.
 
 Usage: tools/make_swat.py
 
-docs/templates/swat/walk_source.png is his hand-drawn walk; it is the walk
-sheet as is. The jump is made of its whole frames, raised, lowered and with
-the legs folded on the cowgirl's timing. The shoot frames are frame 0 without
-its arm, with arms (shoulder-elbow-hand) holding a gun drawn here, plus the
-muzzle flash. Everything follows the cowgirl's template (docs/CHARACTERS.md):
+docs/templates/swat/game_style_walk.png is the compact eight-frame walk.
+The original frames supply the legs. Idle, walking and aiming share one
+body, neck and helmet; the upper half moves together with each footfall.
+The same sleeves hang relaxed or hold the gun. Everything follows the cowgirl's template (docs/CHARACTERS.md):
 same frames, pivots, ground rows and muzzle.
 
-Writes assets/sprites/characters/swat/walk.png, jump.png, shoot.png (rifle),
-shoot_shotgun.png, and the magazine reloads reload.png (rifle) and
-reload_shotgun.png, and his grenade throw (level 3) throw.png. Uses only the
-standard library.
+The command delegates to rebuild_swat.py, including sitting, fainting,
+planting dynamite and walking with either flashlight. Standard library only.
 """
 from __future__ import annotations
 
 import math
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from embed_assets import decode_png_rgba  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+from swat_materials import CLOTH, GLOVE  # noqa: E402
+from swat_body import FAR_SHOULDER, NEAR_SHOULDER, WAIST, UPPER_ARM, FOREARM, proportions  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / 'docs/templates/swat/walk_source.png'
+SOURCE = ROOT / 'docs/templates/swat/game_style_walk.png'
+BODY_SOURCE = ROOT / 'docs/templates/swat/game_style_body.png'
 OUT_DIR = ROOT / 'assets/sprites/characters/swat'
 
-INK = rgb(0x140e0e)  # Outline
-SLEEVE = [rgb(0x2e2426), rgb(0x3e3233), rgb(0x4d3e3b), rgb(0x594845)]
-SLEEVE_FAR = [rgb(0x211919), rgb(0x2e2426), rgb(0x392c2b), rgb(0x3e3233)]
-PAD = [rgb(0x494649), rgb(0x615e5e), rgb(0x7f7b78)]
-PATCH = [rgb(0x795f4f), rgb(0xb98f71)]
+INK = rgb(0x252018)
+SLEEVE = [rgb(c) for c in (0x29343b, 0x41494a, 0x5d6870, 0x697174)]
+SLEEVE_FAR = [rgb(c) for c in (0x252018, 0x29343b, 0x41494a, 0x5d6870)]
+PAD = [rgb(c) for c in (0x29343b, 0x5d6870, 0x77807b)]
 SKIN = [rgb(0xb98f71), rgb(0xedc09e)]
 SHELL = [rgb(0xb83c28), rgb(0xe8684a), rgb(0xf0c860)]  # Red hull, its light, brass base
 METAL = {'1': rgb(0x2c2c2c), '2': rgb(0x424242), '3': rgb(0x505050), '4': rgb(0x868689),
@@ -117,14 +117,16 @@ def ik(start: tuple, end: tuple, l1: float, l2: float, bend: int) -> tuple:
     hanging limb (elbows), -1 ahead of it (knees)."""
     dx, dy = end[0] - start[0], end[1] - start[1]
     d = max(1e-3, math.hypot(dx, dy))
-    reach = min(d, l1 + l2 - 0.05)
+    if d > l1 + l2 + 1e-6 or d < abs(l1 - l2) - 1e-6:
+        raise ValueError(f'Unreachable arm target: {start} -> {end}, length {d:.3f}')
+    reach = d
     a = (l1 * l1 - l2 * l2 + reach * reach) / (2 * reach)
     k = math.sqrt(max(0.0, l1 * l1 - a * a))
     ux, uy = dx / d, dy / d
     return (start[0] + a * ux - bend * k * uy, start[1] + a * uy + bend * k * ux)
 
 
-LIGHT = (0.55, -0.83)  # From the front and above, like the drawing's highlights
+LIGHT = (-0.55, -0.83)  # The sheriff's fixed upper-left light
 
 
 def tube(layer: Layer, a: tuple, b: tuple, r: float, ramp: list) -> None:
@@ -163,134 +165,95 @@ def square(layer: Layer, x: int, y: int, w: int, h: int, top: tuple, rest: tuple
             layer.put(x + dx, y + dy, top if dy == 0 else rest)
 
 
-def arm(shoulder: tuple, hand: tuple, near: bool, upper: float = 7.0, fore: float = 7.0) -> Layer:
-    """Sleeve and bare hand; the near arm also has the shoulder pad and patch."""
+def arm(shoulder: tuple, hand: tuple, near: bool, upper: float = UPPER_ARM, fore: float = FOREARM,
+        elbow: tuple = None) -> Layer:
+    """The same fitted sleeve in relaxed, walking and weapon poses."""
     lay = Layer()
-    elbow = ik(shoulder, hand, upper, fore, 1)
+    elbow = elbow if elbow is not None else ik(shoulder, hand, upper, fore, 1)
+    lay.joints = (shoulder, elbow, hand)
     ramp = SLEEVE if near else SLEEVE_FAR
-    tube(lay, shoulder, elbow, 2.3, ramp)
-    tube(lay, elbow, hand, 2.0, ramp)
-    hx, hy = round(hand[0]), round(hand[1])
-    for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1), (-1, 0), (-1, 1)):
-        lay.put(hx + dx, hy + dy, SKIN[1] if dy == 0 and dx >= 0 else SKIN[0])
+    # Use the sheriff's continuous sleeve stroke and blend the shoulder into
+    # the carrier, rather than outlining two long tubes over the chest.
+    from cowgirl_arm import arm_limb, glove, SLEEVE as TAGS, GLOVE as HAND_TAGS, INK as EDGE
+    shades = dict(zip(TAGS, (ramp[3], ramp[2], ramp[0])))
+    shades[EDGE] = INK
+    sleeve = arm_limb(shoulder, elbow, hand, shoulder_radius=2.6, wrist_radius=1.9)
+    lay.px.update({p: shades.get(c, c) for p, c in sleeve.items()})
+    hand_colors = dict(zip(HAND_TAGS, (GLOVE[1], GLOVE[0])))
+    hand_colors[EDGE] = INK
+    lay.px.update({p: hand_colors.get(c, c) for p, c in glove(hand, elbow, radius=1.85).items()})
     if near:
-        block(lay, round(shoulder[0]), round(shoulder[1]) - 1, 5, 3, PAD)
+        block(lay, round(shoulder[0] + .18 * (elbow[0] - shoulder[0])),
+              round(shoulder[1] + .18 * (elbow[1] - shoulder[1])), 4, 3, PAD)
+        # A fabric patch and articulated elbow guard move with the sleeve.
         square(lay, round(shoulder[0] + (elbow[0] - shoulder[0]) * 0.55),
-               round(shoulder[1] + (elbow[1] - shoulder[1]) * 0.55), 2, 2, PATCH[1], PATCH[0])
-    return lay.outlined()
+               round(shoulder[1] + (elbow[1] - shoulder[1]) * 0.55), 2, 1, PAD[1], PAD[0])
+        block(lay, round(elbow[0]), round(elbow[1]), 3, 3, [CLOTH[0], CLOTH[1], CLOTH[2]])
+    # The sheriff's stroke suppresses the outline at the shoulder to blend
+    # into her jacket. Close only the edges outside this carrier's silhouette,
+    # so a raised sleeve cannot leave a pale tab floating beside the neck.
+    joint = NEAR_SHOULDER if near else FAR_SHOULDER
+    ox, oy = shoulder[0] - joint[0], shoulder[1] - joint[1]
+    body = standing_body()
+    edge = {}
+    for x, y in lay.px:
+        if math.hypot(x - shoulder[0], y - shoulder[1]) > 4:
+            continue
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            p = (x + dx, y + dy)
+            if p not in lay.px and not body.get(round(p[0] - ox), round(p[1] - oy))[3]:
+                edge[p] = INK
+    edge.update(lay.px)
+    lay.px = edge
+    return lay
 
 
-def hand(at: tuple) -> Layer:
+def hand(at: tuple, coming_from: tuple = None) -> Layer:
     """The far hand alone, on the handguard in front of the gun."""
     lay = Layer()
-    square(lay, round(at[0]), round(at[1]), 2, 2, SKIN[1], SKIN[0])
-    return lay.outlined()
+    from cowgirl_arm import glove, GLOVE as TAGS, INK as EDGE
+    if coming_from is None:
+        joint = FAR_SHOULDER[0] + SHOOT_SHIFT[0], FAR_SHOULDER[1] + SHOOT_SHIFT[1]
+        coming_from = ik(joint, at, UPPER_ARM, FOREARM, 1)
+    shades = dict(zip(TAGS, (GLOVE[1], GLOVE[0])))
+    shades[EDGE] = INK
+    lay.px.update({p: shades.get(c, c) for p, c in glove(at, coming_from, radius=1.85).items()})
+    return lay
 
 
 # --- His body -----------------------------------------------------------------
 
-# Joints on the walk frame (frame 0 of the drawing), for the arms that hold the gun.
-NEAR_SHOULDER = (16.5, 27.5)
-FAR_SHOULDER = (26.5, 27.5)
-PANTS_FILL = rgb(0x2e2426)  # Thigh under the hand that is taken away
-BACK = [rgb(0x271e1f), rgb(0x323226)]  # Back of the vest, under the sleeve
-
-
-# --- Face and visor detail ------------------------------------------------------
-
-HELMET_EDGE = rgb(0x271e1f)
-LENS = [rgb(0x3b4352), rgb(0x50596a), rgb(0x7d8794), rgb(0xb7bec8), rgb(0xeef3f8)]
-FACE_ROWS = range(14, 27)  # Below the helmet, above the shoulders (skin lower down is the hands)
-
-
-def detail_head(source: Image) -> None:
-    """On every frame: the visor's lens shaded top to bottom with one glint at
-    the same spot of the lens (the drawing's glint moves from frame to frame),
-    and the face with the cheek in shadow at the back and the jaw shaded."""
-    glass = {c[:3] for c in LENS[1:4]}
-    skin_keys = {c[:3] for c in SKIN}
-    for i in range(source.width // WALK_W):
-        ox = i * WALK_W
-
-        def pixels(rows, keys):
-            return {(x, y) for y in rows for x in range(ox, ox + WALK_W)
-                    if source.get(x, y)[3] and source.get(x, y)[:3] in keys}
-
-        drawn = pixels(range(20), glass)
-        lens = largest_patch(drawn)
-        for x, y in drawn - lens:  # Blue strips off the lens, past the helmet's edge
-            source.set(x, y, HELMET_EDGE)
-        if lens:
-            x0 = min(x for x, _ in lens)
-            y0, y1 = min(y for _, y in lens), max(y for _, y in lens)
-            for x, y in lens:
-                c = LENS[2] if y == y0 else LENS[0] if y == y1 or x == x0 else LENS[1]
-                source.set(x, y, c)
-            for (x, y), c in (((x0 + 4, y0), LENS[4]), ((x0 + 3, y0 + 1), LENS[3]),
-                              ((x0 + 4, y0 + 1), LENS[3]), ((x0 + 2, y0 + 2), LENS[2])):
-                if (x, y) in lens:
-                    source.set(x, y, c)
-        face = pixels(FACE_ROWS, skin_keys)
-        if not face:
-            continue
-        bottom = max(y for _, y in face)
-        for x, y in face:
-            row = [fx for fx, fy in face if fy == y]
-            if x == min(row) or (y == bottom and x < max(row)):
-                source.set(x, y, SKIN[0])
-
-
-def largest_patch(points: set) -> set:
-    """The biggest group of touching points: the lens, without stray pixels."""
-    best: set = set()
-    left = set(points)
-    while left:
-        todo = [left.pop()]
-        patch = set(todo)
-        while todo:
-            x, y = todo.pop()
-            for n in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-                if n in left:
-                    left.remove(n)
-                    patch.add(n)
-                    todo.append(n)
-        if len(patch) > len(best):
-            best = patch
-    return best
+# Rig landmarks live in swat_body.py; the full torso is BODY_SOURCE.
 
 
 def frame(source: Image, i: int) -> Image:
     return crop(source, i * WALK_W, 0, (i + 1) * WALK_W, WALK_H)
 
 
-def without_arm(f0: Image) -> Image:
-    """Frame 0 of the drawing without its near arm: the shoot frames draw the
-    arms holding the gun."""
-    body = Image(WALK_W, WALK_H)
-    for y in range(WALK_H):
-        for x in range(WALK_W):
-            c = f0.get(x, y)
-            if not c[3]:
-                continue
-            if 24 <= y <= 37 and x <= 17:   # Sleeve, in front of the torso
-                continue
-            if 38 <= y <= 41 and x <= 12:   # Hand reaching past the thigh
-                continue
-            if 38 <= y <= 41 and c[:3] in (SKIN[0][:3], SKIN[1][:3]):
-                c = PANTS_FILL
-            body.set(x, y, c)
-    # The sleeve hid the back: fill it in, sloping from the shoulder to the hip.
-    for y in range(26, 38):
-        back = round(14 - (y - 26) / 11)
-        for x in range(back, 18):
-            if not body.get(x, y)[3]:
-                body.set(x, y, BACK[0] if x == back else BACK[1])
-    # Close the cut with outline.
-    for y in range(24, 42):
-        for x in range(1, WALK_W):
-            if body.get(x, y)[3] and not body.get(x - 1, y)[3]:
-                body.set(x - 1, y, INK)
-    return body
+def load_source() -> Image:
+    return load(SOURCE)
+
+
+@lru_cache(maxsize=1)
+def _body() -> Image:
+    source = load(BODY_SOURCE)
+    # A fragment of the old hanging shoulder was included in the head crop.
+    # It is outside the neck and belongs to the sleeve now drawn by the rig.
+    for y in range(24, 28):
+        for x in range(13):
+            source.set(x, y, (0, 0, 0, 0))
+    # Restore the side fabric removed with the old source sleeve. This small
+    # ribcage plane stays behind the arm in every pose, including aiming.
+    for y, left in enumerate((12, 11, 11, 11, 11, 12, 12, 12, 12, 13), 28):
+        for x in range(left, 14):
+            source.set(x, y, INK if x == left else CLOTH[0] if x == left + 1 else CLOTH[1])
+    from swat_optics import mount
+    return mount(proportions(source))
+
+
+def standing_body(source: Image = None) -> Image:
+    """Shared anatomical torso, with the same relaxed legs as the idle pose."""
+    return _body()
 
 
 # --- Jump -----------------------------------------------------------------------
@@ -363,57 +326,57 @@ def rifle(magazine: bool = True) -> tuple[dict, tuple, tuple]:
     Pixels (METAL keys), grip and handguard, in gun coordinates (x along the
     barrel); without the magazine while it is being changed."""
     t: dict = {}
-    rect(t, 0, 2, 4, 3, '1')          # Folded stock
-    rect(t, 0, 4, 1, 5, '1')
-    rect(t, 5, 1, 16, 5, '2')         # Receiver
-    rect(t, 5, 1, 16, 1, '3')
-    rect(t, 5, 5, 16, 5, '1')
-    rect(t, 8, -1, 13, 0, '1')        # Optic
-    t[(12, -1)] = '4'
-    t[(13, -1)] = '5'
-    rect(t, 7, 6, 8, 7, '1')          # Grip
-    t[(6, 8)] = t[(7, 8)] = '1'
+    rect(t, -7, 2, -3, 3, '1')        # Stock meets the shoulder, not the wrist
+    rect(t, -7, 4, -6, 7, '1')       # Butt seated against the shoulder pocket
+    rect(t, -1, 1, 10, 5, '2')        # Receiver sits over the broad chest
+    rect(t, -1, 1, 10, 1, '3')
+    rect(t, -1, 5, 10, 5, '1')
+    rect(t, 2, -1, 7, 0, '1')         # Optic
+    t[(6, -1)] = '4'
+    t[(7, -1)] = '5'
+    rect(t, -1, 6, 0, 7, '1')         # Trigger behind the receiver, below the cheek
+    t[(-2, 8)] = t[(-1, 8)] = '1'
     if magazine:
-        rect(t, 11, 6, 13, 8, '2')    # Magazine
-        rect(t, 12, 9, 14, 9, '2')
-        t[(11, 6)] = '3'
-    rect(t, 17, 2, 23, 4, '1')        # Handguard
-    rect(t, 17, 2, 23, 2, '2')
+        rect(t, 5, 6, 7, 8, '2')      # Magazine
+        rect(t, 6, 9, 8, 9, '2')
+        t[(5, 6)] = '3'
+    rect(t, 11, 2, 23, 4, '1')        # Handguard
+    rect(t, 11, 2, 23, 2, '2')
     rect(t, 24, 3, 28, 3, '2')        # Barrel
     rect(t, 26, 2, 27, 4, '1')        # Muzzle brake
-    for x in (7, 8, 9):               # Highlight stroke
+    for x in (1, 2, 3):               # Highlight stroke
         t[(x, 1)] = '4'
-    t[(10, 1)] = '5'
+    t[(4, 1)] = '5'
     mounted_light(t)
     t.update(BAYONET)
-    return t, (7.5, 6.5), (20.0, 4.5)
+    return t, (-.5, 6.5), (13.5, 4.5)
 
 
 def shotgun(pump_back: int = 0) -> tuple[dict, tuple, tuple]:
     """Pump shotgun: full stock, long barrel over the tube, ribbed pump
     (pump_back px toward the stock while it is racked)."""
     t: dict = {}
-    rect(t, -3, 3, 4, 5, 'b')         # Stock
-    rect(t, -3, 2, 1, 2, '1')
-    rect(t, -4, 3, -4, 6, '1')
-    rect(t, -3, 6, 0, 6, 'b')
-    rect(t, 5, 2, 12, 5, '2')         # Receiver
-    rect(t, 5, 2, 12, 2, '3')
-    rect(t, 5, 5, 12, 5, '1')
-    rect(t, 5, 6, 6, 7, 'b')          # Grip
-    t[(4, 8)] = t[(5, 8)] = 'b'
-    rect(t, 13, 2, 28, 3, '2')        # Barrel
-    rect(t, 13, 2, 28, 2, '3')
-    rect(t, 13, 4, 24, 4, '1')        # Magazine tube
-    rect(t, 15 - pump_back, 4, 21 - pump_back, 5, 'b')  # Pump
-    for x in (16, 18, 20):
+    rect(t, -9, 3, -3, 5, 'b')        # Stock seated against shoulder
+    rect(t, -9, 2, -5, 2, '1')
+    rect(t, -10, 3, -10, 6, '1')
+    rect(t, -9, 6, -6, 6, 'b')
+    rect(t, -2, 2, 7, 5, '2')         # Receiver
+    rect(t, -2, 2, 7, 2, '3')
+    rect(t, -2, 5, 7, 5, '1')
+    rect(t, -3, 6, -2, 7, 'b')       # Grip
+    t[(-4, 8)] = t[(-3, 8)] = 'b'
+    rect(t, 8, 2, 28, 3, '2')         # Barrel
+    rect(t, 8, 2, 28, 2, '3')
+    rect(t, 8, 4, 24, 4, '1')         # Magazine tube
+    rect(t, 11 - pump_back, 4, 17 - pump_back, 5, 'b')  # Pump
+    for x in (12, 14, 16):
         t[(x - pump_back, 5)] = '1'
     t[(27, 1)] = '4'                  # Bead sight
-    for x in (7, 8, 9):
+    for x in (1, 2, 3):
         t[(x, 2)] = '4'
     t[(16, 2)] = t[(17, 2)] = '5'
     mounted_light(t)
-    return t, (5.5, 6.5), (18.0 - pump_back, 5.0)
+    return t, (-2.5, 6.5), (14.0 - pump_back, 5.0)
 
 
 def gun_layer(gun: dict, angle: float, pivot: tuple, at: tuple):
@@ -474,23 +437,23 @@ def flash_layer(rows: list[str]) -> Layer:
     return lay
 
 
-def make_shoot(body: Image, gun_def, flash: list[str], kick: int) -> Image:
+def shoot_frames(body: Image, gun_def, flash: list[str], kick: int):
+    """One pose definition for the full sprite, separated art and joint checks."""
     gun, grip, guard = gun_def
     # Aimed (frames 3 and 4): the muzzle on its mark. The other frames turn
     # the gun about the grip: raised from low ready, recoil, lowered.
     aimed = (MUZZLE[0] - (MUZZLE_LOCAL[0] - grip[0]), MUZZLE[1] - (MUZZLE_LOCAL[1] - grip[1]))
     poses = [  # Angle, grip offset
-        (-50, (-3, 5)),                       # 0 Low ready
-        (-32, (-2, 3)),                       # 1 Raising
-        (-12, (-1, 1)),                       # 2
+        (-35, (-2, 8)),                       # 0 Low ready, forearms away from the collar
+        (-22, (-1, 5)),                       # 1 Raising
+        (-8, (0, 2)),                         # 2
         (0, (0, 0)),                          # 3 Aim
         (0, (0, 0)),                          # 4 Fire
-        (14 + 4 * (kick - 2), (-kick, -1)),   # 5 Recoil
-        (6, (-1, 0)),                         # 6 Settling, held while reloading
-        (-30, (-2, 3)),                       # 7 Lowering
+        (6 + 3 * (kick - 2), (-kick, -1)),    # 5 The shoulder absorbs recoil
+        (0, (-1, 0)),                         # 6 Settling level at the shoulder
+        (-10, (-1, 1)),                       # 7 A small lowering step, without an elbow snap
     ]
     sx, sy = SHOOT_SHIFT
-    sheet = Image(SHOOT_W * FRAMES, SHOOT_H)
 
     def at(p: tuple) -> tuple:
         return (p[0] + sx, p[1] + sy)
@@ -504,16 +467,20 @@ def make_shoot(body: Image, gun_def, flash: list[str], kick: int) -> Image:
             g = (aimed[0] + gx, aimed[1] + gy)
         h = to_frame(guard)
         near_hand, far_hand = (g[0] - 0.5, g[1] - 0.5), (h[0] - 0.5, h[1] - 0.5)
-        parts = [
-            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
-            (body, sx, sy),
-            layer,
-            hand(far_hand),
-            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
-        ]
+        far_arm = arm(at(FAR_SHOULDER), far_hand, near=False)
+        near_arm = arm(at(NEAR_SHOULDER), near_hand, near=True)
+        weapon_parts = [layer, hand(far_hand, far_arm.joints[1])]
         if i == 4:
-            parts.append(flash_layer(flash))
-        paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
+            weapon_parts.append(flash_layer(flash))
+        weapon = compose(SHOOT_W, SHOOT_H, weapon_parts)
+        posed = compose(SHOOT_W, SHOOT_H, [far_arm, (body, sx, sy), (weapon, 0, 0), near_arm])
+        yield posed, near_arm, far_arm, weapon
+
+
+def make_shoot(body: Image, gun_def, flash: list[str], kick: int) -> Image:
+    sheet = Image(SHOOT_W * FRAMES, SHOOT_H)
+    for i, (posed, _, _, _) in enumerate(shoot_frames(body, gun_def, flash, kick)):
+        paste(sheet, posed, i * SHOOT_W, 0)
     return sheet
 
 
@@ -521,7 +488,7 @@ def make_shoot(body: Image, gun_def, flash: list[str], kick: int) -> Image:
 
 # Where the near hand fetches a new magazine or shells: the vest's pouches, on
 # the walk frame.
-POUCH_AT = (22.0, 38.0)
+POUCH_AT = (20.0, 41.0)
 
 
 def magazine_layer(at: tuple) -> Layer:
@@ -547,7 +514,7 @@ def shell_layer(at: tuple) -> Layer:
     return lay.outlined()
 
 
-def make_reload(body: Image, kind: str) -> Image:
+def make_reload(body: Image, kind: str, lower_only: bool = False) -> Image:
     """8 frames over the gun's magazine reload (shoot.c), from the recoil's
     settled pose back to ready. The far hand keeps the gun up by the
     handguard; the near hand does the work. Rifle: magazine out, a new one
@@ -561,8 +528,8 @@ def make_reload(body: Image, kind: str) -> Image:
     pouch = at(POUCH_AT)
     base_grip = rifle()[1] if kind == 'rifle' else shotgun()[1]
     if kind == 'rifle':
-        well = (12.0, 7.0)    # Magazine well, gun coordinates
-        handle = (6.0, 1.0)   # Charging handle
+        well = (6.0, 7.0)     # Magazine well, gun coordinates
+        handle = (0.0, 1.0)   # Charging handle
         # Angle, magazine in the gun, near hand on ('gun', point) or at
         # ('frame', point), what it holds.
         frames = [
@@ -576,7 +543,7 @@ def make_reload(body: Image, kind: str) -> Image:
             (-8, True, ('gun', base_grip), None),
         ]
     else:
-        port = (11.0, 6.0)    # Loading port, under the receiver
+        port = (5.0, 6.0)     # Loading port, under the receiver
         # Angle, pump back, near hand, what it holds.
         frames = [
             (-12, 0, ('gun', base_grip), None),
@@ -599,18 +566,27 @@ def make_reload(body: Image, kind: str) -> Image:
         g = to_frame(point) if space == 'gun' else point
         near_hand = (g[0] - 0.5, g[1] - 0.5)
         parts = [
-            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
+            arm(at(FAR_SHOULDER), far_hand, near=False),
             (body, sx, sy),
             layer,
             hand(far_hand),
-            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+            arm(at(NEAR_SHOULDER), near_hand, near=True),
         ]
         # In front of the hand, or the fist hides it.
         if held == 'mag':
             parts.append(magazine_layer(near_hand))
         elif held == 'shell':
             parts.append(shell_layer(near_hand))
-        paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
+        if lower_only:
+            # Keep the moving hands, magazine and shells over the animated
+            # thighs, without reintroducing the standing body's legs.
+            parts = [part for part in parts if not isinstance(part, tuple)]
+            posed = compose(SHOOT_W, SHOOT_H, parts)
+            seam = (WAIST + sy) * SHOOT_W
+            posed.px[:seam] = [(0, 0, 0, 0)] * seam
+        else:
+            posed = compose(SHOOT_W, SHOOT_H, parts)
+        paste(sheet, posed, i * SHOOT_W, 0)
     return sheet
 
 
@@ -650,22 +626,22 @@ def make_throw(body: Image) -> Image:
 
     # Near hand, far hand, grenade in hand, ring in the far hand (walk-frame points).
     poses = [
-        ((22, 35), (27, 35), True, False),
-        ((22, 35), (32, 30), True, True),
-        ((10, 25), (31, 31), True, True),
-        ((11, 17), (31, 32), True, False),
-        ((29, 20), (30, 34), False, False),
-        ((30, 32), (29, 37), False, False),
-        ((25, 39), (28, 39), False, False),
-        ((21, 41), (27, 40), False, False),
+        ((19, 30), (25, 30), True, False),
+        ((19, 30), (29, 27), True, True),
+        ((8, 22), (27, 28), True, True),
+        ((9, 14), (27, 29), True, False),
+        ((28, 22), (26, 31), False, False),
+        ((27, 29), (25, 35), False, False),
+        ((21, 36), (24, 37), False, False),
+        ((16, 38), (23, 38), False, False),
     ]
     sheet = Image(SHOOT_W * FRAMES, SHOOT_H)
     for i, (near, far, holding, ring) in enumerate(poses):
         near_hand, far_hand = at(near), at(far)
         parts = [
-            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
+            arm(at(FAR_SHOULDER), far_hand, near=False),
             (body, sx, sy),
-            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+            arm(at(NEAR_SHOULDER), near_hand, near=True),
         ]
         if holding:
             parts.append(grenade_layer(near_hand))
@@ -677,6 +653,29 @@ def make_throw(body: Image) -> Image:
     return sheet
 
 
+
+
+def fitted_hold(place, angle, grip, guard):
+    """Move a raised melee weapon as a rigid piece into both arms' reach.
+
+    Aiming/fire stay on the fixed muzzle. Only the free melee swing needs
+    this constraint: stretching a forearm to meet an overhead gun is invalid.
+    """
+    a = math.radians(angle)
+    vx, vy = guard[0] - grip[0], guard[1] - grip[1]
+    delta = vx * math.cos(a) + vy * math.sin(a), -vx * math.sin(a) + vy * math.cos(a)
+    sx, sy = SHOOT_SHIFT
+    near = NEAR_SHOULDER[0] + sx, NEAR_SHOULDER[1] + sy
+    far = FAR_SHOULDER[0] + sx - delta[0], FAR_SHOULDER[1] + sy - delta[1]
+    x, y = place[0] - .5, place[1] - .5
+    reach = UPPER_ARM + FOREARM - .1
+    for _ in range(40):
+        for cx, cy in (near, far):
+            dx, dy = x - cx, y - cy
+            distance = math.hypot(dx, dy)
+            if distance > reach:
+                x, y = cx + dx * reach / distance, cy + dy * reach / distance
+    return x + .5, y + .5
 
 
 def make_melee(body: Image, gun_def) -> Image:
@@ -703,25 +702,27 @@ def make_melee(body: Image, gun_def) -> Image:
     ]
     tip = max(gun, key=lambda p: p[0])
     sheet = Image(SHOOT_W * 7, SHOOT_H)
+    places = []
     for i, ((gx, gy), angle) in enumerate(poses):
-        place = (shoulder[0] + gx + 0.5, shoulder[1] + gy + 0.5)
+        place = fitted_hold((shoulder[0] + gx + 0.5, shoulder[1] + gy + 0.5), angle, grip, guard)
+        places.append(place)
         layer, to_frame = gun_layer(gun, angle, grip, place)
         g, h = to_frame(grip), to_frame(guard)
         near_hand, far_hand = (g[0] - 0.5, g[1] - 0.5), (h[0] - 0.5, h[1] - 0.5)
         parts = [
-            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
+            arm(at(FAR_SHOULDER), far_hand, near=False),
             (body, sx, sy),
             layer,
             hand(far_hand),
-            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+            arm(at(NEAR_SHOULDER), near_hand, near=True),
         ]
         if i in (3, 4):  # The swoosh: the muzzle's path since the last pose
             trail = Layer()
-            (px0, py0), a0 = poses[i - 1]
+            a0, start = poses[i - 1][1], places[i - 1]
             for k in range(15):
                 t = k / 14
                 ang = a0 + (angle - a0) * t
-                p_at = (shoulder[0] + px0 + (gx - px0) * t + 0.5, shoulder[1] + py0 + (gy - py0) * t + 0.5)
+                p_at = (start[0] + (place[0] - start[0]) * t, start[1] + (place[1] - start[1]) * t)
                 a, lx, ly = math.radians(ang), tip[0] + 1 - grip[0], tip[1] - grip[1]
                 x = p_at[0] + lx * math.cos(a) + ly * math.sin(a)
                 y = p_at[1] - lx * math.sin(a) + ly * math.cos(a)
@@ -745,7 +746,7 @@ def make_light(body: Image, gun_def) -> Image:
     it stays on. Played backwards to turn it off."""
     gun, grip, guard = gun_def
     aimed = (MUZZLE[0] - (MUZZLE_LOCAL[0] - grip[0]), MUZZLE[1] - (MUZZLE_LOCAL[1] - grip[1]))
-    switch = (24.0, 7.0)
+    switch = (17.5, 6.0)  # Remote switch on the handguard
     # Eased in-betweens: up to level by frame 8, the hand to the switch by 12,
     # the lens lit at 13, the hand back by the end.
     def ease(a: float, b: float, t: float) -> float:
@@ -774,11 +775,11 @@ def make_light(body: Image, gun_def) -> Image:
         h = to_frame(far)
         near_hand, far_hand = (g[0] - 0.5, g[1] - 0.5), (h[0] - 0.5, h[1] - 0.5)
         parts = [
-            arm(at(FAR_SHOULDER), far_hand, near=False, upper=7.5, fore=8.0),
+            arm(at(FAR_SHOULDER), far_hand, near=False),
             (body, sx, sy),
             layer,
             hand(far_hand),
-            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+            arm(at(NEAR_SHOULDER), near_hand, near=True),
         ]
         if i >= 13:                                    # The lens lit
             lens = Layer()
@@ -818,15 +819,15 @@ def make_drink(body: Image) -> Image:
     def at(p: tuple) -> tuple:
         return (p[0] + sx, p[1] + sy)
 
-    poses = [((25, 34), 0), ((25, 29), 20), ((26, 25), 65), ((26, 24), 110), ((26, 25), 65), ((25, 32), 10)]
+    poses = [((24, 39), 0), ((24, 30), 20), ((26, 25), 65), ((26, 25), 110), ((26, 25), 65), ((24, 38), 10)]
     sheet = Image(SHOOT_W * 6, SHOOT_H)
     for i, (near, tilt) in enumerate(poses):
         near_hand = at(near)
         parts = [
-            arm(at(FAR_SHOULDER), at((27, 38)), near=False, upper=7.5, fore=8.0),
+            arm(at(FAR_SHOULDER), at((30, 44)), near=False),
             (body, sx, sy),
             jug_layer((near_hand[0] + 1, near_hand[1] - 1), tilt),
-            arm(at(NEAR_SHOULDER), near_hand, near=True, upper=7.5, fore=8.0),
+            arm(at(NEAR_SHOULDER), near_hand, near=True),
         ]
         paste(sheet, compose(SHOOT_W, SHOOT_H, parts), i * SHOOT_W, 0)
     return sheet
@@ -841,8 +842,8 @@ def make_bandage(body: Image) -> Image:
     def at(p: tuple) -> tuple:
         return (p[0] + sx, p[1] + sy)
 
-    thigh = (35, 42, 48, 54)                          # x0, x1, y0, y1 on the frame
-    hands = [(29, 40), (26, 43), (30, 42), (26, 40), (30, 43), (29, 41)]
+    thigh = (25, 31, 54, 59)                          # x0, x1, y0, y1 on the frame
+    hands = [(18, 44), (16, 44), (19, 43), (16, 43), (19, 44), (18, 44)]
     sheet = Image(SHOOT_W * 6, SHOOT_H)
     for i, near in enumerate(hands):
         done = i == 5
@@ -856,8 +857,8 @@ def make_bandage(body: Image) -> Image:
         if done:
             wrap.put(x0 + 3, y1 - 4, rgb(0x9c3424))
             wrap.put(x0 + 4, y1 - 4, rgb(0x9c3424))
-        near_arm = arm(at(NEAR_SHOULDER), at(near), near=True, upper=7.5, fore=8.0)
-        parts = [arm(at(FAR_SHOULDER), at((27, 38)), near=False, upper=7.5, fore=8.0), (body, sx, sy)]
+        near_arm = arm(at(NEAR_SHOULDER), at(near), near=True)
+        parts = [arm(at(FAR_SHOULDER), at((30, 44)), near=False), (body, sx, sy)]
         parts += [near_arm, wrap] if behind else [wrap, near_arm]
         if not behind and not done:                   # The roll in his hand
             roll = Layer()
@@ -870,17 +871,23 @@ def make_bandage(body: Image) -> Image:
     return sheet
 
 
-def main() -> int:
-    source = load(SOURCE)
-    detail_head(source)
-    body = without_arm(frame(source, 0))
-    sheets = {
+def make_sheets() -> dict[str, Image]:
+    from swat_walk import make_stand, make_walk
+    drawing = load_source()
+    source = make_walk(drawing)
+    stand = make_stand(source, drawing)
+    body = standing_body(drawing)
+    return {
         'walk': source,
+        'stand': stand,
+        'legs': make_walk(drawing, no_arms=True),
         'jump': make_jump(source),
         'shoot': make_shoot(body, rifle(), RIFLE_FLASH, kick=2),
         'shoot_shotgun': make_shoot(body, shotgun(), SHOTGUN_FLASH, kick=3),
         'reload': make_reload(body, 'rifle'),
         'reload_shotgun': make_reload(body, 'shotgun'),
+        'reload_lower': make_reload(body, 'rifle', lower_only=True),
+        'reload_shotgun_lower': make_reload(body, 'shotgun', lower_only=True),
         'throw': make_throw(body),
         'melee': make_melee(body, rifle()),
         'melee_shotgun': make_melee(body, shotgun()),
@@ -889,10 +896,11 @@ def main() -> int:
         'drink': make_drink(body),
         'bandage': make_bandage(body),
     }
-    for name, sheet in sheets.items():
-        sheet.save(OUT_DIR / f'{name}.png')
-        print(f'make_swat: {name} ({sheet.width} x {sheet.height})')
-    return 0
+
+
+def main() -> int:
+    from rebuild_swat import main as rebuild
+    return rebuild()
 
 
 if __name__ == '__main__':

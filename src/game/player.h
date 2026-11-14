@@ -95,6 +95,7 @@ typedef struct {
     float light_since; /* ...and seconds since it was flipped */
     float light_time;  /* ...and how long turning it on takes with this gun */
     float light_rows;  /* ...and its lens's height, if not PLAYER_LIGHT_DY */
+    float light_dx;    /* Render-only lens offset from WeaponDef; zero uses the template */
     bool light_swings; /* ...and it stays on through a blow (art of its own for it) */
     Animation legs;
     float sit_time;    /* Seconds on the bench */

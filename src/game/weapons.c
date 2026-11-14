@@ -29,6 +29,9 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .smoke_puffs = 3, .smoke_scale = 0.7f, /* A quick wisp: it fires often */
         .reload_sheet = "reload",
         .light_sheet = "light", .light_walk_sheet = "light_walk", .light_time = 1.0f,
+        .reload_lower_sheet = "reload_lower",
+        .carry_sheet = "carry", .shoot_lit_sheet = "shoot_lit",
+        .muzzle_dx = 23.5f, .muzzle_rows = 35.5f, .light_dx = 22.0f, .light_rows = 33.5f,
     },
     [WEAPON_SHOTGUN] = {
         .name = "Escopeta", .damage_mult = 0.60f, .reload_time = 0.62f,
@@ -39,8 +42,12 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .smoke_puffs = 10, .smoke_scale = 1.5f, /* A thick cloud */
         .magazine = 8, .magazine_reload = 1.1f, /* 8 shells in the tube */
         .shoot_sheet = "shoot_shotgun", .reload_sheet = "reload_shotgun", .sit_sheet = "sit_shotgun",
+        .reload_lower_sheet = "reload_shotgun_lower",
         .melee_sheet = "melee_shotgun",
         .light_sheet = "light_shotgun", .light_walk_sheet = "light_walk_shotgun", .light_time = 1.0f,
+        .carry_sheet = "carry_shotgun", .shoot_lit_sheet = "shoot_shotgun_lit",
+        .jump_sheet = "jump_shotgun",
+        .muzzle_dx = 30.5f, .muzzle_rows = 35.5f, .light_dx = 29.0f, .light_rows = 33.5f,
     },
     [WEAPON_DUAL] = {
         /* One after the other, each shot a whole turn (shoot.c): a bit more than

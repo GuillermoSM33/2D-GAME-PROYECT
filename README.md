@@ -65,6 +65,8 @@ El arte del laboratorio, el rifle de los mercenarios y las herramientas para
 trabajar las cinemáticas están en [docs/CINEMATICS.md](docs/CINEMATICS.md).
 `52_sheriff_rework`, `52_sheriff_disparo` y `52_sheriff_recarga_0` a `_7` muestran
 la sheriff y la recarga del revólver dentro del escenario.
+`53_swat_rifle`, `53_swat_escopeta`, sus capturas `_disparo` y `_recarga_0` a `_7`
+muestran el rework del SWAT y sus dos armas en el mismo escenario.
 
 Hay **tres personajes**: la Vaquera (sus zombis sueltan cofres), el SWAT (cambia entre rifle
 y escopeta) y el Héroe (cañón de plasma que atraviesa la armadura; aún en desarrollo, todavía no
@@ -649,6 +651,15 @@ tools/make_ui.py         Genera la fuente pixel y el kit de interfaz (tableros, 
 tools/make_sit.py        Genera las hojas de sentado, de frente (sentarse, descansar, recargar sentada, cabecear)
 tools/make_sun.py        Pinta el sol entero en los cielos de atardecer y pueblo fantasma
 tools/rebuild_cowgirl.py Regenera todas las hojas de la vaquera en orden (empieza por rework_cowgirl y termina en finish_cowgirl)
+tools/rebuild_swat.py    Regenera 28 hojas SWAT y 23 capas; --verify compara ambas (también en build.sh)
+tools/swat_authored.py   Compone mangas pintadas, cabeza común, porte y piernas animadas
+tools/prepare_swat_authored.py Importa cuatro fuentes transparentes al tamaño nativo (autoría con Pillow)
+tools/prepare_swat_style.py Adapta el SWAT a las proporciones y paleta de la sheriff (autoría con Pillow)
+tools/swat_materials.py  Paleta carbón para el equipo añadido, conservando el cuerpo compacto
+tools/swat_body.py       Cuerpo único del SWAT, proporciones y articulaciones compartidas
+tools/swat_walk.py       Piernas y desplazamiento de peso para la composición por capas
+tools/swat_optics.py     Tres lentes de visión nocturna con marcos y cristal oliva claro
+tests/swat_art.py        Continuidad de masa corporal y de cabeza/torso al caminar
 tools/finish_cowgirl.py  Cierra el contorno de la vaquera y tapa los huecos de un pixel en todas sus hojas
 tools/make_flashlight.py La linterna de la vaquera: engancharla a la pistola (light.png, light_dual.png) y sobre shoot (flashlight.png); también los turnos de las duales (shoot_dual*.png)
 tools/make_terrain.py    (también el cuervo: sprites/crow/crow.png)

@@ -227,6 +227,10 @@ void stage_fire_weapon(StagePlay *play, const Progress *progress)
     const Player *player = &play->player;
     float mx, my;
     player_muzzle(player, &mx, &my);
+    if (w->muzzle_dx > 0.0f)
+        mx += (float)player->facing * (w->muzzle_dx - PLAYER_MUZZLE_DX) * SPRITE_SCALE;
+    if (w->muzzle_rows > 0.0f)
+        my += (PLAYER_MUZZLE_DY - w->muzzle_rows) * SPRITE_SCALE;
     if (player->shot.other_gun && w->shoot_other_sheet) { /* Her far gun is nearer and lower than the near one */
         mx -= (float)player->facing * PLAYER_FAR_GUN_BACK * SPRITE_SCALE;
         my += PLAYER_FAR_GUN_ROWS * SPRITE_SCALE;

@@ -147,6 +147,7 @@ test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/audio_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_zombie_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/cowgirl_reload_art.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/swat_art.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/project_tools.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/persistence_process.py $(PERSISTENCE_TEST)
 

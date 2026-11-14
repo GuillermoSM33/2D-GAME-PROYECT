@@ -316,6 +316,7 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     player_view.light_since = play->flashlight_since;
     player_view.light_time = stage_weapon(play)->light_time;
     player_view.light_rows = stage_weapon(play)->light_rows;
+    player_view.light_dx = stage_weapon(play)->light_dx;
     player_view.light_swings = stage_weapon(play)->melee_lit_sheet != NULL;
     player_view.x = interpolate(prev_player_x, play->player.x, alpha);
     player_view.jump.height = interpolate(prev_jump, play->player.jump.height, alpha);

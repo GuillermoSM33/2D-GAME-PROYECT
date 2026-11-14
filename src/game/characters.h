@@ -27,6 +27,7 @@ typedef enum {
 typedef struct {
     const char *id;   /* Its folder: assets/sprites/characters/<id>/ */
     const char *name;
+    int walk_waist_row; /* Art row where moving legs join the torso; 0 uses the template. */
     Ability ability;
     const char *ability_name;
     const char *ability_lines[CHARACTER_ABILITY_LINES]; /* Short description, one line each */

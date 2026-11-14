@@ -2,6 +2,7 @@
  * must animate and remain visible, including stationary reloads in fire. */
 #define SDL_MAIN_HANDLED
 #include <stdint.h>
+#include <math.h>
 #include <SDL.h>
 
 #include "app/stage.h"
@@ -111,6 +112,119 @@ static void low_reload_barrels_are_drawn_over_the_walking_legs(void)
     skin.weapon_reload_lower[WEAPON_DUAL] = lower;
 }
 
+static void swat_reload_keeps_the_whole_walking_thigh_and_magazine(void)
+{
+    CharacterSkin sheriff = skin;
+    skin_load(&skin, renderer, &CHARACTERS[1]);
+    const EmbeddedImage *walk = assets_find_image("sprites/characters/swat/legs");
+    CHECK(walk != NULL);
+    profile = (Profile){0};
+    progress_init(&profile.progress);
+    stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+    play.flashlight = false;
+    play.player.light_on = false;
+    play.player.light_since = 10.0f;
+    play.player.shot.rounds = 2;
+    InputState input = {0};
+    input.down[ACTION_RIGHT] = true;
+    input.pressed[ACTION_RELOAD] = true;
+    player_update(&play.player, &input, FIXED_DT);
+    CHECK(play.player.reload_walk && shot_reloading(&play.player.shot));
+    /* The removed magazine reaches below the belt in painted reload frame 2. */
+    play.player.shot.mag_reload = play.player.shot.mag_reload_time * .70f;
+    input.pressed[ACTION_RELOAD] = false;
+    player_update(&play.player, &input, FIXED_DT);
+    for (int left = 0; left < 2; left++) {
+        play.player.facing = left ? FACING_LEFT : FACING_RIGHT;
+        for (int f = 0; f < PLAYER_WALK_FRAMES; f++) {
+            animation_seek(&play.player.legs, f);
+            draw_body();
+            int mismatches = 0;
+            if (walk) {
+                for (int y = 51; y < 55; y++)
+                    for (int x = 3; x <= 36; x++) { /* Below the magazine, across both moving legs. */
+                        const unsigned char *c = walk->rgba + (y * walk->width + f * 42 + x) * 4;
+                        unsigned expected = c[3] ? ((unsigned)c[0] << 16) | ((unsigned)c[1] << 8) | c[2] : 0;
+                        int px = left ? 154 - 4 * x : 2 + 4 * x;
+                        int py = 20 + 4 * y;
+                        mismatches += (pixels[(py + 1) * 160 + px + 1] & 0xffffff) != expected;
+                    }
+            }
+            CHECK(mismatches == 0); /* No piece of the standing thigh may cover the moving one. */
+        }
+    }
+    play.player.facing = FACING_RIGHT;
+    uint32_t complete = draw_body();
+    SDL_Texture *lower = skin.weapon_reload_lower[WEAPON_RIFLE];
+    CHECK(lower != NULL);
+    skin.weapon_reload_lower[WEAPON_RIFLE] = NULL;
+    CHECK(draw_body() != complete);
+    skin.weapon_reload_lower[WEAPON_RIFLE] = lower;
+    /* Idle uses the separate neutral stance, with both boots grounded. */
+    shot_cancel(&play.player.shot);
+    input = (InputState){0};
+    player_update(&play.player, &input, FIXED_DT);
+    CHECK(play.player.state == PLAYER_IDLE);
+    CHECK(skin.stand_sheet != NULL);
+    draw_body();
+    skin_free(&skin);
+    skin = sheriff;
+}
+
+static void swat_uses_painted_carry_and_each_visible_muzzle(void)
+{
+    CharacterSkin sheriff = skin;
+    skin_load(&skin, renderer, &CHARACTERS[1]);
+    progress_init(&profile.progress);
+    for (int slot = 0; slot < 2; slot++) {
+        stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+        play.player.light_since = 10.0f; /* The light-off transition has finished. */
+        WeaponId id = play.guns[slot];
+        const WeaponDef *weapon = weapon_def(id);
+        play.weapon_slot = slot;
+        /* draw_body uses slot zero: assign the reviewed gun there too. */
+        play.guns[0] = id;
+        play.weapon_slot = 0;
+        CHECK(skin.weapon_carry[id] != NULL);
+        for (int dir = -1; dir <= 1; dir += 2) {
+            play.player.facing = dir;
+            draw_body();
+            static Uint32 wide[320 * 272], fallback[320 * 272];
+            SDL_Rect region = {VIEW_WIDTH / 2 - 160, BASELINE - 264, 320, 272};
+            CHECK(SDL_RenderReadPixels(renderer, &region, SDL_PIXELFORMAT_ARGB8888, wide,
+                                       320 * (int)sizeof(Uint32)) == 0);
+            SDL_Texture *carry = skin.weapon_carry[id];
+            skin.weapon_carry[id] = NULL;
+            draw_body();
+            CHECK(SDL_RenderReadPixels(renderer, &region, SDL_PIXELFORMAT_ARGB8888, fallback,
+                                       320 * (int)sizeof(Uint32)) == 0);
+            int differences = 0;
+            for (int i = 0; i < 320 * 272; i++) differences += wide[i] != fallback[i];
+            CHECK(differences > 0); /* The complete muzzle must survive beyond the narrow utility template. */
+            skin.weapon_carry[id] = carry;
+            for (int sunk = 0; sunk < 2; sunk++) {
+                play.player.wading = sunk;
+                play.player.depth = sunk ? .5f : 0.0f;
+                play.player.jump.height = 12.0f;
+                bullets_clear(&play.bullets);
+                stage_fire_weapon(&play, &profile.progress);
+                const Bullet *bullet = &play.bullets.items[0];
+                CHECK(bullet->active);
+                CHECK(fabsf(bullet->x - (play.player.x + dir * weapon->muzzle_dx * SPRITE_SCALE)) < .01f);
+                /* The central shotgun pellet follows the same barrel row. */
+                int center = weapon->pellets / 2;
+                bullet = &play.bullets.items[center];
+                float y = BASELINE - (weapon->muzzle_rows - player_sunk_rows(&play.player)) * SPRITE_SCALE - 12.0f;
+                CHECK(fabsf(bullet->y - y) < .01f);
+            }
+            play.player.wading = false;
+            play.player.jump.height = 0.0f;
+        }
+    }
+    skin_free(&skin);
+    skin = sheriff;
+}
+
 int main(void)
 {
     SDL_SetMainReady();
@@ -128,6 +242,8 @@ int main(void)
         RUN(an_empty_cylinder_on_fire_keeps_the_whole_character_visible);
         RUN(walking_left_with_a_light_keeps_both_reloads_visible);
         RUN(low_reload_barrels_are_drawn_over_the_walking_legs);
+        RUN(swat_reload_keeps_the_whole_walking_thigh_and_magazine);
+        RUN(swat_uses_painted_carry_and_each_visible_muzzle);
         skin_free(&skin);
         assets_unload();
         SDL_DestroyRenderer(renderer);

@@ -102,7 +102,13 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
                             .direction = player->facing,
                             .tilt = .012f * (float)sin(time * 1.6) + kick}; /* Level, along the barrel */
         /* From the lens on her gun. */
-        light.x = player->x + (float)player->facing * (PLAYER_LIGHT_DX + kick_x) * SPRITE_SCALE;
+        float stride_x = 0.0f;
+        if (player->light_dx > 0.0f && (player->state == PLAYER_WALK || player->state == PLAYER_RUN)) {
+            static const int SWAT_STRIDE_X[PLAYER_WALK_FRAMES] = {0, 0, 1, 1, 0, 0, -1, -1};
+            stride_x = (float)SWAT_STRIDE_X[player->anim.frame % PLAYER_WALK_FRAMES];
+        }
+        float lens_dx = player->light_dx > 0.0f ? player->light_dx : PLAYER_LIGHT_DX;
+        light.x = player->x + (float)player->facing * (lens_dx + stride_x + kick_x) * SPRITE_SCALE;
         light.y = BASELINE - player->jump.height -
                   ((player->light_rows > 0.0f ? player->light_rows : PLAYER_LIGHT_DY) -
                    (float)(player_sunk_rows(player) + player_light_sway(player)) - kick_y) * SPRITE_SCALE;

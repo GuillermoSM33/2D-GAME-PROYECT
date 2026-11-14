@@ -865,7 +865,11 @@ def main() -> int:
     for folder, gun in ((OUT, ''), (OUT, '_dual'), (swat, ''), (swat, '_shotgun')):
         front = far_gun_at_rest(shoot) if gun == '_dual' else {}
         free_arm = arm_free(shoot) if folder == OUT and gun == '' else None
-        img = make_light_walk(load(folder / 'walk.png'), load(folder / f'light{gun}.png'), front, bare if folder == OUT else None, free_arm)
+        if folder == swat:
+            from swat_walk import make_light_walk as swat_light_walk
+            img = swat_light_walk(load(folder / 'legs.png'), load(folder / f'light{gun}.png'))
+        else:
+            img = make_light_walk(load(folder / 'walk.png'), load(folder / f'light{gun}.png'), front, bare, free_arm)
         img.save(folder / f'light_walk{gun}.png')
         print(f'make_flashlight: {folder.name}/light_walk{gun} ({img.width} x {img.height})')
     make_shoot(shoot).save(OUT / 'shoot.png')            # Last: the others read it as dressed

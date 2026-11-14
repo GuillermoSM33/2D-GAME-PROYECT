@@ -76,8 +76,8 @@ BOOT = [rgb(0x684833), rgb(0x463322), rgb(0x2c2c2c)]
 STRAP_AT, STRAP_HALF = 0.72, 0.9  # Her thigh strap: how far down the thigh, and half its width in px
 SASH_COLORS = {(0x64, 0x18, 0x2a), (0x8a, 0x24, 0x38), (0x46, 0x10, 0x1e)}
 # The SWAT's, in his walk-frame points (make_swat's at() shifts them).
-SWAT = [((24, 37), True, 0), ((27, 38), True, 0), ((30, 39), True, 1),
-        ((31, 41), True, 3), ((29, 37), False, 0), ((26, 35), False, 0)]
+SWAT = [((19, 40), True, 0), ((20, 41), True, 0), ((21, 42), True, 1),
+        ((21, 42), True, 3), ((20, 40), False, 0), ((19, 38), False, 0)]
 
 
 def set_down(img: Image, f: int, px: dict) -> None:
@@ -189,9 +189,8 @@ def make_cowgirl() -> Image:
 
 
 def make_swat_sheet() -> Image:
-    source = make_swat.load(make_swat.SOURCE)
-    make_swat.detail_head(source)
-    body = make_swat.without_arm(make_swat.frame(source, 0))
+    source = make_swat.load_source()
+    body = make_swat.standing_body(source)
     sx, sy = make_swat.SHOOT_SHIFT
 
     def at(p: tuple) -> tuple:
@@ -201,20 +200,23 @@ def make_swat_sheet() -> Image:
     for f, (near, holding, lit) in enumerate(SWAT):
         hx, hy = at(near)
         parts = [
-            make_swat.arm(at(make_swat.FAR_SHOULDER), at((27, 38)), near=False, upper=7.5, fore=8.0),
+            make_swat.arm(at(make_swat.FAR_SHOULDER), at((30, 44)), near=False),
             (body, sx, sy),
         ]
         if holding:
             layer = make_swat.Layer()
             layer.px.update(stick((int(hx), int(hy) - 1), lit))
             parts.append(layer)
-        parts.append(make_swat.arm(at(make_swat.NEAR_SHOULDER), (hx, hy), near=True, upper=7.5, fore=8.0))
+        parts.append(make_swat.arm(at(make_swat.NEAR_SHOULDER), (hx, hy), near=True))
         make_swat.paste(sheet, make_swat.compose(W, H, parts), f * W, 0)
     return sheet
 
 
 def main() -> int:
     for who, img in (('cowgirl', make_cowgirl()), ('swat', make_swat_sheet())):
+        if who == 'swat':
+            from swat_materials import finish
+            finish(img)
         path = ROOT / f'assets/sprites/characters/{who}/plant.png'
         img.save(path)
         print(f'make_plant: {path.relative_to(ROOT).as_posix()} ({img.width} x {img.height})')

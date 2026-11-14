@@ -8,7 +8,7 @@ de cuadros, mirando a la derecha) y el estilo de la vaquera descrito en
 | Personaje | Habilidad | Armas | Arte |
 | --- | --- | --- | --- |
 | **La Sheriff** (`cowgirl`; antes la vaquera) | **Botín:** los zombis que vence sueltan cofres | Revólver de 8 balas | Rework de materiales y movimientos |
-| **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Hecho |
+| **El SWAT** (`swat`) | **Arsenal:** lleva dos armas y las cambia | Rifle y escopeta | Diseño táctico aprobado |
 | **El Héroe** (`hero`) | **Prototipo:** arma experimental que atraviesa la armadura | Cañón de plasma | En desarrollo |
 
 **En desarrollo** quiere decir que su tarjeta se ve en «Elige tu personaje», pero al confirmarla
@@ -228,8 +228,8 @@ La nueva cara tiene sombra bajo el ala, ojo de perfil y volumen en mejilla/mand�
 
 [Comparación animada de la caminata](img/sheriff_walk_comparison.gif).
 
-Las siguientes rampas y métricas describen la plantilla original y los otros personajes;
-el acabado actual de la sheriff usa rampas adicionales para sus distintos materiales.
+Las siguientes rampas y métricas describen la plantilla original;
+los acabados actuales de la sheriff y del SWAT usan rampas adicionales para sus materiales.
 
 Lo mismo que hace funcionar a la vaquera y al zombi
 ([`ZOMBIE.md`](ZOMBIE.md#estilo-de-la-vaquera) tiene las medidas):
@@ -246,44 +246,49 @@ Lo mismo que hace funcionar a la vaquera y al zombi
 
 ## El SWAT
 
-**Concepto:** un policía de unidad táctica en el viejo oeste invadido. Pesado y práctico.
+Operador compacto con casco carbón, tres lentes de visión nocturna verdes,
+pasamontañas, chaleco gris y correas marrones. Mantiene la escala de la sheriff,
+con piernas cortas, contorno cálido y planos de color discretos.
 
-- **Cabeza:** casco táctico redondo y bajo (no más alto que la línea verde) con gafas de
-  protección subidas o una visera corta. `make_swat.py` le sombrea el lente del visor (con un
-  brillo fijo en el mismo punto del lente en cada cuadro) y a la cara la mejilla en sombra y la
-  mandíbula marcada, en todos los cuadros; la cara sigue sin rasgos, como la de la vaquera.
-- **Torso:** chaleco antibalas con 2–3 bolsas de 2–3 px, hombreras pequeñas. Lo más ancho son
-  los hombros (26–28 px).
-- **Piernas:** pantalón táctico con rodilleras de 1 placa, botas altas.
-- **Armas:** `shoot.png` lleva **el rifle** (corto, de culata plegable) y `shoot_shotgun.png`
-  **la escopeta** (culata completa, cañón largo y corredera), las dos con ambas manos y la boca
-  del cañón en la cruz amarilla. Cuadros 0–2 sube el arma desde abajo, 3 apunta, 4 dispara,
-  5–6 retroceso (la escopeta patea más) y 7 la baja.
-- **Recarga:** `reload.png` (rifle): saca el cargador, toma uno nuevo del chaleco, lo mete y
-  jala la palanca de carga. `reload_shotgun.png`: tres cartuchos rojos del chaleco al tubo bajo
-  el cajón y bombea la corredera. La mano de atrás sostiene el arma por el guardamanos.
-- **Fogonazo** (cuadro 4): el del rifle blanco y amarillo, corto y seco; el de la escopeta más
-  grande y anaranjado, abierto en abanico.
-- **Caminata y salto:** los cuadros dibujados a mano. El salto usa esos mismos cuadros enteros,
-  bajándolos al agacharse y al caer y doblando las piernas en el aire, con los tiempos del
-  salto de la vaquera.
+Las mangas del porte, disparo, recarga, salto y linterna parten de cuatro hojas
+pintadas: hombro unido al chaleco, codo bajo el arma y guantes en los dos puntos
+de agarre. No se reconstruyen como tubos para alcanzar el rifle.
+[Fuentes, referencias y prompts](templates/swat/authored_arms.md).
 
-**Cómo se hacen sus hojas:** `python3 tools/make_swat.py` las genera todas (walk, jump, shoot,
-shoot_shotgun, reload y reload_shotgun) a partir del dibujo original, `docs/templates/swat/walk_source.png`. El walk es
-ese dibujo tal cual; el jump, sus cuadros movidos y con las piernas dobladas; el shoot, su
-cuadro 0 sin el brazo, con los brazos (hombro-codo-mano) sosteniendo el arma, y los
-fogonazos. Las poses están en tablas dentro del script. Para cambiar al personaje, edita
-`walk_source.png` y vuelve a correrlo.
+`tools/swat_authored.py` comparte el casco y las botas entre las poses de pie.
+La caminata usa ocho dibujos de piernas desde la fila 44 de walk (51 de acción).
+El conjunto cabeza-cuello-chaleco-mangas-arma sigue su apoyo con desplazamientos
+de un píxel. Las hojas `carry` y `carry_shotgun` tienen 12 cuadros de 81 × 80:
+ocho pasos y cuatro respiraciones. El renderizador y la tarjeta usan ese ancho
+para conservar el cañón completo. `stand` y `walk` siguen como plantillas
+estrechas para las acciones auxiliares.
 
-| Parte | Colores |
-| --- | --- |
-| Contorno | `#252018` |
-| Uniforme (casi negro cálido): sombra, base, luz | `#1f1d1c` `#2e2b29` `#45403b` |
-| Chaleco y bolsas (café oliva): sombra, base, luz | `#3a3524` `#55502f` `#736b41` |
-| Casco, rifle y placas: los grises del revólver | `#2c2c2c` `#424242` `#505050` `#868689` |
-| Brillos del metal | `#a7a8a8` |
-| Piel: sombra, base, luz | `#89411f` `#d99a5b` `#fedca3` |
-| Gafas | `#2b3550` con brillo de 1 px `#a7a8a8` |
+El rifle cambia cargadores y la escopeta carga cartuchos. `reload_lower` conserva
+solo la mano y el cargador que bajan de la cintura, sin tapar el muslo animado.
+El fogonazo se añade al cañón de la pose de disparo. `WeaponDef.muzzle_dx`,
+`muzzle_rows`, `light_dx` y `light_rows` hacen coincidir balas y haz con el arte
+de cada arma. No cambian daño, munición ni tiempos.
+
+**Regeneración:** `python3 tools/rebuild_swat.py` genera 28 hojas y 23 capas de
+autoría; `--verify` compara ambas salidas sin escribir y corre en `build.sh`.
+La importación opcional `tools/prepare_swat_authored.py` necesita Pillow;
+compilar y reconstruir las hojas finales requiere solo biblioteca estándar.
+Las fuentes grandes y su alfa se conservan. El generador por articulaciones
+sigue atendiendo granadas, cuidados, banco y golpes; sus capas también quedan
+disponibles para autoría en `docs/templates/swat/rig/`.
+
+`tests/swat_art.py` verifica cabeza y botas comunes, movimiento conjunto,
+recomposición de capas, uniones entre hojas, tres lentes y orígenes de cañón y
+linterna. `tests/player_render.c` prueba las texturas incrustadas, el porte,
+la recarga caminando en ambas direcciones y el origen de las balas de las dos
+armas, incluyendo desplazamiento vertical y agua.
+
+Tras regenerar, `python3 tools/rebuild_support_art.py` actualiza el mercenario
+que deriva de `swat/light_walk.png`.
+
+![Revisión de mangas en el juego](img/swat_mangas_juego.png)
+
+[Caminar, disparar y recargar con las mangas pintadas](img/swat_mangas_animacion.gif).
 
 ## El Héroe
 

@@ -56,6 +56,7 @@ typedef struct {
     const char *power_sheet;           /* Her ricochet with this gun, 8 frames of the shoot template... */
     const char *power_lit_sheet;       /* ...and with the flashlight on */
     const char *stand_sheet;           /* Stood still with this gun, one frame of the walk's size */
+    const char *carry_sheet;           /* Armed walk + four idle breaths, on the shoot template */
     const char *shoot_lit_sheet;       /* Both turns with the flashlight on: it stays up, lit */
     const char *shoot_other_lit_sheet;
     /* The character's sheet while putting a magazine in (needed with a
@@ -78,6 +79,9 @@ typedef struct {
     const char *light_walk_sheet;
     float light_time; /* Seconds turning it on: fetching and clipping it, or just the switch */
     float light_rows; /* Art rows over the ground to its lens, if not PLAYER_LIGHT_DY: clipped under the barrel */
+    float light_dx;   /* Art px ahead of the pivot; zero uses the shared template */
+    float muzzle_dx;  /* Art px ahead of pivot; zero uses PLAYER_MUZZLE_DX */
+    float muzzle_rows; /* Art px above ground; zero uses PLAYER_MUZZLE_DY */
 } WeaponDef;
 
 const WeaponDef *weapon_def(WeaponId id);

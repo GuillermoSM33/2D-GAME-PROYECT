@@ -30,7 +30,9 @@ HAND_R, HAND_LONG = 1.6, 1                               # Art px: half its widt
 SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
-def arm_limb(top: tuple, elbow: tuple, hand: tuple) -> dict:
+def arm_limb(top: tuple, elbow: tuple, hand: tuple, *,
+             shoulder_radius: float = ARM_AT_SHOULDER,
+             wrist_radius: float = ARM_AT_WRIST) -> dict:
     """The arm from its shoulder to the wrist. An arm nearly straight bends in one soft curve;
     one really bent has its elbow where it is asked."""
     middle = ((top[0] + hand[0]) / 2, (top[1] + hand[1]) / 2)
@@ -45,7 +47,7 @@ def arm_limb(top: tuple, elbow: tuple, hand: tuple) -> dict:
         else:
             a, b, k = (top, elbow, t * 2) if t < 0.5 else (elbow, hand, t * 2 - 1)
             x, y = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
-        samples.append((x, y, ARM_AT_SHOULDER + (ARM_AT_WRIST - ARM_AT_SHOULDER) * t))
+        samples.append((x, y, shoulder_radius + (wrist_radius - shoulder_radius) * t))
     px, nearest = {}, {}
     for x, y, r in samples:
         for py in range(int(y - r - 1), int(y + r + 2)):
@@ -67,7 +69,7 @@ def arm_limb(top: tuple, elbow: tuple, hand: tuple) -> dict:
     return out
 
 
-def glove(at: tuple, coming_from: tuple = None) -> dict:
+def glove(at: tuple, coming_from: tuple = None, *, radius: float = HAND_R) -> dict:
     """Her gloved hand: a round end to the wrist, no wider than it. Given where the arm comes
     from, it carries on along it, closing the arm instead of sitting across it."""
     ux, uy = 0.0, 1.0
@@ -80,7 +82,7 @@ def glove(at: tuple, coming_from: tuple = None) -> dict:
         for y in range(int(cy) - 3, int(cy) + 4):
             for x in range(int(cx) - 3, int(cx) + 4):
                 dx, dy = x + 0.5 - cx, y + 0.5 - cy
-                if dx * dx + dy * dy <= HAND_R * HAND_R:
+                if dx * dx + dy * dy <= radius * radius:
                     px[(x, y)] = GLOVE[(dx * uy - dy * ux) * (1 if uy >= 0 else -1) > 0.3 or dy > 0.8]
     out = dict(px)
     for (a, b) in px:

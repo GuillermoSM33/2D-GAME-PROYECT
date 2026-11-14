@@ -28,6 +28,9 @@ assets/
     characters/<id>/     walk, jump, shoot, sit (y shoot_dual, throw, sit_shotgun...) de cada personaje jugable (cowgirl, swat; hero cuando tenga arte),
                          y shoot_<arma> / reload_<arma> si un arma tiene hoja propia
                          (swat/shoot_shotgun, swat/reload, swat/reload_shotgun)
+    characters/swat/reload_lower, reload_shotgun_lower  Manos, cargador y cartuchos sobre los muslos animados; 8 cuadros de 81 × 80
+    characters/swat/stand  Plantilla auxiliar de 42 × 67; el porte armado usa carry
+    characters/swat/legs   Piernas de la caminata sin manos laterales, 8 cuadros de 42 × 67, para recarga y linterna
     zombies/<id>/        idle, walk, run, attack, hurt, death, caught; una carpeta por cada una de las 25 familias
                          riot, soldier, police, riot_shield, civil_male_1..5, civil_female_1..5,
                          burned, skeleton, dog, sheriff, cowboy, motorcycle, priest, jailer,
@@ -117,13 +120,13 @@ Las voces originales siguen compartidas en `sounds/zombie/`, sin cambios.
 | `sprites/zombies/<id>/{idle,walk,run,attack,hurt,death,caught}.png` | Prendas y equipo editados sobre la base original en `docs/templates/zombies/`; exportación nativa con `tools/make_zombies.py` | [ZOMBIE.md](ZOMBIE.md), `tests/test_zombie_catalog.c`, `tests/test_zombie_assets.py` | 72 × 72 por cuadro: idle/caught 4, walk/run/death 8, attack 6, hurt 3 |
 | `sprites/chest/open.png` | `tools/make_chest.py`: madera, hierro y cerradura de latón | este documento | 6 cuadros de 72 × 72; base fija en fila 66 |
 | `sprites/effects/armor_sparks.png` | Recortado de `zombies/riot/hurt.png` | [ZOMBIE.md](ZOMBIE.md) | 2 cuadros de 20 × 12 |
-| `sprites/characters/swat/*` | `tools/make_swat.py`, a partir de `docs/templates/swat/walk_source.png` | [CHARACTERS.md](CHARACTERS.md#el-swat) | Los de la vaquera |
+| `sprites/characters/swat/*` | `tools/rebuild_swat.py`, a partir de `docs/templates/swat/authored/*.png` y las fuentes auxiliares de cuerpo/piernas | [CHARACTERS.md](CHARACTERS.md#el-swat) | Los de la vaquera |
 | `music/*.ogg` | `tools/make_music.py`, compuesta y sintetizada aquí | [AUDIO_MUSIC.md](AUDIO_MUSIC.md) | Vorbis estéreo, 22050 Hz, bucle continuo |
 | `sprites/ui/{font,panel,button,key,pip,bar,icons,icons_hd,weapons,weapons_hd,notice_dev}.png` | `tools/make_ui.py`, `tools/ui_icons.py` y acabado de `tools/support_finishes.py` | el propio script | font: 6 × 10 por letra en el orden de `pixfont.c`; el resto, `--verify` |
 | `sprites/ui/badge_*.png`, `sprites/chest/sparks.png` | `tools/make_sprites.py` | el propio script | 17 × 19; 8 cuadros de 72 × 72 |
 | `sprites/props/*` | `tools/make_props.py`, materiales diurnos graduados por tema | [LANDSCAPE.md](LANDSCAPE.md) | 24 hojas y 49 variantes; tabla de `src/game/props.c` |
 | `sprites/props/houses.png` | `tools/make_houses.py`, graduación de luz y neblina por tema | [LANDSCAPE.md](LANDSCAPE.md) | 21 cuadros de 256 × 192; hoja 5376 × 192. Edificios del oeste, urbanos y militares a escala humana; `HOUSE_*` en `config.h` |
-| `sprites/characters/{cowgirl,swat}/sit.png`, `swat/sit_shotgun.png` | `tools/make_sit.py`, de frente, en sus colores, con el arma de `ui/weapons.png` (una hoja por arma: `WeaponDef.sit_sheet`) | el propio script | 14 cuadros de 72 × 67, pivote 35.5 |
+| `sprites/characters/{cowgirl,swat}/sit.png`, `swat/sit_shotgun.png` | `tools/make_sit.py` (SWAT: `tools/swat_sit.py`, torso en tres cuartos), con el arma de `ui/weapons.png` (una hoja por arma: `WeaponDef.sit_sheet`) | el propio script | 14 cuadros de 72 × 67, pivote 35.5 |
 | `sprites/terrain/*`, `sprites/effects/{explosion,heal,glow}.png` | `tools/make_terrain.py` | el propio script | crow (`sprites/crow/crow.png`) 8 × 16 × 12, bat (`sprites/bat/bat.png`) 6 × 16 × 10, sign 22 × 30, river 4 × 200 × 22 (18 filas bajo la línea del suelo; el centro hondo, `RIVER_DEEP_SHARE`) y river_front 4 × 200 × 17 (sus filas desde la superficie, sobre quien vadea: hasta la cintura en lo hondo), puddle 4 × 64 × 6, splash 5 × 20 × 12, tumbleweed 4 × 14 × 14, barricade 12 × 68 × 36 (4 tipos × entera, rota, destruida; bajo su cara y más alta que el salto: se pasa con N), wire 3 × 112 × 30, net 3 × 84 × 128 (árbol seco con la red bajo hojas, saltando, vacía), snare 3 × 72 × 124 (oculto en un arbusto, enderezándose, derecho), spikes 3 × 40 × 22, net_bag 4 × 44 × 66 (2 de vaivén, 2 cerrándose), crate 11 × 32 × 36 (5 botines —balas, vida, dinamita, oro, agua— × entera y rota, más rota), trap 3 × 48 × 18 (abierta, cerrándose, cerrada), coffin 4 × 32 × 68 (día y noche), blood 4 × 8 × 4, wall 3 × 44 × 72, wall_ruins 180 × 84, facades 5 × 180 × 128 (iglesia, comisaría, herrería, establo, banco), door 3 × 44 × 64, barrel 26 × 36, bench 2 × 76 × 44 (madera, hierro forjado), campfire 8 × 48 × 56 (4 sola, 4 con olla), supply 2 × 100 × 56, goal 108 × 96; explosión 8 × 72 × 72, heal 12 × 64 × 96 (`config.h`) |
 | `backgrounds/{afueras,centro,vias,ciudad_noche,base_militar}/*`, los decorados de ciudad de `sprites/props/` (`hydrant`, `streetlight`, `trash`, `cone`, `tires`, `sandbags`, `jersey`, `pole`, `fallen_pole`, `traffic_light`, `litter`, `signal`, `drums`), `sprites/sparrow/sparrow.png`, `sprites/effects/{flare,paper,hydrant_jet}.png` y `sprites/terrain/{burner,siren_car,car_wreck,vehicles,supply_truck,outpost,hydrant,city_fronts,train}.png` | `tools/make_city.py` (ruta 2, todo a escala de la sheriff) | [LANDSCAPE.md](LANDSCAPE.md) | burner 13 × 40 × 72, flare 6 × 64 × 80, hydrant 2 × 20 × 28, hydrant_jet 4 × 72 × 120, siren_car 4 × 136 × 52, car_wreck 9 × 136 × 46 (3 autos × 3 estados), vehicles 5 × 184 × 70 (3 sedanes, todoterreno, camión), supply_truck 2 × 184 × 70, outpost 2 × 168 × 92, city_fronts 4 × 240 × 192 (tienda, comisaría, edificio, retén), train 300 × 104 |
 | Cuadros de ciudad añadidos al final de `barricade`, `door`, `houses` y `campfire` | `tools/city_terrain.py`, llamado por `tools/make_terrain.py` (los de la ruta 1 no cambian) | el propio script | barricade +5 tipos (vallas de policía, barrera militar, 3 motos; los autos van en `car_wreck`), door +6 (cortina metálica, enganche del tren), houses +8, campfire +4 (bidón ardiendo) |
@@ -222,3 +225,11 @@ sus métricas de texto y pruebas de renderizado, sin crear retratos o fondos dup
 6 cuadros de 72 × 72, de cerrado a abierto, a 10 fps. Mismo cuadro que el zombi: cuerpo
 centrado en x 36.5 (ocupa x 15–57) y apoyado en la fila 66. Las chispas
 (`chest/sparks.png`) usan la misma plantilla y se dibujan encima.
+
+Las 23 capas de autoría del SWAT están en `docs/templates/swat/rig/`:
+capas auxiliares de cuerpo y articulaciones, y conjunto superior pintado,
+cabeza-cuello y piernas de las acciones principales. No se incrustan por separado.
+`tools/rebuild_swat.py --verify` comprueba tanto las 28 hojas como esas capas.
+Las hojas `carry` y `carry_shotgun` usan 12 cuadros de 81 × 80, ocho pasos y
+cuatro respiraciones; el salto de escopeta tiene su hoja `jump_shotgun`.
+`shoot_lit` y `shoot_shotgun_lit` incluyen la luz montada durante el disparo.
