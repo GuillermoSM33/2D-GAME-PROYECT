@@ -428,7 +428,11 @@ Para compilar:
 sudo apt install build-essential pkg-config python3 libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev
 ```
 
-En Windows (MSYS2 UCRT64): `pacman -S mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-SDL2_ttf mingw-w64-ucrt-x86_64-SDL2_mixer`.
+En Windows, instala las herramientas y SDL en una terminal **MSYS2 UCRT64**:
+
+```bash
+pacman -S --needed make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-SDL2_ttf mingw-w64-ucrt-x86_64-SDL2_mixer
+```
 
 Para solo jugar en otra máquina basta con `libsdl2-2.0-0`, `libsdl2-ttf-2.0-0` y `libsdl2-mixer-2.0-0`
 (en Windows, `build.sh` deja las DLL necesarias en `dist/`).
@@ -461,6 +465,16 @@ Pide la versión, corre `build.sh` completo y deja el zip del sistema actual en
 se genera en su propio sistema; si algo falla, el anterior se conserva. Solo contiene el
 ejecutable y sus bibliotecas (`lib/` en Linux, las DLL en Windows). En VS Code es la
 tarea *Generar zip para jugadores*.
+
+En Windows usa el mismo `./dist.sh`: genera
+`dist/windows/TheMiracle-<versión>-windows.zip`, listo para descomprimir y abrir
+`TheMiracle.exe`. El script activa UCRT64 si lo ejecutas desde otra terminal de
+MSYS2 o desde Git Bash. Desde Git Bash busca MSYS2 en `C:/msys64`; si está en otra
+carpeta, indica la ruta con `MSYS2_ROOT`, por ejemplo:
+
+```bash
+MSYS2_ROOT='D:/Herramientas/msys64' ./dist.sh
+```
 
 Las partidas no viajan en el zip: el juego las guarda en la carpeta de datos del usuario
 (`~/.local/share/TheMiracle/TheMiracle` en Linux, `%APPDATA%\TheMiracle\TheMiracle` en

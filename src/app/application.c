@@ -152,7 +152,9 @@ int app_run(bool smoke_mode, const char *capture_dir)
     Menu menu;
     char_select_init(&char_select, hero);
     menu_init(&menu, &profiles[hero].record);
-    if (prefs_get_bool("menu_backdrop_first", false)) /* Her choice: an earlier phase's landscape */
+    /* Verification runs must not read the player's preferences, including on
+     * Windows, where SDL_GetPrefPath ignores XDG_DATA_HOME. */
+    if (options.remember_display && prefs_get_bool("menu_backdrop_first", false))
         menu.backdrop = 0;
 
     InputState input;
@@ -337,8 +339,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
                 if (chosen >= 0) {
                     hero = chosen;
                     menu_init(&menu, &profiles[hero].record);
-    if (prefs_get_bool("menu_backdrop_first", false)) /* Her choice: an earlier phase's landscape */
-        menu.backdrop = 0;
+                    if (options.remember_display && prefs_get_bool("menu_backdrop_first", false))
+                        menu.backdrop = 0;
                     if (save.game.has_checkpoint && save.game.checkpoint_hero == hero)
                         menu.selected = save.game.checkpoint.run.stage_index;
                     screen = SCREEN_MENU;
@@ -360,7 +362,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
                     input.pressed[ACTION_CONFIRM] = false; /* Its row was under the click too */
                 } else if ((on_zone && zone.kind == HUD_ZONE_BACKDROP) || input.pressed[ACTION_SWAP]) {
                     menu_next_backdrop(&menu, &profiles[hero].record);
-                    prefs_set_bool("menu_backdrop_first", menu.backdrop == 0);
+                    if (options.remember_display)
+                        prefs_set_bool("menu_backdrop_first", menu.backdrop == 0);
                     audio_play("ui/move");
                     input.pressed[ACTION_CONFIRM] = false;
                 }
@@ -458,8 +461,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
             } else if (!stage_step(&play, &input, &profiles[hero], &options)) {
                 save.game.has_checkpoint = false;
                 menu_init(&menu, &profiles[hero].record);
-    if (prefs_get_bool("menu_backdrop_first", false)) /* Her choice: an earlier phase's landscape */
-        menu.backdrop = 0;
+                if (options.remember_display && prefs_get_bool("menu_backdrop_first", false))
+                    menu.backdrop = 0;
                 screen = SCREEN_MENU;
                 /* A stage cleared for the first time: what its end means, before the menu */
                 int cleared = play.run.stage_index;

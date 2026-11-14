@@ -9,14 +9,19 @@ cd "$(dirname "$0")"
 step() { printf '\n==> %s\n' "$1"; }
 fail() { printf '\nERROR: %s\n' "$1" >&2; exit 1; }
 
+case "$(uname -s)" in
+    MINGW*|MSYS*) WINDOWS=1; EXE=TheMiracle.exe ;;
+    *)            WINDOWS=0; EXE=TheMiracle ;;
+esac
+
 step "Comprobando herramientas"
 for tool in cc make pkg-config python3; do
-    command -v "$tool" >/dev/null || fail "falta '$tool'. Instala: sudo apt install build-essential pkg-config python3"
+    command -v "$tool" >/dev/null && continue
+    if [[ $WINDOWS == 1 ]]; then
+        fail "falta '$tool'. En MSYS2 UCRT64 instala: pacman -S --needed make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-python"
+    fi
+    fail "falta '$tool'. Instala: sudo apt install build-essential pkg-config python3"
 done
-case "$(uname -s)" in
-    MINGW*|MSYS*) WINDOWS=1 ;;
-    *)            WINDOWS=0 ;;
-esac
 for lib in sdl2 SDL2_ttf SDL2_mixer; do
     pkg-config --exists "$lib" && continue
     if [[ $WINDOWS == 1 ]]; then
@@ -66,21 +71,22 @@ step "Compilando"
 make -j"$JOBS"
 
 step "Verificando recursos incrustados"
-./build/bin/TheMiracle --verify
+"./build/bin/$EXE" --verify
 
 step "Prueba de humo (sin ventana)"
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/bin/TheMiracle --smoke-test
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "./build/bin/$EXE" --smoke-test
 
 step "Publicando en dist/"
 mkdir -p dist
-cp build/bin/TheMiracle dist/TheMiracle.tmp
-mv dist/TheMiracle.tmp dist/TheMiracle
-chmod +x dist/TheMiracle
+cp "build/bin/$EXE" "dist/$EXE.tmp"
+mv "dist/$EXE.tmp" "dist/$EXE"
+chmod +x "dist/$EXE"
 if [[ $WINDOWS == 1 ]]; then
     # So the .exe runs on double-click: copy the MSYS2 DLLs it needs next to it.
-    ldd build/bin/TheMiracle | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u | xargs -r cp -u -t dist/
+    ldd "build/bin/$EXE" | awk '$3 ~ /^\/ucrt64\// {print $3}' | sort -u |
+        while IFS= read -r dll; do cp "$dll" dist/; done
     echo "$(ls dist/*.dll | wc -l) DLL(s) junto al ejecutable"
 fi
-ls -lh dist/TheMiracle
+ls -lh "dist/$EXE"
 
-printf '\nListo. Ejecuta: ./dist/TheMiracle\n'
+printf '\nListo. Ejecuta: ./dist/%s\n' "$EXE"
