@@ -171,6 +171,131 @@ static void swat_reload_keeps_the_whole_walking_thigh_and_magazine(void)
     skin = sheriff;
 }
 
+static void swat_drink_uses_the_full_hand_sequence_and_keeps_the_slung_weapon_while_walking(void)
+{
+    CharacterSkin sheriff = skin;
+    skin_load(&skin, renderer, &CHARACTERS[1]);
+    const EmbeddedImage *legs = assets_find_image("sprites/characters/swat/legs");
+    CHECK(legs != NULL);
+    for (int slot = 0; slot < 2; slot++) {
+        progress_init(&profile.progress);
+        stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+        WeaponId gun = play.guns[slot];
+        play.guns[0] = gun;
+        const WeaponDef *weapon = weapon_def(gun);
+        CHECK(weapon->drink_frames == 31 && skin.weapon_drink[gun] != NULL);
+        CHECK(skin.weapon_drink_lower[gun] != NULL);
+        char name[96];
+        snprintf(name, sizeof(name), "sprites/characters/swat/%s", weapon->drink_sheet);
+        const EmbeddedImage *care = assets_find_image(name);
+        snprintf(name, sizeof(name), "sprites/characters/swat/%s", weapon->drink_lower_sheet);
+        const EmbeddedImage *lower = assets_find_image(name);
+        CHECK(care != NULL && lower != NULL);
+        if (!care || !lower || !legs) continue;
+        for (int walking = 0; walking < 2; walking++) {
+            InputState input = {0};
+            input.down[ACTION_RIGHT] = walking;
+            play.player.drink_time = 0.0f;
+            player_update(&play.player, &input, FIXED_DT);
+            play.player.light_on = false;
+            play.player.light_since = 10.0f;
+            for (int direction = -1; direction <= 1; direction += 2) {
+                play.player.facing = direction;
+                for (int f = 0; f < weapon->drink_frames; f++) {
+                    play.player.drink_time = player_drink_duration(&play.player) * (1.0f - ((float)f + .5f) / (float)weapon->drink_frames);
+                    int step = walking ? f % PLAYER_WALK_FRAMES : 0;
+                    animation_seek(&play.player.anim, step);
+                    draw_body();
+                    int mismatches = 0;
+                    for (int y = 2; y < 70; y++) {
+                        for (int x = 12; x < 51; x++) {
+                            const unsigned char *color = care->rgba + (y * care->width + f * 81 + x) * 4;
+                            if (walking && y >= 51) {
+                                color = lower->rgba + (y * lower->width + f * 81 + x) * 4;
+                                if (!color[3])
+                                    color = legs->rgba + ((y - 7) * legs->width + step * 42 + x - 12) * 4;
+                            }
+                            unsigned expected = color[3] ? ((unsigned)color[0] << 16) | ((unsigned)color[1] << 8) | color[2] : 0;
+                            int px = direction < 0 ? 202 - 4 * x : -46 + 4 * x;
+                            int py = -8 + 4 * y;
+                            mismatches += (pixels[(py + 1) * 160 + px + 1] & 0xffffff) != expected;
+                        }
+                    }
+                    CHECK(mismatches == 0);
+                }
+            }
+        }
+    }
+    skin_free(&skin);
+    skin = sheriff;
+}
+
+static void swat_breathing_with_the_flashlight_keeps_the_belt_connected(void)
+{
+    CharacterSkin sheriff = skin;
+    skin_load(&skin, renderer, &CHARACTERS[1]);
+    progress_init(&profile.progress);
+    for (int slot = 0; slot < 2; slot++) {
+        stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+        play.guns[0] = play.guns[slot];
+        play.player.light_on = true;
+        play.player.light_time = 1.0f;
+        for (int direction = -1; direction <= 1; direction += 2) {
+            play.player.facing = direction;
+            for (int breath = 0; breath < PLAYER_LIGHT_BREATHS; breath++) {
+                play.player.light_since = (8.25f + (float)breath) / PLAYER_LIGHT_BREATH_FPS;
+                draw_body();
+                for (int x = 27; x < 38; x++) {
+                    int px = direction < 0 ? 202 - 4 * x : -46 + 4 * x;
+                    int py = -8 + 4 * 50;
+                    CHECK((pixels[(py + 1) * 160 + px + 1] & 0xffffff) != 0);
+                }
+            }
+        }
+    }
+    skin_free(&skin);
+    skin = sheriff;
+}
+
+static void swat_walking_pelvis_matches_the_standing_belt_root_in_both_directions(void)
+{
+    CharacterSkin sheriff = skin;
+    skin_load(&skin, renderer, &CHARACTERS[1]);
+    const EmbeddedImage *standing = assets_find_image("sprites/characters/swat/shoot");
+    CHECK(standing != NULL);
+    progress_init(&profile.progress);
+    for (int slot = 0; slot < 2; slot++) {
+        for (int direction = -1; direction <= 1; direction += 2) {
+            stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+            play.guns[0] = play.guns[slot];
+            InputState move = {0};
+            move.down[direction < 0 ? ACTION_LEFT : ACTION_RIGHT] = true;
+            player_update(&play.player, &move, FIXED_DT);
+            play.player.light_since = 10.0f;
+            for (int lit = 0; lit < 2; lit++) {
+                play.player.light_on = lit;
+                for (int f = 0; f < PLAYER_WALK_FRAMES; f++) {
+                    animation_seek(&play.player.anim, f);
+                    draw_body();
+                    int mismatches = 0;
+                    if (standing) {
+                        for (int x = 22; x < 43; x++) {
+                            const unsigned char *c = standing->rgba + (52 * standing->width + x) * 4;
+                            unsigned expected = c[3] ? ((unsigned)c[0] << 16) | ((unsigned)c[1] << 8) | c[2] : 0;
+                            int px = direction < 0 ? 202 - 4 * x : -46 + 4 * x;
+                            int py = -8 + 4 * 52;
+                            mismatches += (pixels[(py + 1) * 160 + px + 1] & 0xffffff) != expected;
+                        }
+                    }
+                    CHECK(mismatches == 0);
+                }
+            }
+        }
+    }
+    skin_free(&skin);
+    skin = sheriff;
+}
+
 static void swat_uses_painted_carry_and_each_visible_muzzle(void)
 {
     CharacterSkin sheriff = skin;
@@ -225,6 +350,77 @@ static void swat_uses_painted_carry_and_each_visible_muzzle(void)
     skin = sheriff;
 }
 
+static void check_entire_swat_cell(const EmbeddedImage *image, int frame)
+{
+    const AnimationDef *def = play.player.anim.def;
+    int width = def->frame_w, height = def->frame_h;
+    static Uint32 cell[324 * 320];
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    player_render(renderer, &play.player, &skin, play.guns, play.weapon_slot, play.player.x - VIEW_WIDTH / 2);
+    float anchor = play.player.facing < 0 ? width - def->anchor_x : def->anchor_x;
+    SDL_Rect box = {VIEW_WIDTH / 2 - (int)lroundf(anchor * SPRITE_SCALE),
+                    BASELINE - def->ground_y * SPRITE_SCALE, width * SPRITE_SCALE, height * SPRITE_SCALE};
+    CHECK(SDL_RenderReadPixels(renderer, &box, SDL_PIXELFORMAT_ARGB8888, cell,
+                              box.w * (int)sizeof(Uint32)) == 0);
+    int mismatches = 0;
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            const unsigned char *c = image->rgba + (y * image->width + frame * width + x) * 4;
+            unsigned expected = c[3] ? ((unsigned)c[0] << 16) | ((unsigned)c[1] << 8) | c[2] : 0;
+            int px = (play.player.facing < 0 ? width - 1 - x : x) * SPRITE_SCALE + 1;
+            mismatches += (cell[(y * SPRITE_SCALE + 1) * box.w + px] & 0xffffff) != expected;
+        }
+    }
+    CHECK(mismatches == 0);
+}
+
+static void swat_grenade_and_bench_keep_each_full_frame_in_both_directions(void)
+{
+    CharacterSkin sheriff = skin;
+    skin_load(&skin, renderer, &CHARACTERS[1]);
+    for (int slot = 0; slot < 2; slot++) {
+        for (int direction = -1; direction <= 1; direction += 2) {
+            progress_init(&profile.progress);
+            stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+            play.weapon_slot = slot;
+            play.player.facing = direction;
+            char name[96];
+            const WeaponDef *weapon = weapon_def(play.guns[slot]);
+            snprintf(name, sizeof(name), "sprites/characters/swat/%s", weapon->throw_sheet);
+            const EmbeddedImage *image = assets_find_image(name);
+            CHECK(image != NULL && skin.weapon_throw[play.guns[slot]] != NULL);
+            CHECK(player_throw(&play.player));
+            if (image) for (int frame = 0; frame < PLAYER_THROW_FRAMES; frame++) {
+                animation_seek(&play.player.anim, frame);
+                check_entire_swat_cell(image, frame);
+            }
+            stage_start(&play, 0, &CHARACTERS[1], &profile.progress);
+            play.weapon_slot = slot;
+            play.player.facing = direction;
+            CHECK(player_sit(&play.player, play.player.x, 1u << slot));
+            snprintf(name, sizeof(name), "sprites/characters/swat/%s", weapon->sit_sheet ? weapon->sit_sheet : "sit");
+            image = assets_find_image(name);
+            CHECK(image != NULL);
+            if (image) for (int frame = 0; frame < 40; frame++) {
+                play.player.sit_time = 1.0f;
+                play.player.sit_gun = -1;
+                if (frame < 8) play.player.sit_time = ((float)frame + .5f) / 8.0f;
+                else if (frame < 12) {
+                    static const int rest[] = {1, 2, 1, 3};
+                    animation_set_frame(&play.player.anim, rest[frame - 8]);
+                } else if (frame < 36) {
+                    play.player.sit_gun = slot;
+                    play.player.sit_gun_time = ((float)(frame - 12) + .5f) / 24.0f * 2.8f;
+                } else animation_set_frame(&play.player.anim, 10 + frame - 36);
+                check_entire_swat_cell(image, frame);
+            }
+        }
+    }
+    skin_free(&skin);
+    skin = sheriff;
+}
+
 int main(void)
 {
     SDL_SetMainReady();
@@ -244,6 +440,10 @@ int main(void)
         RUN(low_reload_barrels_are_drawn_over_the_walking_legs);
         RUN(swat_reload_keeps_the_whole_walking_thigh_and_magazine);
         RUN(swat_uses_painted_carry_and_each_visible_muzzle);
+        RUN(swat_drink_uses_the_full_hand_sequence_and_keeps_the_slung_weapon_while_walking);
+        RUN(swat_breathing_with_the_flashlight_keeps_the_belt_connected);
+        RUN(swat_walking_pelvis_matches_the_standing_belt_root_in_both_directions);
+        RUN(swat_grenade_and_bench_keep_each_full_frame_in_both_directions);
         skin_free(&skin);
         assets_unload();
         SDL_DestroyRenderer(renderer);

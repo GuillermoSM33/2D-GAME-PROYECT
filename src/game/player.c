@@ -198,29 +198,56 @@ bool player_sit(Player *player, float bench_x, unsigned reload_guns)
     return true;
 }
 
+float player_sit_down_duration(const Player *player)
+{
+    return player->sit_down_duration > 0.0f ? player->sit_down_duration : SIT_DOWN_TIME;
+}
+
+float player_sit_reload_duration(const Player *player)
+{
+    return player->sit_reload_duration > 0.0f ? player->sit_reload_duration : SIT_RELOAD_TIME;
+}
+
+int player_sit_art_frame(const Player *player, int down_frames, int reload_frames)
+{
+    if (down_frames <= 0 || reload_frames <= 0)
+        return player->anim.frame;
+    if (player->sit_time < player_sit_down_duration(player)) {
+        int f = (int)(player->sit_time / player_sit_down_duration(player) * (float)down_frames);
+        return f < 0 ? 0 : f >= down_frames ? down_frames - 1 : f;
+    }
+    if (player->sit_gun >= 0) {
+        int f = (int)(player->sit_gun_time / player_sit_reload_duration(player) * (float)reload_frames);
+        return down_frames + 4 + (f < 0 ? 0 : f >= reload_frames ? reload_frames - 1 : f);
+    }
+    if (player->anim.frame >= 10)
+        return down_frames + 4 + reload_frames + player->anim.frame - 10;
+    return down_frames + (player->anim.frame == 2 ? 1 : player->anim.frame == 3 ? 3 : 0);
+}
+
 /* Sat: getting down, a reload per gun that needs one, then breathing; after
  * a while, dozing. */
 static void update_sit(Player *player, float dt)
 {
     player->sit_time += dt;
     int frame;
-    if (player->sit_time < SIT_DOWN_TIME) {
+    if (player->sit_time < player_sit_down_duration(player)) {
         frame = 0;
     } else if (player->sit_gun >= 0) {
         player->sit_gun_time += dt;
-        if (player->sit_gun_time >= SIT_RELOAD_TIME) { /* Full: the next one, if any */
+        if (player->sit_gun_time >= player_sit_reload_duration(player)) { /* Full: the next one, if any */
             player->sit_reloaded = true;
             player->sit_reloaded_gun = player->sit_gun;
             player->sit_guns &= ~(1u << player->sit_gun);
             player->sit_gun = next_sit_gun(player->sit_guns);
             player->sit_gun_time = 0.0f;
-            player->sit_time = SIT_DOWN_TIME; /* Her rest starts after the last one */
+            player->sit_time = player_sit_down_duration(player); /* Rest starts after the last one. */
         }
-        frame = 4 + (int)(player->sit_gun_time / SIT_RELOAD_TIME * 6.0f);
+        frame = 4 + (int)(player->sit_gun_time / player_sit_reload_duration(player) * 6.0f);
         if (player->sit_gun < 0)
             frame = 1;
     } else {
-        float rest = player->sit_time - SIT_DOWN_TIME;
+        float rest = player->sit_time - player_sit_down_duration(player);
         static const int BREATH[] = {1, 2, 1, 3};
         static const int DOZE[] = {10, 11, 12, 13, 13, 12, 11};
         if (rest < SIT_DOZE_TIME)
@@ -303,6 +330,11 @@ float player_dry_time(const Player *player)
     return player->hot ? DRY_HOT : player->cold ? DRY_COLD : DRY_MILD;
 }
 
+float player_drink_duration(const Player *player)
+{
+    return player->drink_duration > 0.0f ? player->drink_duration : DRINK_TIME;
+}
+
 const AnimationDef *player_care_animation(const Player *player, int *frame)
 {
     int last = PLAYER_CARE_FRAMES - 1;
@@ -318,7 +350,7 @@ const AnimationDef *player_care_animation(const Player *player, int *frame)
         return &ANIM_PLANT;
     }
     if (player->drink_time > 0.0f) {
-        int f = (int)((1.0f - player->drink_time / DRINK_TIME) * (float)PLAYER_CARE_FRAMES);
+        int f = (int)((1.0f - player->drink_time / player_drink_duration(player)) * (float)PLAYER_CARE_FRAMES);
         *frame = f < 0 ? 0 : f > last ? last : f;
         return &ANIM_DRINK;
     }
@@ -431,6 +463,14 @@ void player_light_kick(const Player *player, float *dx, float *dy, float *tilt)
         return; /* The other gun's shot doesn't move this one */
     if (player->light_rows <= 0.0f) { /* A beam only: it kicks up */
         *tilt = frame == 5 ? -.07f : frame == 6 ? -.025f : 0.0f;
+        return;
+    }
+    if (player->light_kick[0][2] != 0.0f) {
+        if (frame == 5 || frame == 6) {
+            *dx = player->light_kick[frame - 5][0];
+            *dy = player->light_kick[frame - 5][1];
+            *tilt = player->light_kick[frame - 5][2];
+        }
         return;
     }
     /* The same arm on all its sheets: it kicks and comes back. */
@@ -616,7 +656,7 @@ void player_update(Player *player, const InputState *input, float dt)
     if (!player_needs_bandage(player) && input->pressed[ACTION_BANDAGE] && player->water > 0 &&
         player->drink_time <= 0.0f && !player->jump.airborne && player->state != PLAYER_CAUGHT &&
         player->state != PLAYER_SIT && player_alive(player))
-        player->drink_time = DRINK_TIME;
+        player->drink_time = player_drink_duration(player);
     if (player->drink_time > 0.0f) {
         pace *= DRINK_PACE;
         player->drink_time -= dt;

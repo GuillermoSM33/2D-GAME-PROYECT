@@ -2,7 +2,8 @@
 """Rebuild all SWAT art, or compare it without modifying the assets.
 
 Usage: python3 tools/rebuild_swat.py [--verify]
-Preserves the original source drawing, frame sizes, pivots and action timing.
+Preserves the original source drawing, frame sizes and pivots. Expanded action
+counts and timing are declared in config.h and the character definitions.
 Only the standard library is needed. Other characters are never regenerated.
 """
 import argparse

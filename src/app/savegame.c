@@ -461,6 +461,9 @@ bool save_game_resume(const SaveGame *game, StagePlay *play, int hero, int stage
     memcpy(play->rounds, cp->rounds, sizeof(play->rounds));
     play->dual_rounds = cp->dual_rounds;
     play->player = cp->player; play->run = cp->run; play->encounter = cp->encounter;
+    play->player.drink_duration = CHARACTERS[hero].drink_duration;
+    play->player.sit_down_duration = CHARACTERS[hero].sit.down_duration;
+    play->player.sit_reload_duration = CHARACTERS[hero].sit.reload_duration;
     play->bullets = cp->bullets; play->crows = cp->crows; play->bats = cp->bats;
     play->progress_at_start = cp->progress_at_start;
     play->inventory_at_start = cp->inventory_at_start;

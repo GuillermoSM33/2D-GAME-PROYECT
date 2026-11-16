@@ -4,8 +4,10 @@
 Usage: tools/make_sit.py
 
 Writes assets/sprites/characters/<id>/sit.png for the cowgirl (her revolver)
-and the SWAT (his rifle), and sit_shotgun.png for the SWAT's shotgun: 14
-frames of 72 x 67, the body centered on x 35.5 (the pivot), ground row 61.
+and the SWAT (his rifle), and sit_shotgun.png for the SWAT's shotgun.
+All cells are 72 x 67, pivot x35.5 and ground row 61. The sheriff uses the
+14-frame layout below; SWAT delegates to swat_sit/swat_aux with 40 frames:
+eight descent/parking, four rest, 24 reload/pickup/stow, four doze.
 Sat on a bench they face the front, knees toward the viewer, shins down to
 the boots:
 
@@ -24,8 +26,8 @@ her arms (grey puffed sleeves, bare forearms) hanging by her sides, hands on
 her thighs. The SWAT uses his approved tactical bitmap in swat_sit.py,
 with the same helmet, mask and carrier as the standing poses; reloading,
 his forearms reach from the elbows to the gun, magazine or pouch. The legs
-use each character's trouser and boot colors. The gun on the lap is the in-play gun of
-assets/sprites/ui/weapons.png (run tools/make_ui.py first). Uses only the
+use each character's trouser and boot colors. The sheriff uses the UI weapon;
+SWAT uses the same rigid equipment drawing as his standing actions. Uses only the
 standard library.
 """
 from __future__ import annotations

@@ -68,9 +68,15 @@ typedef struct {
     /* The character's sheet sat on a bench with this gun on the lap (its
      * reload there), instead of "sit", or NULL. Same size as sit.png. */
     const char *sit_sheet;
+    const char *throw_sheet; /* Grenade handling with this long gun retained on its sling. */
     /* The character's sheet for a blow with this gun, instead of "melee", or
      * NULL (tools/make_melee.py). Same frame size as shoot.png. */
     const char *melee_sheet;
+    /* Drinking with the current long gun slung; NULL uses the character's
+     * standard care sheet. The lower layer keeps it over moving legs. */
+    const char *drink_sheet;
+    const char *drink_lower_sheet;
+    int drink_frames;
     /* The character's sheet turning on the flashlight with this gun, its last
      * frame held while it stays on (tools/make_flashlight.py, make_swat.py), or
      * NULL. Same frame size as shoot.png. */
@@ -80,6 +86,7 @@ typedef struct {
     float light_time; /* Seconds turning it on: fetching and clipping it, or just the switch */
     float light_rows; /* Art rows over the ground to its lens, if not PLAYER_LIGHT_DY: clipped under the barrel */
     float light_dx;   /* Art px ahead of the pivot; zero uses the shared template */
+    float light_kick[2][3]; /* Lens dx, dy and beam angle in recoil/settle frames; zero uses the template */
     float muzzle_dx;  /* Art px ahead of pivot; zero uses PLAYER_MUZZLE_DX */
     float muzzle_rows; /* Art px above ground; zero uses PLAYER_MUZZLE_DY */
 } WeaponDef;

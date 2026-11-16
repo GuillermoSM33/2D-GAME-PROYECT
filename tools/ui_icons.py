@@ -619,7 +619,10 @@ def grenade_frames() -> list:
     light staying top left however it turns."""
     canvas(8, 8)
     frames = []
-    body = ellipse(3.8, 4.4, 3, 3.1)
+    # The same compact body held by the operator; it must not inflate when
+    # the runtime projectile replaces the held prop at release.
+    body = {(x, y) for y in range(2, 7) for x in range(2, 6)
+            if not (x in (2, 5) and y in (2, 6))}
     lever = rect(3, 1, 5, 1)
     for turn in range(4):
         def turned(mask: set) -> set:

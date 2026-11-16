@@ -49,6 +49,7 @@ typedef struct {
     bool fainted;         /* She fainted from the heat (dead to the stage) */
     int water;            /* Jugs of water she carries */
     float drink_time;     /* Seconds left of drinking one (U) */
+    float drink_duration; /* Character's handling time; restored from its definition, not serialized. */
     float refreshed;      /* Seconds left with the heat off her, after a drink */
     bool drank;           /* A jug was drunk on this update */
     float thirst;         /* Up with time, 0 after a drink (THIRSTY, DEHYDRATED, HALLUCINATING) */
@@ -96,9 +97,11 @@ typedef struct {
     float light_time;  /* ...and how long turning it on takes with this gun */
     float light_rows;  /* ...and its lens's height, if not PLAYER_LIGHT_DY */
     float light_dx;    /* Render-only lens offset from WeaponDef; zero uses the template */
+    float light_kick[2][3]; /* Render-only recoil/settle lens positions from WeaponDef */
     bool light_swings; /* ...and it stays on through a blow (art of its own for it) */
     Animation legs;
     float sit_time;    /* Seconds on the bench */
+    float sit_down_duration, sit_reload_duration; /* Character metadata, rebound after loading. */
     unsigned sit_guns; /* Weapon slots (bits) still to reload sat, one after another */
     int sit_gun;       /* The slot on her lap being reloaded, or -1 */
     float sit_gun_time; /* Seconds into that gun's reload */
@@ -109,6 +112,10 @@ typedef struct {
 
 /* Level 1, standing at the start, full health. */
 void player_init(Player *player);
+float player_drink_duration(const Player *player);
+float player_sit_down_duration(const Player *player);
+float player_sit_reload_duration(const Player *player);
+int player_sit_art_frame(const Player *player, int down_frames, int reload_frames);
 
 /* Her level's stats; with heal, back to full health (a level up does). */
 void player_set_stats(Player *player, int level, int max_health, float armor, bool heal);

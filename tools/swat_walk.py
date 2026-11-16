@@ -9,8 +9,8 @@ from swat_body import WAIST, NEAR_SHOULDER, FAR_SHOULDER, UPPER_ARM, FOREARM, pr
 
 # A single native-pixel weight shift. Passing poses lift the whole upper body;
 # contact poses settle it. The head is never placed independently of the neck.
-BODY_MOTION = ((0, 1), (0, 0), (1, 0), (1, 1),
-               (0, 1), (0, 0), (-1, 0), (-1, 1))
+BODY_MOTION = ((0, 1), (0, 0), (0, 0), (0, 1),
+               (0, 1), (0, 0), (0, 0), (0, 1))
 
 # The bitmap's old hands overlap the top four trouser rows. These masks
 # separate those hands from the authored thighs; knees, shins and boots keep

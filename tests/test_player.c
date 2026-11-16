@@ -420,6 +420,24 @@ static void test_flashlight_lens_follows_the_gun(void)
     player.light_rows = 0.0f;
     player_light_kick(&player, &dx, &dy, &tilt);
     CHECK(dy == 0.0f && tilt < 0.0f);
+    /* Custom action art carries its own lens motion, without applying the
+     * sheriff's four-row kick to a different shouldered weapon. */
+    player.light_rows = 32.5f;
+    player.light_kick[0][0] = -1.0f;
+    player.light_kick[0][1] = -2.0f;
+    player.light_kick[0][2] = -.07f;
+    player.light_kick[1][0] = -1.0f;
+    player.light_kick[1][2] = -.017f;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK_NEAR(dx, -1.0f, 1e-6f);
+    CHECK_NEAR(dy, -2.0f, 1e-6f);
+    player.anim.frame = 6;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK_NEAR(dx, -1.0f, 1e-6f);
+    CHECK_NEAR(dy, 0.0f, 1e-6f);
+    player.anim.frame = 0;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK(dx == 0.0f && dy == 0.0f && tilt == 0.0f);
     /* In a blow it goes with the gun, if there is art for it. */
     player.state = PLAYER_MELEE;
     player.anim.frame = 1;
@@ -430,9 +448,78 @@ static void test_flashlight_lens_follows_the_gun(void)
     CHECK(dy < 0.0f && tilt < 0.0f);
 }
 
+static void test_character_drink_duration_preserves_default_and_consumes_at_the_end(void)
+{
+    Player player;
+    player_init(&player);
+    CHECK_NEAR(player_drink_duration(&player), DRINK_TIME, 1e-6f);
+    player.drink_duration = 2.8f;
+    player.water = 1;
+    InputState input = {0};
+    input.pressed[ACTION_BANDAGE] = true;
+    player_update(&player, &input, FIXED_DT);
+    CHECK_NEAR(player.drink_time, 2.8f - FIXED_DT, 1e-5f);
+    input = (InputState){0};
+    for (int i = 0; i < 90; i++) player_update(&player, &input, FIXED_DT);
+    CHECK(player.drink_time > 1.2f && player.water == 1);
+    for (int i = 0; i < 100 && player.drink_time > 0.0f; i++)
+        player_update(&player, &input, FIXED_DT);
+    CHECK(player.drink_time == 0.0f && player.water == 0 && player.drank);
+}
+
+static void test_grenade_releases_once_after_preparation_and_recovers(void)
+{
+    Player player;
+    player_init(&player);
+    CHECK(player_throw(&player));
+    InputState input = {0};
+    int releases = 0;
+    float elapsed = 0.0f;
+    for (int tick = 0; tick < 240; tick++) {
+        player_update(&player, &input, FIXED_DT);
+        elapsed += FIXED_DT;
+        if (player.threw) {
+            releases++;
+            CHECK(player.anim.frame == PLAYER_THROW_RELEASE_FRAME);
+            CHECK_NEAR(elapsed, PLAYER_THROW_RELEASE_FRAME / PLAYER_THROW_FPS, FIXED_DT * 2);
+        }
+    }
+    CHECK(releases == 1 && player.state == PLAYER_IDLE);
+}
+
+static void test_long_bench_sequence_reloads_in_order_and_visits_each_art_frame(void)
+{
+    Player player;
+    player_init(&player);
+    CHECK_NEAR(player_sit_down_duration(&player), SIT_DOWN_TIME, .0001f);
+    CHECK_NEAR(player_sit_reload_duration(&player), SIT_RELOAD_TIME, .0001f);
+    player.sit_down_duration = 1.0f;
+    player.sit_reload_duration = 2.8f;
+    CHECK(player_sit(&player, player.x, 3u));
+    InputState input = {0};
+    unsigned down = 0, reload[2] = {0};
+    int done[2] = {0};
+    for (int tick = 0; tick < 810; tick++) {
+        int frame = player_sit_art_frame(&player, 8, 24);
+        if (frame < 8) down |= 1u << frame;
+        else if (frame >= 12 && frame < 36 && player.sit_gun >= 0)
+            reload[player.sit_gun] |= 1u << (frame - 12);
+        player_update(&player, &input, FIXED_DT);
+        if (player.sit_reloaded) {
+            done[player.sit_reloaded_gun]++;
+            if (player.sit_reloaded_gun == 1) CHECK(done[0] == 1);
+        }
+    }
+    CHECK(down == 0xff && reload[0] == 0xffffff && reload[1] == 0xffffff);
+    CHECK(done[0] == 1 && done[1] == 1 && player.sit_gun == -1);
+}
+
 int main(void)
 {
     printf("test_player\n");
+    RUN(test_character_drink_duration_preserves_default_and_consumes_at_the_end);
+    RUN(test_grenade_releases_once_after_preparation_and_recovers);
+    RUN(test_long_bench_sequence_reloads_in_order_and_visits_each_art_frame);
     RUN(test_starts_idle);
     RUN(test_walk_speed);
     RUN(test_run_is_faster);

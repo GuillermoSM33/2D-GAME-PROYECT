@@ -113,6 +113,10 @@ static void test_roundtrip_preserves_live_mission_and_rebinds_references(void)
     CHECK(decoded.profiles[2].progress.level == 3);
     CHECK(almanac_count(&decoded.profiles[1].almanac) == almanac_count(&source.profiles[1].almanac));
     CHECK(save_game_resume(&decoded, &resumed, 1, 0));
+    CHECK_NEAR(player_drink_duration(&play.player), 2.8f, .0001f);
+    CHECK_NEAR(player_drink_duration(&resumed.player), 2.8f, .0001f);
+    CHECK_NEAR(player_sit_down_duration(&resumed.player), 1.0f, .0001f);
+    CHECK_NEAR(player_sit_reload_duration(&resumed.player), 2.8f, .0001f);
     CHECK_NEAR(resumed.player.x, play.player.x, .001f);
     CHECK(resumed.player.health == 37 && resumed.player.water == 4);
     CHECK(resumed.run.mission.ticks == 123 * SIMULATION_HZ + 17);

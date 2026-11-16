@@ -58,7 +58,10 @@ static int verify_characters(void)
             snprintf(template_name, sizeof(template_name), "sprites/characters/cowgirl/%s",
                      SKIN_SHEET_NAMES[s]);
             const EmbeddedImage *ref = assets_find_image(template_name);
-            failures += !verify_image(names[s], ref->width, ref->height);
+            int width = ref->width;
+            if (strcmp(SKIN_SHEET_NAMES[s], "sit") == 0 && CHARACTERS[c].sit.down_frames > 0)
+                width = (CHARACTERS[c].sit.down_frames + CHARACTERS[c].sit.reload_frames + 8) * PLAYER_SIT_FRAME_W;
+            failures += !verify_image(names[s], width, ref->height);
         }
         /* A gun's own shoot and reload sheets are needed, the size of shoot.png... */
         const EmbeddedImage *shoot = assets_find_image("sprites/characters/cowgirl/shoot");
@@ -75,6 +78,15 @@ static int verify_characters(void)
             snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id,
                      def->melee_sheet ? def->melee_sheet : "melee");
             failures += !verify_image(name, PLAYER_MELEE_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
+            if (def->drink_sheet) {
+                const char *drinking[] = {def->drink_sheet, def->drink_lower_sheet};
+                for (int k = 0; k < 2; k++) {
+                    if (drinking[k] == NULL)
+                        continue;
+                    snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, drinking[k]);
+                    failures += !verify_image(name, def->drink_frames * PLAYER_SHOOT_FRAME_W, shoot->height);
+                }
+            }
             if (def->light_sheet) {
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->light_sheet);
                 failures += !verify_image(name, PLAYER_LIGHT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
@@ -130,7 +142,15 @@ static int verify_characters(void)
                 const EmbeddedImage *sit = assets_find_image("sprites/characters/cowgirl/sit");
                 char name[96];
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->sit_sheet);
-                failures += !verify_image(name, sit->width, sit->height);
+                int width = CHARACTERS[c].sit.down_frames > 0
+                            ? (CHARACTERS[c].sit.down_frames + CHARACTERS[c].sit.reload_frames + 8) * PLAYER_SIT_FRAME_W
+                            : sit->width;
+                failures += !verify_image(name, width, sit->height);
+            }
+            if (def->throw_sheet) {
+                char name[96];
+                snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->throw_sheet);
+                failures += !verify_image(name, PLAYER_THROW_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
             }
         }
     }

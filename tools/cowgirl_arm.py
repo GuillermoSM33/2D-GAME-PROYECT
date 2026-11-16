@@ -32,11 +32,16 @@ SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 def arm_limb(top: tuple, elbow: tuple, hand: tuple, *,
              shoulder_radius: float = ARM_AT_SHOULDER,
-             wrist_radius: float = ARM_AT_WRIST) -> dict:
+             wrist_radius: float = ARM_AT_WRIST, corner_radius: float = 0) -> dict:
     """The arm from its shoulder to the wrist. An arm nearly straight bends in one soft curve;
     one really bent has its elbow where it is asked."""
     middle = ((top[0] + hand[0]) / 2, (top[1] + hand[1]) / 2)
     soft = math.hypot(elbow[0] - middle[0], elbow[1] - middle[1]) <= SOFT_ELBOW
+    def approach(point):
+        length = max(math.dist(point, elbow), .001)
+        distance = min(corner_radius, length * .35)
+        return tuple(a + (b - a) * distance / length for a, b in zip(elbow, point))
+    before, after = approach(top), approach(hand)
     samples = []
     for i in range(STEPS + 1):
         t = i / STEPS
@@ -44,6 +49,17 @@ def arm_limb(top: tuple, elbow: tuple, hand: tuple, *,
             cx, cy = 2 * elbow[0] - middle[0], 2 * elbow[1] - middle[1]
             x = (1 - t) ** 2 * top[0] + 2 * t * (1 - t) * cx + t * t * hand[0]
             y = (1 - t) ** 2 * top[1] + 2 * t * (1 - t) * cy + t * t * hand[1]
+        elif corner_radius > 0:
+            if t < .4:
+                a, b, k = top, before, t / .4
+                x, y = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
+            elif t > .6:
+                a, b, k = after, hand, (t - .6) / .4
+                x, y = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
+            else:
+                k = (t - .4) / .2
+                x = (1 - k) ** 2 * before[0] + 2 * k * (1 - k) * elbow[0] + k * k * after[0]
+                y = (1 - k) ** 2 * before[1] + 2 * k * (1 - k) * elbow[1] + k * k * after[1]
         else:
             a, b, k = (top, elbow, t * 2) if t < 0.5 else (elbow, hand, t * 2 - 1)
             x, y = a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k

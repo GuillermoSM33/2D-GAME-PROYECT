@@ -1336,6 +1336,8 @@ static void test_grenade_arcs_and_blows(void)
     run.zombies[0].awake = true;
     run_throw(&run, &player);
     CHECK(run.grenades[0].active);
+    CHECK_NEAR(run.grenades[0].x, player.x + player.facing * GRENADE_RELEASE_DX, .001f);
+    CHECK_NEAR(run.grenades[0].height, GRENADE_RELEASE_HEIGHT, .001f);
     int blasts = 0, steps = 0;
     while (run.grenades[0].active && steps++ < 600) {
         run_update(&run, &player, &progress, FIXED_DT);

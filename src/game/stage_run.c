@@ -686,8 +686,8 @@ void run_throw(StageRun *run, const Player *player)
         if (n->active)
             continue;
         n->active = true;
-        n->x = player->x + (float)player->facing * 30.0f;
-        n->height = player->jump.height + 150.0f; /* Out of her raised hand */
+        n->x = player->x + (float)player->facing * GRENADE_RELEASE_DX;
+        n->height = player->jump.height + GRENADE_RELEASE_HEIGHT;
         n->vx = (float)player->facing * GRENADE_SPEED_X;
         n->vy = GRENADE_SPEED_Y;
         n->fuse = GRENADE_FUSE;

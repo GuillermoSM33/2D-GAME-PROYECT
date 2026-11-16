@@ -159,6 +159,9 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
     play->flashlight_click_pending = false;
     almanac_encounter_start(&play->encounter);
     player_init(&play->player);
+    play->player.drink_duration = play->character->drink_duration;
+    play->player.sit_down_duration = play->character->sit.down_duration;
+    play->player.sit_reload_duration = play->character->sit.reload_duration;
     player_set_stats(&play->player, progress->level, progress_max_health(progress),
                      character_armor(play->character, progress->armor_level), true);
     for (int w = 0; w < CHARACTER_MAX_WEAPONS; w++)
@@ -974,7 +977,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         /* The bench's animation is longer than the standing reload. Keep
          * the actual mechanism at its natural speed; its final latch lands
          * when this gun finishes, rather than speeding up its recording. */
-        float sound_at = fmaxf(0.0f, SIT_RELOAD_TIME - sat_weapon->magazine_reload);
+        float sound_at = fmaxf(0.0f, player_sit_reload_duration(player) - sat_weapon->magazine_reload);
         if (player->sit_gun_time >= sound_at &&
             (previous_sit_gun != player->sit_gun || previous_sit_reload < sound_at ||
              previous_sit_reload <= 0.0f))

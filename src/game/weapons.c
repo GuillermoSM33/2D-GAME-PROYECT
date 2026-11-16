@@ -28,10 +28,13 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .empty_sound = "weapons/rifle_empty", .melee_sound = "weapons/rifle_melee",
         .smoke_puffs = 3, .smoke_scale = 0.7f, /* A quick wisp: it fires often */
         .reload_sheet = "reload",
+        .throw_sheet = "throw",
         .light_sheet = "light", .light_walk_sheet = "light_walk", .light_time = 1.0f,
         .reload_lower_sheet = "reload_lower",
         .carry_sheet = "carry", .shoot_lit_sheet = "shoot_lit",
-        .muzzle_dx = 23.5f, .muzzle_rows = 35.5f, .light_dx = 22.0f, .light_rows = 33.5f,
+        .drink_sheet = "drink_rifle", .drink_lower_sheet = "drink_rifle_lower", .drink_frames = 31,
+        .muzzle_dx = 24.5f, .muzzle_rows = 35.5f, .light_dx = 23.0f, .light_rows = 32.5f,
+        .light_kick = {{-1.0f, -1.0f, -.0523599f}, {-1.0f, 0.0f, -.0174533f}},
     },
     [WEAPON_SHOTGUN] = {
         .name = "Escopeta", .damage_mult = 0.60f, .reload_time = 0.62f,
@@ -44,10 +47,13 @@ static const WeaponDef WEAPONS[WEAPON_COUNT] = {
         .shoot_sheet = "shoot_shotgun", .reload_sheet = "reload_shotgun", .sit_sheet = "sit_shotgun",
         .reload_lower_sheet = "reload_shotgun_lower",
         .melee_sheet = "melee_shotgun",
+        .throw_sheet = "throw_shotgun",
         .light_sheet = "light_shotgun", .light_walk_sheet = "light_walk_shotgun", .light_time = 1.0f,
         .carry_sheet = "carry_shotgun", .shoot_lit_sheet = "shoot_shotgun_lit",
         .jump_sheet = "jump_shotgun",
-        .muzzle_dx = 30.5f, .muzzle_rows = 35.5f, .light_dx = 29.0f, .light_rows = 33.5f,
+        .drink_sheet = "drink_shotgun", .drink_lower_sheet = "drink_shotgun_lower", .drink_frames = 31,
+        .muzzle_dx = 26.5f, .muzzle_rows = 35.5f, .light_dx = 24.0f, .light_rows = 32.5f,
+        .light_kick = {{-1.0f, -2.0f, -.0872665f}, {-1.0f, 0.0f, -.0174533f}},
     },
     [WEAPON_DUAL] = {
         /* One after the other, each shot a whole turn (shoot.c): a bit more than

@@ -298,7 +298,7 @@ static void draw_grenades(SDL_Renderer *renderer, const StageRun *run, float cam
         const Grenade *n = &run->grenades[g];
         if (!n->active)
             continue;
-        int frame = (int)(n->fuse * 12.0f) % 4;
+        int frame = (int)((GRENADE_FUSE - n->fuse) * 12.0f) % 4;
         SDL_Rect src = {frame * GRENADE_FRAME, 0, GRENADE_FRAME, GRENADE_FRAME};
         int size = GRENADE_FRAME * SPRITE_SCALE;
         SDL_Rect dst = {(int)lroundf(n->x - camera_x) - size / 2, BASELINE - (int)lroundf(n->height) - size,
@@ -317,6 +317,9 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     player_view.light_time = stage_weapon(play)->light_time;
     player_view.light_rows = stage_weapon(play)->light_rows;
     player_view.light_dx = stage_weapon(play)->light_dx;
+    for (int pose = 0; pose < 2; pose++)
+        for (int axis = 0; axis < 3; axis++)
+            player_view.light_kick[pose][axis] = stage_weapon(play)->light_kick[pose][axis];
     player_view.light_swings = stage_weapon(play)->melee_lit_sheet != NULL;
     player_view.x = interpolate(prev_player_x, play->player.x, alpha);
     player_view.jump.height = interpolate(prev_jump, play->player.jump.height, alpha);

@@ -84,6 +84,8 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_jump[guns[g]] = own_sheet(character, def->jump_sheet);
             skin->weapon_stand[guns[g]] = own_sheet(character, def->stand_sheet);
             skin->weapon_carry[guns[g]] = own_sheet(character, def->carry_sheet);
+            skin->weapon_drink[guns[g]] = own_sheet(character, def->drink_sheet);
+            skin->weapon_drink_lower[guns[g]] = own_sheet(character, def->drink_lower_sheet);
             skin->weapon_legs[guns[g]] = own_sheet(character, def->legs_sheet);
             skin->weapon_power[guns[g]] = own_sheet(character, def->power_sheet);
             skin->weapon_power_lit[guns[g]] = own_sheet(character, def->power_lit_sheet);
@@ -95,6 +97,7 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
             skin->weapon_reload_lower[guns[g]] = own_sheet(character, def->reload_lower_sheet);
             skin->weapon_reload_other_lower[guns[g]] = own_sheet(character, def->reload_other_lower_sheet);
             skin->weapon_sit[guns[g]] = own_sheet(character, def->sit_sheet);
+            skin->weapon_throw[guns[g]] = own_sheet(character, def->throw_sheet);
             skin->weapon_melee[guns[g]] = own_sheet(character, def->melee_sheet);
             skin->weapon_melee_lit[guns[g]] = own_sheet(character, def->melee_lit_sheet);
             skin->weapon_light[guns[g]] = own_sheet(character, def->light_sheet);
@@ -157,11 +160,11 @@ SDL_Texture *skin_sheet(const CharacterSkin *skin, const char *template_sheet, i
     if (strcmp(file, "light") == 0)
         return known ? skin->weapon_light[gun] : NULL;
     if (strcmp(file, "throw") == 0)
-        return skin->throw_sheet;
+        return known && skin->weapon_throw[gun] ? skin->weapon_throw[gun] : skin->throw_sheet;
     if (strcmp(file, "faint") == 0)
         return skin->faint_sheet;
     if (strcmp(file, "drink") == 0)
-        return skin->drink_sheet;
+        return known && skin->weapon_drink[gun] ? skin->weapon_drink[gun] : skin->drink_sheet;
     if (strcmp(file, "bandage") == 0)
         return skin->bandage_sheet;
     if (strcmp(file, "swap_lit") == 0)

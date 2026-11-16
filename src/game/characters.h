@@ -25,9 +25,16 @@ typedef enum {
 #define CHARACTER_ABILITY_LINES 3
 
 typedef struct {
+    int down_frames, reload_frames; /* Four rest and four doze frames between/after them. */
+    float down_duration, reload_duration; /* Zero retains the shared timing. */
+} CharacterSit;
+
+typedef struct {
     const char *id;   /* Its folder: assets/sprites/characters/<id>/ */
     const char *name;
     int walk_waist_row; /* Art row where moving legs join the torso; 0 uses the template. */
+    float drink_duration; /* Full handling sequence; zero uses DRINK_TIME. */
+    CharacterSit sit;
     Ability ability;
     const char *ability_name;
     const char *ability_lines[CHARACTER_ABILITY_LINES]; /* Short description, one line each */

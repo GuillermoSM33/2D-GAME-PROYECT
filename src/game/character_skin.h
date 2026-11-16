@@ -26,6 +26,9 @@ typedef struct {
     SDL_Texture *weapon_jump[WEAPON_COUNT];        /* ...and jump */
     SDL_Texture *weapon_stand[WEAPON_COUNT];       /* ...and stood still (WeaponDef.stand_sheet) */
     SDL_Texture *weapon_carry[WEAPON_COUNT];       /* Armed locomotion on the wider action template */
+    SDL_Texture *weapon_drink[WEAPON_COUNT];
+    SDL_Texture *weapon_drink_lower[WEAPON_COUNT];
+    SDL_Texture *weapon_throw[WEAPON_COUNT];
     SDL_Texture *weapon_power[WEAPON_COUNT];       /* ...and its ricochet (WeaponDef.power_sheet), */
     SDL_Texture *weapon_power_lit[WEAPON_COUNT];   /* ...with the flashlight on */
     SDL_Texture *weapon_legs[WEAPON_COUNT];        /* ...and its walk with no arms (WeaponDef.legs_sheet) */

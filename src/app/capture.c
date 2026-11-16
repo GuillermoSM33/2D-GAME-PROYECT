@@ -37,6 +37,189 @@ static void idle_steps(StagePlay *play, Profile *profile, InputState *input, int
     }
 }
 
+/* Focused real-stage review, also reachable without rendering every menu. */
+static void capture_swat_screens(Platform *platform, const char *dir, CharacterSkin *skins,
+                                  Profile *profiles, AppOptions *options, bool both_directions)
+{
+    SDL_Renderer *r = platform->renderer;
+    static StagePlay play;
+    InputState input;
+    input_init(&input);
+    /* Both SWAT weapons in the scenery, through the real stage/render path. */
+    {
+        Profile review = profiles[1];
+        review.progress.level = 3;
+        for (int gun = 0; gun < 2; gun++) {
+            for (int side = 0; side < (both_directions ? 2 : 1); side++) {
+                char name[64];
+                const char *kind = gun == 0 ? (side ? "rifle_izq" : "rifle") : (side ? "escopeta_izq" : "escopeta");
+                stage_start(&play, 0, &CHARACTERS[1], &review.progress);
+                play.run.zombie_count = 0;
+                play.flashlight = false;
+                weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+                InputState action = {0};
+                if (gun != 0) {
+                    action.pressed[ACTION_SWAP] = true;
+                    stage_step(&play, &action, &review, options);
+                }
+                play.player.facing = side ? FACING_LEFT : FACING_RIGHT;
+                stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                snprintf(name, sizeof(name), "53_swat_%s", kind);
+                save_capture(r, dir, name);
+                Player before_walk = play.player;
+                InputState moving = {0};
+                moving.down[side ? ACTION_LEFT : ACTION_RIGHT] = true;
+                player_update(&play.player, &moving, FIXED_DT);
+                for (int f = 0; f < PLAYER_WALK_FRAMES; f++) {
+                    animation_seek(&play.player.anim, f);
+                    stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    snprintf(name, sizeof(name), "53_swat_%s_paso_%d", kind, f);
+                    save_capture(r, dir, name);
+                }
+                play.player = before_walk;
+                action = (InputState){0};
+                action.pressed[ACTION_SHOOT] = true;
+                stage_step(&play, &action, &review, options);
+                for (int i = 0; i < 60 && !play.player.shot.fired; i++)
+                    idle_steps(&play, &review, &input, 1, options);
+                stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                snprintf(name, sizeof(name), "53_swat_%s_disparo", kind);
+                save_capture(r, dir, name);
+                Animation fired = play.player.anim;
+                for (int f = 0; f < PLAYER_SHOOT_FRAMES; f++) {
+                    animation_seek(&play.player.anim, f);
+                    stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    snprintf(name, sizeof(name), "53_swat_%s_tiro_%d", kind, f);
+                    save_capture(r, dir, name);
+                }
+                play.player.anim = fired;
+                /* Finish the burst/recoil before requesting a magazine reload. */
+                idle_steps(&play, &review, &input, 40, options);
+                /* Review later actions without a frozen cloud from that shot. */
+                bullets_clear(&play.bullets);
+                effects_clear(&play.effects);
+                smoke_clear(&play.smoke);
+                action = (InputState){0};
+                action.pressed[ACTION_RELOAD] = true;
+                stage_step(&play, &action, &review, options);
+                for (int f = 0; f < PLAYER_RELOAD_FRAMES; f++) {
+                    play.player.shot.mag_reload = play.player.shot.mag_reload_time * (1.0f - ((float)f + .5f) / PLAYER_RELOAD_FRAMES);
+                    player_update(&play.player, &input, 0.0f);
+                    stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    snprintf(name, sizeof(name), "53_swat_%s_recarga_%d", kind, f);
+                    save_capture(r, dir, name);
+                }
+                play.player = before_walk;
+                player_melee(&play.player);
+                for (int f = 0; f < PLAYER_MELEE_FRAMES; f++) {
+                    animation_seek(&play.player.anim, f);
+                    stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    snprintf(name, sizeof(name), "53_swat_%s_culatazo_%d", kind, f);
+                    save_capture(r, dir, name);
+                }
+                play.player = before_walk;
+                play.flashlight = true;
+                for (int f = 0; f < PLAYER_LIGHT_FRAMES; f++) {
+                    play.flashlight_since = stage_weapon(&play)->light_time * ((float)f + .5f) / PLAYER_LIGHT_FRAMES;
+                    stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    snprintf(name, sizeof(name), "53_swat_%s_linterna_%d", kind, f);
+                    save_capture(r, dir, name);
+                }
+                play.player = before_walk;
+                play.flashlight = false;
+                play.flashlight_since = 10.0f;
+                int drink_frames = stage_weapon(&play)->drink_frames;
+                for (int f = 0; f < drink_frames; f++) {
+                    play.player.drink_time = player_drink_duration(&play.player) * (1.0f - ((float)f + .5f) / (float)drink_frames);
+                    stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    snprintf(name, sizeof(name), "53_swat_%s_agua_%d", kind, f);
+                    save_capture(r, dir, name);
+                }
+            }
+        }
+    }
+}
+
+static void start_swat_aux_review(StagePlay *play, Profile *profile, AppOptions *options, int gun, int facing)
+{
+    stage_start(play, 0, &CHARACTERS[1], &profile->progress);
+    terrain_clear(&play->run.terrain);
+    play->run.zombie_count = 0;
+    if (gun) {
+        InputState input = {0};
+        input.pressed[ACTION_SWAP] = true;
+        stage_step(play, &input, profile, options);
+    }
+    play->player.facing = facing;
+    weather_start(&play->weather, WEATHER_CLEAR, camera_left(play->player.x));
+}
+
+/* Seek by stepping real input/time: includes the live projectile and both
+ * consecutive bench reloads, rather than substituting isolated PNG poses. */
+static void capture_swat_aux_screens(Platform *platform, const char *dir, CharacterSkin *skin,
+                                     Profile *profile, AppOptions *options)
+{
+    static StagePlay play;
+    Profile review = *profile;
+    review.progress.level = 3;
+    InputState idle = {0};
+    for (int gun = 0; gun < 2; gun++) {
+        for (int side = 0; side < 2; side++) {
+            const char *kind = gun ? (side ? "escopeta_izq" : "escopeta") : (side ? "rifle_izq" : "rifle");
+            char name[96];
+            start_swat_aux_review(&play, &review, options, gun, side ? -1 : 1);
+            InputState input = {0};
+            input.pressed[ACTION_POWER] = true;
+            stage_step(&play, &input, &review, options);
+            for (int f = 0; f < PLAYER_THROW_FRAMES; f++) {
+                for (int wait = 0; wait < 24 && play.player.state == PLAYER_THROW && play.player.anim.frame < f; wait++)
+                    idle_steps(&play, &review, &idle, 1, options);
+                if (play.player.state != PLAYER_THROW) break;
+                stage_draw(platform, &play, skin, &review.progress, 1.0f, play.player.x, 0.0f, options);
+                snprintf(name, sizeof(name), "54_swat_%s_granada_%d", kind, f);
+                save_capture(platform->renderer, dir, name);
+            }
+            start_swat_aux_review(&play, &review, options, gun, side ? -1 : 1);
+            terrain_add(&play.run.terrain, TERRAIN_BENCH, play.player.x);
+            play.rounds[0] = play.rounds[1] = 0;
+            play.player.shot.rounds = 0;
+            input = (InputState){0};
+            input.pressed[ACTION_USE] = true;
+            stage_step(&play, &input, &review, options);
+            int previous_down = -1, previous_reload[2] = {-1, -1};
+            for (int tick = 0; tick < 900 && play.player.state == PLAYER_SIT; tick++) {
+                int frame = player_sit_art_frame(&play.player, CHARACTERS[1].sit.down_frames,
+                                                CHARACTERS[1].sit.reload_frames);
+                bool capture = false;
+                if (play.player.sit_time < player_sit_down_duration(&play.player)) {
+                    if (frame != previous_down) {
+                        previous_down = frame;
+                        snprintf(name, sizeof(name), "54_swat_%s_sentarse_%d", kind, frame);
+                        capture = true;
+                    }
+                } else if (play.player.sit_gun >= 0) {
+                    int slot = play.player.sit_gun;
+                    int f = frame - CHARACTERS[1].sit.down_frames - 4;
+                    if (f != previous_reload[slot]) {
+                        previous_reload[slot] = f;
+                        snprintf(name, sizeof(name), "54_swat_%s_banco_%s_%d", kind, slot ? "escopeta" : "rifle", f);
+                        capture = true;
+                    }
+                } else {
+                    snprintf(name, sizeof(name), "54_swat_%s_reposo", kind);
+                    capture = true;
+                }
+                if (capture) {
+                    stage_draw(platform, &play, skin, &review.progress, 1.0f, play.player.x, 0.0f, options);
+                    save_capture(platform->renderer, dir, name);
+                }
+                if (play.player.sit_time >= player_sit_down_duration(&play.player) && play.player.sit_gun < 0) break;
+                idle_steps(&play, &review, &idle, 1, options);
+            }
+        }
+    }
+}
+
 /* --capturas: every screen drawn once into dir, to check the interface's
  * art without playing (the menus, a fight, a wall, the pause, a defeat). */
 void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *skins,
@@ -46,6 +229,16 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     static StagePlay play;
     InputState input;
     input_init(&input);
+    const char *capture_group = SDL_getenv("THE_MIRACLE_CAPTURE_GROUP");
+    if (capture_group && SDL_strcmp(capture_group, "swat_aux") == 0) {
+        capture_swat_aux_screens(platform, dir, &skins[1], &profiles[1], options);
+        return;
+    }
+    if (capture_group && SDL_strcmp(capture_group, "swat") == 0) {
+        capture_swat_screens(platform, dir, skins, profiles, options, true);
+        return;
+    }
+
     ListMenu list;
     list_menu_init(&list, TITLE_ITEMS);
     Progress progress[APP_PROFILE_CAPACITY];
@@ -736,57 +929,7 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
         }
         profiles[0].progress = kept;
     }
-    /* Both SWAT weapons in the scenery, through the real stage/render path. */
-    {
-        Profile review = profiles[1];
-        review.progress.level = 3;
-        for (int gun = 0; gun < 2; gun++) {
-            char name[64];
-            const char *kind = gun == 0 ? "rifle" : "escopeta";
-            stage_start(&play, 0, &CHARACTERS[1], &review.progress);
-            play.run.zombie_count = 0;
-            play.flashlight = false;
-            weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
-            InputState action = {0};
-            if (gun != 0) {
-                action.pressed[ACTION_SWAP] = true;
-                stage_step(&play, &action, &review, options);
-            }
-            stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
-            snprintf(name, sizeof(name), "53_swat_%s", kind);
-            save_capture(r, dir, name);
-            Player before_walk = play.player;
-            InputState moving = {0};
-            moving.down[ACTION_RIGHT] = true;
-            player_update(&play.player, &moving, FIXED_DT);
-            for (int f = 0; f < PLAYER_WALK_FRAMES; f++) {
-                animation_seek(&play.player.anim, f);
-                stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
-                snprintf(name, sizeof(name), "53_swat_%s_paso_%d", kind, f);
-                save_capture(r, dir, name);
-            }
-            play.player = before_walk;
-            action = (InputState){0};
-            action.pressed[ACTION_SHOOT] = true;
-            stage_step(&play, &action, &review, options);
-            for (int i = 0; i < 60 && !play.player.shot.fired; i++)
-                idle_steps(&play, &review, &input, 1, options);
-            stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
-            snprintf(name, sizeof(name), "53_swat_%s_disparo", kind);
-            save_capture(r, dir, name);
-            /* Finish the burst/recoil before requesting a magazine reload. */
-            idle_steps(&play, &review, &input, 40, options);
-            action = (InputState){0};
-            action.pressed[ACTION_RELOAD] = true;
-            stage_step(&play, &action, &review, options);
-            for (int f = 0; f < PLAYER_RELOAD_FRAMES; f++) {
-                stage_draw(platform, &play, &skins[1], &review.progress, 1.0f, play.player.x, 0.0f, options);
-                snprintf(name, sizeof(name), "53_swat_%s_recarga_%d", kind, f);
-                save_capture(r, dir, name);
-                idle_steps(&play, &review, &input, 8, options);
-            }
-        }
-    }
+    capture_swat_screens(platform, dir, skins, profiles, options, false);
     /* The new mission HUD and results use the same rules as real play. */
     stage_start(&play, 2, &CHARACTERS[0], &profiles[0].progress);
     play.run.mission.ticks = 187 * SIMULATION_HZ;

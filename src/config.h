@@ -160,9 +160,9 @@
 #define MELEE_DAMAGE_MULT 0.9f    /* Times her weapon damage (a little less than a shot)... */
 #define MELEE_ARMOR_SHARE 0.5f    /* ...with half the armor in the way */
 #define MELEE_PUSH 70.0f          /* Window px a zombie is knocked back */
-#define PLAYER_THROW_FRAMES 8      /* The grenade throw, on the shoot template */
-#define PLAYER_THROW_FPS 14.0f
-#define PLAYER_THROW_RELEASE_FRAME 4 /* The grenade leaves the hand */
+#define PLAYER_THROW_FRAMES 24     /* Lower weapon, fetch, pull pin, lob and recover */
+#define PLAYER_THROW_FPS 16.0f
+#define PLAYER_THROW_RELEASE_FRAME 15 /* The grenade leaves the hand */
 #define PLAYER_SIT_FRAME_W 72
 #define PLAYER_SIT_ANCHOR_X 35.5f  /* Sat facing the viewer: the body in the frame's middle */
 #define PLAYER_SIT_FRAMES 14
@@ -351,6 +351,8 @@
  * 0 for the real rule, from POWER_LEVEL. */
 #define DUALS_FROM_ANY_LEVEL 0
 #define GRENADE_SPEED_X 430.0f    /* Window px/s ahead when thrown */
+#define GRENADE_RELEASE_DX 58.0f  /* Center of the held grenade in the release pose */
+#define GRENADE_RELEASE_HEIGHT 128.0f /* Lower edge; its 8px glyph center is 16px higher. */
 #define GRENADE_SPEED_Y 560.0f    /* ...and up */
 #define GRENADE_GRAVITY 1500.0f
 #define GRENADE_BOUNCE 0.35f      /* Speed kept off the ground or a wall */

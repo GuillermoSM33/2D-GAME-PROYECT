@@ -324,7 +324,8 @@ static void sit_until_reload_starts(void)
     press(ACTION_USE);
     CHECK(game.player.state == PLAYER_SIT && plays("world/sit") == 1);
     CHECK(plays("weapons/rifle_reload") == 0);
-    for (int guard = 0; guard < 180 && plays("weapons/rifle_reload") == 0; guard++)
+    int wait = (int)((player_sit_down_duration(&game.player) + player_sit_reload_duration(&game.player)) / FIXED_DT) + 5;
+    for (int guard = 0; guard < wait && plays("weapons/rifle_reload") == 0; guard++)
         idle();
     CHECK(plays("weapons/rifle_reload") == 1);
     CHECK(game.player.sit_gun == 0 && game.player.shot.rounds == 1);

@@ -250,38 +250,100 @@ Operador compacto con casco carbón, tres lentes de visión nocturna verdes,
 pasamontañas, chaleco gris y correas marrones. Mantiene la escala de la sheriff,
 con piernas cortas, contorno cálido y planos de color discretos.
 
-Las mangas del porte, disparo, recarga, salto y linterna parten de cuatro hojas
-pintadas: hombro unido al chaleco, codo bajo el arma y guantes en los dos puntos
-de agarre. No se reconstruyen como tubos para alcanzar el rifle.
+El porte, disparo, recarga, culatazo, salto, linterna y agua comparten un cuerpo
+completo: casco, cuello, chaleco, cinturón y botas. Las mangas tienen volumen de
+tela y codos proyectados para cada gesto. El brazo lejano nace detrás del
+chaleco; solo su antebrazo y su mano pasan por delante.
+Los dibujos originales se conservan como fuentes de identidad y materiales.
 [Fuentes, referencias y prompts](templates/swat/authored_arms.md).
 
-`tools/swat_authored.py` comparte el casco y las botas entre las poses de pie.
+`tools/swat_actions.py` dibuja las acciones sobre el mismo torso; nunca recorta
+una franja de otra pose sobre el arma durante el retroceso.
+`tools/swat_authored.py` comparte el casco y compone la locomoción.
 La caminata usa ocho dibujos de piernas desde la fila 44 de walk (51 de acción).
-El conjunto cabeza-cuello-chaleco-mangas-arma sigue su apoyo con desplazamientos
-de un píxel. Las hojas `carry` y `carry_shotgun` tienen 12 cuadros de 81 × 80:
+La raíz de la pelvis permanece bajo el cinturón y se mezcla con los muslos;
+rodillas y botas conservan sus pasos. El conjunto superior sigue el apoyo
+vertical de un píxel, con la misma raíz horizontal que la cintura.
+Las hojas `carry` y `carry_shotgun` tienen 12 cuadros de 81 × 80:
 ocho pasos y cuatro respiraciones. El renderizador y la tarjeta usan ese ancho
 para conservar el cañón completo. `stand` y `walk` siguen como plantillas
 estrechas para las acciones auxiliares.
 
-El rifle cambia cargadores y la escopeta carga cartuchos. `reload_lower` conserva
-solo la mano y el cargador que bajan de la cintura, sin tapar el muslo animado.
+El rifle mantiene la mano de disparo en la empuñadura: la de apoyo extrae el
+cargador, busca el nuevo, lo coloca y acciona el cierre. La escopeta carga
+cartuchos. El golpe recoge el arma, la empuja hacia delante con ambas manos
+y transfiere el peso desde la cintura, manteniendo los pies plantados.
+`reload_lower` conserva solo los brazos y objetos que cruzan la cintura,
+sin tapar el muslo animado. La linterna tiene una aproximación visible al
+interruptor antes de encender la lente; el haz sigue el retroceso de cada arma.
+Para beber, `drink_rifle` y `drink_shotgun` muestran 31 cuadros en 2.8 s:
+la derecha baja el arma a su correa, la izquierda saca la botella de la bolsa,
+la derecha quita la tapa y vuelve a sujetar el rifle abajo, la izquierda bebe
+y guarda la botella, y la derecha levanta el arma hasta recuperar ambas manos.
+La botella sigue la muñeca izquierda; los dedos se dibujan sobre su borde
+inferior para mostrar el agarre. El codo y el antebrazo permanecen visibles
+por fuera del arma. La bolsa del agua queda en la cadera izquierda y el arma
+apartada hacia la derecha del personaje: la botella no cruza al brazo que
+opera el gatillo. La boca de la bolsa oculta la extracción y el guardado.
+Sus capas `*_lower` conservan el arma colgada al caminar. La duración viene
+de `CharacterDef.drink_duration` y se restaura al continuar una partida;
+el valor por defecto de los demás personajes sigue siendo 1.2 s.
+El agua se consume una vez al terminar la secuencia.
 El fogonazo se añade al cañón de la pose de disparo. `WeaponDef.muzzle_dx`,
 `muzzle_rows`, `light_dx` y `light_rows` hacen coincidir balas y haz con el arte
-de cada arma. No cambian daño, munición ni tiempos.
+de cada arma. El daño y la munición se conservan.
 
-**Regeneración:** `python3 tools/rebuild_swat.py` genera 28 hojas y 23 capas de
+Granada y banco usan `tools/swat_aux.py`, con el mismo casco, mangas y equipo.
+`throw` y `throw_shotgun` tienen 24 cuadros en 1.5 s: apartar el arma,
+sacar la granada de la bolsa, retirar la anilla, balancear el brazo desde
+la cadera, soltar por delante del cuerpo y recuperar el agarre.
+La granada sale en el cuadro 15. Su dibujo en la mano y el proyectil comparten
+`ui_icons.grenade_frames`; el centro dibujado coincide con la salida física.
+La altura física mide el borde inferior del cuadro de 8 px, no su centro.
+Velocidad, daño y mecha se conservan.
+
+Las dos hojas `sit` tienen 40 cuadros: ocho para bajar y apoyar ambas armas,
+cuatro de descanso, 24 de manipulación y cuatro de sueño. Cada recarga comienza
+y termina con las dos armas apoyadas, para pasar de una a otra sin sustitución
+instantánea. Una mano conserva la empuñadura y la otra manipula cargador,
+cartuchos y mecanismo. Las botas permanecen plantadas; la pelvis baja al
+asiento y los muslos se acortan en perspectiva. `CharacterDef.sit` define
+los cuadros y los tiempos del SWAT: 1 s para sentarse y 2.8 s por arma.
+Esos tiempos se restauran tras cargar la partida; el resto del reparto conserva
+su secuencia anterior. El sonido del cierre sigue alineado con la finalización.
+
+**Regeneración:** `python3 tools/rebuild_swat.py` genera 33 hojas y 24 capas de
 autoría; `--verify` compara ambas salidas sin escribir y corre en `build.sh`.
 La importación opcional `tools/prepare_swat_authored.py` necesita Pillow;
 compilar y reconstruir las hojas finales requiere solo biblioteca estándar.
-Las fuentes grandes y su alfa se conservan. El generador por articulaciones
-sigue atendiendo granadas, cuidados, banco y golpes; sus capas también quedan
+Las fuentes grandes y su alfa se conservan. El generador original por articulaciones
+sigue atendiendo vendaje, dinamita y desmayo; sus capas también quedan
 disponibles para autoría en `docs/templates/swat/rig/`.
 
 `tests/swat_art.py` verifica cabeza y botas comunes, movimiento conjunto,
 recomposición de capas, uniones entre hojas, tres lentes y orígenes de cañón y
 linterna. `tests/player_render.c` prueba las texturas incrustadas, el porte,
-la recarga caminando en ambas direcciones y el origen de las balas de las dos
-armas, incluyendo desplazamiento vertical y agua.
+la recarga y el agua caminando en ambas direcciones y el origen de las balas de
+las dos armas, incluyendo desplazamiento vertical y agua.
+
+[Cinco acciones y escala de la sheriff](img/swat_acciones.gif).
+[Las mismas acciones dentro del escenario](img/swat_acciones_juego.gif).
+[Secuencia de agua, con las 16 poses clave](img/swat_agua_secuencia.png).
+[Agua cuadro por cuadro, con ambas armas y direcciones](img/swat_agua_juego.gif).
+`tools/preview_swat.py [carpeta_de_capturas]` regenera ambas revisiones;
+`--capturas` incluye todos los cuadros de disparo, culatazo, recarga, linterna y agua.
+`THE_MIRACLE_CAPTURE_GROUP=swat` limita las capturas a estas acciones con
+rifle y escopeta en ambas direcciones.
+
+[Granada en el escenario](img/swat_granada_juego.gif).
+[Sentarse y recargar las dos armas, de principio a fin](img/swat_banco_juego.gif).
+[Revisión visual y correcciones observadas](templates/swat/auxiliary_review.md).
+Para repetir esa revisión: ejecutar `--capturas <carpeta>` con
+`THE_MIRACLE_CAPTURE_GROUP=swat_aux`, y después
+`python3 tools/preview_swat_aux.py --captures <carpeta>`.
+La captura avanza la simulación con entradas reales, incluyendo el proyectil
+y ambas recargas consecutivas. Sin `--captures`, la herramienta genera hojas
+numeradas a 4× y detalles de manos a 8× en `build/swat-aux/`.
 
 Tras regenerar, `python3 tools/rebuild_support_art.py` actualiza el mercenario
 que deriva de `swat/light_walk.png`.

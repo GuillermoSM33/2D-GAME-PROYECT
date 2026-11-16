@@ -111,6 +111,14 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
     SDL_Texture *sheet = care ? skin_sheet(skin, care->sheet, gun) : NULL;
     if (sheet == NULL)
         return false;
+    if (player->drink_time > 0.0f && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_drink[gun]) {
+        int count = weapon_def(gun)->drink_frames;
+        if (count > 0) {
+            frame = (int)((1.0f - player->drink_time / player_drink_duration(player)) * (float)count);
+            if (frame < 0) frame = 0;
+            if (frame >= count) frame = count - 1;
+        }
+    }
     const AnimationDef *walk_def = player->anim.def;
     bool walking = (player->state == PLAYER_WALK || player->state == PLAYER_RUN) && walk_def != NULL &&
                    walk_def->frame_w == PLAYER_WALK_FRAME_W;
@@ -126,6 +134,12 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
     tint(sheet, player);
     draw_rows(renderer, sheet, care, frame, 0, split, player, camera_x);
     untint(sheet);
+    if (walk && player->drink_time > 0.0f && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_drink_lower[gun]) {
+        SDL_Texture *lower = skin->weapon_drink_lower[gun];
+        tint(lower, player);
+        draw_rows(renderer, lower, care, frame, split, care->frame_h, player, camera_x);
+        untint(lower);
+    }
     if (walk && player->swap_time > 0.0f && skin->swap_far_sheet) { /* Her pistol, whole over the legs */
         tint(skin->swap_far_sheet, player);
         draw_rows(renderer, skin->swap_far_sheet, care, frame, 0, care->frame_h, player, camera_x);
@@ -202,11 +216,14 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
                       const WeaponId *guns, int weapon_slot, float camera_x)
 {
     const AnimationDef *def = player->anim.def;
-    if (player->state == PLAYER_SIT && player->sit_gun >= 0)
+    if (player->state == PLAYER_SIT && player->sit_gun >= 0 &&
+        player->sit_time >= player_sit_down_duration(player))
         weapon_slot = player->sit_gun; /* The gun on her lap, not the one in hand */
     int gun = guns[weapon_slot];
     SDL_Texture *sheet = def ? skin_sheet(skin, def->sheet, gun) : NULL;
     int frame = player->anim.frame;
+    if (player->state == PLAYER_SIT)
+        frame = player_sit_art_frame(player, skin->character->sit.down_frames, skin->character->sit.reload_frames);
     bool reloading = def && player_reload_animation(def);
     if (reloading && player->shot.piston && gun >= 0 && gun < WEAPON_COUNT && skin->weapon_reload_other[gun]) {
         sheet = player->shot.reload_other ? skin->weapon_reload_other[gun] : skin->weapon_reload[gun];

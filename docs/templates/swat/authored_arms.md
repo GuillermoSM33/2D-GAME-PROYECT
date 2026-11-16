@@ -8,6 +8,36 @@ Las referencias de movimiento aportadas por el usuario son [caminata con arma](h
 
 En las acciones principales se comparte el casco, cuello y botas. El conjunto superior sigue el apoyo de los pies. La puntería no estira las mangas ni reduce el torso para alcanzar coordenadas. `WeaponDef` conserva los orígenes reales de boca del cañón y linterna para cada arma. Las poses auxiliares de banco, cuidado y granadas conservan el generador por articulaciones.
 
+## Corrección de acciones (2026-11-15)
+
+Las cuatro pinturas y sus importaciones se preservan. El compositor actual usa
+su casco, collar, cinturón, botas y paleta con un torso completo compartido.
+`tools/swat_actions.py` dibuja mangas continuas de longitud constante y equipo
+rígido: retroceso sin borrar el arma con la franja de la cabeza, culatazo con
+ambas manos, recargas con objetos agarrados, pulgar al interruptor y agua con
+botella, máscara y arma colgada. El antiguo compositor que sustituía filas
+de poses distintas se retiró. `swat_authored.py` conserva la cabeza y locomoción
+comunes; no es necesario volver a importar ni generar las pinturas originales.
+
+## Continuidad y manos (2026-11-16)
+
+La pelvis usa una raíz común bajo el cinturón durante los ocho pasos.
+La recarga mantiene la derecha en el gatillo y la izquierda trabaja con
+el cargador o los cartuchos. El golpe avanza con el arma y una inclinación
+del torso que se desvanece en la cintura.
+
+El agua se amplió a 31 cuadros y 2.8 segundos para distinguir los gestos:
+la derecha aparta el arma, la izquierda saca la botella de su bolsa,
+la derecha la destapa y vuelve al arma, la izquierda bebe y la guarda,
+y se recupera el agarre de ambas manos. La parte superior del brazo lejano
+queda detrás del torso. El antebrazo que alza la botella se dibuja por
+delante del otro brazo y sus dedos cubren el borde inferior de la botella.
+El codo sube con la muñeca para conservar una silueta visible hasta el vaso.
+Las poses intermedias conservan el objeto unido a la mano.
+La bolsa está junto a la cadera izquierda. El rifle se aparta al otro lado
+para separar ambas siluetas; la botella se conserva en el mismo lado desde
+que sale de la bolsa hasta que vuelve a entrar.
+
 ## Prompts finales
 
 ### swat_anatomy_prompt
