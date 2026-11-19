@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "game/car_pass.h"
 #include "game/damage.h"
 #include "game/movement.h"
 
@@ -132,7 +133,7 @@ static const AnimationDef ANIM_THROW = {
     .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
 };
 
-static bool lose_blood(Player *player);
+static bool lose_health(Player *player, float damage);
 
 void player_init(Player *player)
 {
@@ -185,7 +186,7 @@ static int next_sit_gun(unsigned guns)
 bool player_sit(Player *player, float bench_x, unsigned reload_guns)
 {
     if (!player_alive(player) || player->shot.active || player->jump.airborne ||
-        player->state == PLAYER_SIT)
+        player->state == PLAYER_SIT || player->state == PLAYER_CAR)
         return false;
     player->x = bench_x;
     player->state = PLAYER_SIT;
@@ -261,7 +262,7 @@ static void update_sit(Player *player, float dt)
 bool player_throw(Player *player)
 {
     if (!player_alive(player) || player->shot.active || player->jump.airborne ||
-        player->state == PLAYER_THROW || player->state == PLAYER_SIT)
+        player->state == PLAYER_THROW || player->state == PLAYER_SIT || player->state == PLAYER_CAR)
         return false;
     player->state = PLAYER_THROW;
     player->thrown = false;
@@ -271,6 +272,7 @@ bool player_throw(Player *player)
 
 bool player_melee(Player *player)
 {
+    if (player->state == PLAYER_CAR) return false;
     if (!player_alive(player) || player->shot.active || player->jump.airborne || player->melee_wait > 0.0f ||
         player->swap_time > 0.0f ||
         player->state == PLAYER_THROW || player->state == PLAYER_MELEE || player->state == PLAYER_SIT ||
@@ -529,13 +531,98 @@ const AnimationDef *player_melee_animation(void)
 
 bool player_vault(Player *player)
 {
-    if (!player_alive(player) || player->shot.active || !jump_start(&player->jump))
+    if (!player_alive(player) || player->state == PLAYER_CAR || player->shot.active || !jump_start(&player->jump))
         return false;
     player->vaulting = true;
     player->jump.lift = VAULT_LIFT; /* Up over its top, which a jump can't reach */
     player->state = PLAYER_JUMP;
     animation_play(&player->anim, &ANIM_JUMP_AIR);
     return true;
+}
+
+static const AnimationDef ANIM_CAR = {
+    .sheet = "sprites/characters/cowgirl/car", .frame_w = CAR_FRAME_W, .frame_h = CAR_FRAME_H,
+    .frame_count = CAR_PASS_FRAMES, .fps = 0.0f, .loop = false,
+    .anchor_x = SHOOT_ANCHOR_X, .ground_y = SHOOT_GROUND_Y,
+};
+
+const AnimationDef *player_car_animation(void) { return &ANIM_CAR; }
+
+static void car_route(const Player *p, CarPlan *plan)
+{
+    car_plan(plan, p->car_from, p->car_center, p->car_look, p->facing, p->car_smash);
+}
+
+float player_car_progress(const Player *player)
+{
+    return player->car_duration > 0.0f ? fminf(1.0f, player->car_time / player->car_duration) : 0.0f;
+}
+
+int player_car_frame(const Player *player)
+{
+    CarPlan plan;
+    car_route(player, &plan);
+    return car_plan_frame(&plan, player->car_time);
+}
+
+int player_car_doors(const Player *player, int broken)
+{
+    CarPlan plan;
+    car_route(player, &plan);
+    return car_plan_doors(&plan, player->car_time, broken);
+}
+
+bool player_car_glass_down(const Player *player)
+{
+    if (player->state != PLAYER_CAR)
+        return true;
+    CarPlan plan;
+    car_route(player, &plan);
+    return car_plan_glass_down(&plan, player->car_time);
+}
+
+bool player_enter_car(Player *p, int index, int look, float car_x, bool smash)
+{
+    if (!player_alive(p) || p->jump.airborne || p->shot.active ||
+        (p->state != PLAYER_IDLE && p->state != PLAYER_WALK && p->state != PLAYER_RUN))
+        return false;
+    p->car_from = p->x;
+    p->car_center = car_x;
+    p->car_look = look;
+    p->car_index = index;
+    p->car_smash = smash;
+    p->car_time = 0.0f;
+    CarPlan plan;
+    car_route(p, &plan);
+    p->car_to = plan.x[CAR_STEPS];
+    p->car_duration = fminf(plan.at[CAR_STEPS], CAR_PASS_MAX_SECONDS);
+    p->car_action = false;
+    p->drink_time = p->bandage = p->swap_time = p->plant_time = 0.0f;
+    p->vaulting = false;
+    p->state = PLAYER_CAR;
+    shot_cancel(&p->shot);
+    animation_play(&p->anim, &ANIM_CAR);
+    animation_seek(&p->anim, car_plan_frame(&plan, 0.0f));
+    return true;
+}
+
+static void cross_car(Player *p, float dt)
+{
+    CarPlan plan;
+    car_route(p, &plan);
+    float end = fminf(plan.at[CAR_STEPS], CAR_PASS_MAX_SECONDS);
+    float action = car_plan_action(&plan);
+    float previous = p->car_time;
+    p->car_time = fminf(end, p->car_time + dt);
+    p->car_duration = end;
+    p->car_action = previous < action && p->car_time >= action;
+    p->x = car_plan_x(&plan, p->car_time);
+    animation_seek(&p->anim, car_plan_frame(&plan, p->car_time));
+    if (p->car_time >= end) {
+        p->x = plan.x[CAR_STEPS];
+        p->state = PLAYER_IDLE;
+        animation_play(&p->anim, &ANIM_IDLE);
+    }
 }
 
 void player_update(Player *player, const InputState *input, float dt)
@@ -546,6 +633,7 @@ void player_update(Player *player, const InputState *input, float dt)
     player->reload_walk = false;
     player->sit_reloaded = false;
     player->sit_reloaded_gun = -1;
+    player->car_action = false;
     if (player->hurt_time > 0.0f)
         player->hurt_time = fmaxf(0.0f, player->hurt_time - dt);
     player->melee_wait = fmaxf(0.0f, player->melee_wait - dt);
@@ -559,7 +647,7 @@ void player_update(Player *player, const InputState *input, float dt)
         player->bleed_tick -= dt;
         if (player->bleed_tick <= 0.0f) {
             player->bleed_tick += BLEED_TICK;
-            lose_blood(player);
+            lose_health(player, player->bleed_damage);
         }
     }
     /* The push applies on top of whatever she is doing, shooting included. */
@@ -586,6 +674,11 @@ void player_update(Player *player, const InputState *input, float dt)
             jump_update_over(&player->jump, dt, player->floor);
         if (player->fainted)
             animation_update(&player->anim, dt);
+        return;
+    }
+
+    if (player->state == PLAYER_CAR) {
+        cross_car(player, dt);
         return;
     }
 
@@ -850,10 +943,10 @@ void player_bleed(Player *player, float damage)
     player->slow_time = SLOW_TIME;
 }
 
-/* Loses health to bleeding (no armor, no push); true if it killed her. */
-static bool lose_blood(Player *player)
+/* Loses health with no armor and no push; true if it killed her. */
+static bool lose_health(Player *player, float damage)
 {
-    int loss = (int)ceilf(player->bleed_damage);
+    int loss = (int)ceilf(damage);
     player->health -= loss > 0 ? loss : 1;
     player->hurt_time = PLAYER_HURT_TIME;
     if (player->health > 0)
@@ -863,6 +956,13 @@ static bool lose_blood(Player *player)
     shot_cancel(&player->shot);
     animation_play(&player->anim, &ANIM_IDLE);
     return true;
+}
+
+bool player_fumes(Player *player, float share)
+{
+    if (!player_alive(player))
+        return false;
+    return lose_health(player, (float)player->max_health * share);
 }
 
 bool player_hit(Player *player, float damage, int push_dir)
@@ -907,6 +1007,7 @@ const char *player_state_name(PlayerState state)
     case PLAYER_MELEE: return "melee";
     case PLAYER_CAUGHT: return "caught";
     case PLAYER_DEAD: return "dead";
+    case PLAYER_CAR: return "car";
     }
     return "?";
 }
@@ -942,7 +1043,7 @@ const AnimationDef *const *player_state_animations(int *count)
     static const AnimationDef *const ANIMATIONS[] = {
         &ANIM_IDLE, &ANIM_WALK, &ANIM_JUMP_AIR, &ANIM_LAND, &ANIM_SHOOT, &ANIM_SIT,
         &ANIM_RELOAD, &ANIM_FAINT, &ANIM_DRINK, &ANIM_SWAP, &ANIM_SWAP_LIT,
-        &ANIM_PLANT, &ANIM_BANDAGE, &ANIM_MELEE, &ANIM_THROW, &ANIM_LIGHT,
+        &ANIM_PLANT, &ANIM_BANDAGE, &ANIM_MELEE, &ANIM_THROW, &ANIM_LIGHT, &ANIM_CAR,
     };
     *count = (int)(sizeof(ANIMATIONS) / sizeof(ANIMATIONS[0]));
     return ANIMATIONS;

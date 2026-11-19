@@ -17,7 +17,7 @@ Writes in assets/sprites/characters/cowgirl/ (81 x 80 frames, the shoot template
   reload.png  Eight frames: open, eject, speedload, close the single revolver.
   reload_dual.png, reload_dual_b.png  48 frames per hand: 24 for one cylinder,
       24 for the second of a pair; hands work low at the belt, shoulders stay fixed.
-  reload_dual_lower.png, reload_dual_b_lower.png  Only the low barrels, over walking legs.
+  reload_dual_lower.png, reload_dual_b_lower.png  Arms, hands and guns over walking legs.
   melee.png  7 frames: the blow with the gun (poses in make_melee), her other hand on her hip.
   melee_dual.png  7 frames: the blow with her near gun, as on melee.png; her far arm
       apart from it, its pistol down by her own leg, pulling back against the swing.
@@ -29,12 +29,13 @@ Writes in assets/sprites/characters/cowgirl/ (81 x 80 frames, the shoot template
       the flashlight shining on the first gun). Played backwards to put it away.
   flashlight.png  8 frames, only the flashlight: drawn over shoot.png or
       shoot_dual.png, following the gun, while it is on.
-And for both characters, each gun, after tools/make_swat.py:
+And for the sheriff, each gun:
   light_walk*.png  12 frames: walking with it up, the gun held level (the last
       frame of its light sheet) on the legs of walk.png, moving as one piece with
       each step; then 4 stood still, breathing.
 
-The SWAT's light is on his guns (tools/make_swat.py). Standard library only.
+The SWAT's light poses and breathing are authored by rebuild_swat.py; rebuilding
+the sheriff must not overwrite those finished sheets. Standard library only.
 """
 from __future__ import annotations
 
@@ -333,7 +334,7 @@ def make_dual_reload(shoot: Image, other: bool, lower_only: bool = False) -> Ima
     bores = ((0, -2), (1, -1), (2, 0), (1, 1), (0, 2), (-1, 1), (-2, 0), (-1, -1))
     for second in (False, True):
         for f in range(DUAL_RELOAD_FRAMES):
-            gun_layer = {}
+            action_layer = {}
             hands, angles, held = dual_reload_pose(other, f, second)
             tops = [SHOULDER, FAR_TOP]
             elbows, wrists = [], []
@@ -357,34 +358,48 @@ def make_dual_reload(shoot: Image, other: bool, lower_only: bool = False) -> Ima
                 if hand == 1:
                     limb = {p: c for p, c in limb.items() if p[1] >= 44}
                 px.update(limb)
+                action_layer.update(limb)
                 if held[hand]:
                     gun = pistol_pointing(wrists[hand], angles[hand])
                     px.update(gun)
-                    gun_layer.update(gun)
-                px.update(glove(wrists[hand], elbows[hand]))
+                    action_layer.update(gun)
+                mitt = glove(wrists[hand], elbows[hand])
+                px.update(mitt)
+                action_layer.update(mitt)
             if 7 <= f <= 16:
                 cx, cy = (33, 51) if other else (39, 51)
                 for y in range(-3, 4):
                     for x in range(-3, 4):
                         if x * x + y * y <= 12:
                             px[(cx + x, cy + y)] = rgb(0xa1aaa9) if x + y < -1 else rgb(0x4c535b)
+                            action_layer[(cx + x, cy + y)] = px[(cx + x, cy + y)]
                 for x, y in bores:
                     px[(cx + x, cy + y)] = rgb(0xb59050) if f >= 14 else INK
+                    action_layer[(cx + x, cy + y)] = px[(cx + x, cy + y)]
                 px[(cx, cy)] = rgb(0x727f86)
+                action_layer[(cx, cy)] = px[(cx, cy)]
                 if f in (8, 9):
                     for dx, dy in ((2, 6), (5, 8), (7, 5)):
                         x = cx + (-dx if other else dx)
                         px[(x, cy + dy)] = rgb(0xb59050)
                         px[(x, cy + dy + 1)] = rgb(0x8e6c28)
+                        action_layer[(x, cy + dy)] = px[(x, cy + dy)]
+                        action_layer[(x, cy + dy + 1)] = px[(x, cy + dy + 1)]
                 helper = int(not other)
                 if f in (11, 12, 13):
                     wx, wy = (round(value) for value in wrists[helper])
                     for x, y in bores:
                         px[(wx + x, wy - 2 + y)] = rgb(0xb59050)
-                px.update(glove(wrists[helper], elbows[helper]))
-            # Walking replaces the static legs below row 61. Keep the low
-            # barrels whole over those legs, without drawing the static trousers.
-            output = {p: c for p, c in gun_layer.items() if p[1] >= 60} if lower_only else px
+                        action_layer[(wx + x, wy - 2 + y)] = px[(wx + x, wy - 2 + y)]
+                mitt = glove(wrists[helper], elbows[helper])
+                px.update(mitt)
+                action_layer.update(mitt)
+            # Runtime clips this action mask at the actual walking waist
+            # (row 53 in the reload template). The old row-60 barrel mask
+            # discarded gun grips, hands and the upper half of the low guns.
+            # Keep every foreground action pixel, without static trousers;
+            # the renderer chooses the cut and paints it over moving legs.
+            output = action_layer if lower_only else px
             put(image, f + second * DUAL_RELOAD_FRAMES, output)
     return image
 
@@ -860,16 +875,12 @@ def main() -> int:
             (x, y), a = on_the_blow(pose)
             print(f'make_flashlight: blow {f}: lens {x + LENGTH * math.cos(a) - AIM_LENS_TAIL[0] - LENGTH:+.1f}, '
                   f'{y + LENGTH * math.sin(a) - AIM_LENS_TAIL[1]:+.1f}')
-    swat = OUT.parent / 'swat'
     bare = dressed_sheet('walk', False, no_arms=True)
-    for folder, gun in ((OUT, ''), (OUT, '_dual'), (swat, ''), (swat, '_shotgun')):
+    for gun in ('', '_dual'):
+        folder = OUT
         front = far_gun_at_rest(shoot) if gun == '_dual' else {}
-        free_arm = arm_free(shoot) if folder == OUT and gun == '' else None
-        if folder == swat:
-            from swat_walk import make_light_walk as swat_light_walk
-            img = swat_light_walk(load(folder / 'legs.png'), load(folder / f'light{gun}.png'))
-        else:
-            img = make_light_walk(load(folder / 'walk.png'), load(folder / f'light{gun}.png'), front, bare, free_arm)
+        free_arm = arm_free(shoot) if gun == '' else None
+        img = make_light_walk(load(folder / 'walk.png'), load(folder / f'light{gun}.png'), front, bare, free_arm)
         img.save(folder / f'light_walk{gun}.png')
         print(f'make_flashlight: {folder.name}/light_walk{gun} ({img.width} x {img.height})')
     make_shoot(shoot).save(OUT / 'shoot.png')            # Last: the others read it as dressed

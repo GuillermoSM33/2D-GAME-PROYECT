@@ -154,6 +154,8 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
     play->clue_count = 0;
     play->clue_toast = -1;
     play->clue_toast_time = 0.0f;
+    play->part_toast=-1;
+    play->part_toast_time=0;
     play->flashlight = STAGES[index].theme->night; /* On by night; L works by day too */
     play->flashlight_since = 10.0f; /* Already on, no stutter */
     play->flashlight_click_pending = false;
@@ -420,6 +422,33 @@ static void use_power(StagePlay *play, InputState *input, const Progress *progre
     }
 }
 
+/* M and P: the train's map and what she carries open over the frozen stage
+ * and close with the same key or Esc; one key changes to the other. Inside
+ * the pause's own screens they do nothing. True if the key was taken. */
+static bool overlay_step(StagePlay *play, const InputState *input)
+{
+    bool map = input->pressed[ACTION_MAP], items = input->pressed[ACTION_INVENTORY];
+    bool open = play->paused && (play->pause_view == PAUSE_VIEW_MAP || play->pause_view == PAUSE_VIEW_INVENTORY);
+    if (open && (input->pressed[ACTION_QUIT] || input->pressed[ACTION_CONFIRM] ||
+                 (map && play->pause_view == PAUSE_VIEW_MAP) || (items && play->pause_view == PAUSE_VIEW_INVENTORY))) {
+        play->paused = false;
+        play_sound("ui/back");
+        return true;
+    }
+    if (!map && !items)
+        return open;
+    if (play->paused && !open)
+        return false;
+    if (!open && (play->run.phase != RUN_FIGHTING || !player_alive(&play->player)))
+        return false;
+    if (map && !play->run.train.tablet)
+        return open; /* Nothing to read it on yet */
+    play->paused = true;
+    play->pause_view = map ? PAUSE_VIEW_MAP : PAUSE_VIEW_INVENTORY;
+    play_sound(map ? "ui/confirm" : "ui/book_open");
+    return true;
+}
+
 /* The pause menu, while paused. Returns false to go back to the stage menu. */
 static bool pause_step(StagePlay *play, const InputState *input, Profile *profile, AppOptions *options)
 {
@@ -622,7 +651,7 @@ static void collect_clues(StagePlay *play, const bool *was_beaten)
         if (clue >= 0 && play->clue_count < STAGE_CLUES)
             play->clues_now[play->clue_count++] = clue;
     }
-    if (run->cleared_now && play->clue_count < STAGE_CLUES) {
+    if ((run->train.present ? run->train.control_read : run->cleared_now) && play->clue_count < STAGE_CLUES) {
         int clue = casefile_mission_clue(stage);
         if (clue >= 0)
             play->clues_now[play->clue_count++] = clue;
@@ -648,6 +677,10 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         play->request_almanac = true;
         return true;
     }
+    if (overlay_step(play, input)) {
+        hud_update(0.0f);
+        return true;
+    }
     if (play->paused) {
         hud_update(0.0f);
         return pause_step(play, input, profile, options);
@@ -661,7 +694,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     }
     play->flashlight_since += FIXED_DT;
     almanac_observe(&profile->almanac, &play->encounter, play->run.zombies,
-                    play->run.zombie_count, camera_left(player->x), VIEW_WIDTH);
+                    play->run.zombie_count, train_camera(&play->run, camera_left(player->x)), VIEW_WIDTH);
     bool cleared = play->run.phase == RUN_CLEARED;
     if (cleared && (input->pressed[ACTION_CONFIRM] || input->pressed[ACTION_QUIT]))
         return false;
@@ -676,6 +709,11 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         stage_drop_unearned(play, profile);
         stage_start_profile(play, play->run.stage_index, play->character, profile);
         return true;
+    }
+    InputState car_controls;
+    if (player->state == PLAYER_CAR) {
+        input_init(&car_controls);
+        input = &car_controls; /* Pause was handled above; hands stay on the car. */
     }
     PlayerState previous_state = player->state;
     bool was_alive = player_alive(player);
@@ -696,7 +734,18 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     /* E: a charge on the wall she is at; a seat on the bench there; else a
      * charge planted on the road. Lighting one cuts a reload or a shot short. */
     if (input->pressed[ACTION_USE]) {
-        if (run_search(&play->run, player)) { /* An army outpost's locker */
+        bool suit = play->run.train.suit, tablet = play->run.train.tablet;
+        if (train_use(&play->run, player)) {
+            bullets_clear(&play->bullets);
+            /* The suit's zip and rubber; the tablet waking; else a page. */
+            play_sound(play->run.train.suit != suit ? "world/supply"
+                       : play->run.train.tablet != tablet ? "ui/confirm" : "ui/book_page");
+            if (!tablet && play->run.train.tablet) {
+                play->paused = true;
+                play->pause_view = PAUSE_VIEW_MAP;
+                return true; /* Taking the tablet opens its briefing once. */
+            }
+        } else if (run_search(&play->run, player)) { /* An army outpost's locker */
             refill_guns(play);
             play_sound("world/supply");
         } else if (run_use(&play->run, player)) {
@@ -778,7 +827,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
          ((next_other ? previous_other_rounds : previous_rounds) == 0 &&
           input->pressed[ACTION_SHOOT] && !was_reloading)))
         play_sound(weapon->empty_sound);
-    bullets_update(&play->bullets, FIXED_DT, camera_left(player->x));
+    bullets_update(&play->bullets, FIXED_DT, train_camera(&play->run, camera_left(player->x)));
     if (player->shot_fired) {
         stage_fire_weapon(play, progress);
         crows_noise(&play->crows, player->x, CROW_SHOT_RANGE);
@@ -803,6 +852,8 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     StageRun *run = &play->run;
     float previous_bolt_warning = run->bolt_warn;
     run_update(run, player, progress, FIXED_DT);
+    if (player->car_action)
+        play_sound(player->car_smash ? "world/glass" : "world/hit_metal");
     if (play->ricochet_armed && (!player->shot.active || shot_reloading(&player->shot) || player->state != PLAYER_SHOOT))
         cancel_ricochet(play); /* A hit, trap or pickup can cancel the draw inside run_update. */
     collect_clues(play, was_beaten);
@@ -821,7 +872,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         run->gold_gained += gold < room ? gold : room;
     }
     almanac_observe(&profile->almanac, &play->encounter, run->zombies,
-                    run->zombie_count, camera_left(player->x), VIEW_WIDTH);
+                    run->zombie_count, train_camera(run, camera_left(player->x)), VIEW_WIDTH);
     if (run->levels_gained > 0) {
         play_sound("world/level_up");
         player_set_stats(player, progress->level, progress_max_health(progress),
@@ -879,7 +930,7 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
                       BASELINE - PLAYER_HEAD_HEIGHT * SPRITE_SCALE - BADGE_H * BADGE_SCALE - 34, false);
     }
     float previous_flash_wait = play->weather.flash_wait;
-    weather_update(&play->weather, camera_left(player->x), FIXED_DT);
+    if (!run->train.inside) weather_update(&play->weather, camera_left(player->x), FIXED_DT);
     if (play->weather.kind == WEATHER_STORM && play->weather.flash_wait > previous_flash_wait)
         play->thunder_wait = 0.28f; /* A little distance between light and sound */
     if (play->thunder_wait >= 0.0f) {
@@ -889,10 +940,10 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
             play->thunder_wait = -1.0f;
         }
     }
-    stage_weather_sound(play);
+    if (!run->train.inside) stage_weather_sound(play);
     stage_local_sound(play);
     hallucination_update(&play->visions, player_thirst_level(player) >= 3 && player_alive(player), player->x,
-                         player->facing, camera_left(player->x), FIXED_DT);
+                         player->facing, train_camera(run, camera_left(player->x)), FIXED_DT);
     for (int v = 0; v < play->visions.vanished; v++) /* Gone like smoke */
         smoke_rise(&play->smoke, play->visions.vanished_x[v], BASELINE - 120.0f, 3, 1.0f);
     /* Feet in water: a splash now and then under whoever walks there. */

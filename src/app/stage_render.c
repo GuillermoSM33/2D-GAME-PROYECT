@@ -13,6 +13,7 @@
 #include "game/scene.h"
 #include "game/smoke_render.h"
 #include "game/terrain_render.h"
+#include "game/train_render.h"
 #include "game/ui.h"
 #include "game/weather_render.h"
 #include "game/zombie_render.h"
@@ -307,10 +308,56 @@ static void draw_grenades(SDL_Renderer *renderer, const StageRun *run, float cam
     }
 }
 
+/* P: what she carries, read from the stage as it stands. */
+static void draw_inventory(SDL_Renderer *renderer, const StagePlay *play, const CharacterSkin *skin,
+                           const Progress *progress)
+{
+    const CharacterDef *c = play->character;
+    const StageRun *run = &play->run;
+    HudInventory inv = {
+        .character = c->name, .suits_here = run->train.present, .suit = run->train.suit,
+        .tablet = run->train.tablet,
+        .parts = run->stage_index >= TRAIN_STAGE && run->stage_index <= 9 ? train_part_count(run->weapon_parts) : -1,
+        .water = play->player.water, .dynamite = run->dynamite, .gold = progress->gold,
+    };
+    /* Herself as on her card: holding her first gun if she has that pose. */
+    SDL_Texture *stand = skin->stand_sheet ? skin->stand_sheet : skin->sheets[0];
+    SDL_Texture *carry = skin->weapon_carry[c->weapons[0]];
+    inv.portrait = carry ? carry : stand;
+    inv.portrait_src = carry ? (SDL_Rect){PLAYER_WALK_FRAMES * PLAYER_SHOOT_FRAME_W, 0, PLAYER_SHOOT_FRAME_W,
+                                          PLAYER_SHOOT_FRAME_H}
+                             : (SDL_Rect){0, 0, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H};
+    for (int i = 0; i < c->weapon_count && inv.gun_count < HUD_INVENTORY_GUNS; i++) {
+        const WeaponDef *w = weapon_def(play->guns[i]);
+        bool hand = i == play->weapon_slot;
+        int magazine = play->single_fire && w->single_magazine > 0 ? w->single_magazine : w->magazine;
+        HudInventoryGun *g = &inv.guns[inv.gun_count++];
+        g->id = play->guns[i];
+        g->name = w->name;
+        g->in_hand = hand;
+        g->magazine = hand ? play->player.shot.magazine : magazine;
+        g->rounds = hand ? play->player.shot.rounds : play->rounds[i] < 0 ? magazine : play->rounds[i];
+        g->other_rounds = hand && play->player.shot.piston ? play->player.shot.other_rounds : -1;
+    }
+    /* Her second revolver, in its holster while the duals are away. */
+    if (stage_can_swap_duals(play, progress) && !play->duals_out && inv.gun_count < HUD_INVENTORY_GUNS) {
+        HudInventoryGun *g = &inv.guns[inv.gun_count++];
+        g->id = c->weapons[0];
+        g->name = "SEGUNDO REVÓLVER";
+        g->in_hand = false;
+        g->magazine = REVOLVER_CAPACITY;
+        g->rounds = play->dual_rounds < 0 ? REVOLVER_CAPACITY : play->dual_rounds;
+        g->other_rounds = -1;
+    }
+    hud_draw_inventory(renderer, &inv);
+}
+
 void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
                        const Progress *progress, float alpha, float prev_player_x,
                        float prev_jump, const AppOptions *options)
 {
+    if (play->run.train.suit && skin->suit) /* The hazmat suit from car 01, in every pose */
+        skin = skin->suit;
     Player player_view = play->player;
     player_view.light_on = play->flashlight;
     player_view.light_since = play->flashlight_since;
@@ -327,11 +374,12 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     int zombie_count = play->run.zombie_count;
     for (int k = 0; k < zombie_count; k++) {
         zombie_view[k] = play->run.zombies[k];
+        if (!train_zombie_visible(&play->run,k)) zombie_view[k].hidden=true;
         zombie_view[k].x = interpolate(play->prev_zombie_x[k], play->run.zombies[k].x, alpha);
     }
 
     /* Only the chunks around the view exist; walking streams the rest. */
-    float camera_x = camera_left(player_view.x);
+    float camera_x = train_camera(&play->run, camera_left(player_view.x)); /* Inside: never past the cars' ends */
     world_stream(&play->world, camera_x);
     stage_begin_view(platform->renderer, play->world.theme);
     bool separated_light = false;
@@ -345,17 +393,29 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
     bool directional_light = false;
     for (int i = 0; i < lighting.count; i++)
         directional_light |= lighting.lights[i].kind == LIGHT_FLASHLIGHT;
-    if (play->world.theme->night || directional_light) { /* What it lights apart from the far land */
+    scene_set_terrain(&play->run.terrain);
+    if (play->run.train.inside) {
+        train_render_background(platform->renderer, &play->run, camera_x, (float)platform_time());
+    } else if (play->world.theme->night || directional_light) { /* What it lights apart from the far land */
         scene_draw_distant(platform->renderer, &play->world, camera_x);
         separated_light = scene_begin_foreground(platform->renderer);
         scene_draw_near(platform->renderer, &play->world, camera_x, platform_time());
     } else {
         scene_draw(platform->renderer, &play->world, camera_x, platform_time());
     }
-    terrain_render(platform->renderer, &play->run.terrain, camera_x);
+    scene_set_terrain(NULL);
+    terrain_render(platform->renderer, &play->run.terrain, camera_x, play->run.train.inside);
+    train_render_world(platform->renderer, &play->run, &player_view, camera_x, (float)platform_time());
+    /* A car she is going through: its body, what of her is in it, its doors
+     * and panels over that; the rest of her is drawn with the others. */
+    terrain_render_car_body(platform->renderer, &play->run.terrain, &player_view, camera_x);
+    player_render_car_inside(platform->renderer, &player_view, skin, play->guns, play->weapon_slot, camera_x);
+    terrain_render_car_cover(platform->renderer, &play->run.terrain, &player_view, camera_x);
     draw_blood(platform->renderer, play, camera_x);
-    draw_crows(platform->renderer, &play->crows, camera_x, play->run.stage->theme->city);
-    draw_bats(platform->renderer, &play->bats, camera_x);
+    if (!play->run.train.inside) {
+        draw_crows(platform->renderer, &play->crows, camera_x, play->run.stage->theme->city);
+        draw_bats(platform->renderer, &play->bats, camera_x);
+    }
     for (int c = 0; c < RUN_MAX_CHESTS; c++)
         chest_render(platform->renderer, &play->run.chests[c], camera_x);
     /* The claw trail reaches past her, so a swiping zombie goes in front. */
@@ -395,7 +455,7 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
         terrain_render_light_bloom(platform->renderer, &lighting, camera_x);
     }
     stage_end_view(platform->renderer);
-    weather_render(platform->renderer, &play->weather, camera_x);
+    if (!play->run.train.inside) weather_render(platform->renderer, &play->weather, camera_x);
     const CharacterDef *c = play->character;
     const WeaponDef *w = stage_weapon(play);
     char gun_name[40];
@@ -413,10 +473,20 @@ void stage_draw(Platform *platform, StagePlay *play, const CharacterSkin *skin,
         .power = progress->level >= POWER_LEVEL ? (int)c->power : POWER_NONE,
         .power_wait = play->power_cooldown,
     };
+    /* Only transient pickup feedback; mission objectives are on the tablet. */
+    train_render_status(platform->renderer, &play->run, &player_view, play->part_toast, play->part_toast_time);
     hud_draw_stage(platform->renderer, &player_view, zombie_view, zombie_count, progress,
                    &play->run, camera_x, &gun);
     if (!play->paused)
         return;
+    if (play->pause_view == PAUSE_VIEW_MAP) {
+        train_render_map(platform->renderer, &play->run, &player_view, (float)platform_time());
+        return;
+    }
+    if (play->pause_view == PAUSE_VIEW_INVENTORY) {
+        draw_inventory(platform->renderer, play, skin, progress);
+        return;
+    }
     if (play->pause_view == PAUSE_VIEW_LIST) {
         hud_draw_pause(platform->renderer, &play->pause_menu);
         return;

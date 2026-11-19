@@ -24,14 +24,15 @@ from scenery_materials import lettering, planks  # noqa: E402
 
 # Materials in daylight, darkest first. The full value range survives the
 # landscape's light grading; highlights are deliberately broken, never glossy.
-WOOD = [hx(v) for v in (0x30291F, 0x57442F, 0x826441, 0xA18155, 0xC2A574, 0xDECAA0)]
-IRON = [hx(v) for v in (0x20282B, 0x3A4548, 0x5B6667, 0x84908C, 0xB4B9A7, 0xD9D8BA)]
-RUST = [hx(v) for v in (0x4E3629, 0x744532, 0x9C6241, 0xBC8854)]
-STONE = [hx(v) for v in (0x333635, 0x515550, 0x73766A, 0x949483, 0xBAB6A0, 0xD8D0B8)]
-BONE = [hx(v) for v in (0x514939, 0x84745A, 0xAE9C78, 0xD2C096, 0xE7D8B6)]
-GREEN = [hx(v) for v in (0x253526, 0x3C5030, 0x59703C, 0x7B8E4E, 0x9DAB6B, 0xC3C48A)]
-RUBBER = [hx(v) for v in (0x1D2425, 0x313A38, 0x4B5450, 0x69716A, 0x8A8B7C)]
-RED = [hx(v) for v in (0x3C2825, 0x6D3E31, 0x9F5740, 0xC97D53, 0xE0AE7B)]
+WOOD = [hx(v) for v in (0x302C26, 0x504636, 0x746249, 0x958064, 0xB29B78, 0xC8B493)]
+BARK = [hx(v) for v in (0x2D2E29, 0x45453A, 0x625F4D, 0x7D7760, 0x999075, 0xAEA48B)]
+IRON = [hx(v) for v in (0x20282B, 0x354247, 0x526368, 0x7A8B8D, 0xA2ADAA, 0xC4CBC0)]
+RUST = [hx(v) for v in (0x49342D, 0x704737, 0x975F43, 0xAF825B)]
+STONE = [hx(v) for v in (0x343B3A, 0x505B57, 0x727D72, 0x939B89, 0xB1B5A0, 0xC9CCB9)]
+BONE = [hx(v) for v in (0x4C493F, 0x7E7763, 0xA69D80, 0xC8BFA0, 0xDED7BC)]
+GREEN = [hx(v) for v in (0x26382C, 0x40563A, 0x60754C, 0x819060, 0xA3AD7A, 0xBDC499)]
+RUBBER = [hx(v) for v in (0x1C2528, 0x2D393B, 0x435251, 0x60706A, 0x7C8980)]
+RED = [hx(v) for v in (0x3C2C2A, 0x704337, 0xA16246, 0xC1865D, 0xD8B28B)]
 
 
 def rim(c: Canvas, light, dark) -> None:
@@ -42,9 +43,13 @@ def rim(c: Canvas, light, dark) -> None:
             if not c.solid(x, y):
                 continue
             if not c.solid(x, y - 1) or not c.solid(x - 1, y):
-                marks.append((x, y, light if (x * 3 + y) % 7 != 0 else c.get(x, y)))
+                # Broad interrupted edge planes, not a bright wire around every twig.
+                share = .46 if not c.solid(x, y - 1) else .24
+                if (x // 3 + y // 5) % 4 == 0:
+                    share *= .35
+                marks.append((x, y, mix(c.get(x, y), light, share)))
             elif not c.solid(x, y + 1) or not c.solid(x + 1, y):
-                marks.append((x, y, dark))
+                marks.append((x, y, mix(c.get(x, y), dark, .65)))
     for x, y, col in marks:
         c.set(x, y, col)
 
@@ -56,15 +61,15 @@ def texture(c: Canvas, palette: list, seed: int, axis: str = 'stone') -> None:
             if not c.solid(x, y):
                 continue
             if axis == 'wood':
-                n = fbm(x / 2.0, y / 17.0, seed, 3)
+                n = fbm(x / 3.0, y / 24.0, seed, 3)
             elif axis == 'bark':
-                n = fbm(x / 1.5, y / 11.0, seed, 3)
+                n = fbm(x / 2.5, y / 18.0, seed, 3)
             else:
                 n = fbm(x / 8.0, y / 5.0, seed, 3)
-            lighting = (1 - x / max(1, c.w - 1)) * 0.24 + (1 - y / max(1, c.h - 1)) * 0.13
+            lighting = (1 - x / max(1, c.w - 1)) * 0.20 + (1 - y / max(1, c.h - 1)) * 0.11
             k = max(1, min(len(palette) - 2, int((n * 0.74 + lighting) * (len(palette) - 1))))
             c.set(x, y, palette[k])
-            if hash2(x // 2, y, seed + 8) > 0.977:
+            if hash2(x // 3, y // 2, seed + 8) > 0.988:
                 c.set(x, y, palette[min(len(palette) - 1, k + 1)])
     rim(c, palette[-2], palette[0])
 
@@ -196,42 +201,49 @@ def fence(variant: int) -> Canvas:
 
 def dead_tree(variant: int) -> Canvas:
     c = Canvas(100, 150)
-    rng = Rng(401 + variant)
-    # Each segment tapers; old branches have short broken tips rather than leaves.
-    branches = [(50, 149, 48, 94, 13, 9), (48, 94, 57, 49, 9, 5),
-                (57, 49, 54, 8, 5, 2), (49, 105, 28, 83, 8, 5),
-                (28, 83, 13, 48, 5, 2), (17, 57, 4, 41, 3, 1),
-                (28, 83, 11, 77, 4, 1), (51, 81, 75, 65, 7, 4),
-                (75, 65, 85, 25, 4, 1), (78, 53, 95, 43, 3, 1),
-                (55, 44, 34, 30, 4, 2), (34, 30, 30, 12, 2, 1),
-                (57, 48, 68, 17, 4, 1)]
-    if variant:
-        branches = [(100-x, y, 100-a + rng.range(-4, 4), b + (rng.range(-6, 6) if b < 120 else 0), w, z)
-                    for x, y, a, b, w, z in branches if b != 17]
-        branches += [(49, 112, 29, 94, 7, 3), (29, 94, 18, 96, 3, 1)]
-    for x0, y0, x1, y1, w0, w1 in branches:
-        dx, dy = x1 - x0, y1 - y0
-        n = max(1, math.hypot(dx, dy)); nx, ny = -dy / n, dx / n
-        c.poly([(round(x0 + nx*w0/2), round(y0 + ny*w0/2)),
-                (round(x1 + nx*w1/2), round(y1 + ny*w1/2)),
-                (round(x1 - nx*w1/2), round(y1 - ny*w1/2)),
-                (round(x0 - nx*w0/2), round(y0 - ny*w0/2))], WOOD[2])
-    for x in (35, 42, 57, 65):
-        c.poly([(48, 137), (x, 149), (x + 5, 149), (54, 136)], WOOD[2])
-    texture(c, WOOD, 411 + variant, 'bark')
-    for x0, y0, x1, y1, w0, _ in branches:
-        if w0 < 4:
-            continue
-        # Sparse deep fissures along the direction of the trunk/branch.
-        for k in range(3, max(4, int(math.hypot(x1-x0, y1-y0))), 10):
-            n = max(1, math.hypot(x1-x0, y1-y0))
-            t = k / n
-            x, y = round(x0 + (x1-x0)*t), round(y0 + (y1-y0)*t)
-            for d in range(4):
-                xx, yy = x + d * (1 if x1 > x0 else -1) // 3, y - d
-                if c.solid(xx, yy): c.set(xx, yy, WOOD[0])
-    c.disc(50, 115, 3, WOOD[0], 6); c.disc(49, 114, 1, WOOD[3], 3)
-    c.disc(54 if not variant else 45, 88, 2, WOOD[0], 4)
+    # Shared nodes are literal junctions. Perturbing each segment independently
+    # used to detach the second tree's crown from its lower right fork.
+    paths = [
+        [[(50,145,14),(48,116,12),(47,91,10),(55,61,7),(52,36,5),(57,8,1)],
+         [(47,91,8),(29,79,6),(20,57,4),(8,42,1)],
+         [(20,57,3),(18,39,2),(11,29,1)],
+         [(29,79,3),(14,75,2),(5,69,1)],
+         [(55,61,6),(73,65,5),(82,44,3),(91,28,1)],
+         [(82,44,3),(91,42,2),(96,36,1)],
+         [(73,65,3),(79,77,2),(87,82,1)],
+         [(55,61,5),(35,39,4),(29,21,2),(21,15,1)],
+         [(35,39,3),(40,25,2),(38,16,1)],
+         [(52,36,4),(67,26,2),(71,12,1)],
+         [(52,36,3),(46,23,2),(47,6,1)]],
+        [[(52,145,15),(50,116,12),(55,91,10),(49,63,7),(43,35,5),(48,8,1)],
+         [(55,91,8),(75,79,6),(83,59,4),(94,48,1)],
+         [(83,59,3),(81,43,2),(87,32,1)],
+         [(75,79,3),(88,78,2),(96,70,1)],
+         [(49,63,6),(29,58,5),(19,38,3),(12,23,1)],
+         [(19,38,3),(8,35,2),(4,28,1)],
+         [(29,58,3),(22,71,2),(13,76,1)],
+         [(49,63,5),(65,42,4),(68,24,2),(77,17,1)],
+         [(65,42,3),(58,29,2),(60,19,1)],
+         [(43,35,3),(34,23,2),(34,11,1)],
+         [(50,116,5),(34,103,3),(24,102,1)]]
+    ][variant]
+    c.tree_paths = paths
+    for path in paths:
+        for (x0,y0,w0),(x1,y1,w1) in zip(path,path[1:]):
+            length = max(1,math.hypot(x1-x0,y1-y0))
+            nx,ny = -(y1-y0)/length,(x1-x0)/length
+            c.poly([(round(x0+nx*w0/2),round(y0+ny*w0/2)),
+                    (round(x1+nx*w1/2),round(y1+ny*w1/2)),
+                    (round(x1-nx*w1/2),round(y1-ny*w1/2)),
+                    (round(x0-nx*w0/2),round(y0-ny*w0/2))],BARK[2])
+            # Explicit centerline keeps even one-pixel terminal twigs connected.
+            c.line(x0,y0,x1,y1,BARK[2])
+        for x,y,w in path[1:-1]:
+            c.disc(x,y,max(1,w//2),BARK[2])
+    root = paths[0][0][0]
+    for end in (root-20,root-11,root+13,root+22):
+        c.poly([(root-5,135),(end,148),(end+3,149),(root+5,144)],BARK[2])
+    texture(c,BARK,411+variant,'bark')
     return c
 
 
@@ -629,6 +641,40 @@ def traffic_light(variant: int) -> Canvas:
 
 def shrub(variant: int) -> Canvas:
     c = Canvas(40, 36)
+    if variant == 1:
+        # A yucca is a radial fan of rigid pointed blades, not a round bush.
+        c.poly([(17,35),(19,19),(23,18),(25,35)],WOOD[1])
+        tips=[(3,14),(5,5),(12,2),(19,1),(27,3),(35,6),(38,16),
+              (2,25),(7,32),(33,31),(38,25),(24,8)]
+        for i,(x,y) in enumerate(tips):
+            c.poly([(19,33),(x,y),(23,28),(22,35)],GREEN[1+i%3])
+            c.line(20,32,x,y,mix(GREEN[3],GREEN[1],.25 if i%2 else .5))
+        c.disc(21,32,3,GREEN[1],2)
+        return c
+    if variant == 2:
+        # Joined prickly-pear pads; overlaps have a short seam, never an outline halo.
+        c.fill(18,29,22,35,WOOD[1])
+        for i,(x,y,rx,ry) in enumerate(((20,27,6,8),(11,19,5,7),(28,17,6,8),(20,9,5,7))):
+            c.disc(x,y,rx,GREEN[1],ry)
+            c.disc(x-1,y-1,rx-1,GREEN[2+i%2],ry-1)
+            c.line(x+rx-1,y-2,x+rx-1,y+3,GREEN[1])
+            for dx,dy in ((-2,-2),(1,-4),(2,1),(-1,3)):
+                c.set(x+dx,y+dy,GREEN[1]); c.set(x+dx-1,y+dy,BONE[2])
+        c.disc(21,2,2,RED[2],1); c.set(20,1,RED[3])
+        return c
+    if variant == 3:
+        # A dry thorn bush shows the earth through its sparse connected crown.
+        paths=[[(20,35),(18,23),(13,13),(12,5)],[(18,23),(27,16),(31,6)],
+               [(13,13),(5,12),(2,7)],[(18,23),(8,23),(3,18)],
+               [(27,16),(35,15),(38,11)],[(20,35),(30,27),(37,26)],
+               [(13,13),(19,10),(21,2)],[(30,27),(28,22)],
+               [(8,23),(9,17)],[(31,6),(35,3)]]
+        for i,path in enumerate(paths):
+            for a,b in zip(path,path[1:]):
+                c.line(*a,*b,WOOD[1],2 if i<2 else 1)
+                if i<2:c.line(a[0]-1,a[1],b[0]-1,b[1],WOOD[3])
+        c.line(16,35,25,35,WOOD[0])
+        return c
     rng = Rng(1700+variant)
     for k in range(7):
         x = rng.range(6, 33); y = rng.range(10, 24)
@@ -807,44 +853,24 @@ def finish_fence(c: Canvas, variant: int) -> None:
 
 
 def finish_tree(c: Canvas, variant: int) -> None:
-    # Secondary twigs grow from the large limbs, giving the crown an organic
-    # hierarchy. They are deliberately sparse, dead and broken at their ends.
-    twigs=[((18,60),(9,56),(5,50)),((29,82),(33,67),(30,60)),
-           ((37,32),(42,22),(41,15)),((56,29),(48,20),(47,13)),
-           ((70,68),(77,79),(84,82)),((84,37),(92,31),(94,26)),
-           ((56,50),(65,44),(70,35))]
-    for a,b,d in twigs:
-        if variant:
-            a,b,d=tuple((100-x,y) for x,y in (a,b,d))
-        if not c.solid(*a):
-            nearby=[(x,y) for y in range(max(0,a[1]-5),min(c.h,a[1]+6))
-                    for x in range(max(0,a[0]-5),min(c.w,a[0]+6)) if c.solid(x,y)]
-            if not nearby:
+    # Fissures follow each limb's growth, ending before its tapered tip. The
+    # sheltered side stays dark; occasional exposed ridges are matte, not gold.
+    for path in c.tree_paths:
+        for (x0,y0,w0),(x1,y1,w1) in zip(path,path[1:]):
+            if w0 < 4:
                 continue
-            a=min(nearby,key=lambda p:(p[0]-a[0])**2+(p[1]-a[1])**2)
-        c.line(*a,*b,WOOD[1],2); c.line(*b,*d,WOOD[1])
-        c.line(a[0]-1,a[1],b[0]-1,b[1],WOOD[3])
-    # Bark comes away in long curved plates, revealing pale heartwood. These
-    # checks wind around the lower trunk and the two main forks.
-    paths=[[(45,146),(46,133),(44,122),(46,110),(45,102)],
-           [(52,143),(50,132),(51,125),(49,118)],
-           [(54,108),(52,100),(54,91),(52,82)],
-           [(49,88),(45,82),(40,78),(36,72)],
-           [(58,65),(59,53),(56,42),(57,30)]]
-    for points in paths:
-        if variant: points=[(100-x,y) for x,y in points]
-        incise(c,points,WOOD[0],glint=WOOD[4])
-    x=50 if not variant else 49
-    ellipse_ring(c,x,116,3,7,WOOD[1]); ellipse_ring(c,x,116,2,5,WOOD[4])
-    c.disc(x,116,1,WOOD[0],3)
-    # Flaring roots, with a lit upper edge and earth gathered between them.
-    for end in (33,40,59,67):
-        xx=100-end if variant else end
-        start=48 if end<50 else 53
-        if variant:start=100-start
-        c.line(start,139,xx,149,WOOD[1],2); c.line(start-1,139,xx-1,148,WOOD[3])
-    for x in (40,56):
-        incise(c,[(x,148),(x+3,146),(x+6,148)],WOOD[0])
+            dx,dy=x1-x0,y1-y0
+            points=[(round(x0+dx*t),round(y0+dy*t)) for t in (.12,.35,.55,.82)]
+            incise(c,points,BARK[1],glint=BARK[3])
+            if w0 >= 8:
+                incise(c,[(x+3,y) for x,y in points],BARK[0])
+    x,y=(48,115) if not variant else (51,117)
+    ellipse_ring(c,x,y,2,5,BARK[1])
+    c.disc(x,y,1,BARK[0],2)
+    incise(c,[(x-2,y+6),(x-3,y+14),(x-2,y+22)],BARK[1],glint=BARK[3])
+    root=c.tree_paths[0][0][0]
+    for end in (root-18,root-9,root+12,root+21):
+        incise(c,[(root,138),(round((root+end)/2),145),(end,148)],BARK[1])
 
 
 def finish_wheel(c: Canvas, variant: int) -> None:
@@ -1130,6 +1156,9 @@ def finish_traffic(c: Canvas, variant: int) -> None:
 
 
 def finish_shrub(c: Canvas, variant: int) -> None:
+    if variant != 0:
+        # Yucca blades, cactus pads and dead twigs already have their own grain.
+        return
     # Exposed internal twigs and paired lanceolate leaves establish a plant's
     # structure. The branching remains visible in the shadow between clumps.
     for points in ([(20,33),(17,25),(13,20)],[(20,32),(24,24),(28,19)],[(19,26),(20,18),(24,12)]):

@@ -204,7 +204,7 @@ static void test_campaign_contains_all_fifty_without_adding_bodies_or_elites(voi
 {
     bool seen[ZOMBIE_KIND_COUNT][2] = {{false}};
     /* The first route's counts as they were; the second route's, longer. */
-    const int original_counts[] = {10, 14, 13, 19, 22, 28, 31, 33, 36, 38};
+    const int original_counts[] = {10, 14, 13, 19, 22, 28, 31, 33 + TRAIN_CREW, 36, 38}; /* 2-3: its train crew */
     int elites = 0;
     CHECK(STAGE_COUNT == 10);
     for (int s = 0; s < STAGE_COUNT; s++) {

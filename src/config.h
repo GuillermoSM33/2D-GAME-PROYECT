@@ -37,7 +37,7 @@
  * memory: walking left loads the left ones and drops those left behind on the
  * right, and vice versa. The background layers are images (themes.c). */
 #define WORLD_CHUNK_W 960                /* px, half a view: room for a tree or a fallen pole whole */
-#define WORLD_CHUNKS 100                 /* 96 000 px, 50 views */
+#define WORLD_CHUNKS 160                 /* Room for the complete laboratory train and the road beyond. */
 #define WORLD_WIDTH ((float)(WORLD_CHUNK_W * WORLD_CHUNKS))
 #define WORLD_LOAD_MARGIN 1              /* Chunks loaded past each side of the view */
 #define WORLD_CACHE_CHUNKS 8             /* Chunk slots: view (3) + margins */
@@ -297,7 +297,7 @@
 /* Half the body's on-screen width, used to keep it inside the world. */
 #define PLAYER_HALF_WIDTH (PLAYER_WALK_FRAME_W * SPRITE_SCALE / 2.0f)
 
-#define PLAYER_START_X (WORLD_WIDTH / 2.0f) /* Mid-level: room to walk both ways */
+#define PLAYER_START_X 48000.0f /* Stable origin for existing saves; room to walk both ways. */
 /* Where she stands in the view, from its left edge: in the middle. Ambushes
  * and hordes come from both sides, so she sees as far behind as ahead. */
 #define CAMERA_PLAYER_SHARE 0.5f
@@ -321,7 +321,8 @@
 
 /* The stage's road (stage_run.c, stages.c): she walks from PLAYER_START_X
  * to a gate StageDef.length ahead, past its zombies' groups and its terrain. */
-#define RUN_MAX_ZOMBIES 40          /* Saves before schema 5 hold 24 */
+#define RUN_MAX_ZOMBIES 64          /* Schemas 5..9 hold 40; before 5, 24. */
+#define RUN_MAX_ZOMBIES_V9 40
 #define RUN_MAX_ZOMBIES_V4 24
 #define RUN_MAX_CHESTS 6
 /* XP of a stage's kills and zombie chests is shared out as if it had this
@@ -407,16 +408,24 @@
 #define WALL_FRAME_H 72
 #define WALL_RUINS_W 180          /* The ruined house round a palisade, drawn behind it */
 #define WALL_RUINS_H 84
-#define FACADE_W 180              /* A wall that is a building's front: church, sheriff... */
-#define FACADE_H 128
+#define FACADE_W 288              /* Street fronts at the scale of the houses behind the road. */
+#define FACADE_H 200
 #define FACADE_KINDS 5            /* The first route's: church, sheriff, smithy, stable, bank */
-#define FACADE_URBAN 4            /* Then the city's: store, police station, flats, checkpoint, on
-                                   * their own sheet, two storeys at her scale (terrain/city_fronts) */
-#define CITY_FRONT_W 240
-#define CITY_FRONT_H 192
-#define FACADE_TRAIN (FACADE_KINDS + FACADE_URBAN + 1) /* Wall variant: the derailed train (SPOT_TRAIN) */
-#define TRAIN_W 300               /* Its cars round the jammed coupling (terrain/train) */
-#define TRAIN_H 104
+#define CITY_FRONT_BUILDINGS 8    /* Store, police, flats, checkpoint, clinic, workshop, substation, radio */
+#define FACADE_URBAN (CITY_FRONT_BUILDINGS * 2) /* Tagged first, then the same buildings without paint */
+#define CITY_FRONT_W 288
+#define CITY_FRONT_H 216
+#define FACADE_TRAIN (FACADE_KINDS + 5) /* Keep saved train variant 10 stable as fronts are added. */
+#define CITY_FRONT_VARIANT(frame) (FACADE_KINDS + 1 + (frame) + ((frame) >= 4 ? 1 : 0))
+#define TRAIN_CARS 13
+#define TRAIN_ROOMS 15            /* Thirteen lab cars, machinery, then control. */
+#define TRAIN_CREW (2 * TRAIN_ROOMS) /* Two infected crew in each room */
+#define TRAIN_FUMES_TICK 1.0f     /* Without a suit, a broken tank's fumes hurt her this often... */
+#define TRAIN_FUMES_SHARE 0.05f   /* ...this share of her max health each time (armor won't stop it) */
+#define TRAIN_ROOM_W 360
+#define TRAIN_INTERIOR_H 270
+#define TRAIN_W (TRAIN_ROOMS * TRAIN_ROOM_W + 32)
+#define TRAIN_H 192
 #define DOOR_FRAME_W 44           /* ...its barred door, as wide as the palisade */
 #define DOOR_FRAME_H 64
 #define WALL_STRIKES 14           /* Claws take a long while; a blast takes a moment */
@@ -455,6 +464,7 @@
 #define CRATE_FRAME_H 36
 #define CRATE_HITS 3
 #define CRATE_SPACING 140.0f      /* Window px between crates of one spot */
+#define SCENERY_GAP (6.0f * SPRITE_SCALE) /* Clear ground between separate objects */
 #define TRAP_SPACING 420.0f
 #define HAZARD_ROOM 320.0f        /* Window px of clear road between a trap and the wagon, a bench, a wall:
                                    * room to land from a vault and see it coming */
@@ -691,13 +701,15 @@
 #define FLARE_RADIUS 150.0f        /* Window px: bodies this near are burnt by it */
 #define FLARE_DAMAGE_MULT 1.6f     /* Times her weapon damage on zombies */
 #define FLARE_SELF_MULT 0.8f       /* Claws of the stage's zombies on her */
-/* Cars at her scale. The one that is a barricade (variant 4) is as wide as a
- * car: she vaults it in one long leap. Others stand on the road to walk past. */
-#define CAR_WRECK_W 136
-#define CAR_WRECK_H 46            /* terrain/car_wreck: 3 states of each of VEHICLE_LOOKS cars */
+/* Cars a little bigger than life beside her (1.2x; the army truck 1.6x: at
+ * life size her sprite made them look her size). The one that is a barricade
+ * (variant 4) is as wide as a car: she goes through it by its doors. Others
+ * stand on the road to walk past. */
+#define CAR_WRECK_W 164
+#define CAR_WRECK_H 55            /* terrain/car_wreck: 3 states of each of VEHICLE_LOOKS cars */
 #define BARRICADE_CAR 4
-#define VEHICLE_FRAME_W 184        /* terrain/vehicles: sedans, a jeep, an army truck */
-#define VEHICLE_FRAME_H 70
+#define VEHICLE_FRAME_W 294        /* terrain/vehicles: sedans, a jeep, an army truck */
+#define VEHICLE_FRAME_H 112
 #define VEHICLE_KINDS 5
 #define VEHICLE_EVERY 2300.0f      /* Window px between them, about */
 #define VEHICLE_ROOM 80.0f         /* ...and clear of everything else by this */
@@ -729,8 +741,8 @@
 /* A patrol car left on the road (SPOT_SIREN): walk past it or hit it and its
  * siren goes off, calling a horde in from both sides (its spot's zombies) and
  * waking sleeping groups near; shots then smash its light bar quiet. */
-#define SIREN_FRAME_W 136          /* At her scale, like the other cars */
-#define SIREN_FRAME_H 52
+#define SIREN_FRAME_W 164          /* At the cars' scale */
+#define SIREN_FRAME_H 62
 #define SIREN_TRIP_RANGE 250.0f    /* Window px from its center: she sets it off walking by */
 #define SIREN_TIME 14.0f           /* Seconds it wails if left alone */
 #define SIREN_SILENCE_HITS 3       /* Shots (or blows) after it goes off that smash it quiet */

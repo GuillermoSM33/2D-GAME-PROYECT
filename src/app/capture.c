@@ -220,6 +220,214 @@ static void capture_swat_aux_screens(Platform *platform, const char *dir, Charac
     }
 }
 
+static void capture_scenery(Platform *platform, const char *dir, CharacterSkin *skins,
+                             Profile *profiles, AppOptions *options, bool cars)
+{
+    static StagePlay review;
+    char name[80];
+    InputState idle = {0};
+    if (cars) {
+        for (int actor=0; actor<3; actor++) for (int side=0; side<2; side++) {
+            int hero=actor ? 1 : 0;
+            Profile profile=profiles[hero];
+            stage_start(&review,5,&CHARACTERS[hero],&profile.progress);
+            terrain_clear(&review.run.terrain);
+            review.run.zombie_count=0;
+            review.run.wall_x=0;
+            if (actor==2) stage_swap_weapon(&review);
+            Piece *car=terrain_add(&review.run.terrain,TERRAIN_BARRICADE,520);
+            car->variant=terrain_car_variant(actor);
+            for (int n=0;n<200;n++) {
+                car->x=520+n*8;
+                if (terrain_car_locked(car)==(side==0) &&
+                    (side || terrain_car_alarm_armed(car))) break;
+            }
+            review.player.facing=side ? FACING_LEFT : FACING_RIGHT;
+            review.player.x=car->x-review.player.facing*(terrain_piece_half_width(car)+PLAYER_BODY_HALF_WIDTH);
+            weather_start(&review.weather,WEATHER_CLEAR,camera_left(review.player.x));
+            InputState use={0};use.pressed[ACTION_VAULT]=true;
+            stage_step(&review,&use,&profile,options);
+            for (int frame=0; frame<380; frame++) {
+                if (frame%4==0 || review.player.car_action) {
+                    stage_draw(platform,&review,&skins[hero],&profile.progress,1,review.player.x,0,options);
+                    snprintf(name,sizeof(name),"car_%d_%d_%03d",actor,side,frame);
+                    save_capture(platform->renderer,dir,name);
+                }
+                if (review.player.state!=PLAYER_CAR) break;
+                stage_step(&review,&idle,&profile,options);
+            }
+        }
+        /* Her beside each vehicle left on the road, the town's supply truck,
+         * the patrol car and a barricade car: their size against hers. */
+        for (int kind=0; kind<VEHICLE_KINDS+3; kind++) {
+            stage_start(&review,5,&CHARACTERS[0],&profiles[0].progress);
+            terrain_clear(&review.run.terrain);
+            review.run.zombie_count=0;
+            review.run.wall_x=0;
+            review.player.x=300;
+            review.player.facing=FACING_RIGHT;
+            Piece *p=NULL;
+            if (kind<VEHICLE_KINDS) {
+                p=terrain_add(&review.run.terrain,TERRAIN_VEHICLE,1000);
+                if (p) p->variant=kind;
+            } else if (kind==VEHICLE_KINDS) {
+                p=terrain_add(&review.run.terrain,TERRAIN_SUPPLY,1000);
+                if (p) p->variant=1;
+            } else if (kind==VEHICLE_KINDS+1) {
+                terrain_add(&review.run.terrain,TERRAIN_SIREN,1000);
+            } else {
+                p=terrain_add(&review.run.terrain,TERRAIN_BARRICADE,1000);
+                if (p) p->variant=terrain_car_variant(0);
+            }
+            weather_start(&review.weather,WEATHER_CLEAR,camera_left(review.player.x));
+            stage_step(&review,&idle,&profiles[0],options);
+            stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+            snprintf(name,sizeof(name),"vehicle_%d",kind);
+            save_capture(platform->renderer,dir,name);
+        }
+        return;
+    }
+    ThemeDef themes[]={THEME_ATARDECER,THEME_CEMENTERIO,THEME_CIUDAD_NOCHE};
+    for (int theme=0;theme<3;theme++) {
+        themes[theme].house_chance=0;
+        for (int kind=0;kind<PROP_KIND_COUNT;kind++) {
+            stage_start(&review,0,&CHARACTERS[0],&profiles[0].progress);
+            terrain_clear(&review.run.terrain);review.run.zombie_count=0;
+            review.player.x=180;
+            review.world.theme=&themes[theme];
+            for (int i=0;i<WORLD_CACHE_CHUNKS;i++) {
+                review.world.ground.slots[i].loaded=true;
+                review.world.ground.slots[i].index=i;
+                review.world.ground.slots[i].prop_count=0;
+            }
+            Chunk *chunk=&review.world.ground.slots[0];
+            chunk->loaded=true;chunk->index=0;chunk->prop_count=prop_def(kind)->variants;
+            for (int v=0;v<chunk->prop_count;v++)
+                chunk->props[v]=(Prop){kind,v,260.0f+v*(prop_def(kind)->frame_w*SPRITE_SCALE+140.0f)};
+            weather_start(&review.weather,WEATHER_CLEAR,0);
+            stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,180,0,options);
+            snprintf(name,sizeof(name),"props_%d_%02d",theme,kind);
+            save_capture(platform->renderer,dir,name);
+        }
+        scene_shutdown();
+    }
+    for (int front=0;front<FACADE_URBAN;front++) {
+        stage_start(&review,5,&CHARACTERS[0],&profiles[0].progress);
+        terrain_clear(&review.run.terrain);review.run.zombie_count=0;
+        review.player.x=180;
+        Piece *p=terrain_add(&review.run.terrain,TERRAIN_WALL,600);
+        p->variant=CITY_FRONT_VARIANT(front);
+        weather_start(&review.weather,WEATHER_CLEAR,0);
+        stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,180,0,options);
+        snprintf(name,sizeof(name),"front_%02d",front);save_capture(platform->renderer,dir,name);
+    }
+    for (int house=19;house<=20;house++) {
+        ThemeDef military=THEME_BASE_MILITAR;
+        military.house_chance=100;military.houses[0]=house;military.house_count=1;
+        stage_start(&review,9,&CHARACTERS[0],&profiles[0].progress);
+        terrain_clear(&review.run.terrain);review.run.zombie_count=0;
+        review.player.x=180;
+        review.world.theme=&military;
+        for (int i=0;i<WORLD_CACHE_CHUNKS;i++)review.world.ground.slots[i].loaded=false;
+        weather_start(&review.weather,WEATHER_CLEAR,0);
+        stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,180,0,options);
+        snprintf(name,sizeof(name),"house_%d",house);save_capture(platform->renderer,dir,name);
+        scene_shutdown();
+    }
+}
+
+static void capture_train(Platform *platform,const char *dir,CharacterSkin *skins,
+                           Profile *profiles,AppOptions *options)
+{
+    static StagePlay review;
+    char name[64];
+    stage_start(&review,TRAIN_STAGE,&CHARACTERS[0],&profiles[0].progress);
+    review.player.x=review.run.train.left+40*SPRITE_SCALE;
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_00_entry");
+    review.run.train.inside=true;
+    for (int room=0;room<TRAIN_ROOMS;room++) {
+        review.player.x=review.run.train.left+(room+.28f)*TRAIN_ROOM_W*SPRITE_SCALE;
+        for (int k=0;k<review.run.zombie_count;k++)review.prev_zombie_x[k]=review.run.zombies[k].x;
+        stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+        snprintf(name,sizeof(name),"train_%02d_interior",room+1);
+        save_capture(platform->renderer,dir,name);
+    }
+    /* Car 01: the tablet in its locker, then taken (the map open, M) and the
+     * suit on; the fouled air of car 03 without and with it; what she
+     * carries (P), in both characters. */
+    review.player.x=train_tablet_x(&review.run);
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_01b_tablet");
+    review.run.train.tablet=true;
+    review.paused=true;review.pause_view=PAUSE_VIEW_MAP;
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_01c_map");
+    review.paused=false;
+    review.player.x=train_suit_x(&review.run);
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_01d_suits");
+    review.player.x=train_room_left(&review.run,2)+130*SPRITE_SCALE;
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_03b_fumes");
+    for (int hero=0;hero<2;hero++) {
+        static StagePlay suited;
+        stage_start(&suited,TRAIN_STAGE,&CHARACTERS[hero],&profiles[hero].progress);
+        suited.run.train.inside=suited.run.train.tablet=suited.run.train.suit=true;
+        suited.player.x=train_room_left(&suited.run,2)+130*SPRITE_SCALE;
+        stage_draw(platform,&suited,&skins[hero],&profiles[hero].progress,1,suited.player.x,0,options);
+        snprintf(name,sizeof(name),"train_03c_suit_%d",hero);
+        save_capture(platform->renderer,dir,name);
+        suited.paused=true;suited.pause_view=PAUSE_VIEW_INVENTORY;
+        stage_draw(platform,&suited,&skins[hero],&profiles[hero].progress,1,suited.player.x,0,options);
+        snprintf(name,sizeof(name),"train_03d_inventory_%d",hero);
+        save_capture(platform->renderer,dir,name);
+    }
+    review.run.train.tablet=false;
+    /* At a cradle (its prompt and marker), then at the hatch still shut. */
+    train_part_position(&review.run,1,&review.player.x);
+    review.player.x-=20*SPRITE_SCALE;
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_10b_part_prompt");
+    review.run.weapon_parts=1;
+    review.player.x=train_exit_x(&review.run);
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_10c_exit_locked");
+    review.player.x=train_terminal_x(&review.run);
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_10d_terminal_no_tablet");
+    review.run.train.tablet=true;
+    review.run.train.control_read=true;review.run.weapon_parts=7;
+    review.part_toast=2;review.part_toast_time=3;
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_11_control_read");
+    /* The real way out: the road behind and the crew down, E at the open
+     * hatch, then a step back along the locomotive as far as she can go. */
+    for (int k=0;k<review.run.zombie_count;k++)
+        if (review.run.zombies[k].x<review.run.train.right) zombie_hit(&review.run.zombies[k],1e8f);
+    review.run.weapon_parts=TRAIN_PART_MASK;
+    review.player.x=train_exit_x(&review.run);
+    InputState still={0},use={0},back={0};
+    use.pressed[ACTION_USE]=true;
+    back.down[ACTION_LEFT]=true;
+    stage_step(&review,&use,&profiles[0],options);
+    for (int frame=0;frame<30;frame++) stage_step(&review,&still,&profiles[0],options);
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_12_nose_exit");
+    for (int frame=0;frame<90;frame++) stage_step(&review,&back,&profiles[0],options);
+    for (int frame=0;frame<30;frame++) stage_step(&review,&still,&profiles[0],options);
+    stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+    save_capture(platform->renderer,dir,"train_13_back_at_nose");
+    InputState ahead={0};
+    ahead.down[ACTION_RIGHT]=true;
+    for (int shot=0;shot<3;shot++) {
+        for (int frame=0;frame<60;frame++) stage_step(&review,&ahead,&profiles[0],options);
+        stage_draw(platform,&review,&skins[0],&profiles[0].progress,1,review.player.x,0,options);
+        snprintf(name,sizeof(name),"train_14_road_%d",shot);
+        save_capture(platform->renderer,dir,name);
+    }
+}
+
 /* --capturas: every screen drawn once into dir, to check the interface's
  * art without playing (the menus, a fight, a wall, the pause, a defeat). */
 void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *skins,
@@ -230,6 +438,34 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
     InputState input;
     input_init(&input);
     const char *capture_group = SDL_getenv("THE_MIRACLE_CAPTURE_GROUP");
+    if (capture_group && SDL_strcmp(capture_group,"layout")==0) {
+        /* Natural route layouts, with their procedural scenery: the wide
+         * supply vehicle and the rest spot are where overlaps used to hide. */
+        const TerrainKind subjects[] = {TERRAIN_SUPPLY, TERRAIN_BENCH, TERRAIN_OUTPOST};
+        for (int stage=0; stage<STAGE_COUNT; stage++) {
+            for (int subject=0; subject<3; subject++) {
+                stage_start(&play,stage,&CHARACTERS[0],&profiles[0].progress);
+                const Piece *piece=NULL;
+                for (int i=0; i<play.run.terrain.count && !piece; i++)
+                    if (play.run.terrain.items[i].kind==subjects[subject]) piece=&play.run.terrain.items[i];
+                if (!piece) continue;
+                play.player.x=piece->x-100;
+                stage_draw(platform,&play,&skins[0],&profiles[0].progress,1,play.player.x,0,options);
+                char name[48];
+                snprintf(name,sizeof(name),"layout_%02d_%d",stage+1,subject);
+                save_capture(r,dir,name);
+            }
+        }
+        return;
+    }
+    if (capture_group && SDL_strcmp(capture_group,"train")==0) {
+        capture_train(platform,dir,skins,profiles,options);
+        return;
+    }
+    if (capture_group && (SDL_strcmp(capture_group,"props")==0 || SDL_strcmp(capture_group,"cars")==0)) {
+        capture_scenery(platform,dir,skins,profiles,options,SDL_strcmp(capture_group,"cars")==0);
+        return;
+    }
     if (capture_group && SDL_strcmp(capture_group, "swat_aux") == 0) {
         capture_swat_aux_screens(platform, dir, &skins[1], &profiles[1], options);
         return;

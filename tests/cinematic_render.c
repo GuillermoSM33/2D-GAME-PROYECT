@@ -68,6 +68,57 @@ static void distance_controls_rotation_and_one_circumference_repeats(void)
     CHECK(marks > 0 && marker_y < 0); /* Reverse travel reverses rolling. */
 }
 
+static void vehicle_motion_replaces_each_real_tire_without_painting_the_body(void)
+{
+    SDL_Texture *vehicles = assets_texture("sprites/terrain/vehicles");
+    CHECK(vehicles != NULL);
+    if (!vehicles) return;
+    /* Native axle locations in the authored jeep and truck, including their
+     * different drawing scales and horizontal padding in a common frame. */
+    static const int axles[2][3] = {{93, 201, 0}, {44, 82, 245}};
+    static const int center_y[] = {97, 95}, count[] = {2, 3};
+    static const float radius[] = {14.64f, 16.32f};
+    const int scale = 2, width = VEHICLE_FRAME_W * scale;
+    SDL_Rect box = {0, (BASELINE - VEHICLE_FRAME_H * SPRITE_SCALE) / 2,
+                    width, VEHICLE_FRAME_H * scale};
+    SDL_Rect dst = {0, box.y * 2, VEHICLE_FRAME_W * SPRITE_SCALE,
+                    VEHICLE_FRAME_H * SPRITE_SCALE};
+    SDL_RenderSetViewport(renderer, NULL);
+    SDL_RenderSetScale(renderer, .5f, .5f);
+    for (int v = 0; v < 2; v++) {
+        SDL_SetRenderDrawColor(renderer, 17, 32, 43, 255);
+        SDL_RenderClear(renderer);
+        SDL_Rect src = {(v + 3) * VEHICLE_FRAME_W, 0, VEHICLE_FRAME_W, VEHICLE_FRAME_H};
+        CHECK(SDL_RenderCopy(renderer, vehicles, &src, &dst) == 0);
+        CHECK(SDL_RenderReadPixels(renderer, &box, SDL_PIXELFORMAT_ARGB8888, before, width * 4) == 0);
+        float view_x = (float)(VEHICLE_FRAME_W * SPRITE_SCALE) / 2;
+        cine_vehicle_wheels(renderer, v + 3, view_x, 0);
+        CHECK(SDL_RenderReadPixels(renderer, &box, SDL_PIXELFORMAT_ARGB8888, after, width * 4) == 0);
+        for (int step = 0; step < 2; step++) {
+            int changed[3] = {0};
+            for (int y = 0; y < box.h; y++)
+                for (int x = 0; x < box.w; x++) {
+                    int i = y * width + x;
+                    if (before[i] == after[i]) continue;
+                    int tire = -1;
+                    for (int k = 0; k < count[v]; k++) {
+                        float dx = (float)(x / scale - axles[v][k]);
+                        float dy = (float)(y / scale - center_y[v]);
+                        if (dx * dx + dy * dy <= radius[v] * radius[v] + .01f)
+                            tire = k;
+                    }
+                    CHECK(tire >= 0); /* No extra wheel on the canvas or door. */
+                    if (tire >= 0) changed[tire]++;
+                }
+            for (int k = 0; k < count[v]; k++) CHECK(changed[k] > 100);
+            SDL_memcpy(before, after, (size_t)box.w * box.h * sizeof(Uint32));
+            cine_vehicle_wheels(renderer, v + 3, view_x, 55);
+            CHECK(SDL_RenderReadPixels(renderer, &box, SDL_PIXELFORMAT_ARGB8888, after, width * 4) == 0);
+        }
+    }
+    SDL_RenderSetScale(renderer, 1, 1);
+}
+
 static void camera_eases_at_both_ends_and_keeps_its_framing(void)
 {
     CHECK_NEAR(cine_pan(0, 6, 40), 0, .001f);
@@ -189,6 +240,7 @@ int main(int argc, char **argv)
         world_init(&title_world, &THEME_ATARDECER);
         RUN(rolling_changes_the_surface_without_moving_the_axle_or_outline);
         RUN(distance_controls_rotation_and_one_circumference_repeats);
+        RUN(vehicle_motion_replaces_each_real_tire_without_painting_the_body);
         RUN(camera_eases_at_both_ends_and_keeps_its_framing);
         RUN(sheriff_keeps_walking_until_she_leaves_the_picture);
         RUN(the_lab_stays_visible_in_its_valley_through_the_pan);

@@ -108,6 +108,41 @@ int terrain_moto_look(const Piece *piece)
     return -1;
 }
 
+int terrain_car_ahead(const Terrain *terrain, float x, int dir)
+{
+    int nearest = -1;
+    float best = VAULT_REACH + 1.0f;
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->spent || terrain_car_look(p) < 0) continue;
+        float edge = p->x - dir*(terrain_piece_half_width(p)+PLAYER_BODY_HALF_WIDTH);
+        float gap = (edge-x)*dir;
+        if (gap >= -1.0f && gap <= VAULT_REACH && gap < best) {
+            nearest = i;
+            best = gap;
+        }
+    }
+    return nearest;
+}
+
+static unsigned car_hash(const Piece *p)
+{
+    unsigned h = (unsigned)(int)lroundf(p->x)*2654435761u + (unsigned)p->variant*2246822519u;
+    h ^= h >> 16;
+    h *= 0x85ebca6bu;
+    return h ^ (h >> 13);
+}
+
+bool terrain_car_locked(const Piece *p)
+{
+    return terrain_car_look(p) >= 0 && car_hash(p)%3u != 0;
+}
+
+bool terrain_car_alarm_armed(const Piece *p)
+{
+    return terrain_car_look(p) >= 0 && (car_hash(p)>>8)%2u == 0;
+}
+
 static bool is_vehicle(const Piece *piece)
 {
     return terrain_car_look(piece) >= 0 || terrain_moto_look(piece) >= 0;
@@ -120,10 +155,23 @@ static void wreck_vehicle(Piece *p)
         p->blowing = true;
 }
 
+/* What each frame of terrain/vehicles takes on the road, art px: the cars and
+ * the jeep at the cars' scale, the army truck bigger (its frame is as wide as
+ * the truck; the others stand in the middle of it). */
+static const int VEHICLE_DRAWN_W[VEHICLE_KINDS] = {164, 164, 164, 184, 290};
+
+float terrain_vehicle_half_width(int variant)
+{
+    int kind = ((variant % VEHICLE_KINDS) + VEHICLE_KINDS) % VEHICLE_KINDS;
+    return (float)(VEHICLE_DRAWN_W[kind] * SPRITE_SCALE) / 2.0f;
+}
+
 float terrain_piece_half_width(const Piece *piece)
 {
     if (terrain_car_look(piece) >= 0)
         return (float)(CAR_WRECK_W * SPRITE_SCALE) / 2.0f;
+    if (piece->kind == TERRAIN_VEHICLE)
+        return terrain_vehicle_half_width(piece->variant);
     return terrain_half_width(piece->kind);
 }
 
@@ -169,6 +217,58 @@ const char *terrain_car_wreck_sheet(void)
 const char *terrain_city_front_sheet(void)
 {
     return "sprites/terrain/city_fronts";
+}
+
+int terrain_city_front_frame(int variant)
+{
+    if (variant <= FACADE_KINDS || variant == FACADE_TRAIN)
+        return -1;
+    int frame = variant - FACADE_KINDS - 1 - (variant > FACADE_TRAIN);
+    return frame >= 0 && frame < FACADE_URBAN ? frame : -1;
+}
+
+float terrain_front_half_width(const Piece *p)
+{
+    if (p->kind == TERRAIN_SUPPLY && p->variant == 1)
+        return terrain_vehicle_half_width(VEHICLE_KINDS - 1);
+    if (p->kind != TERRAIN_WALL) return terrain_piece_half_width(p);
+    int width = p->variant == FACADE_TRAIN ? TRAIN_W
+              : terrain_city_front_frame(p->variant) >= 0 ? CITY_FRONT_W
+              : p->variant > 0 ? FACADE_W : WALL_RUINS_W;
+    return (float)(width * SPRITE_SCALE) * .5f;
+}
+
+bool terrain_prop_clear(const Terrain *terrain, float x, float half_width)
+{
+    if (!terrain) return true;
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        /* Surface effects can cover existing scenery without making it pop
+         * out of existence when oil burns or a charge is planted. */
+        if (p->kind == TERRAIN_PUDDLE || p->kind == TERRAIN_FIRE || p->kind == TERRAIN_CHARGE) continue;
+        if (fabsf(x - p->x) < half_width + terrain_front_half_width(p) + SCENERY_GAP)
+            return false;
+    }
+    return true;
+}
+
+bool terrain_house_clear(const Terrain *terrain, float house_left, float width)
+{
+    if (!terrain) return true;
+    float slide = 1.0f - HOUSE_PARALLAX;
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        if (p->kind != TERRAIN_WALL || p->variant <= 0) continue;
+        float half = terrain_front_half_width(p);
+        float reach = width * .5f + half + 48.0f * SPRITE_SCALE;
+        float offset = p->x - house_left - width * .5f;
+        float first = (offset - reach) / slide;
+        float last = (offset + reach) / slide;
+        /* Reject the house for its entire slot, including after the door is
+         * destroyed, so moving the camera never makes architecture pop. */
+        if (last >= p->x - half - VIEW_WIDTH && first <= p->x + half) return false;
+    }
+    return true;
 }
 
 const char *terrain_supply_truck_sheet(void)
@@ -450,9 +550,27 @@ void terrain_trip_siren(Terrain *terrain, int index)
     push_event(terrain->events.sirens, &terrain->events.siren_count, index);
 }
 
+void terrain_car_open(Terrain *terrain, int index, bool smash, int dir)
+{
+    if (index < 0 || index >= terrain->count) return;
+    Piece *p = &terrain->items[index];
+    if (terrain_car_look(p) < 0 || p->spent) return;
+    p->car_flags |= CAR_DOOR_USED;
+    if (!smash || (p->car_flags & CAR_WINDOW_BROKEN)) return;
+    p->car_flags |= CAR_WINDOW_BROKEN;
+    if (dir < 0) p->car_flags |= CAR_BROKEN_RIGHT;
+    if (terrain_car_alarm_armed(p) && !(p->car_flags & CAR_ALARM_TRIPPED)) {
+        p->car_flags |= CAR_ALARM_TRIPPED;
+        p->timer = SIREN_TIME;
+        push_event(terrain->events.sirens, &terrain->events.siren_count, index);
+    }
+}
+
 bool terrain_siren_on(const Piece *piece)
 {
-    return piece->kind == TERRAIN_SIREN && piece->spent && piece->damage == 0 && piece->timer > 0.0f;
+    return piece->timer > 0.0f &&
+           ((piece->kind == TERRAIN_SIREN && piece->spent && piece->damage == 0) ||
+            (terrain_car_look(piece) >= 0 && !piece->spent && (piece->car_flags & CAR_ALARM_TRIPPED)));
 }
 
 float terrain_siren_loudness(const Terrain *terrain, float x)
@@ -783,7 +901,7 @@ void terrain_update(Terrain *terrain, float dt)
             p->timer = fminf(p->timer + dt, BURNER_BURN_TIME + 1.0f);
             continue;
         }
-        if (p->kind == TERRAIN_SIREN) { /* Wailing down to quiet */
+        if (p->kind == TERRAIN_SIREN || terrain_car_look(p) >= 0) { /* Wailing down to quiet */
             p->timer = fmaxf(0.0f, p->timer - dt);
             p->ripple = fmodf(p->ripple + dt, 60.0f); /* Its light bar's flashing */
             continue;

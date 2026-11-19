@@ -1135,7 +1135,21 @@ PAINTS = {
     'blue': [rgb(0x141c30), rgb(0x1e2c4a), rgb(0x2c4068), rgb(0x44608c)],
     'olive': [rgb(0x22261a), rgb(0x343a24), rgb(0x4a5232), rgb(0x646e44)],
 }
-CAR_W, CAR_H = 136, 46        # A sedan at her scale: 4.5 m long, 1.45 m tall (she is 56 px)
+# Vehicles are drawn bigger than life beside her: at life size her sprite (a
+# big head under a wide hat) made the cars and the army truck look her size.
+# The drawings below keep their original 1x geometry; each is drawn natively
+# at its scale k (every pixel is computed at its final size, nothing is
+# stretched), so lines stay one pixel wide.
+CAR_SCALE = 1.2               # Cars, the patrol car and the jeep
+TRUCK_SCALE = 1.6             # The army truck: well above her head
+CAR_W, CAR_H = 164, 55        # A sedan (136 x 46 at 1x)
+# Saved look order; door layers use the same model and paint as these bodies.
+CAR_LOOKS = (('sedan', 'sand'), ('pickup', 'red'), ('wagon', 'blue'))
+
+
+def scaler(k: float):
+    """1x units to a drawing at scale k, rounded half up."""
+    return lambda v: math.floor(v * k + .5)
 
 
 def tire(f: Frame, cx: int, cy: int, r: float, rim: bool = True) -> None:
@@ -1150,134 +1164,144 @@ def tire(f: Frame, cx: int, cy: int, r: float, rim: bool = True) -> None:
 
 
 def sedan(f: Frame, ox: int, base: int, paint: list, state: int = 0, police: bool = False,
-          shape: str = 'sedan') -> None:
+          shape: str = 'sedan', k: float = CAR_SCALE) -> None:
     """A sedan, side on, facing right, its wheels on row base. state 0 whole,
     1 smashed up (dents, cracked glass, a flat), 2 burnt out on its rims.
     police: black with white doors. shape: 'sedan'; 'wagon' (its roof runs
-    to the back); 'pickup' (a short cab, an open bed behind it)."""
+    to the back); 'pickup' (a short cab, an open bed behind it). x and the
+    rows' distances are 1x units, drawn at scale k."""
+    S = scaler(k)
     rear0, rear1 = {'sedan': (26, 44), 'wagon': (6, 14), 'pickup': (58, 62)}[shape]   # The cabin's back slope
     sag = 0 if state == 0 else 1 if state == 1 else 4
-    top = base - 45 + sag                                  # Roof row
-    belt = top + 16                                        # Where glass meets body
-    sill = base - 8                                        # Bottom of the doors
+    top = base - S(45 - sag)                               # Roof row
+    belt = top + S(16)                                     # Where glass meets body
+    sill = base - S(8)                                     # Bottom of the doors
 
-    def body_color(x: int, y: int):
+    def body_color(x: float, y: int):
         ramp = paint
         if police and 44 <= x <= 92 and y >= belt:
             ramp = POLICE['white']
         if y <= belt + 1:
             return ramp[3]
-        if y < belt + 9:
+        if y < belt + S(9):
             return ramp[2]
         return ramp[1] if y < sill - 2 else ramp[0]
 
-    for x in range(2, 134):                                # Lower body: trunk, doors, hood
-        y0 = belt + (2 if x < 22 and shape == 'sedan' else 0) + (3 if x > 112 else 1 if x > 100 else 0)
+    for X in range(S(2), S(134)):                          # Lower body: trunk, doors, hood
+        x = X / k
+        y0 = belt + S((2 if x < 22 and shape == 'sedan' else 0) + (3 if x > 112 else 1 if x > 100 else 0))
         if x < 5 or x > 131:
-            y0 = belt + 7
+            y0 = belt + S(7)
         for y in range(y0, sill + 1):
-            f.px(ox + x, y, body_color(x, y))
+            f.px(ox + X, y, body_color(x, y))
     if shape == 'pickup':                                  # Its bed: the walls' rim, dark inside
-        f.fill(ox + 6, belt, ox + 57, belt, paint[3])
-        f.fill(ox + 8, belt + 1, ox + 56, belt + 2, rgb(0x0e0c0c))
-    for x in range(rear0, 100):                            # Cabin: pillars and roof
+        f.fill(ox + S(6), belt, ox + S(58) - 1, belt, paint[3])
+        f.fill(ox + S(8), belt + 1, ox + S(57) - 1, belt + S(2), rgb(0x0e0c0c))
+    for X in range(S(rear0), S(100)):                      # Cabin: pillars and roof
+        x = X / k
         if x < rear1:
-            y0 = belt - (x - rear0) * 15 // (rear1 - rear0)
+            y0 = belt - math.floor((x - rear0) * S(15) / (rear1 - rear0))
         elif x <= 82:
             y0 = top
         else:
-            y0 = top + (x - 82) * 15 // 17
+            y0 = top + math.floor((x - 82) * S(15) / 17)
         for y in range(y0, belt):
-            f.px(ox + x, y, paint[3] if y == y0 else paint[2])
+            f.px(ox + X, y, paint[3] if y == y0 else paint[2])
     glass = GLASS if state < 2 else [rgb(0x0e0c0c)] * 3    # Windows
-    for x in range(rear0 + 6, 96):
-        if x in (62, 63, 64) or (shape == 'wagon' and x in (36, 37, 38)):
+    pillars = ((62, 65),) + (((36, 39),) if shape == 'wagon' else ())
+    for X in range(S(rear0 + 6), S(96)):
+        if any(S(a) <= X < S(b) for a, b in pillars):
             continue                                       # Pillars
+        x = X / k
         if x < rear1:
-            y0 = belt - (x - rear0 - 4) * 13 // max(1, rear1 - rear0 - 4)
+            y0 = belt - math.floor((x - rear0 - 4) * S(13) / max(1, rear1 - rear0 - 4))
         elif x <= 80:
-            y0 = top + 3
+            y0 = top + S(3)
         else:
-            y0 = top + 3 + (x - 80) * 12 // 15
-        for y in range(max(y0, top + 3), belt - 1):
-            c = glass[1] if (x + y) % 9 else glass[2]
-            if state == 1 and x > 64 and (x * 3 + y * 5) % 7 == 0:
+            y0 = top + S(3) + math.floor((x - 80) * S(12) / 15)
+        for y in range(max(y0, top + S(3)), belt - 1):
+            c = glass[1] if (X + y) % 11 else glass[2]
+            if state == 1 and x > 64 and (X * 3 + y * 5) % 7 == 0:
                 c = glass[2]                               # Cracked
-            f.px(ox + x, y, c)
+            f.px(ox + X, y, c)
     for x in (44, 63, 93):                                 # Door seams, handles
-        f.fill(ox + x, belt + 2, ox + x, sill - 1, paint[0])
+        f.fill(ox + S(x), belt + 2, ox + S(x), sill - 1, paint[0])
     for hx in (50, 70):
-        f.fill(ox + hx, belt + 5, ox + hx + 4, belt + 5, IRON[3] if state < 2 else paint[0])
-    f.fill(ox + 2, sill - 3, ox + 6, sill, IRON[2])        # Bumpers
-    f.fill(ox + 129, sill - 3, ox + 134, sill, IRON[2])
-    f.fill(ox + 130, belt + 6, ox + 133, belt + 9, rgb(0xe8d8a0) if state == 0 else IRON[1])   # Headlight
-    f.fill(ox + 2, belt + 6, ox + 4, belt + 9, rgb(0xa02020) if state < 2 else IRON[0])
+        f.fill(ox + S(hx), belt + S(5), ox + S(hx + 5) - 1, belt + S(5), IRON[3] if state < 2 else paint[0])
+    f.fill(ox + S(2), sill - S(3), ox + S(7) - 1, sill, IRON[2])        # Bumpers
+    f.fill(ox + S(129), sill - S(3), ox + S(135) - 1, sill, IRON[2])
+    f.fill(ox + S(130), belt + S(6), ox + S(134) - 1, belt + S(10) - 1,  # Headlight
+           rgb(0xe8d8a0) if state == 0 else IRON[1])
+    f.fill(ox + S(2), belt + S(6), ox + S(5) - 1, belt + S(10) - 1, rgb(0xa02020) if state < 2 else IRON[0])
     if state >= 1:                                         # Dents
-        f.fill(ox + 100, belt + 3, ox + 118, belt + 5, paint[0])
-        f.fill(ox + 46, belt + 10, ox + 58, belt + 11, paint[0])
+        f.fill(ox + S(100), belt + S(3), ox + S(119) - 1, belt + S(6) - 1, paint[0])
+        f.fill(ox + S(46), belt + S(10), ox + S(59) - 1, belt + S(12) - 1, paint[0])
     if state == 2:
         for x in range(8, 128, 3):                         # Rust and scorch
-            f.px(ox + x, belt + 3 + (x * 7) % 14, rgb(0x6a3a1e))
+            f.px(ox + S(x), belt + S(3 + (x * 7) % 14), rgb(0x6a3a1e))
     for wx in (28, 108):                                   # Wheel arches and wheels
-        for y in range(sill - 8, sill + 1):
-            for x in range(wx - 11, wx + 12):
-                if math.hypot(x - wx, y - (base - 8)) <= 10.5:
-                    f.px(ox + x, y, rgb(0x0c0a0a))
+        cx, cy = ox + S(wx), base - S(8)
+        for y in range(sill - S(8), sill + 1):
+            for x in range(cx - S(11), cx + S(12)):
+                if math.hypot(x - cx, y - cy) <= 10.5 * k:
+                    f.px(x, y, rgb(0x0c0a0a))
         if state == 2:
-            tire(f, ox + wx, base - 5, 5.2, rim=False)
+            tire(f, cx, base - S(5), 5.2 * k, rim=False)
         else:
-            tire(f, ox + wx, base - 8, 8.2)
+            tire(f, cx, cy, 8.2 * k)
     if state == 1:                                         # A flat: its tyre squashed
-        f.fill(ox + 20, base - 2, ox + 36, base, IRON[0])
+        f.fill(ox + S(20), base - 2, ox + S(37) - 1, base, IRON[0])
 
 
-def light_bar(f: Frame, ox: int, top: int, frame: int) -> None:
+def light_bar(f: Frame, ox: int, top: int, frame: int, k: float = CAR_SCALE) -> None:
+    S = scaler(k)
     red = rgb(0xff3a2a) if frame == 1 else rgb(0x7a1c16)
     blue = rgb(0x3a7aff) if frame == 2 else rgb(0x1a2a5a)
     if frame < 3:
-        f.fill(ox + 52, top - 5, ox + 61, top - 1, red)
-        f.fill(ox + 64, top - 5, ox + 73, top - 1, blue)
-        f.fill(ox + 62, top - 5, ox + 63, top - 1, POLICE['black'][2])
-        f.fill(ox + 52, top - 5, ox + 61, top - 5, rgb(0xffb0a0) if frame == 1 else red)
-        f.fill(ox + 64, top - 5, ox + 73, top - 5, rgb(0xb0d0ff) if frame == 2 else blue)
+        f.fill(ox + S(52), top - S(5), ox + S(62) - 1, top - 1, red)
+        f.fill(ox + S(64), top - S(5), ox + S(74) - 1, top - 1, blue)
+        f.fill(ox + S(62), top - S(5), ox + S(64) - 1, top - 1, POLICE['black'][2])
+        f.fill(ox + S(52), top - S(5), ox + S(62) - 1, top - S(5), rgb(0xffb0a0) if frame == 1 else red)
+        f.fill(ox + S(64), top - S(5), ox + S(74) - 1, top - S(5), rgb(0xb0d0ff) if frame == 2 else blue)
         if frame in (1, 2):                                # Its glare
-            gx = ox + (56 if frame == 1 else 68)
+            gx = ox + S(56 if frame == 1 else 68)
             for dx, dy in ((-7, -7), (0, -9), (7, -7)):
-                f.px(gx + dx, top - 4 + dy, red if frame == 1 else blue)
+                f.px(gx + S(dx), top - S(4) + S(dy), red if frame == 1 else blue)
     else:
-        f.fill(ox + 52, top - 2, ox + 73, top - 1, POLICE['black'][2])
+        f.fill(ox + S(52), top - 2, ox + S(74) - 1, top - 1, POLICE['black'][2])
         for x in (54, 59, 66, 71):
-            f.px(ox + x, top - 3, rgb(0x7a1c16) if x < 62 else rgb(0x1a2a5a))
+            f.px(ox + S(x), top - 3, rgb(0x7a1c16) if x < 62 else rgb(0x1a2a5a))
 
 
-SIREN_W, SIREN_H = 136, 52
+SIREN_W, SIREN_H = 164, 62    # 136 x 52 at 1x
 
 
 def make_siren_car() -> Image:
-    """A patrol car left on the road (4 frames of 136 x 52), at her scale:
-    black with white doors and a brass star, its light bar dark; red lit;
-    blue lit; smashed and silent."""
+    """A patrol car left on the road (4 frames of 164 x 62), at the cars'
+    scale: black with white doors and a brass star, its light bar dark; red
+    lit; blue lit; smashed and silent."""
+    S = scaler(CAR_SCALE)
     img = Image(SIREN_W * 4, SIREN_H)
     for frame in range(4):
         f = Frame(img, frame * SIREN_W, SIREN_W)
         b = SIREN_H - 1
         sedan(f, 0, b, POLICE['black'], 0, police=True)
-        for yy in range(-3, 4):                            # The star on the door
-            for xx in range(-3, 4):
-                if abs(xx) + abs(yy) <= 3 or (abs(xx) == abs(yy) and abs(xx) <= 2):
-                    f.px(68 + xx, b - 19 + yy, rgb(0xd0a848) if xx <= 0 else rgb(0x9c7a32))
-        light_bar(f, 0, b - 45, frame)
+        r = S(3)
+        for yy in range(-r, r + 1):                        # The star on the door
+            for xx in range(-r, r + 1):
+                if abs(xx) + abs(yy) <= r or (abs(xx) == abs(yy) and abs(xx) <= r - 1):
+                    f.px(S(68) + xx, b - S(19) + yy, rgb(0xd0a848) if xx <= 0 else rgb(0x9c7a32))
+        light_bar(f, 0, b - S(45), frame)
         f.outline()
     return img
 
 
 def make_car_wreck() -> Image:
     """The cars across the road that are barricades (3 looks x 3 frames of
-    136 x 46): a sand sedan, a red pickup, a blue station wagon; each dead
+    164 x 55): a sand sedan, a red pickup, a blue station wagon; each dead
     but whole, smashed up, a burnt shell on its rims (it blew up)."""
-    looks = (('sedan', 'sand'), ('pickup', 'red'), ('wagon', 'blue'))
-    img = Image(CAR_W * 3 * len(looks), CAR_H)
-    for k, (shape, paint) in enumerate(looks):
+    img = Image(CAR_W * 3 * len(CAR_LOOKS), CAR_H)
+    for k, (shape, paint) in enumerate(CAR_LOOKS):
         for state in range(3):
             f = Frame(img, (k * 3 + state) * CAR_W, CAR_W)
             sedan(f, 0, CAR_H - 1, PAINTS[paint] if state < 2 else PAINTS['burnt'], state, shape=shape)
@@ -1285,160 +1309,274 @@ def make_car_wreck() -> Image:
     return img
 
 
-VEHICLE_W, VEHICLE_H = 184, 70
+VEHICLE_W, VEHICLE_H = 294, 112   # 184 x 70 at 1x, room for the truck at its scale
+# Each frame of terrain/vehicles: its scale and where its drawing's x 0 is
+# (each vehicle centred in its frame); the supply truck is laid out as frame 4.
+VEHICLE_LAYOUT = ((CAR_SCALE, 65), (CAR_SCALE, 65), (CAR_SCALE, 65), (CAR_SCALE, 55), (TRUCK_SCALE, 2))
 
 
-def jeep(f: Frame, ox: int, base: int) -> None:
+def jeep(f: Frame, ox: int, base: int, k: float = CAR_SCALE) -> None:
     """An army light truck (the boxy four-door kind), side on, facing right:
     a flat hood, a raked windshield, a hard top sloping down at the back,
     two doors with their windows, angular wheel arches, big tyres, a whip
     antenna, tow hooks and a star on the door."""
+    S = scaler(k)
     o = PAINTS['olive']
-    belt = base - 38                                       # Top of the hood and the doors' lower half
-    roof = base - 60
-    sill = base - 13                                       # Bottom of the body
+    belt = base - S(38)                                    # Top of the hood and the doors' lower half
+    roof = base - S(60)
+    sill = base - S(13)                                    # Bottom of the body
 
-    def top_at(x: int) -> int:
+    def top_at(x: float) -> int:
         if x < 10:
-            return belt + 4
+            return belt + S(4)
         if x < 34:                                         # The sloping back
-            return belt - (x - 10) * (belt - roof) // 24
+            return belt - math.floor((x - 10) * (belt - roof) / 24)
         if x <= 92:
             return roof
         if x <= 102:                                       # The windshield
-            return roof + (x - 92) * (belt - roof) // 10
-        return belt + (2 if x > 140 else 0)
+            return roof + math.floor((x - 92) * (belt - roof) / 10)
+        return belt + (S(2) if x > 140 else 0)
 
-    for x in range(6, 148):
+    for X in range(S(6), S(148)):
+        x = X / k
         y0 = top_at(x)
         for y in range(y0, sill + 1):
-            c = o[3] if y == y0 else o[2] if y < belt + 12 else o[1]
+            c = o[3] if y == y0 else o[2] if y < belt + S(12) else o[1]
             if y > sill - 3:
                 c = o[0]
-            f.px(ox + x, y, c)
-    for x in range(36, 100):                               # Glass: a rear and a front door window, the windshield
-        if x in (62, 63, 64):
+            f.px(ox + X, y, c)
+    for X in range(S(36), S(100)):                         # Glass: a rear and a front door window, the windshield
+        if S(62) <= X < S(65):
             continue
-        y0 = roof + 4 + (max(0, x - 90) * (belt - roof) // 10 if x > 90 else 0)
+        x = X / k
+        y0 = roof + S(4) + (math.floor((x - 90) * (belt - roof) / 10) if x > 90 else 0)
         for y in range(y0, belt - 2):
-            f.px(ox + x, y, GLASS[2] if (x - y) % 11 == 0 else GLASS[1] if x > 64 else GLASS[0])
-    f.fill(ox + 34, roof + 3, ox + 35, belt - 2, o[1])     # Pillars
-    f.fill(ox + 62, roof + 3, ox + 64, belt - 2, o[2])
+            f.px(ox + X, y, GLASS[2] if (X - y) % 14 == 0 else GLASS[1] if x > 64 else GLASS[0])
+    f.fill(ox + S(34), roof + S(3), ox + S(36) - 1, belt - 2, o[1])     # Pillars
+    f.fill(ox + S(62), roof + S(3), ox + S(65) - 1, belt - 2, o[2])
     for x in (36, 64, 98):                                 # Door seams
-        f.fill(ox + x, belt, ox + x, sill - 3, o[0])
+        f.fill(ox + S(x), belt, ox + S(x), sill - 3, o[0])
     for hx in (42, 70):                                    # Handles
-        f.fill(ox + hx, belt + 5, ox + hx + 5, belt + 6, o[0])
+        f.fill(ox + S(hx), belt + S(5), ox + S(hx + 6) - 1, belt + S(6), o[0])
     for dx0 in (40, 68):                                   # The doors' pressed X
-        for i in range(18):
-            f.px(ox + dx0 + i, belt + 9 + i * 10 // 18, o[1])
-            f.px(ox + dx0 + i, belt + 19 - i * 10 // 18, o[1])
-    for yy in range(-4, 5):                                # A white star
-        for xx in range(-4, 5):
-            if abs(xx) + abs(yy) <= 4 and not (abs(xx) + abs(yy) == 4 and xx * yy != 0):
-                f.px(ox + 82 + xx, belt + 14 + yy, rgb(0xc8c8b8))
-    f.fill(ox + 100, belt - 6, ox + 103, belt - 3, o[0])   # Mirror
-    f.fill(ox + 106, belt + 1, ox + 138, belt + 2, o[1])   # Hood louvres
+        for i in range(S(18)):
+            f.px(ox + S(dx0) + i, belt + S(9) + i * S(10) // S(18), o[1])
+            f.px(ox + S(dx0) + i, belt + S(19) - i * S(10) // S(18), o[1])
+    r = S(4)
+    for yy in range(-r, r + 1):                            # A white star
+        for xx in range(-r, r + 1):
+            if abs(xx) + abs(yy) <= r and not (abs(xx) + abs(yy) == r and xx * yy != 0):
+                f.px(ox + S(82) + xx, belt + S(14) + yy, rgb(0xc8c8b8))
+    f.fill(ox + S(100), belt - S(6), ox + S(104) - 1, belt - S(3), o[0])   # Mirror
+    f.fill(ox + S(106), belt + 1, ox + S(139) - 1, belt + 2, o[1])        # Hood louvres
     for x in range(110, 136, 5):
-        f.fill(ox + x, belt + 4, ox + x + 2, belt + 4, o[0])
+        f.fill(ox + S(x), belt + S(4), ox + S(x + 3) - 1, belt + S(4), o[0])
     for i in range(5):                                     # Grille slots, headlight, bumper, tow hook
-        f.fill(ox + 143, belt + 6 + i * 3, ox + 147, belt + 6 + i * 3, o[0])
-    f.fill(ox + 144, belt + 19, ox + 147, belt + 22, rgb(0xe8d8a0))
+        f.fill(ox + S(143), belt + S(6 + i * 3), ox + S(148) - 1, belt + S(6 + i * 3), o[0])
+    f.fill(ox + S(144), belt + S(19), ox + S(148) - 1, belt + S(23) - 1, rgb(0xe8d8a0))
     dark = rgb(0x1a1c14)
-    f.fill(ox + 146, sill - 5, ox + 149, sill - 1, dark)   # Front bumper, dark like the sills
-    f.fill(ox + 4, sill - 5, ox + 7, sill - 1, dark)       # Rear bumper, tail light, jerrycan
-    f.fill(ox + 6, belt + 8, ox + 8, belt + 12, rgb(0xa02020))
-    f.fill(ox + 10, belt + 14, ox + 18, belt + 24, o[0])
-    f.fill(ox + 10, belt + 14, ox + 18, belt + 14, o[2])
+    f.fill(ox + S(146), sill - S(5), ox + S(150) - 1, sill - 1, dark)   # Front bumper, dark like the sills
+    f.fill(ox + S(4), sill - S(5), ox + S(8) - 1, sill - 1, dark)       # Rear bumper, tail light, jerrycan
+    f.fill(ox + S(6), belt + S(8), ox + S(9) - 1, belt + S(13) - 1, rgb(0xa02020))
+    f.fill(ox + S(10), belt + S(14), ox + S(19) - 1, belt + S(25) - 1, o[0])
+    f.fill(ox + S(10), belt + S(14), ox + S(19) - 1, belt + S(14), o[2])
     ax = 20                                                # Whip antenna, on its mount on the rear deck
-    f.fill(ox + ax - 1, top_at(ax) - 2, ox + ax + 1, top_at(ax) - 1, o[0])
-    for i in range(30):
-        f.px(ox + ax - i * i // 110, top_at(ax) - 3 - i, o[0] if i < 26 else o[1])
+    f.fill(ox + S(ax) - 1, top_at(ax) - 2, ox + S(ax) + 1, top_at(ax) - 1, o[0])
+    for i in range(S(30)):
+        f.px(ox + S(ax) - math.floor(i * i / (110 * k)), top_at(ax) - 3 - i, o[0] if i < S(26) else o[1])
     for wx in (32, 122):                                   # Angular arches, big tyres
-        for y in range(sill - 13, sill + 1):
-            half = 15 if y > sill - 9 else 15 - (sill - 9 - y) * 2
-            f.fill(ox + wx - half, y, ox + wx + half, y, rgb(0x0c0a0a))
-        tire(f, ox + wx, base - 12, 12.2)
-        for k in range(8):                                 # Lugs
-            a = k * math.tau / 8
-            f.px(ox + wx + round(5.5 * math.cos(a)), base - 12 + round(5.5 * math.sin(a)), IRON[0])
+        cx = ox + S(wx)
+        for y in range(sill - S(13), sill + 1):
+            half = S(15) if y > sill - S(9) else S(15) - (sill - S(9) - y) * 2
+            f.fill(cx - half, y, cx + half, y, rgb(0x0c0a0a))
+        tire(f, cx, base - S(12), 12.2 * k)
+        for n in range(8):                                 # Lugs
+            a = n * math.tau / 8
+            f.px(cx + round(5.5 * k * math.cos(a)), base - S(12) + round(5.5 * k * math.sin(a)), IRON[0])
 
 
-def army_truck(f: Frame, ox: int, base: int, load: int = 0) -> None:
+def army_truck(f: Frame, ox: int, base: int, load: int = 0, k: float = TRUCK_SCALE) -> None:
     """An army truck: a cab at the front, a cargo bed under a canvas cover.
     load 0 the canvas shut; 1 its side rolled up on crates of supplies (the
     supply point); 2 rolled up, the bed empty."""
+    S = scaler(k)
     o = PAINTS['olive']
     canvas = [rgb(0x3a3c28), rgb(0x52563a), rgb(0x6c7050), rgb(0x868a66)]
-    bed_top, bed_floor = base - 62, base - 22
-    for x in range(4, 122):                                # Canvas cover over its hoops
-        y0 = bed_top + (2 if x < 8 or x > 117 else 0)
-        for y in range(y0, bed_floor - (26 if load else 0)):
-            c = canvas[3] if y == y0 else canvas[2] if (x - 4) % 22 > 2 else canvas[1]
-            if y > bed_top + 20 and not load:
-                c = canvas[1] if (x - 4) % 22 > 2 else canvas[0]
-            f.px(ox + x, y, c)
+    bed_top, bed_floor = base - S(62), base - S(22)
+    for X in range(S(4), S(122)):                          # Canvas cover over its hoops
+        x = X / k
+        y0 = bed_top + (S(2) if x < 8 or x > 117 else 0)
+        hoop = (x - 4) % 22 <= 2
+        for y in range(y0, bed_floor - (S(26) if load else 0)):
+            c = canvas[3] if y == y0 else canvas[1] if hoop else canvas[2]
+            if y > bed_top + S(20) and not load:
+                c = canvas[0] if hoop else canvas[1]
+            f.px(ox + X, y, c)
     if load:                                               # Rolled up: what is inside
-        f.fill(ox + 4, bed_floor - 26, ox + 121, bed_floor - 24, canvas[0])
-        f.fill(ox + 6, bed_floor - 23, ox + 119, bed_floor - 1, rgb(0x14120e))
+        f.fill(ox + S(4), bed_floor - S(26), ox + S(122) - 1, bed_floor - S(24), canvas[0])
+        f.fill(ox + S(6), bed_floor - S(23), ox + S(120) - 1, bed_floor - 1, rgb(0x14120e))
         for x in (6, 62, 118):
-            f.fill(ox + x, bed_floor - 23, ox + x + 1, bed_floor - 1, o[1])
+            f.fill(ox + S(x), bed_floor - S(23), ox + S(x + 2) - 1, bed_floor - 1, o[1])
         if load == 1:
             for i, (cx0, w, hgt) in enumerate(((10, 22, 14), (34, 20, 18), (58, 26, 12), (88, 24, 16),
                                                (38, 16, 8), (92, 16, 7))):
-                y1 = bed_floor - 1 - (18 if i == 4 else 16 if i == 5 else 0)
-                f.box(ox + cx0, y1 - hgt, ox + cx0 + w, y1, [o[0], o[1], o[2], o[3]])
-                f.fill(ox + cx0 + 3, y1 - hgt + 3, ox + cx0 + w - 3, y1 - hgt + 4, rgb(0xc8b860))
-    f.fill(ox + 2, bed_floor, ox + 123, bed_floor + 5, o[1])   # Bed side
-    f.fill(ox + 2, bed_floor, ox + 123, bed_floor, o[3])
+                y1 = bed_floor - 1 - S(18 if i == 4 else 16 if i == 5 else 0)
+                f.box(ox + S(cx0), y1 - S(hgt), ox + S(cx0 + w), y1, [o[0], o[1], o[2], o[3]])
+                f.fill(ox + S(cx0 + 3), y1 - S(hgt) + S(3), ox + S(cx0 + w - 3), y1 - S(hgt) + S(4),
+                       rgb(0xc8b860))
+    f.fill(ox + S(2), bed_floor, ox + S(124) - 1, bed_floor + S(5), o[1])   # Bed side
+    f.fill(ox + S(2), bed_floor, ox + S(124) - 1, bed_floor, o[3])
     for x in range(8, 120, 14):
-        f.fill(ox + x, bed_floor + 1, ox + x, bed_floor + 5, o[0])
-    for x in range(126, 176):                              # Cab and hood
-        y0 = base - 52 if x < 152 else base - 36
-        for y in range(y0, base - 14):
-            f.px(ox + x, y, o[3] if y == y0 else o[2] if y < base - 26 else o[1])
-    f.fill(ox + 132, base - 48, ox + 148, base - 36, GLASS[1])
-    f.fill(ox + 132, base - 48, ox + 138, base - 45, GLASS[2])
-    f.fill(ox + 150, base - 50, ox + 151, base - 15, o[0])
-    f.fill(ox + 174, base - 30, ox + 177, base - 25, rgb(0xe8d8a0))
-    f.fill(ox + 172, base - 16, ox + 179, base - 12, IRON[2])   # Bumper
+        f.fill(ox + S(x), bed_floor + 1, ox + S(x), bed_floor + S(5), o[0])
+    for X in range(S(126), S(176)):                        # Cab and hood
+        x = X / k
+        y0 = base - S(52) if x < 152 else base - S(36)
+        for y in range(y0, base - S(14)):
+            f.px(ox + X, y, o[3] if y == y0 else o[2] if y < base - S(26) else o[1])
+    f.fill(ox + S(132), base - S(48), ox + S(149) - 1, base - S(36), GLASS[1])
+    f.fill(ox + S(132), base - S(48), ox + S(139) - 1, base - S(45), GLASS[2])
+    f.fill(ox + S(150), base - S(50), ox + S(152) - 1, base - S(15), o[0])
+    f.fill(ox + S(174), base - S(30), ox + S(178) - 1, base - S(25), rgb(0xe8d8a0))
+    f.fill(ox + S(172), base - S(16), ox + S(180) - 1, base - S(12), IRON[2])   # Bumper
     for i in range(4):
-        f.fill(ox + 168, base - 33 + i * 3, ox + 172, base - 33 + i * 3, o[0])
-    for yy in range(-4, 5):                                # A white star on the door
-        for xx in range(-4, 5):
-            if abs(xx) + abs(yy) <= 4:
-                f.px(ox + 140 + xx, base - 26 + yy, rgb(0xc8c8b8))
-    f.fill(ox + 6, base - 16, ox + 172, base - 14, IRON[0])   # Frame
+        f.fill(ox + S(168), base - S(33 - i * 3), ox + S(173) - 1, base - S(33 - i * 3), o[0])
+    r = S(4)
+    for yy in range(-r, r + 1):                            # A white star on the door
+        for xx in range(-r, r + 1):
+            if abs(xx) + abs(yy) <= r:
+                f.px(ox + S(140) + xx, base - S(26) + yy, rgb(0xc8c8b8))
+    f.fill(ox + S(6), base - S(16), ox + S(173) - 1, base - S(14), IRON[0])   # Frame
     for wx in (26, 50, 152):
-        tire(f, ox + wx, base - 10, 10.2)
+        tire(f, ox + S(wx), base - S(10), 10.2 * k)
+    truck_cab(f, ox, base, k)
     if load == 1:                                          # Crates set down by it
-        f.box(ox + 80, base - 9, ox + 96, base, [o[0], o[1], o[2], o[3]])
-        f.box(ox + 100, base - 7, ox + 112, base, [rgb(0x3a2316), rgb(0x56351f), rgb(0x76492a), rgb(0x9a643a)])
+        f.box(ox + S(80), base - S(9), ox + S(96), base, [o[0], o[1], o[2], o[3]])
+        f.box(ox + S(100), base - S(7), ox + S(112), base,
+              [rgb(0x3a2316), rgb(0x56351f), rgb(0x76492a), rgb(0x9a643a)])
+
+
+def truck_cab(f: Frame, ox: int, base: int, k: float = TRUCK_SCALE) -> None:
+    """The army truck's cab built at its scale: a framed side window (sky in
+    its upper glass, a streak of light, the steering wheel and the seat's
+    back inside), the door's seams, hinges, handle and step, a mirror on its
+    arm, a louvred bonnet, a round lamp behind its guard, a barred grille,
+    tow hooks, and the fuel tank and toolbox under the bed."""
+    S = scaler(k)
+    o = PAINTS['olive']
+    ink, steel, shine = rgb(0x1a1c14), IRON[2], rgb(0xb8bba8)
+    x0, x1, y0, y1 = ox + S(132), ox + S(149) - 1, base - S(48), base - S(36)    # The window
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            t = (y - y0) / max(1, y1 - y0)
+            c = rgb(0x8fb3bd) if t < .18 else rgb(0x5d8494) if t < .42 else GLASS[1] if t < .78 else GLASS[0]
+            f.px(x, y, c)
+    for i in range(S(9)):                                  # A streak of light across it
+        for w in range(2):
+            x, y = x0 + S(3) + i + w, y1 - 1 - i
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                f.px(x, y, rgb(0xc9dde0) if w == 0 else rgb(0x9cc0c8))
+    wx, wy, r = x1 - S(4), y1 - S(1), S(5)                # The steering wheel's rim inside
+    for a in range(200, 341, 4):
+        x, y = wx + round(r * math.cos(math.radians(a))), wy + round(r * .45 * math.sin(math.radians(a)))
+        if x0 < x < x1 and y0 < y <= y1:
+            f.px(x, y, rgb(0x14191c))
+    for y in range(y0 + S(4), y1 + 1):                     # The seat's back, dark against the glass
+        for x in range(x0 + 1, x0 + S(4)):
+            if (x - x0) + (y0 + S(4) - y) // 3 < S(4):
+                f.px(x, y, rgb(0x1d2420))
+    for x in range(x0 - 1, x1 + 2):                        # Its rubber seal
+        f.px(x, y0 - 1, ink)
+        f.px(x, y1 + 1, ink)
+    for y in range(y0 - 1, y1 + 2):
+        f.px(x0 - 1, y, ink)
+        f.px(x1 + 1, y, ink)
+    for x in range(x0, x1 + 1):
+        f.px(x, y1 + 2, o[3])                              # The sill catching the light
+    # The door: seams, two hinges at its front, a handle, a step under it.
+    d0, d1 = ox + S(128), ox + S(150)
+    for y in range(base - S(50), base - S(16)):
+        f.px(d0, y, ink)
+        f.px(d1 - 1, y, ink)
+    for x in range(d0, d1):
+        f.px(x, base - S(16), ink)
+    for hy in (base - S(44), base - S(24)):
+        f.fill(d1 - 2, hy, d1 + 1, hy + 2, o[0])
+        f.px(d1 - 2, hy, shine)
+    f.fill(d0 + S(3), base - S(31), d0 + S(8), base - S(31) + 1, ink)
+    f.fill(d0 + S(3) + 1, base - S(31), d0 + S(8) - 1, base - S(31), steel)
+    f.fill(d0 + S(4), base - S(15), d1 - S(4), base - S(14), ink)        # Step
+    f.fill(d0 + S(4), base - S(15), d1 - S(4), base - S(15), steel)
+    # A mirror on its arm off the front pillar.
+    for i in range(S(5)):
+        f.px(ox + S(151) + i, base - S(40) - i // 2, ink)
+    mx, my = ox + S(155), base - S(46)
+    f.fill(mx, my, mx + S(3), my + S(6), ink)
+    f.fill(mx + 1, my + 1, mx + S(3) - 1, my + S(6) - 1, rgb(0x6f9aa6))
+    f.px(mx + 1, my + 1, rgb(0xc9dde0))
+    # The bonnet: its hinge along the top and louvres down its side.
+    for x in range(ox + S(153), ox + S(172)):
+        f.px(x, base - S(35), o[3])
+    for x in range(ox + S(155), ox + S(166), S(3)):
+        for y in range(base - S(32), base - S(22)):
+            f.px(x, y, ink)
+            f.px(x + 1, y, o[3])
+    # The grille's bars, a round lamp behind its guard, tow hooks.
+    for x in range(ox + S(168), ox + S(173), 2):
+        for y in range(base - S(34), base - S(19)):
+            f.px(x, y, ink)
+    lx, ly, lr = ox + S(176), base - S(28), S(3)
+    for y in range(ly - lr, ly + lr + 1):
+        for x in range(lx - lr, lx + lr + 1):
+            d = math.hypot(x - lx, y - ly)
+            if d <= lr:
+                f.px(x, y, ink if d > lr - 1 else rgb(0xf1e2b0) if x < lx and y < ly else rgb(0xc8b88a))
+    for y in range(ly - lr, ly + lr + 1, 2):
+        f.px(lx + lr + 1, y, steel)
+    for hx in (ox + S(173), ox + S(178)):
+        f.fill(hx, base - S(12), hx + 1, base - S(10), ink)
+    # The fuel tank and a toolbox under the bed, between its wheels.
+    t0, t1, ty = ox + S(96), ox + S(120), base - S(19)
+    for y in range(ty, ty + S(6) + 1):
+        for x in range(t0, t1 + 1):
+            edge = x in (t0, t1) or y in (ty, ty + S(6))
+            f.px(x, y, ink if edge else o[3] if y < ty + 2 else o[2] if y < ty + S(4) else o[1])
+    for sx in (t0 + S(5), t1 - S(5)):
+        for y in range(ty, ty + S(6) + 1):
+            f.px(sx, y, ink)                               # Its straps
+    f.fill(t1 - S(3), ty + 1, t1 - S(2), ty + 2, shine)    # Its cap
+    b0, b1 = ox + S(68), ox + S(88)
+    f.fill(b0, base - S(19), b1, base - S(13), ink)
+    f.fill(b0 + 1, base - S(19) + 1, b1 - 1, base - S(13) - 1, o[1])
+    f.fill(b0 + 1, base - S(19) + 1, b1 - 1, base - S(19) + 1, o[3])
+    f.fill((b0 + b1) // 2 - 1, base - S(17), (b0 + b1) // 2 + 1, base - S(16), steel)
 
 
 def make_vehicles() -> Image:
-    """Vehicles left on the road, to walk past (5 frames of 184 x 70): a
+    """Vehicles left on the road, to walk past (5 frames of 294 x 112): a
     green sedan, a red one, a burnt one, an army jeep, an army truck."""
     img = Image(VEHICLE_W * 5, VEHICLE_H)
     b = VEHICLE_H - 1
     for i in range(5):
         f = Frame(img, i * VEHICLE_W, VEHICLE_W)
+        k, ox = VEHICLE_LAYOUT[i]
         if i < 3:
-            sedan(f, 24, b, PAINTS[('green', 'red', 'burnt')[i]], 2 if i == 2 else 0)
+            sedan(f, ox, b, PAINTS[('green', 'red', 'burnt')[i]], 2 if i == 2 else 0, k=k)
         elif i == 3:
-            jeep(f, 30, b)
+            jeep(f, ox, b, k)
         else:
-            army_truck(f, 2, b)
+            army_truck(f, ox, b, 0, k)
         f.outline()
     return img
 
 
 def make_supply_truck() -> Image:
-    """The supply point in the town (2 frames of 184 x 70): an army truck,
+    """The supply point in the town (2 frames of 294 x 112): an army truck,
     its canvas rolled up on crates; then emptied."""
     img = Image(VEHICLE_W * 2, VEHICLE_H)
+    k, ox = VEHICLE_LAYOUT[4]
     for i in range(2):
         f = Frame(img, i * VEHICLE_W, VEHICLE_W)
-        army_truck(f, 2, VEHICLE_H - 1, 1 + i)
+        army_truck(f, ox, VEHICLE_H - 1, 1 + i, k)
         f.outline()
     return img
 
@@ -1627,7 +1765,6 @@ def front_store(f: Frame, w: int, h: int, door: tuple) -> None:
         f.fill(x0 + 35, 140, x0 + 36, 162, rgb(0xcfc4a8))
         f.fill(x0 - 3, b - 11, x1 + 3, b - 2, BRICK[1])    # Stall riser
         f.fill(x0 - 3, b - 11, x1 + 3, b - 11, CONCRETE[3])
-    graffiti(f, 162, 138, rgb(0xd8d0c0), 2, mark=False)   # The looters' tag across the glass
     doorway(f, door, TRIM)
     f.fill(w - 12, 14, w - 10, b - 2, IRON[2])             # Drainpipe
     f.fill(w - 30, b - 30, w - 16, b - 2, rgb(0x24386a))   # Newspaper box
@@ -1695,7 +1832,6 @@ def front_flats(f: Frame, w: int, h: int, door: tuple) -> None:
         big_window(f, x0, 38, 28, 46, ('lit', 'dark', 'dark', 'curtain')[i])
     for i, x0 in enumerate((14, 56, 158, 198)):
         big_window(f, x0, 118, 26, 44, ('dark', 'boarded', 'lit', 'dark')[i])
-    graffiti(f, 10, 94, rgb(0xc8c0b0), 2)                 # Sprayed between the floors
     f.fill(104, 96, 124, 108, CONCRETE[2])                 # An air conditioner under a window
     for y in range(98, 107, 2):
         f.fill(106, y, 122, y, CONCRETE[0])
@@ -1774,7 +1910,6 @@ def front_checkpoint(f: Frame, w: int, h: int, door: tuple) -> None:
         c = rgb(0xc24e32) if (i // 8) % 2 else rgb(0xe0d6bc)
         f.fill(x, y, x + 1, y + 2, c)
     f.fill(dx + dw + 12, b - 34, dx + dw + 19, b, o[1])
-    graffiti(f, 152, 108, rgb(0x9c2a20), 2)                # They got this far: red on the concrete
     mx = w - 18                                            # Floodlight mast
     f.fill(mx, 20, mx + 1, top - 1, IRON[2])
     f.fill(mx - 8, 14, mx + 6, 24, IRON[1])
@@ -1788,87 +1923,134 @@ def front_checkpoint(f: Frame, w: int, h: int, door: tuple) -> None:
             f.fill(x0 + 1, y + 6, x0 + 11, y + 6, sand[0])
 
 
+def front_utility(f: Frame, w: int, h: int, door: tuple, kind: int) -> None:
+    """Four distinct street buildings, with the same usable central doorway."""
+    from landscape_kit import Canvas, hx, mix
+    from scenery_materials import masonry, metal, window as glass_window, lettering
+    c=Canvas(w,h)
+    ink=hx(0x2a302f); trim=hx(0xb4b3a1); steel=hx(0x687e80)
+    def window(canvas,bounds,seed,lit):
+        x0,y0,x1,y1=bounds
+        glass_window(canvas,x0,y0,x1-x0+1,y1-y0+1,lit=lit,broken=seed%5==0)
+    def box(bounds,color):
+        x0,y0,x1,y1=bounds
+        c.fill(x0,y0,x1,y1,color)
+        c.hline(x0,x1,y0,mix(color,trim,.38))
+        c.vline(x1,y0,y1,mix(color,ink,.45))
+        c.hline(x0,x1,y1,mix(color,ink,.55))
+    if kind==0:  # Clinic: pale plaster, glazed entrance canopy, medical plaque.
+        masonry(c,(6,29,233,191),hx(0x969f90),seed=250,brick=(29,11))
+        box((2,22,237,30),trim)
+        for x in (19,65,151,196):window(c,(x,43,x+27,78),seed=x,lit=x==65)
+        box((5,91,234,108),hx(0x456c60))
+        lettering(c,'CLINICA',82,96,hx(0xd5d2b6),scale=2)
+        for x in (20,157):
+            window(c,(x,124,x+62,164),seed=x,lit=False)
+            for yy in range(131,160,5):c.hline(x+2,x+59,yy,hx(0x718d87))
+        box((104,40,135,77),hx(0x486d61))
+        c.fill(116,46,123,70,trim);c.fill(108,54,131,61,trim)
+        c.poly([(86,115),(145,115),(154,124),(78,124)],hx(0x6e9290))
+        c.hline(78,154,124,ink)
+        for x in (85,147):c.line(x,124,x,138,steel)
+        box((13,170,36,188),hx(0x75877b));lettering(c,'24 H',15,174,trim)
+        c.vline(225,33,188,steel)
+    elif kind==1:  # Workshop: pitched steel roof, two roll-up service bays.
+        masonry(c,(6,78,233,191),hx(0x846d58),seed=251,brick=(16,7))
+        c.poly([(3,79),(119,29),(236,79)],hx(0x566b70))
+        for x in range(10,232,9):
+            top=round(30+abs(x-119)*.42)
+            c.line(x,top,x,78,hx(0x74888b))
+        c.line(4,78,119,28,trim,2);c.line(119,28,235,78,steel,2)
+        window(c,(91,54,147,73),seed=77,lit=False)
+        box((5,83,234,102),hx(0x4f6567));lettering(c,'TALLER',83,88,trim,scale=2)
+        for x in (12,155):
+            box((x,113,x+72,184),ink)
+            metal(c,(x+3,116,x+69,181),steel,seed=x)
+            for yy in range(119,182,6):c.hline(x+3,x+69,yy,ink)
+            c.hline(x+29,x+42,173,trim)
+        for x,y in ((33,177),(44,186),(201,181)):
+            c.disc(x,y,9,ink,5);c.disc(x,y,4,steel,2)
+        c.vline(218,36,82,steel);c.line(218,36,227,31,steel,3)
+        box((64,151,80,172),hx(0x93744f));lettering(c,'OIL',66,155,trim)
+    elif kind==2:  # Substation: finned transformers and glazed ceramic insulators.
+        masonry(c,(5,97,234,191),hx(0x868d7f),seed=252,brick=(23,9))
+        box((2,89,237,98),trim)
+        for x in (20,160):
+            metal(c,(x,48,x+55,86),hx(0x657b77),seed=x)
+            for xx in range(x+4,x+53,5):
+                box((xx,54,xx+2,85),hx(0x536a65))
+            for xx in (x+12,x+40):
+                c.vline(xx,32,47,steel)
+                for yy in (35,39,43):box((xx-5,yy,xx+5,yy+1),hx(0x9aa899))
+            box((x-3,84,x+58,89),steel)
+            window(c,(x,117,x+55,153),seed=x,lit=False)
+            for xx in range(x+3,x+55,7):c.vline(xx,118,151,steel)
+        c.line(32,32,103,27,ink);c.line(103,27,200,32,ink)
+        box((87,101,151,116),hx(0x4f6560));lettering(c,'SUBESTACION',89,105,trim)
+        c.poly([(164,167),(175,151),(186,167)],hx(0xb9a255))
+        c.line(176,155,172,161,ink,2);c.line(172,161,177,160,ink);c.line(177,160,173,165,ink)
+        for x in (20,214):c.line(x,158,x,186,steel,2)
+    else:  # Radio depot: brick service hall, roof aerial and equipment racks.
+        masonry(c,(5,61,234,191),hx(0x82786d),seed=253,brick=(18,8))
+        box((2,53,237,62),trim)
+        for x in (17,65,152,199):window(c,(x,75,x+25,104),seed=x,lit=x==199)
+        box((6,111,233,124),hx(0x455e6b));lettering(c,'RADIO CENTRAL',74,114,trim)
+        for x in (17,159):
+            metal(c,(x,140,x+62,182),steel,seed=x)
+            for yy in range(146,175,5):c.hline(x+5,x+56,yy,ink)
+            for xx in (x+7,x+52):c.disc(xx,178,1,trim,1)
+        c.line(174,5,174,53,steel,3)
+        for yy,span in ((9,18),(20,14),(31,10)):
+            c.line(174-span,yy,174+span,yy,steel,2)
+            c.set(174-span,yy,trim)
+        c.line(174,13,143,52,ink);c.line(174,13,205,52,ink)
+        box((167,48,183,53),steel)
+        box((27,39,60,52),steel)
+        for yy in (43,47):c.hline(31,55,yy,ink)
+    # Standard sill, recessed jamb and ground contact, clear for the door overlay.
+    dx,dy,dw,dh=door
+    box((dx-5,dy-6,dx+dw+4,h-1),hx(0x9c9f8b))
+    c.fill(dx,dy,dx+dw-1,h-1,None)
+    for x in range(6,w-6,19):
+        c.hline(x,x+10,h-3,hx(0x53594c))
+    image=c.image()
+    for y in range(h):
+        for x in range(w):
+            f.px(x,y,image.get(x,y))
+
+
 FRONTS = [front_store, front_police, front_flats, front_checkpoint]
+FRONT_BUILDINGS = 8
 
 
-def make_city_fronts() -> Image:
-    """The town's fronts for walls (4 frames of 240 x 192): store, police
-    station, flats, checkpoint. Their doorway, 44 x 64, is in the middle on
-    the ground: the door sheet's shutter fills it."""
-    img = Image(FRONT_W * len(FRONTS), FRONT_H)
-    door = ((FRONT_W - 44) // 2, FRONT_H - 64, 44, 64)
-    for i, draw in enumerate(FRONTS):
-        f = Frame(img, i * FRONT_W, FRONT_W)
-        draw(f, FRONT_W, FRONT_H, door)
-        f.outline()
+def mark_city_fronts(img: Image) -> Image:
+    """First eight occupied/tagged, then the exact same eight without paint."""
+    locations=[(151,138,2,False),(10,91,1,True),(10,94,2,True),(147,108,1,True),
+               (10,110,1,True),(149,105,1,True),(8,103,1,True),(145,126,1,True)]
+    for i,(x,y,scale,mark) in enumerate(locations):
+        graffiti(Frame(img,i*FRONT_W,FRONT_W),x,y,rgb(0xb64132) if i in (3,6) else rgb(0xcac3ad),scale,mark)
     return img
 
-TRAIN_W, TRAIN_H = 300, 104
-CAR = {'body': [rgb(0x3a1e16), rgb(0x5a2e1e), rgb(0x7a4028), rgb(0x9a5634)],
-       'steel': [IRON[0], IRON[1], IRON[2], IRON[3]]}
+
+def make_city_fronts(marked: bool = True) -> Image:
+    """Eight structures, tagged then clean (16 x 240x192); central door 44x64."""
+    img = Image(FRONT_W * FRONT_BUILDINGS * 2, FRONT_H)
+    door = ((FRONT_W - 44) // 2, FRONT_H - 64, 44, 64)
+    for clean in range(2):
+        for i in range(FRONT_BUILDINGS):
+            f = Frame(img, (i+clean*FRONT_BUILDINGS) * FRONT_W, FRONT_W)
+            if i<4:FRONTS[i](f, FRONT_W, FRONT_H, door)
+            else:front_utility(f,FRONT_W,FRONT_H,door,i-4)
+            f.outline()
+    return mark_city_fronts(img) if marked else img
+
+TRAIN_W, TRAIN_H = 15 * 360 + 32, 192  # train_art.WIDTH: fifteen rooms' worth
 
 
 def make_train() -> Image:
-    """A freight train off its rails, across the line (300 x 104): a boxcar
-    on the left, tipped a little; the locomotive's long hood on the right,
-    nosed into it. Between them, over the road, the gap that the wall's door
-    (DOOR_W x DOOR_H) fills: blown, it is the way through."""
-    img = Image(TRAIN_W, TRAIN_H)
-    f = Frame(img, 0, TRAIN_W)
-    b = TRAIN_H - 1
-    gap0, gap1 = (TRAIN_W - 44) // 2, (TRAIN_W + 44) // 2
-    body, steel = CAR['body'], CAR['steel']
-    for x in range(4, gap0 - 2):                          # The boxcar, tilted: its left end lifted
-        lift = (gap0 - x) // 14
-        top, bottom = 30 - lift, b - 14 - lift
-        for y in range(top, bottom + 1):
-            c = body[2] if (x - 4) % 9 < 7 else body[1]
-            if y == top:
-                c = body[3]
-            if (x * 3 + y * 7) % 29 == 0:
-                c = body[0]
-            f.px(x, y, c)
-        for y in (top + 6, bottom - 6):
-            f.px(x, y, body[1])
-    for x0 in (40, 76):                                   # Its sliding door, its rail
-        f.fill(x0, 40, x0 + 22, 82, body[1])
-        f.fill(x0 + 11, 40, x0 + 11, 82, body[0])
-        f.fill(x0 - 2, 38, x0 + 24, 38, steel[2])
-    for x in range(8, gap0 - 6):                          # Frame and trucks off the rail
-        lift = (gap0 - x) // 14
-        f.fill(x, b - 14 - lift, x, b - 12 - lift, steel[0])
-    for wx, lift in ((24, 7), (40, 6), (100, 2), (116, 1)):
-        for y in range(b - 10 - lift, b - lift + 1):
-            for x in range(wx - 5, wx + 6):
-                d = math.hypot(x - wx, y - (b - 5 - lift))
-                if d <= 5.4:
-                    f.px(x, y, steel[3] if d < 1.8 else steel[1] if d < 4 else steel[0])
-    for x in range(gap1 + 2, TRAIN_W - 4):                # The locomotive: long hood, cab at the far end
-        cab = x > TRAIN_W - 60
-        top = 22 if cab else 44
-        for y in range(top, b - 13):
-            c = rgb(0x5a4c24) if y < top + 4 else rgb(0x725f28) if y < 70 else rgb(0x3e3418)
-            if not cab and (x - gap1) % 12 == 0:
-                c = rgb(0x3a301a)                         # Hood doors
-            if 60 <= y <= 64:
-                c = rgb(0x9c3424)                         # Its red stripe
-            f.px(x, y, c)
-    f.fill(TRAIN_W - 52, 28, TRAIN_W - 36, 40, GLASS[1])   # Cab windows, one broken
-    f.fill(TRAIN_W - 30, 28, TRAIN_W - 14, 40, GLASS[0])
-    f.fill(TRAIN_W - 52, 28, TRAIN_W - 46, 31, GLASS[2])
-    f.fill(gap1 + 30, 36, gap1 + 34, 43, steel[1])         # Exhaust stack, cold
-    f.fill(gap1 + 2, b - 13, TRAIN_W - 6, b - 11, steel[0])
-    for wx in (gap1 + 26, gap1 + 44, TRAIN_W - 46, TRAIN_W - 28):
-        for y in range(b - 10, b + 1):
-            for x in range(wx - 5, wx + 6):
-                d = math.hypot(x - wx, y - (b - 5))
-                if d <= 5.4:
-                    f.px(x, y, steel[3] if d < 1.8 else steel[1] if d < 4 else steel[0])
-    for x in range(0, TRAIN_W):                           # The rail, bent where it went off
-        y = b - 1 + (1 if gap0 - 30 < x < gap1 + 30 else 0)
-        f.px(x, y, steel[3])
-    f.outline()
-    return img
+    """Thirteen connected lab cars, machinery and a right-facing control cab."""
+    from train_art import make_train as freight_consist
+    return freight_consist()
 
 
 def main() -> int:
@@ -1899,6 +2081,10 @@ def main() -> int:
     out['sprites/terrain/outpost.png'] = make_outpost()
     out['sprites/terrain/city_fronts.png'] = make_city_fronts()
     out['sprites/terrain/train.png'] = make_train()
+    from train_art import make_interior, make_parts, make_gear
+    out['sprites/terrain/train_interior.png'] = make_interior()
+    out['sprites/terrain/experimental_parts.png'] = make_parts()
+    out['sprites/terrain/train_gear.png'] = make_gear()
     for name, image in terrain().items():
         if name in out:
             out[name] = image

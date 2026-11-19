@@ -131,9 +131,11 @@ para evitar que el codo salte al recoger el cargador; `turn_toward` usa el arco
 corto. Hay 24 cuadros por tambor (50 ms cada uno), con transiciones de cinco
 cuadros al enfundar y sacar. `tests/cowgirl_reload_art.py` comprueba longitudes,
 codos bajos, muñecas, continuidad, pecho despejado y la unión entre hojas.
-`reload_dual_lower` y `reload_dual_b_lower` contienen solo el extremo bajo de
-los cañones. Al recargar caminando van sobre las piernas animadas para que el
-corte del torso no recorte los revólveres junto al cinturón.
+`reload_dual_lower` y `reload_dual_b_lower` contienen la máscara completa de la
+acción: antebrazos, manos, revólveres y cargador. Al recargar caminando, el render
+recorta esa capa a la altura de la cintura y la compone sobre las piernas animadas.
+No volver a recortar el generador desde la fila 60: desaparecían partes de las
+armas y de las manos entre el corte del torso y esa fila.
 Al interrumpir el rebote antes de disparar (R, salto, Q, golpes o trampas), se
 limpian `ricochet_armed` y `power_shot`: nunca conservar un poder pendiente para
 un clic normal posterior ni descontar de ambos tambores sin la animación del
@@ -155,6 +157,103 @@ su orden en `CLUES`. La fuente blanca de UI es una máscara de tinte: conservar
 sus glifos y métricas. `weapons.png` usa las armas reales del juego.
 Revisar los PNG a escala nativa ampliada y las capturas de HUD, Expediente,
 cinemática y cofre antes de dar por terminado un cambio en estas carpetas.
+
+## Tren laboratorio (2-3)
+
+`python3 tools/train_art.py` genera `train`, `train_interior`, `experimental_parts`
+(8 × 32 × 32) y `train_gear` (traje colgado y tableta). Son 15 salas (`TRAIN_ROOMS`):
+13 vagones, máquinas y control, con 30 infectados (`TRAIN_CREW`); las salas 01-08
+conservan su número (la del vagón 07, criogenia, es la del lore). El mobiliario va en
+`tools/train_furnishing.py`. Cada unidad del tren se dibuja a su tamaño final: **nunca reescalar**
+la locomotora ni otra pieza (se veía cortada y deformada). El interior usa un solo
+sistema de materiales y luz de tubos; nada de rellenos planos ni ruido uniforme:
+`Room.block()` pinta las piezas grandes como metal trabajado (degradado, cepillado,
+bordes gastados, suciedad al pie, doble bisel); el usuario veía el mobiliario de plástico,
+y la puerta y la cabina del vagón 01 planas y falsas: van con profundidad (jambas,
+riel, vidrio curvo). La tableta del vagón 01 es la llave de la terminal (sin ella no
+se lee el Archivo 4) y el mapa con M; P abre el inventario. Ambos pausan el nivel como
+la pausa (`PAUSE_VIEW_MAP`, `PAUSE_VIEW_INVENTORY`). Los trajes (E en los ganchos)
+protegen del aire de los vagones 03 y 07 (`train_room_toxic`); con uno puesto, la piel
+`suit` del personaje (`characters/<id>/suit/`) sustituye a la normal en todas las
+animaciones. Esas hojas salen de `python3 tools/make_hazmat.py` (lo comprueba
+`build.sh`): regenéralas tras cambiar cualquier hoja de la sheriff o del SWAT. Las armas
+quedan como están: las del SWAT se marcan al regenerar su generador y las de la
+sheriff se detectan por su acero. El guardado (esquema 11) conserva tableta, traje y
+gases; un intento de 2-3 anterior al esquema 11 se abandona al cargar, conservando
+progreso previo, inventario inicial y expediente.
+Puerta, cunas, terminal y escotilla se dibujan en las columnas `TRAIN_*_ART` de
+`src/game/train.h`; si cambian, cámbialas en ambos lados (lo comprueba
+`tests/test_scenery_assets.py`). Dentro, `train_camera` limita la vista a los
+extremos del tren. Los objetivos se consultan en la tableta con M, junto al mapa;
+no dibujar una tarjeta persistente sobre el escenario. Recoger la tableta con E
+abre el mapa una vez; M/P cambian entre mapa e inventario, y la misma tecla o Esc
+los cierran. Solo el aviso temporal de pieza va bajo el HUD a la derecha. El mapa
+y el inventario tienen arte propio en `tools/make_field_ui.py` (tres hojas UI,
+comprobadas en build.sh). Los avisos llevan E solo cuando E actúa y, si algo falta,
+dicen qué.
+
+El tamaño del tren no cambia la escala humana del equipo: con un personaje de
+unos 64 px de alto, refrigerador de 68 px, mesa de 28 px, mostrador de 36 px y
+herramientas de 12–23 px. Dibujar cada pieza a esas dimensiones nativas. La sheriff
+lleva un overol amarillo holgado con visor azul: silueta neutra que oculta anatomía,
+ropa y pelo. No conservar la cintura de corsé, el escote, encajes ni mechones
+bajo la capucha. El visor naranja corresponde al SWAT táctico, que mantiene por
+fuera placas oscuras, protecciones y botella de aire. Sin ópticas nocturnas en las
+capuchas. Las armas conservan sus píxeles y se componen delante del equipo.
+
+`SCENERY_GAP` separa las huellas de objetos de la carretera. El camión de suministros
+reserva su dibujo completo (`terrain_front_half_width`); `terrain_prop_clear` evita
+que la decoración procedural invada interactuables, fachadas o el tren. Se conserva
+la exclusión después de usar/destruir objetos para evitar apariciones repentinas.
+Las capturas `THE_MIRACLE_CAPTURE_GROUP=layout` revisan las distribuciones naturales.
+Las ruedas de los vehículos en cinemáticas usan las coordenadas nativas finales de
+`make_city.VEHICLE_LAYOUT`, no las del sprite anterior a su ampliación.
+
+## Fachadas y barricadas del oeste
+
+Las fachadas del oeste (`terrain/facades`, 288 × 200) se dibujan a ese tamaño en
+`terrain_architecture_detail.western_native`; antes se estiraban de 180 × 128 con
+`street_scale` y el usuario las veía de plástico y sin entenderse. Cada abertura muestra
+su oficio (forja con brasas y yunque, caballo y silla en el establo, campana, rosetón).
+Las motos de barricada (`city_terrain.motorcycle`) son una sola moto por cuadro, con
+llantas, guardabarros, motor V y escape; nada de rectángulos bajo el motor.
+
+## Cruzar un coche (N)
+
+Pasos, cuadros, tiempos y distancias en `src/game/car_pass.h` (`car_plan`);
+`tools/make_car_passage.py` los lee de ahí, así que se cambian en un solo lugar. Cada
+hoja `characters/*/car*` tiene dos filas: lo que de ella queda fuera del coche
+(encima de él) y lo que queda dentro (debajo de carrocería y puertas). El usuario vio
+el coche encima del personaje y el cuerpo girando raro: **nunca girar el sprite
+entero** ni dibujar la carrocería sobre ella cuando está fuera. El torso se inclina
+desde la cintura, la cabeza va derecha y las caderas no giran. El usuario vio luego los
+brazos rotos al pasar por la puerta y una animación que no se entendía: cada mano va como
+`Arm(ángulo, alcance)` desde su hombro o en un punto a su alcance, nunca por debajo de
+`MIN_REACH`, y el codo dobla siempre hacia su lado (`elbow_for`); nada de brazos plegados
+ni cruzados sobre el pecho. **Sus brazos miden lo de todas sus hojas** (`ARM_BONE`, 6.5 +
+6.5): con huesos más largos se veía estirada. Toma la manija a un brazo de distancia
+(`CAR_REACH`). Para
+romper el cristal levanta el antebrazo y golpea con el puño; las astillas caen y quedan
+en la calle (`terrain/car_glass`, desde `CAR_STRIKE_LAND`). Al quitar el seguro, la mano
+queda dentro del hueco de la ventana y el brazo entero va en la fila de fuera. **Cada
+cuadro tiene todo su cuerpo en una sola fila de la hoja** (fuera o dentro): el usuario vio
+brazos y piernas sueltos en `car.png` (`test_car_frames_are_whole_in_one_row`). Dentro
+va sentada en el piso, casi derecha, con la rodilla cercana levantada (`seated`). El
+vidrio, entero o roto, se dibuja encima de ella: dentro no se le ve nada salvo por una
+puerta abierta (el usuario vio su sombrero por la ventana como si estuviera fuera). No
+hundir la cabeza en los hombros ni girar mucho el torso para que quepa: se ve deformado.
+Nada por debajo de `FLOOR` ni por encima del techo.
+
+Los vehículos van más grandes que en la vida real junto a ella (a tamaño real se veían de
+su altura): autos, patrulla y todoterreno a `CAR_SCALE` 1.2 y el camión militar a
+`TRUCK_SCALE` 1.6 (`tools/make_city.py`). Se dibujan nativos a esa escala (`scaler`): nunca
+reescalar el PNG. A 1.25 la ventana quedaba fuera del alcance de su brazo. Medidas en
+`src/config.h` (`CAR_WRECK_W/H`, `SIREN_FRAME_W/H`, `VEHICLE_FRAME_W/H`) y manijas en
+`car_pass.h`; `refine_terrain.vehicle_layout` sitúa cada uno. Un vehículo del camino ocupa
+lo que mide su dibujo (`terrain_vehicle_half_width`), no su cuadro.
+`tests/player_render.c` lo comprueba en los tres modelos y ambos sentidos, y
+`test_car_arms_never_fold_up` los brazos. Regenerar con
+`python3 tools/make_car_passage.py` y revisar `THE_MIRACLE_CAPTURE_GROUP=cars`.
 
 ## Repositorio
 

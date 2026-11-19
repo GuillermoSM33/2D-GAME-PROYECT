@@ -44,14 +44,155 @@ static AppOptions options;
 static unsigned char bytes[SAVE_GAME_CAPACITY];
 static const char *directory;
 
+/* Where the stripped file's train block starts (schema 10 and later). */
+static size_t legacy_train_at;
+
 /* The appended cylinder/handoff fields precede the three case-file masks. */
 static void legacy_checkpoint(unsigned schema, size_t *size)
 {
-    size_t extra = schema == 7 ? 4 : 20;
+    /* Strip schema 10's train fields, global parts and 24 extra encounter
+     * slots before exercising the older player/terrain layouts below. */
+    static unsigned char current_probe[SAVE_GAME_CAPACITY];
+    size_t probe_size_v10=0;
+    source.checkpoint.run.weapon_parts^=1;
+    CHECK(save_game_encode(&source,current_probe,sizeof(current_probe),&probe_size_v10));
+    source.checkpoint.run.weapon_parts^=1;
+    size_t train_at=0;
+    while (train_at<*size && bytes[train_at]==current_probe[train_at])train_at++;
+    CHECK(train_at>=32 && train_at+16<=*size);
+    /* Schema 11's tablet, suit and fumes follow the parts mask. */
+    memmove(bytes+train_at+4,bytes+train_at+16,*size-train_at-16);*size-=12;
+    legacy_train_at=train_at-32;
+    if (schema==10) { bytes[4]=10; return; }
+    train_at-=32;
+    int old_entry=source.checkpoint.encounter.entry[RUN_MAX_ZOMBIES_V9];
+    source.checkpoint.encounter.entry[RUN_MAX_ZOMBIES_V9]=old_entry==0 ? 1 : 0;
+    CHECK(save_game_encode(&source,current_probe,sizeof(current_probe),&probe_size_v10));
+    source.checkpoint.encounter.entry[RUN_MAX_ZOMBIES_V9]=old_entry;
+    size_t encounter_at=0;
+    while (encounter_at<*size && bytes[encounter_at]==current_probe[encounter_at])encounter_at++;
+    CHECK(encounter_at<train_at);
+    *size-=4; /* Global prototype mask follows the original three case-file masks. */
+    memmove(bytes+train_at,bytes+train_at+36,*size-train_at-36);*size-=36;
+    size_t extra_encounters=(RUN_MAX_ZOMBIES-RUN_MAX_ZOMBIES_V9)*8;
+    memmove(bytes+encounter_at,bytes+encounter_at+extra_encounters,*size-encounter_at-extra_encounters);
+    *size-=extra_encounters;
+    if (schema==9) { bytes[4]=9; return; }
+    /* Locate the appended player crossing block by changing its final bool;
+     * remove it without depending on the variable-size run before Player. */
+    static unsigned char probe[SAVE_GAME_CAPACITY];
+    size_t piece_offsets[TERRAIN_MAX];
+    for (int i=0;i<source.checkpoint.run.terrain.count;i++) {
+        source.checkpoint.run.terrain.items[i].car_flags ^= 1;
+        size_t probe_size=0;
+        CHECK(save_game_encode(&source,probe,sizeof(probe),&probe_size));
+        source.checkpoint.run.terrain.items[i].car_flags ^= 1;
+        size_t at=0;
+        while (at<*size && probe[at]==bytes[at])at++;
+        CHECK(at<*size && probe_size>=*size);
+        piece_offsets[i]=at;
+    }
+    bool action = source.checkpoint.player.car_action;
+    source.checkpoint.player.car_action = !action;
+    size_t probe_size = 0;
+    CHECK(save_game_encode(&source, probe, sizeof(probe), &probe_size));
+    source.checkpoint.player.car_action = action;
+    size_t at = 0;
+    while (at < *size && probe[at] == bytes[at]) at++;
+    CHECK(probe_size >= *size && at >= 28 && at < *size);
+    size_t start = at - 28;
+    memmove(bytes + start, bytes + start + 32, *size - start - 32);
+    *size -= 32;
+    for (int i=source.checkpoint.run.terrain.count-1;i>=0;i--) {
+        size_t at=piece_offsets[i];
+        memmove(bytes+at,bytes+at+4,*size-at-4);
+        *size-=4;
+    }
+    size_t extra = schema == 8 ? 0 : schema == 7 ? 4 : 20;
     CHECK(*size >= extra + 12 && source.has_checkpoint);
     memmove(bytes + *size - extra - 12, bytes + *size - 12, 12);
     *size -= extra;
     bytes[4] = (unsigned char)schema;
+}
+
+static void test_train_resume_and_permanent_parts(void)
+{
+    save_game_init(&source);
+    for (int s=0;s<TRAIN_STAGE;s++)source.profiles[0].record.cleared[s]=true;
+    stage_start_profile(&play,TRAIN_STAGE,&CHARACTERS[0],&source.profiles[0]);
+    play.run.train.inside=true;
+    play.player.x=play.run.train.left+6.4f*TRAIN_ROOM_W*SPRITE_SCALE;
+    play.run.weapon_parts=3;
+    source.case_file.weapon_parts=3;
+    save_game_snapshot(&source,source.profiles,0,&source.volumes,&play);
+    size_t size=0;
+    CHECK(save_game_encode(&source,bytes,sizeof(bytes),&size));
+    CHECK(save_game_decode(bytes,size,&decoded));
+    CHECK(decoded.case_file.weapon_parts==3);
+    CHECK(save_game_resume(&decoded,&resumed,0,TRAIN_STAGE));
+    CHECK(resumed.run.train.inside && train_room(&resumed.run,resumed.player.x)==6);
+    CHECK(resumed.run.weapon_parts==3 && resumed.run.train.zombie_count==TRAIN_CREW);
+    CHECK_NEAR(resumed.player.x,play.player.x,.001f);
+    save_game_abandon(&decoded,decoded.profiles);
+    CHECK(decoded.case_file.weapon_parts==3);
+    /* The tablet, the suit and the fumes' clock come back as they were. */
+    play.run.train.tablet=true;play.run.train.suit=true;play.run.train.fumes=.25f;
+    save_game_snapshot(&source,source.profiles,0,&source.volumes,&play);
+    CHECK(save_game_encode(&source,bytes,sizeof(bytes),&size));
+    CHECK(save_game_decode(bytes,size,&decoded) && save_game_resume(&decoded,&resumed,0,TRAIN_STAGE));
+    CHECK(resumed.run.train.tablet && resumed.run.train.suit);
+    CHECK_NEAR(resumed.run.train.fumes,.25f,.0001f);
+    /* A schema 10 attempt inside the old ten-room train (twenty crew) starts
+     * over: its XP and gold go back, the parts it found stay found. */
+    save_game_init(&source);
+    for (int s=0;s<TRAIN_STAGE;s++)source.profiles[0].record.cleared[s]=true;
+    stage_start_profile(&play,TRAIN_STAGE,&CHARACTERS[0],&source.profiles[0]);
+    int gold=source.profiles[0].progress.gold;
+    source.profiles[0].progress.gold+=40;
+    play.run.train.inside=true;play.run.train.control_read=true;play.run.train.tablet=true;
+    play.player.x=play.run.train.left+6.4f*TRAIN_ROOM_W*SPRITE_SCALE;
+    play.run.weapon_parts=3;source.case_file.weapon_parts=3;
+    save_game_snapshot(&source,source.profiles,0,&source.volumes,&play);
+    CHECK(save_game_encode(&source,bytes,sizeof(bytes),&size));
+    legacy_checkpoint(10,&size);
+    bytes[legacy_train_at+28]=20; /* Its crew: little-endian zombie_count */
+    CHECK(save_game_decode(bytes,size,&decoded));
+    CHECK(!decoded.has_checkpoint && decoded.profiles[0].progress.gold==gold);
+    CHECK(decoded.case_file.weapon_parts==3);
+    CHECK(!save_game_resume(&decoded,&resumed,0,TRAIN_STAGE));
+    /* Schema 9 checkpoints remain readable, with no invented train progress. */
+    save_game_init(&source);
+    stage_start_profile(&play,0,&CHARACTERS[0],&source.profiles[0]);
+    save_game_snapshot(&source,source.profiles,0,&source.volumes,&play);
+    CHECK(save_game_encode(&source,bytes,sizeof(bytes),&size));
+    legacy_checkpoint(9,&size);
+    CHECK(save_game_decode(bytes,size,&decoded));
+    CHECK(decoded.has_checkpoint && save_game_resume(&decoded,&resumed,0,0));
+    CHECK(decoded.case_file.weapon_parts==0 && !decoded.checkpoint.run.train.present);
+    /* The original 2-3 barriers also need a fresh layout. Schema 9 has no
+     * TrainJourney block, so testing only train.present would resume them
+     * with giant new cars on the old short road and no boarding mission. */
+    save_game_init(&source);
+    for (int s=0;s<TRAIN_STAGE;s++)source.profiles[0].record.cleared[s]=true;
+    stage_start_profile(&play,TRAIN_STAGE,&CHARACTERS[0],&source.profiles[0]);
+    play.run.train=(TrainJourney){0};
+    play.run.zombie_count=33; /* The original route, before its thirty crew. */
+    gold=source.profiles[0].progress.gold;
+    Inventory before=play.inventory_at_start;
+    source.profiles[0].progress.gold+=40;
+    play.player.water+=2;
+    play.run.dynamite+=2;
+    source.case_file.found=3;
+    source.case_file.beats_seen=1u<<5;
+    save_game_snapshot(&source,source.profiles,0,&source.volumes,&play);
+    CHECK(save_game_encode(&source,bytes,sizeof(bytes),&size));
+    legacy_checkpoint(9,&size);
+    CHECK(save_game_decode(bytes,size,&decoded));
+    CHECK(!decoded.has_checkpoint && decoded.profiles[0].progress.gold==gold);
+    CHECK(decoded.profiles[0].inventory.water==before.water &&
+          decoded.profiles[0].inventory.dynamite==before.dynamite);
+    CHECK(decoded.case_file.found==3 && decoded.case_file.beats_seen==(1u<<5));
+    CHECK(!save_game_resume(&decoded,&resumed,0,TRAIN_STAGE));
 }
 
 static void fixture(int health, int gold)
@@ -98,6 +239,34 @@ static void fixture(int health, int gold)
     CHECK(bullets_spawn(&play.bullets, play.player.x, play.player.x + 100.0f, BASELINE - 90.0f, 1));
     bullet_glance(&play.bullets, &play.bullets.items[1], &play.run.terrain.items[0], .7f);
     save_game_snapshot(&source, source.profiles, 1, &source.volumes, &play);
+}
+
+static void test_car_crossing_resumes_with_the_same_side_and_window_phase(void)
+{
+    fixture(73,91);
+    play.player.state=PLAYER_IDLE;
+    shot_cancel(&play.player.shot);
+    Piece *car=terrain_add(&play.run.terrain,TERRAIN_BARRICADE,play.player.x+300);
+    CHECK(car!=NULL);
+    if (!car) return;
+    car->variant=BARRICADE_CAR;
+    play.player.facing=FACING_LEFT;
+    CHECK(player_enter_car(&play.player,(int)(car-play.run.terrain.items),car->x,car->x-160,true));
+    InputState none={0};
+    player_update(&play.player,&none,2.1f);
+    terrain_car_open(&play.run.terrain,play.player.car_index,true,-1);
+    save_game_snapshot(&source,source.profiles,1,&source.volumes,&play);
+    size_t size=0;
+    CHECK(save_game_encode(&source,bytes,sizeof(bytes),&size));
+    CHECK(save_game_decode(bytes,size,&decoded));
+    StagePlay resumed;
+    CHECK(save_game_resume(&decoded,&resumed,1,0));
+    CHECK(resumed.player.state==PLAYER_CAR && resumed.player.facing==FACING_LEFT);
+    CHECK(resumed.player.car_smash && resumed.player.car_index==play.player.car_index);
+    CHECK(resumed.player.car_time==play.player.car_time && resumed.player.car_to==play.player.car_to);
+    CHECK(player_car_frame(&resumed.player)==player_car_frame(&play.player));
+    CHECK(resumed.run.terrain.items[resumed.player.car_index].car_flags==car->car_flags);
+    CHECK(resumed.run.terrain.items[resumed.player.car_index].hits==car->hits);
 }
 
 static void test_roundtrip_preserves_live_mission_and_rebinds_references(void)
@@ -493,7 +662,9 @@ int main(int argc, char **argv)
             autosave_shutdown(&a);
         }
     } else if (strcmp(argv[1], "checks") == 0) {
+        RUN(test_train_resume_and_permanent_parts);
         RUN(test_roundtrip_preserves_live_mission_and_rebinds_references);
+        RUN(test_car_crossing_resumes_with_the_same_side_and_window_phase);
         RUN(test_revolver_checkpoint_keeps_ammo_and_migrates_hand_cannon);
         RUN(test_dual_cylinders_and_reload_target_survive_a_save);
         RUN(test_legacy_duals_gain_two_finite_cylinders);

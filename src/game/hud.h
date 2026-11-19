@@ -52,6 +52,33 @@ typedef struct {
     float power_wait;  /* Seconds until F works again */
 } HudWeapon;
 
+/* What she carries, for the inventory (P). */
+#define HUD_INVENTORY_GUNS 3
+typedef struct {
+    int id;            /* WeaponId: its picture */
+    const char *name;
+    int rounds, magazine; /* magazine 0: it never runs dry */
+    int other_rounds;     /* The duals' second revolver, -1 for one gun */
+    bool in_hand;
+} HudInventoryGun;
+
+typedef struct {
+    const char *character;
+    SDL_Texture *portrait;   /* Her stood-still sheet, in the suit while she wears it... */
+    SDL_Rect portrait_src;   /* ...and the frame of it to show */
+    bool suits_here;         /* The train's suits are on this road */
+    bool suit;               /* ...and she wears one */
+    bool tablet;             /* Car 01's tablet, the train's map */
+    int parts;               /* Prototype parts found, or -1 off the prototype's routes */
+    int gun_count;
+    HudInventoryGun guns[HUD_INVENTORY_GUNS];
+    int water, dynamite, gold;
+} HudInventory;
+
+/* P: what she carries over the frozen stage: the suit, her guns and the rounds
+ * in them, water, dynamite and gold, and the train's tablet and parts. */
+void hud_draw_inventory(SDL_Renderer *renderer, const HudInventory *inventory);
+
 /* What can be clicked on the screen last drawn: menu items (buttons, stage
  * rows, character cards, volume rows), the keys of the hints (Esc goes back,
  * Enter accepts, R retries) and the volume bars. */
@@ -80,6 +107,10 @@ void hud_shutdown(void);
 /* Checks gameplay panel bounds and real pixel-font measurements, including
  * large counters. No renderer/window needed; used by resource verification. */
 bool hud_verify_layout(void);
+
+/* The HUD's leather plate (thin brass edge, rivets), for other readouts that
+ * must look like part of it (the train's card). Window px. */
+void hud_draw_plate(SDL_Renderer *renderer, int x, int y, int w, int h);
 
 /* During a stage: her health and XP, the gun and its rounds, the dynamite,
  * the zombies beaten and the meters to the gate, the fight holding her, a

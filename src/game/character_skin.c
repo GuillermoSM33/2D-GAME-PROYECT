@@ -46,12 +46,20 @@ static SDL_Texture *tinted_copy(SDL_Renderer *renderer, const char *name, unsign
     return assets_texture_recolored(renderer, name, (const unsigned (*)[2])pairs, count);
 }
 
-/* sprites/characters/<id>/<sheet>, or NULL. */
+/* While loading a variant (the hazmat suit): its folder under the character's. */
+static const char *variant;
+
+/* sprites/characters/<id>/<variant>/<sheet>, else sprites/characters/<id>/<sheet>, or NULL. */
 static SDL_Texture *own_sheet(const CharacterDef *character, const char *sheet)
 {
-    char own[96];
+    char own[112];
     if (sheet == NULL)
         return NULL;
+    if (variant) {
+        snprintf(own, sizeof(own), "sprites/characters/%s/%s/%s", character->id, variant, sheet);
+        if (assets_find_image(own))
+            return assets_texture(own);
+    }
     snprintf(own, sizeof(own), "sprites/characters/%s/%s", character->id, sheet);
     return assets_find_image(own) ? assets_texture(own) : NULL;
 }
@@ -60,12 +68,14 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
 {
     memset(skin, 0, sizeof(*skin));
     skin->character = character;
+    skin->car_sheet = own_sheet(character, "car");
+    skin->car_shotgun_sheet = own_sheet(character, "car_shotgun");
     for (int s = 0; s < SKIN_SHEETS; s++) {
         char own[96], template_name[96];
         snprintf(own, sizeof(own), "sprites/characters/%s/%s", character->id, SKIN_SHEET_NAMES[s]);
         snprintf(template_name, sizeof(template_name), TEMPLATE_FOLDER "%s", SKIN_SHEET_NAMES[s]);
         if (assets_find_image(own)) {
-            skin->sheets[s] = assets_texture(own);
+            skin->sheets[s] = own_sheet(character, SKIN_SHEET_NAMES[s]);
         } else {
             skin->sheets[s] = tinted_copy(renderer, template_name, character->placeholder_tint);
             skin->owned[s] = skin->sheets[s] != NULL;
@@ -117,6 +127,20 @@ void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *
     skin->plant_sheet = own_sheet(character, "plant");
     skin->swap_sheet = own_sheet(character, "swap");
     skin->swap_lit_sheet = own_sheet(character, "swap_lit");
+}
+
+bool skin_load_suit(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *character)
+{
+    char probe[112];
+    snprintf(probe, sizeof(probe), "sprites/characters/%s/suit/walk", character->id);
+    if (!assets_find_image(probe)) {
+        memset(skin, 0, sizeof(*skin));
+        return false;
+    }
+    variant = "suit";
+    skin_load(skin, renderer, character);
+    variant = NULL;
+    return true;
 }
 
 void skin_free(CharacterSkin *skin)

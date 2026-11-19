@@ -79,6 +79,11 @@ const ThemeDef THEME_PUEBLO_FANTASMA = {
 #define POLICE (FACADE_KINDS + 2)
 #define FLATS (FACADE_KINDS + 3)
 #define CHECKPOINT (FACADE_KINDS + 4)
+#define CLINIC CITY_FRONT_VARIANT(4)
+#define WORKSHOP CITY_FRONT_VARIANT(5)
+#define SUBSTATION CITY_FRONT_VARIANT(6)
+#define RADIO CITY_FRONT_VARIANT(7)
+#define CLEAN(frame) CITY_FRONT_VARIANT(CITY_FRONT_BUILDINGS + (frame))
 
 /* The outskirts at dawn: cars left on the road, poles, hydrants, cones. */
 const ThemeDef THEME_AFUERAS = {
@@ -93,7 +98,7 @@ const ThemeDef THEME_AFUERAS = {
     .city = true,
     .houses = {13, 14, 15, 16, 17}, .house_count = 5,
     .barricades = {4, 5, 7, 1, 4, 3}, .barricade_count = 6,
-    .walls = {STORE, FLATS, POLICE}, .wall_count = 3,
+    .walls = {STORE, CLEAN(2), WORKSHOP, CLEAN(4), POLICE, RADIO}, .wall_count = 6,
     .vehicles = {0, 1, 0, 2, 1}, .vehicle_count = 5,
 };
 
@@ -109,7 +114,7 @@ const ThemeDef THEME_CENTRO = {
     .city = true,
     .houses = {15, 16, 13, 16, 14}, .house_count = 5,
     .barricades = {5, 4, 7, 3, 5, 1}, .barricade_count = 6,
-    .walls = {STORE, POLICE, FLATS}, .wall_count = 3,
+    .walls = {CLEAN(0), POLICE, CLINIC, FLATS, CLEAN(7), SUBSTATION}, .wall_count = 6,
     .vehicles = {1, 0, 2, 0, 1, 3}, .vehicle_count = 6,
 };
 
@@ -125,7 +130,7 @@ const ThemeDef THEME_VIAS = {
     .city = true,
     .houses = {17, 13, 17, 14}, .house_count = 4,
     .barricades = {3, 4, 1, 3}, .barricade_count = 4,
-    .walls = {STORE, FLATS}, .wall_count = 2,
+    .walls = {CLEAN(5), STORE, SUBSTATION, CLEAN(6), FLATS, WORKSHOP}, .wall_count = 6,
     .vehicles = {4, 2, 3}, .vehicle_count = 3,
 };
 
@@ -143,7 +148,7 @@ const ThemeDef THEME_CIUDAD_NOCHE = {
     .city = true,
     .houses = {16, 15, 16, 13}, .house_count = 4,
     .barricades = {5, 7, 4, 6, 5, 3}, .barricade_count = 6,
-    .walls = {POLICE, FLATS, STORE}, .wall_count = 3,
+    .walls = {POLICE, CLEAN(2), CLINIC, CLEAN(1), STORE, CLEAN(4)}, .wall_count = 6,
     .vehicles = {0, 3, 2, 1, 4, 2}, .vehicle_count = 6,
 };
 
@@ -161,6 +166,6 @@ const ThemeDef THEME_BASE_MILITAR = {
     .city = true,
     .houses = {18, 19, 20, 17, 19}, .house_count = 5,
     .barricades = {6, 6, 3, 1, 5}, .barricade_count = 5,
-    .walls = {CHECKPOINT, CHECKPOINT, POLICE}, .wall_count = 3,
+    .walls = {CHECKPOINT, CLEAN(3), RADIO, CLEAN(6), POLICE, CLEAN(7)}, .wall_count = 6,
     .vehicles = {3, 4, 3, 4, 2}, .vehicle_count = 5,
 };

@@ -205,6 +205,34 @@ static void test_tapes_unlock_with_stage_endings(void)
     CHECK(tape_view_update(&view, &file, &esc) == TAPE_BACK);
 }
 
+static void test_stage_cinematics_replay_after_discovery(void)
+{
+    CaseFile file;
+    casefile_init(&file);
+    Story story = {0};
+    for (int tape = 1; tape < TAPE_COUNT; tape++) {
+        int stage = TAPES[tape].stage;
+        bool before = TAPES[tape].before;
+        CHECK(story_start_stage(&story, &file, stage, before));
+        CHECK(tape_unlocked(&file, tape));
+        /* A previously watched (or skipped) tape must still start automatically. */
+        story_update(&story, false, true, 0.0f);
+        CHECK(story.done);
+        CHECK(story_start_stage(&story, &file, stage, before));
+        CHECK(!story.done && story.line == 0 && story.time == 0.0f);
+        CHECK(story.beat.count == tape_beat(tape)->count);
+        for (int line = 0; line < story.beat.count; line++)
+            CHECK(strcmp(story.beat.lines[line], tape_beat(tape)->lines[line]) == 0);
+    }
+    unsigned seen = file.beats_seen;
+    Story unchanged = story;
+    CHECK(!story_start_stage(&story, &file, 0, false));
+    CHECK(!story_start_stage(&story, &file, 0, true));
+    CHECK(!story_start_stage(&story, &file, -1, true));
+    CHECK(!story_start_stage(&story, &file, 100, false));
+    CHECK(file.beats_seen == seen && memcmp(&story, &unchanged, sizeof(story)) == 0);
+}
+
 int main(void)
 {
     printf("casefile:\n");
@@ -218,5 +246,6 @@ int main(void)
     RUN(test_story_types_lines_and_ends);
     RUN(test_report_stamps_once_and_closes);
     RUN(test_tapes_unlock_with_stage_endings);
+    RUN(test_stage_cinematics_replay_after_discovery);
     return TEST_EXIT();
 }

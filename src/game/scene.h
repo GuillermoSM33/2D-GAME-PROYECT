@@ -4,6 +4,7 @@
 #include <SDL.h>
 
 #include "game/world.h"
+#include "game/terrain.h"
 
 /* The landscape for a camera at camera_x: the world's theme's background
  * layers, each scrolled by its parallax, the loaded chunks' props in the
@@ -24,6 +25,8 @@ void scene_end_foreground(SDL_Renderer *renderer);
 /* Rivers on the road (world x of their middles, half widths): the houses in
  * the back are left out wherever one would stand over a river on screen. */
 void scene_set_rivers(const float *xs, int count, float half);
+/* Set only while drawing this stage's background, then clear with NULL. */
+void scene_set_terrain(const Terrain *terrain);
 
 /* Frees the theme's recolored props. */
 void scene_shutdown(void);

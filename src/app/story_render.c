@@ -457,8 +457,9 @@ static void shot_city(SDL_Renderer *r, int scene, int line, float t, const Chara
         }
         break;
     case 8: /* The train off its rails; its load going on by truck */
+        /* The laboratory train whole, as in 2-3: no door of its own (the old
+         * two-car wall's doorway floated between cars 05 and 06). */
         draw_piece(r, "sprites/terrain/train", 0, TRAIN_W, TRAIN_H, CINE_X(560.0f) - shot_drift);
-        draw_piece(r, "sprites/terrain/door", 3, DOOR_FRAME_W, DOOR_FRAME_H, CINE_X(560.0f) - shot_drift);
         if (line == 1) {
             float x = CINE_X(700.0f + t * 150.0f) - shot_drift;
             draw_piece(r, "sprites/terrain/vehicles", 4, VEHICLE_FRAME_W, VEHICLE_FRAME_H, x);

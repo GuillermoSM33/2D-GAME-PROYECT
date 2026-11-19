@@ -50,6 +50,14 @@ Los objetos interactivos tienen algo más de contraste y sus estados conservan
 las mismas siluetas, pivotes y dimensiones de colisión. La iluminación local
 de faroles, linterna y explosiones se aplica al primer plano.
 
+Los objetos separados dejan seis píxeles de arte de suelo libre entre sus
+huellas. El camión de suministros reserva su anchura completa; la decoración
+procedural respeta también las fachadas y todo el exterior del tren, incluso
+después de usarlos. Los decorados grandes se separan entre sí y entre tramos.
+Las trampas conservan además su espacio para aterrizar. Las capturas
+`THE_MIRACLE_CAPTURE_GROUP=layout` permiten revisar suministros, descansos y
+retenes en las distribuciones reales de los diez niveles.
+
 El foco del outpost permanece apagado hasta registrar sus suministros. Al
 encenderse usa el mismo haz direccional que la linterna: nace en la lente,
 apunta al camino hacia la izquierda, pierde intensidad con la distancia y
@@ -154,9 +162,170 @@ inofensivos del camino; deben seguir siendo visualmente indistinguibles.
 
 ## Regenerar y comprobar
 
+Los árboles secos tienen dos ramificaciones continuas dibujadas con nodos compartidos;
+su corteza gris parda usa luces mates, sin el borde dorado anterior. Las cuatro plantas de
+`shrub` se distinguen como arbusto, yuca, nopal y mata seca. Las 25 hojas de props conservan
+sus dimensiones, apoyos y luces con alfa 254. La torre y el radar de `houses` incluyen
+carcasas, lentes, articulaciones y costillas que siguen su volumen.
+
+`city_fronts` contiene ocho estructuras de 288 × 216, primero las ocho pintadas por
+los merodeadores y después sus ocho versiones sin pintar. A tienda, comisaría, viviendas
+y retén se añaden clínica, taller, subestación y radio central. Sus variantes se distribuyen
+en los cinco temas urbanos. `CITY_FRONT_VARIANT` conserva el identificador 10 del tren de
+las partidas antiguas y reserva su hueco al traducir la hoja.
+
+Las fachadas del oeste ocupan 288 × 200; las urbanas, 288 × 216. Las plantillas
+se amplían alrededor de las jambas, conservando la abertura central de 44 × 64.
+Las casas del fondo se excluyen cuando su recorrido de paralaje podría acercarlas
+a una fachada o al tren, incluso después de destruir su bloqueo; no aparecen ni
+desaparecen al mover la cámara. Los coches decorativos respetan toda esa anchura.
+
+El tren laboratorio de 2-3 ocupa 5432 × 192 y sale de `tools/train_art.py`:
+trece vagones Vantrell, una unidad de maquinaria sin cabina y la locomotora de
+control orientada a la derecha (capó largo, cabina, morro, piloto, depósito y
+bogies de tres ejes). **Cada unidad se dibuja a su tamaño final; nada se
+reescala**, porque un reescalado no uniforme deforma el píxel. Tiene margen en
+ambos extremos y cabe en una textura de menos de 8192 píxeles. El mundo se
+amplió a 160 tramos; se conserva el origen de la protagonista en 48000.
+
+Con E se entra por la puerta lateral del vagón 01. El exterior se sustituye por
+`train_interior`: quince habitaciones de 360 × 270 con un mismo sistema de
+materiales (paneles esmaltados distintos entre sí, zócalo de acero, chapa
+estriada, escurrimientos y manchas pequeñas, nunca ruido uniforme) y una luz
+calculada desde los dos tubos del techo, con bandas por *dithering*; pantallas,
+líquidos y lámparas brillan solos y tiñen su entorno. Las salas: descontaminación,
+prototipos, cultivos MRC-2, cirugía, análisis, contención, criogenia, archivo
+móvil, dormitorio, comedor, enfermería, armería (de Halcón Seguridad), radio,
+máquinas y control. El mobiliario está en `tools/train_furnishing.py`: la puerta
+corrediza con su riel y su hoja, la cabina de descontaminación (vidrio curvo,
+regaderas, panel), el tablero de herramientas con siluetas pintadas, la cristalería
+del vagón 05, la cápsula del vagón 07 estrellada desde dentro y las pantallas con
+carcasa, barrido y reflejo. Los fuelles entre vagones unen las baldosas y llevan
+el número de cada vagón. Dentro, la cámara se limita a los extremos del tren
+(`train_camera`): nunca se ve el vacío detrás de las paredes finales.
+
+Los accesorios corresponden al uso de cada sala: bandejas, suministros médicos,
+canaletas, válvulas, avisos y pertenencias de la tripulación dan señales de lo que
+ocurrió sin agrandar el mobiliario. Las cortinas clínicas tienen riel y soportes
+visibles y delimitan su camilla. Cinco extractores giran dentro de marcos fijos;
+`TRAIN_VENT_FANS` comparte sus posiciones entre arte y render. Las bahías de las
+cajas utilizables siguen libres, incluidas las de la pista del contenedor.
+
+Los puntos de interacción están dibujados donde el juego los coloca (constantes
+`TRAIN_*_ART` de `src/game/train.h`, comprobadas por `tests/test_scenery_assets.py`):
+puerta en x 40 del vagón 01, los ganchos de los trajes a ambos lados de x 218 y
+el casillero abierto de la tableta en x 311; cunas de las piezas en x 259 de los
+vagones 02, 07 y 14 (máquinas), terminal (con su base para la tableta) en x 234 y
+escotilla en x 320 del vagón 15. Los trajes colgados y la tableta son
+`terrain/train_gear` (2 × 32 × 80) y el juego los dibuja mientras siguen ahí. La
+escotilla tiene un piloto que el juego enciende en rojo intermitente y pasa a verde
+al abrirse. Dentro no se dibujan casas, aves ni meteorología exterior. Se puede
+retroceder hasta la entrada; la salida requiere eliminar a los treinta infectados,
+recoger las tres piezas del tren y leer el Archivo 4 en la terminal, que solo lo
+abre con la tableta del vagón 01 conectada.
+
+**Tableta, trajes y aire tóxico.** La tableta (E en el casillero del vagón 01)
+es la llave de la terminal y el mapa del tren: M abre y cierra el mapa sobre el
+nivel pausado (los quince vagones, dónde está ella, piezas, terminal, infectados
+que quedan, aire tóxico y trajes). Con E en los ganchos se pone o se quita un
+traje aislante; sin él, el aire de los tanques rotos de cultivos (03) y criogenia
+(07) le quita un 5 % de la salud por segundo, sin armadura ni empuje. Al salir
+del tren lo deja. Con el traje puesto se dibuja con él en todas sus animaciones
+(`characters/<id>/suit/`, `tools/make_hazmat.py`).
+La sheriff lleva el overol amarillo holgado con visor azul: el traje oculta
+su anatomía, cabello y ropa, de modo que no se distingue quién va dentro.
+El SWAT usa visor naranja y conserva, encima del traje, placas y protecciones
+oscuras, guantes reforzados y una botella de aire.
+Las armas mantienen sus colores y su dibujo original.
+
+**Interfaz del tren.** La lista de objetivos vive dentro de la tableta, junto al
+mapa, y deja despejado el escenario durante la partida. E recoge la tableta y
+abre su consulta una vez. M abre/cierra el mapa y P el inventario; cambiar entre
+ambos o cerrarlos con Esc conserva el nivel pausado hasta volver a jugar. El mapa
+presenta los quince vagones con planos de pixel art propios, la posición actual,
+los infectados, gases, piezas y la lista de objetivos con destino y estado.
+El inventario tiene un estuche de campo ilustrado y muestra personaje, equipo,
+armas, munición y provisiones. Ambos salen de `tools/make_field_ui.py`.
+Solo la pieza recién recogida aparece brevemente en la columna derecha; nada se
+encima con el HUD (lo comprueba `hud_verify_layout`). Los avisos inferiores llevan
+E solo cuando actúa; si falta algo, dicen qué en rojo («SALIDA CERRADA · FALTAN 2 PIEZAS»).
+Cada pieza tiene halo, columna de luz y un marcador; un marcador igual señala
+la puerta, la terminal o la escotilla cuando son el siguiente paso.
+
+La terminal entrega la carta de porte del expediente y señala Cerro Gris,
+búnker 2. Los ocho módulos del prototipo se guardan como bits del expediente,
+compartidos entre personajes y conservados al reintentar:
+
+| Módulo | Ubicación |
+| --- | --- |
+| Cámara de plasma | 2-3, vagón 2 |
+| Bobina criogénica | 2-3, vagón 7 |
+| Celda de potencia | 2-3, sala de máquinas |
+| Regulador y lente | 2-4 |
+| Inyector, aislante y núcleo | 2-5 |
+
+E recupera un módulo y el expediente muestra el total. Esta entrega incorpora
+la búsqueda y el registro de las ocho piezas; el ensamblaje del arma queda
+como continuación de la historia. El esquema de guardado 11 conserva el vagón,
+los enemigos, los módulos, la terminal, la tableta, el traje y el ciclo de gases.
+Admite los esquemas anteriores; un punto de control de 2-3 anterior al esquema
+11 reinicia ese intento porque usaba la distribución anterior, conservando
+el progreso previo y el expediente.
+`THE_MIRACLE_CAPTURE_GROUP=train` revisa acceso, quince habitaciones, piezas,
+trajes de ambos personajes, inventario, mapa, escotilla, terminal y salida.
+
+### Cruzar un coche (N)
+
+Los pasos, cuadros, tiempos y distancias del cruce están en `src/game/car_pass.h`
+(`car_plan`), y `tools/make_car_passage.py` los lee de ahí: cambiarlos en un lado es
+cambiarlos en los dos. Ella camina hasta la puerta trasera (la delantera si va a la
+izquierda) y toma la manija con el brazo casi extendido (`CAR_REACH`). Tira de ella y
+la puerta se abre. Si tiene seguro, levanta el antebrazo y rompe el cristal de un
+puñetazo; las astillas caen y quedan en la calle bajo la puerta (`terrain/car_glass`).
+Luego mete la mano por el hueco y levanta el botón del seguro. Sube un pie al estribo,
+se agacha hacia la puerta y entra; dentro va sentada en el piso con una rodilla arriba.
+Al cerrarse la puerta ya no se le ve (el vidrio, entero o roto, la tapa) y se empuja
+hacia la otra. Empuja la otra puerta, saca una pierna,
+asoma la cabeza, se pone de pie y sigue caminando mientras la puerta se cierra. La
+camioneta tiene una sola puerta: entra y sale por ella. Ella nunca retrocede en el
+camino.
+
+Cada hoja del personaje tiene 55 celdas de 81 × 80 en **dos filas**: arriba lo que de
+ella queda fuera del coche (se dibuja encima de él) y abajo lo que queda dentro (debajo
+de la carrocería y las puertas). Así el coche solo la tapa cuando de verdad está
+dentro. Cada cuadro tiene todo su cuerpo en una sola de las dos filas, nunca un brazo o
+una pierna sueltos en la otra. Ninguna pose gira el sprite entero: el torso se inclina desde la cintura, la
+cabeza va derecha sobre el cuello, las caderas no giran y lo que cuelga del cinturón
+sigue colgando; piernas y brazos van de sus articulaciones a pies y manos. Cada mano
+se pone por ángulo y alcance desde su hombro, nunca a menos de `MIN_REACH` del brazo
+estirado, y el codo dobla siempre hacia su lado: ningún brazo se pliega sobre sí mismo
+ni se cruza sobre el pecho; sus brazos miden lo mismo que en todas sus hojas. Dentro
+del coche nada de ella pasa de su piso (`FLOOR`; debajo se ve la calle entre las ruedas)
+ni asoma por encima del techo: se sienta en el piso, casi derecha, sin hundir la cabeza
+en los hombros.
+
+Los vehículos son algo más grandes que en la vida real junto a ella, porque a tamaño
+real parecían de su altura: autos, patrulla y todoterreno a 1.2 y el camión militar a
+1.6 (`CAR_SCALE`, `TRUCK_SCALE` en `tools/make_city.py`). Cada uno se dibuja nativo a su
+escala; ningún PNG se reescala. `tests/player_render.c` lo comprueba con `car_plan` y las
+hojas incrustadas, en los tres modelos, los dos sentidos, abriendo y rompiendo.
+
+Las capas `terrain/car_passage{,_damaged}{,_front}` tienen 15 estados por modelo:
+cristal entero, roto el trasero o roto el delantero, por puertas cerradas, trasera
+entreabierta o abierta, delantera entreabierta o abierta. El frontal es la
+carrocería sin los huecos de las puertas abiertas ni el cristal roto, con las hojas
+abiertas encima. Puerta, cristal y alarma usan `Piece.car_flags`; los impactos siguen
+usando su contador independiente. Las capturas `THE_MIRACLE_CAPTURE_GROUP=props` y
+`THE_MIRACLE_CAPTURE_GROUP=cars` permiten revisar el arte en el render del juego.
+
+La [revisión visual](SCENERY_REVIEW.md) incluye comparativas y secuencias capturadas.
+
 ```bash
 python3 tools/rebuild_scenery.py
 python3 tools/check_landscape.py assets/backgrounds/*
+python3 tools/make_car_passage.py --verify
+python3 tools/make_field_ui.py --verify
+python3 tests/test_scenery_assets.py
 ./build.sh
 ./build/bin/TheMiracle --capturas build/scenery-captures
 ```

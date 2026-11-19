@@ -99,13 +99,10 @@ static void enter_stage(StagePlay *play, Autosave *save, Profile *profiles,
     autosave_request(save, profiles, hero, &options->volumes, play);
 }
 
-/* A stage about to be played for the first time: what is told before it
+/* A stage about to be played: what is told before it
  * (2-1: the town leads to the city), then the stage. */
 #define STORY_BEFORE(stage_index) do { \
-    const StoryBeat *before_beat = story_before_stage(stage_index); \
-    if (before_beat && !(save.game.case_file.beats_seen & story_bit(stage_index, true))) { \
-        save.game.case_file.beats_seen |= story_bit(stage_index, true); \
-        story_start(&story, before_beat); \
+    if (story_start_stage(&story, &save.game.case_file, stage_index, true)) { \
         story_since = platform_time(); \
         story_return = SCREEN_STAGE; \
         screen = SCREEN_STORY; \
@@ -126,7 +123,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
     bool text_ready = false;
     bool save_ready = false;
     static Autosave save;
-    static CharacterSkin skins[APP_PROFILE_CAPACITY];
+    static CharacterSkin skins[APP_PROFILE_CAPACITY], suits[APP_PROFILE_CAPACITY];
     if (!assets_load(platform.renderer))
         goto cleanup;
     if (!(text_ready = text_system_init()) || !hud_init(platform.renderer))
@@ -139,8 +136,11 @@ int app_run(bool smoke_mode, const char *capture_dir)
     save_ready = true;
     options_restore_volumes(&options, &save.game.volumes);
     platform_set_bindings(&platform, CONTROLS, CONTROLS_COUNT);
-    for (int c = 0; c < CHARACTER_COUNT; c++)
+    for (int c = 0; c < CHARACTER_COUNT; c++) {
         skin_load(&skins[c], platform.renderer, &CHARACTERS[c]);
+        if (skin_load_suit(&suits[c], platform.renderer, &CHARACTERS[c]))
+            skins[c].suit = &suits[c]; /* Worn in the train (train.suit) */
+    }
 
     static Profile profiles[APP_PROFILE_CAPACITY];
     Progress progress_view[APP_PROFILE_CAPACITY];
@@ -260,6 +260,7 @@ int app_run(bool smoke_mode, const char *capture_dir)
                            : play.pause_view == PAUSE_VIEW_VOLUME ? &options.volume_menu.selected
                                                                   : NULL;
             Screen previous_screen = screen;
+            play.run.weapon_parts |= save.game.case_file.weapon_parts;
             RunPhase previous_phase = play.run.phase;
             int previous_level = profiles[hero].progress.level;
             AlmanacView previous_almanac = almanac_view;
@@ -464,12 +465,10 @@ int app_run(bool smoke_mode, const char *capture_dir)
                 if (options.remember_display && prefs_get_bool("menu_backdrop_first", false))
                     menu.backdrop = 0;
                 screen = SCREEN_MENU;
-                /* A stage cleared for the first time: what its end means, before the menu */
+                /* Every clear tells what its end means, before the menu. */
                 int cleared = play.run.stage_index;
-                const StoryBeat *beat = play.run.phase == RUN_CLEARED ? story_after_stage(cleared) : NULL;
-                if (beat && !(save.game.case_file.beats_seen & story_bit(cleared, false))) {
-                    save.game.case_file.beats_seen |= story_bit(cleared, false);
-                    story_start(&story, beat);
+                if (play.run.phase == RUN_CLEARED &&
+                    story_start_stage(&story, &save.game.case_file, cleared, false)) {
                     story_since = platform_time();
                     story_return = SCREEN_MENU;
                     screen = SCREEN_STORY;
@@ -478,6 +477,14 @@ int app_run(bool smoke_mode, const char *capture_dir)
             }
             if (screen == SCREEN_STAGE) { /* The clues it turned up, kept for good */
                 bool found_clue = false;
+                unsigned new_parts = play.run.weapon_parts & ~save.game.case_file.weapon_parts;
+                if (new_parts) {
+                    save.game.case_file.weapon_parts |= new_parts;
+                    for (int part=0;part<EXPERIMENTAL_PARTS;part++)
+                        if (new_parts & (1u<<part)) play.part_toast=part;
+                    play.part_toast_time=5.0f;
+                    found_clue=true;
+                }
                 for (int k = 0; k < play.clue_count; k++) {
                     if (casefile_take(&save.game.case_file, play.clues_now[k])) {
                         play.clue_toast = play.clues_now[k];
@@ -492,6 +499,8 @@ int app_run(bool smoke_mode, const char *capture_dir)
                 play.clue_count = 0;
                 if (!play.paused && play.clue_toast_time > 0.0f)
                     play.clue_toast_time -= FIXED_DT;
+                if (!play.paused && play.part_toast_time > 0.0f)
+                    play.part_toast_time -= FIXED_DT;
             }
             if (previous_screen == SCREEN_STAGE && screen == SCREEN_STAGE &&
                 (play.run.phase != previous_phase || profiles[hero].progress.level != previous_level))
@@ -630,8 +639,10 @@ int app_run(bool smoke_mode, const char *capture_dir)
 cleanup:
     if (save_ready)
         autosave_shutdown(&save);
-    for (int c = 0; c < CHARACTER_COUNT; c++)
+    for (int c = 0; c < CHARACTER_COUNT; c++) {
         skin_free(&skins[c]);
+        skin_free(&suits[c]);
+    }
     scene_shutdown();
     terrain_render_shutdown();
     stage_render_shutdown();

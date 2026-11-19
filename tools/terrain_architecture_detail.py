@@ -4,8 +4,8 @@
 finish(name, image) keeps every frame and doorway aligned with the collision
 geometry. Fronts have readable construction, deep openings, ironwork and
 objects belonging to their trade. Damage follows timber joints or masonry
-rather than adding noise. The five small western fronts are drawn afresh at
-their existing 180 x 128 size; urban fronts retain their larger architecture.
+rather than adding noise. Construction templates are 180x128 (west) and
+240x192 (city); street_scale exports 288x200 and 288x216 with 44x64 doors.
 Only the standard library is used. This module never imports the refiner.
 """
 from __future__ import annotations
@@ -349,9 +349,472 @@ def western(index: int) -> Canvas:
     return c
 
 
+
+
+# ---- The western fronts, drawn at their final size ----
+#
+# They used to be drawn at 180 x 128 and stretched to 288 x 200 by
+# street_scale: every pixel came out one or two wide, and the user found the
+# fronts plastic and some of their parts unreadable. The same buildings are
+# now drawn at 288 x 200 (their layout keeps street_scale's: the door's
+# band and the lower 72 rows at their size, the rest spread), each material
+# painted at that size, with the trade inside every opening.
+
+WEST_W, WEST_H = 288, 200
+
+
+def WX(x: float) -> int:
+    """A column of the 180-wide layout at 288: its 56 middle ones as they are."""
+    if x < 62:
+        return round(x * 116 / 62)
+    if x < 118:
+        return round(116 + x - 62)
+    return 288 - round((180 - x) * 116 / 62)
+
+
+def WY(y: float) -> int:
+    """A row of the 128-high layout at 200: its lower 72 rows as they are."""
+    return round(y + 72) if y >= 56 else round(y * 128 / 56)
+
+
+def WB(x0, y0, x1, y1):
+    """A box of the layout (inclusive) at 288 x 200."""
+    return WX(x0), WY(y0), WX(x1 + 1) - 1, WY(y1 + 1) - 1
+
+
+def big_sign(c: Canvas, text, x, y, w, color=WOOD) -> None:
+    """A board with its letters twice as big, nailed at its corners."""
+    box(c, (x, y, x + w, y + 17), mix(color, INK, .18))
+    c.fill(x + 2, y + 2, x + w - 2, y + 15, color)
+    for yy in range(y + 3, y + 15, 4):
+        c.hline(x + 3, x + w - 3, yy, mix(color, INK, .12))
+    tw = len(text) * 8 - 2
+    lettering(c, text, x + (w - tw) // 2 + 1, y + 5, mix(color, INK, .5), 2)
+    lettering(c, text, x + (w - tw) // 2, y + 4, CREAM, 2)
+    for xx in (x + 3, x + w - 3):
+        c.set(xx, y + 3, IRON)
+        c.set(xx, y + 14, IRON)
+
+
+def interior(c: Canvas, x0, y0, x1, y1, glow=None, seed=1) -> None:
+    """A dark room through an opening: its back wall's boards just seen,
+    darker up under its lintel; glow (x, y, radius) a warm fire lighting it."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            t = (y - y0) / max(1, y1 - y0)
+            board = (x - x0) // 6
+            base = mix(hx(0x2a211b), hx(0x3a2d22), .3 + .4 * t + .15 * hash2(board, 0, seed))
+            if (x - x0) % 6 == 0:
+                base = mix(base, INK, .45)
+            if glow:
+                gx, gy, r = glow
+                d = math.hypot(x - gx, y - gy)
+                if d < r:
+                    base = mix(base, hx(0xc0682c), .55 * (1 - d / r) ** 1.6)
+            c.set(x, y, base)
+
+
+def bell(c: Canvas, cx, top) -> None:
+    """A bronze bell in its belfry: a crown, a waisted body flaring to its lip,
+    its clapper under it; lit from the upper left."""
+    c.hline(cx - 9, cx + 9, top - 4, WOOD_LIT)            # Its yoke
+    c.hline(cx - 9, cx + 9, top - 3, mix(WOOD, INK, .4))
+    c.fill(cx - 1, top - 2, cx + 1, top, IRON)
+    for dy in range(0, 19):
+        half = 3 + dy * .28 + (dy - 12) * .9 * (dy > 12) + (dy > 16) * 1.4
+        for dx in range(-round(half), round(half) + 1):
+            t = (dx + half) / (2 * half)
+            col = mix(hx(0xe0c278), hx(0x7d6430), min(1, t * 1.25))
+            if dy < 3:
+                col = mix(col, hx(0xf0dca0), .35)
+            c.set(cx + dx, top + dy, col)
+    for dy in range(2, 16):
+        c.set(cx - 2 - dy // 5, top + dy, hx(0xf6e6b4))  # Its highlight
+    c.hline(cx - 9, cx + 9, top + 18, mix(BRASS, INK, .45))   # The lip
+    c.hline(cx - 6, cx + 6, top + 12, mix(BRASS, INK, .3))    # A cast band
+    c.vline(cx, top + 19, top + 21, IRON)
+    c.disc(cx, top + 22, 1.6, mix(IRON, INK, .3))           # Clapper
+
+
+def rose(c: Canvas, cx, cy) -> None:
+    c.disc(cx, cy, 11, STONE)
+    c.disc(cx, cy, 11, mix(STONE, INK, .25), 11)
+    c.disc(cx, cy, 10, STONE, 10)
+    c.disc(cx, cy, 8, HOLE, 8)
+    colours = (0xb3823e, 0x5f8a7c, 0x9a5650, 0xc3b264, 0x6f7fa0, 0x8f6aa0)
+    for y in range(cy - 7, cy + 8):
+        for x in range(cx - 7, cx + 8):
+            d = math.hypot(x - cx, y - cy)
+            if d <= 7.2:
+                wedge = int((math.atan2(y - cy, x - cx) + math.pi) / (math.tau / 6)) % 6
+                col = hx(colours[wedge])
+                if d < 2.2:
+                    col = hx(0xe2d08a)
+                c.light(x, y, mix(col, CREAM, .18 if y < cy else 0))
+    for a in range(6):                                     # Its lead tracery
+        ang = a * math.tau / 6
+        c.line(cx, cy, cx + 7 * math.cos(ang), cy + 7 * math.sin(ang), mix(INK, IRON, .3))
+    c.disc(cx, cy, 1.4, mix(INK, IRON, .3))
+
+
+def horse_head(c: Canvas, x, y) -> None:
+    """A bay looking out over its stall's half door, side on, facing right:
+    neck, head, dark muzzle, an eye, two ears and its black mane."""
+    coat, dark, light = hx(0x7a4a2c), hx(0x4a2c1c), hx(0xa06a40)
+    c.poly([(x, y + 22), (x + 2, y + 8), (x + 6, y + 2), (x + 10, y + 1), (x + 14, y + 6),
+            (x + 22, y + 12), (x + 23, y + 16), (x + 19, y + 18), (x + 12, y + 15), (x + 9, y + 22)], coat)
+    c.poly([(x + 17, y + 11), (x + 22, y + 12), (x + 23, y + 16), (x + 19, y + 18), (x + 16, y + 15)], dark)
+    c.set(x + 21, y + 14, INK)                             # Nostril
+    c.line(x + 3, y + 8, x + 8, y + 3, light)
+    c.line(x + 9, y + 3, x + 16, y + 9, light)
+    c.set(x + 11, y + 6, INK)                              # Its eye, with a glint
+    c.set(x + 10, y + 5, hx(0xd8c8a8))
+    c.poly([(x + 7, y + 2), (x + 8, y - 3), (x + 10, y + 1)], coat)    # Ears
+    c.poly([(x + 9, y + 2), (x + 11, y - 2), (x + 12, y + 2)], dark)
+    for k in range(9):                                     # The mane down its neck
+        c.set(x + 5 - k // 3, y + 3 + k * 2, INK)
+        c.set(x + 6 - k // 3, y + 3 + k * 2, dark)
+
+
+def saddle(c: Canvas, x, rail) -> None:
+    """A western saddle thrown over a half door's top rail (row rail): its high
+    cantle, the seat dipping to the horn above the rail; a striped blanket
+    wider than it, the short rounded skirt, and the fender strap down the door
+    to a wooden stirrup."""
+    leather, dark, light = hx(0x7f5230), hx(0x4a2c1a), hx(0xb5804c)
+    for yy in range(rail + 1, rail + 11):                  # The blanket, striped, under it all
+        col = (hx(0xa83c30), hx(0xd8c8a0), hx(0x2f4a5a))[(yy - rail) % 3]
+        c.hline(x - 3, x + 25, yy, col)
+    c.vline(x - 3, rail + 1, rail + 10, mix(hx(0xa83c30), INK, .4))
+    c.vline(x + 25, rail + 1, rail + 10, mix(hx(0xa83c30), INK, .4))
+    for yy in range(rail + 1, rail + 8):                   # The skirt, its corners rounded
+        inset = 1 if yy == rail + 7 else 0
+        c.hline(x + 1 + inset, x + 21 - inset, yy, leather)
+    c.hline(x + 2, x + 20, rail + 8, dark)
+    for xx in range(x + 3, x + 20, 3):
+        c.set(xx, rail + 6, light)                         # Stitching
+    for yy in range(rail + 4, rail + 16):                  # The fender strap
+        c.hline(x + 8, x + 12, yy, leather if yy < rail + 15 else dark)
+        c.set(x + 8, yy, light)
+    c.hline(x + 7, x + 13, rail + 16, hx(0x8a6440))        # A wooden stirrup
+    c.hline(x + 7, x + 13, rail + 19, hx(0x8a6440))
+    c.vline(x + 7, rail + 16, rail + 19, hx(0x8a6440))
+    c.vline(x + 13, rail + 16, rail + 19, hx(0x8a6440))
+    c.hline(x + 8, x + 12, rail + 20, dark)
+    profile = {0: 7, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2, 12: 2,
+               13: 3, 14: 3, 15: 4, 16: 5, 17: 6, 18: 6, 19: 6, 20: 5}
+    for dx, h in profile.items():                          # Cantle, the seat's dip, the pommel
+        c.vline(x + 1 + dx, rail - h, rail, leather)
+        c.set(x + 1 + dx, rail - h, light if dx < 8 else leather)
+        c.set(x + 1 + dx, rail, dark)
+    c.vline(x + 1, rail - 7, rail, dark)
+    c.fill(x + 18, rail - 9, x + 19, rail - 7, dark)        # The horn and its cap
+    c.hline(x + 17, x + 20, rail - 10, light)
+
+
+def wanted(c: Canvas, x, y) -> None:
+    """A wanted notice: SE BUSCA, a face, the reward."""
+    paper = hx(0xc9bd9c)
+    c.fill(x, y, x + 23, y + 31, paper)
+    c.hline(x, x + 23, y + 31, mix(paper, INK, .4))
+    c.vline(x + 23, y, y + 31, mix(paper, INK, .3))
+    c.set(x + 2, y + 1, IRON)
+    c.set(x + 21, y + 1, IRON)
+    lettering(c, 'SE', x + 8, y + 2, mix(INK, RUST, .3))
+    lettering(c, 'BUSCA', x + 2, y + 8, mix(INK, RUST, .3))
+    c.disc(x + 11.5, y + 18, 3, mix(paper, INK, .55), 3.5)
+    c.poly([(x + 5, y + 26), (x + 8, y + 22), (x + 15, y + 22), (x + 18, y + 26)], mix(paper, INK, .5))
+    lettering(c, '500', x + 6, y + 27, mix(INK, RUST, .5))
+    c.set(x + 3, y + 28, mix(INK, RUST, .5))
+
+
+def hay(c: Canvas, x0, y0, x1, y1, seed=1) -> None:
+    """A bale: packed straw, two twine bands, loose strands at its edges."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            n = hash2(x, y // 2, seed)
+            col = mix(hx(0xc8a64e), hx(0x8a6a2a), .25 + .5 * n + .3 * (y - y0) / max(1, y1 - y0))
+            c.set(x, y, col)
+    for x in (x0 + (x1 - x0) // 3, x1 - (x1 - x0) // 3):
+        c.vline(x, y0, y1, hx(0x6b4e2a))
+    c.hline(x0, x1, y0, hx(0xe2c878))
+    for k in range(0, x1 - x0, 3):
+        c.set(x0 + k, y0 - 1 - (k % 2), hx(0xd8bc66))
+
+
+def anvil(c: Canvas, x, y) -> None:
+    """An anvil on its stump: horn to the left, flat face, waist and feet."""
+    iron, dark, light = hx(0x55585a), hx(0x2c2e30), hx(0x9da2a0)
+    c.poly([(x - 14, y + 1), (x - 4, y), (x + 12, y), (x + 12, y + 5), (x + 4, y + 6), (x - 4, y + 5)], iron)
+    c.hline(x - 10, x + 12, y, light)                      # Its worked face
+    c.poly([(x - 3, y + 6), (x + 5, y + 6), (x + 4, y + 11), (x - 2, y + 11)], iron)
+    c.poly([(x - 6, y + 11), (x + 8, y + 11), (x + 9, y + 14), (x - 7, y + 14)], dark)
+    c.fill(x - 5, y + 15, x + 7, y + 28, hx(0x6a4a30))      # The stump
+    for yy in range(y + 17, y + 28, 3):
+        c.hline(x - 5, x + 7, yy, hx(0x553a26))
+    c.vline(x - 5, y + 15, y + 28, hx(0x8a6440))
+
+
+def hanging_tools(c: Canvas, x0, x1, y) -> None:
+    """A rack of a smith's tools on the back wall: a hammer, tongs, a file
+    and horseshoes on their nails."""
+    c.hline(x0, x1, y, WOOD)
+    c.hline(x0, x1, y + 1, mix(WOOD, INK, .5))
+    steel, handle = hx(0x8c9190), hx(0x8a6440)
+    hx0 = x0 + 4                                           # Hammer
+    c.vline(hx0, y + 2, y + 13, handle)
+    c.fill(hx0 - 2, y + 2, hx0 + 3, y + 4, steel)
+    t = x0 + 13                                            # Tongs, crossed
+    c.line(t, y + 2, t + 4, y + 16, steel)
+    c.line(t + 4, y + 2, t, y + 16, steel)
+    c.set(t + 2, y + 9, INK)
+    c.vline(x0 + 23, y + 2, y + 14, mix(steel, INK, .3))    # A file
+    c.vline(x0 + 24, y + 2, y + 14, steel)
+    for k, hxp in enumerate(range(x0 + 31, x1 - 4, 9)):    # Horseshoes
+        c.line(hxp, y + 3, hxp, y + 8, steel)
+        c.line(hxp + 5, y + 3, hxp + 5, y + 8, steel)
+        c.hline(hxp + 1, hxp + 4, y + 9, steel)
+        c.set(hxp + 2, y + 2, INK)
+
+
+def forge(c: Canvas, x0, y0, x1, y1) -> None:
+    """The hearth: a brick box with its coals glowing, the bellows' pipe."""
+    masonry(c, (x0, y0, x1, y1), hx(0x6c5f52), seed=925, brick=(7, 4))
+    for x in range(x0 + 2, x1 - 1):
+        for y in range(y0 - 3, y0 + 1):
+            n = hash2(x, y, 77)
+            c.light(x, y, hx(0xf6d070) if n > .75 else hx(0xe08a30) if n > .35 else hx(0x9a3a1c))
+    c.line(x1, y0 + 4, x1 + 6, y0 + 4, IRON, 2)
+
+
+def bucket(c: Canvas, x, y) -> None:
+    c.fill(x, y, x + 9, y + 10, hx(0x6a4a30))
+    for yy in (y + 2, y + 8):
+        c.hline(x, x + 9, yy, IRON)
+    c.hline(x + 1, x + 8, y, hx(0x2c3c40))
+    c.vline(x, y, y + 10, hx(0x8a6440))
+
+
+def weathered(c: Canvas, eave: int, keep) -> None:
+    """Age on a front's walls: shadow under its eave, grime up from the road,
+    rain streaks under its sills; keep(x, y) says what is left as it is."""
+    for y in range(WEST_H):
+        for x in range(WEST_W):
+            if not c.solid(x, y) or keep(x, y) or (x, y) in c.lights:
+                continue
+            col = c.get(x, y)
+            k = 0.0
+            if eave <= y < eave + 7:
+                k += .32 * (1 - (y - eave) / 7)
+            if y > WEST_H - 12:
+                k += .22 * (y - (WEST_H - 12)) / 12
+            if hash2(x // 3, y // 9, 5) > .93:
+                k += .08
+            if k:
+                c.set(x, y, mix(col, INK, min(.5, k)))
+
+
+def western_native(index: int) -> Canvas:
+    """The five western fronts (church, sheriff, smithy, stable, bank) at 288 x 200."""
+    c = Canvas(WEST_W, WEST_H)
+    door = (122, 136, 44, 64)                              # Where the game puts the door
+    in_door = lambda x, y: 116 <= x < 172 and y >= 128     # noqa: E731
+    if index == 0:
+        # Chapel: clapboard, a bronze bell in its belfry, a rose and arched windows.
+        roof(c, WX(2), WX(176), WY(18), WY(43), base=hx(0x6d776f), seed=31)
+        planks(c, (WX(3), WY(47), WX(176), 199), hx(0xbab399), seed=901, width=6)
+        planks(c, (WX(153), WY(47), WX(176), 199), hx(0x9d9b85), seed=902, width=6)
+        planks(c, (WX(75), WY(24), WX(104), WY(58)), hx(0xc0b69d), seed=903, width=6)
+        c.poly([(WX(72), WY(24)), (WX(90), WY(3)), (WX(108), WY(24))], hx(0x758076))
+        for k in range(1, 12):                             # Its slates in rows
+            y = WY(3) + k * (WY(24) - WY(3)) // 12
+            half = (WX(108) - WX(72)) * k // 24
+            c.hline(WX(90) - half + 1, WX(90) + half - 1, y, hx(0x5f6a62))
+        beam(c, WX(90), WY(3), WX(73), WY(24), 2, WOOD_LIT)
+        c.vline(WX(90), 0, WY(9), IRON)
+        c.hline(WX(90) - 4, WX(90) + 4, 4, IRON)
+        x0, y0, x1, y1 = WB(81, 28, 98, 43)
+        interior(c, x0, y0, x1, y1, seed=3)
+        bell(c, (x0 + x1) // 2, y0 + 8)
+        c.line(x1 - 3, y0 + 29, x1 - 3, y1, hx(0x948260))   # Its rope
+        rose(c, WX(90), WY(55) - 4)
+        opening(c, WX(19), WY(70), WX(36) - WX(19), 35, lit=True, arch=True)
+        opening(c, WX(145), WY(70), WX(162) - WX(145), 35, arch=True, broken=True)
+        shutter(c, WX(166), WY(75), WX(173) - WX(166), 28, tilt=-3)
+        pipe(c, WX(173), WY(50), WY(125))
+        patch(c, [(WX(x), WY(y)) for x, y in ((43, 105), (54, 101), (59, 108), (55, 115), (62, 120), (59, 127),
+                                              (41, 127))], hx(0x9a846a), seed=11)
+        for k, yy in enumerate((195, 197, 199)):
+            box(c, (WX(61) - k * 2, yy, WX(118) + k * 2, yy), STONE)
+        door_reveal(c, *door)
+        weathered(c, WY(43) + 9, in_door)
+    elif index == 1:
+        # Sheriff's office: ashlar, deep barred openings, a wanted notice, a lamp.
+        masonry(c, (WX(4), WY(36), WX(175), 199), hx(0x8c7e69), seed=911, brick=(13, 6))
+        planks(c, (WX(1), WY(25), WX(178), WY(37)), WOOD, seed=912, width=5)
+        box(c, (0, WY(24), 287, WY(24) + 3), WOOD_LIT)
+        big_sign(c, 'SHERIFF', WX(42), WY(14) - 6, WX(137) - WX(42), color=hx(0x735d43))
+        for x in (4, 166):
+            masonry(c, (WX(x), WY(39), WX(x + 8), 197), hx(0xa2967b), seed=x, brick=(9, 7))
+        opening(c, WX(17), WY(72), WX(45) - WX(17), 32, bars=True)
+        opening(c, WX(135), WY(72), WX(163) - WX(135), 32, bars=True)
+        wanted(c, WX(48) + 1, WY(84) - 4)
+        c.poly([(WX(153), WY(112)), (WX(170), WY(112)), (WX(170), WY(116)), (WX(154), WY(116))], WOOD)
+        beam(c, WX(155), WY(116), WX(155), 197, 2)
+        beam(c, WX(167), WY(116), WX(167), 197, 2)
+        box(c, (WX(119), WY(77), WX(126), WY(91)), IRON)
+        c.fill(WX(119) + 2, WY(80), WX(126) - 2, WY(88), hx(0xe3b56c))
+        for y in range(WY(80), WY(88) + 1):
+            for x in range(WX(119) + 2, WX(126) - 1):
+                c.light(x, y, hx(0xf0c47a) if y < WY(83) else hx(0xd9a35c))
+        c.hline(WX(118), WX(127), WY(92), INK)
+        c.line(WX(121), WY(76), WX(121), WY(72), IRON)
+        c.line(WX(121), WY(72), WX(116), WY(72), IRON)
+        pipe(c, WX(172), WY(39), WY(125))
+        planks(c, (0, 196, 287, 199), hx(0x82745d), seed=913, width=4)
+        crack(c, [(WX(143), WY(43)), (WX(143), WY(49)), (WX(138), WY(52)), (WX(138), WY(59))],
+              color=hx(0x504b40), lip=STONE)
+        door_reveal(c, *door, stone=True)
+        weathered(c, WY(37) + 1, in_door)
+    elif index == 2:
+        # Smithy: an open lean-to with its forge glowing, the anvil, tools on the wall.
+        roof(c, WX(22), WX(148), WY(17), WY(40), base=hx(0x6f756d), seed=92)
+        planks(c, (WX(25), WY(45), WX(141), 199), hx(0x8b714f), seed=921, vertical=True, width=7)
+        masonry(c, (WX(147), WY(3), WX(164), 199), hx(0x8c8b7e), seed=922, brick=(10, 6))
+        box(c, (WX(143), 0, WX(167), WY(5)), hx(0x9c9986))
+        c.hline(WX(148), WX(162), WY(2), HOLE)
+        for x in (150, 158):
+            c.vline(WX(x), WY(6), WY(22), hx(0x5f6056))
+        x0, y0, x1, y1 = WB(3, 77, 59, 125)
+        interior(c, x0, y0, x1, y1, glow=(x1 - 16, y1 - 18, 46), seed=7)
+        hanging_tools(c, x0 + 6, x1 - 30, y0 + 6)
+        forge(c, x1 - 26, y1 - 16, x1 - 4, y1)
+        anvil(c, x0 + 34, y1 - 28)
+        bucket(c, x0 + 6, y1 - 10)
+        beam(c, WX(1), WY(75), WX(59), WY(68), 4)
+        beam(c, WX(2), WY(78), WX(2), 199, 3)
+        beam(c, WX(58), WY(73), WX(58), 199, 3)
+        sx0, sy0, sx1, sy1 = WB(150, 111, 160, 123)          # The chimney's fire door
+        c.fill(sx0, sy0, sx1, sy1, HOLE)
+        for x in range(sx0 + 1, sx1):
+            c.light(x, sy0 + 2, hx(0xbc7c42))
+        for x in range(sx0 + 1, sx1, 3):
+            c.vline(x, sy0 + 4, sy1 - 1, IRON)
+        opening(c, WX(118), WY(77), WX(135) - WX(118), 25, lit=True)
+        hs = WX(90)                                        # A horseshoe over the door, points up
+        c.line(hs - 5, WY(52), hs - 5, WY(52) + 7, IRON, 2)
+        c.line(hs + 4, WY(52), hs + 4, WY(52) + 7, IRON, 2)
+        c.hline(hs - 4, hs + 3, WY(52) + 8, IRON)
+        c.hline(hs - 4, hs + 3, WY(52) + 9, mix(IRON, INK, .4))
+        rubble(c, WX(126), 199, 3)
+        door_reveal(c, *door)
+        weathered(c, WY(40) + 9, in_door)
+    elif index == 3:
+        # Stable: barn cladding, stalls with a horse and a saddle, a hayloft.
+        roof(c, WX(1), WX(176), WY(4), WY(40), base=hx(0x926c42), seed=93)
+        planks(c, (WX(3), WY(45), WX(176), 199), hx(0x98734c), seed=931, vertical=True, width=7)
+        for k, x in enumerate((13, 128)):
+            x0, y0, x1, y1 = WB(x, 72, x + 36, 124)
+            interior(c, x0, y0, x1, y1, seed=11 + k)
+            c.vline((x0 + x1) // 2 + 6, y0, y1, mix(WOOD, INK, .4))     # A stall's post
+            for yy in range(y1 - 5, y1 + 1):                  # Straw on its floor
+                for xx in range(x0, x1 + 1):
+                    if hash2(xx, yy, 9) > .55:
+                        c.set(xx, yy, hx(0xb7963e) if hash2(xx, yy, 4) > .5 else hx(0x8a6a2a))
+            if k == 0:
+                horse_head(c, x0 + 14, y0 + 6)
+            half = y0 + 26
+            planks(c, (x0 + 1, half, x1 - 1, y1 + 1), WOOD, seed=x, vertical=True, width=7)
+            box(c, (x0, half - 1, x1, half + 3), WOOD_LIT)
+            beam(c, x0 + 3, y1 - 2, x1 - 4, half + 5, 3, WOOD_LIT)
+            for yy in (half + 6, y1 - 3):
+                c.hline(x0 + 1, x0 + 9, yy, IRON)
+                c.set(x0 + 7, yy, CREAM)
+            if k == 1:
+                saddle(c, x0 + 10, half - 1)
+        x0, y0, x1, y1 = WB(79, 23, 101, 36)                 # The hayloft
+        interior(c, x0, y0, x1, y1, seed=21)
+        hay(c, x0 + 1, y1 - 12, x1 - 1, y1, seed=5)
+        for k in range(8):
+            c.set(x0 + 2 + k * 3, y1 + 1 + k % 2, hx(0xc8a64e))
+        beam(c, WX(77), WY(21), WX(103), WY(21), 3)
+        c.disc(WX(90), WY(21) + 4, 2, IRON)
+        c.vline(WX(90), WY(21) + 6, y0 + 10, hx(0x9e906a))   # Its rope and hook
+        c.line(WX(90), y0 + 10, WX(90) + 2, y0 + 12, IRON)
+        tx0, ty0, tx1, ty1 = WB(128, 117, 166, 126)          # A water trough
+        box(c, (tx0, ty0, tx1, ty1), WOOD)
+        c.hline(tx0 + 2, tx1 - 2, ty0 + 2, hx(0x667467))
+        c.line(tx0 + 3, ty0 + 3, tx1 - 6, ty0 + 3, hx(0x829384))
+        for yy in (188, 191, 195):
+            c.hline(WX(7), WX(23), yy, hx(0xb6a06b))
+        pipe(c, WX(172), WY(47), WY(125), hx(0x7e7968))
+        door_reveal(c, *door)
+        weathered(c, WY(40) + 9, in_door)
+    else:
+        # Bank: a stone pediment, fluted pillars, secure windows and keyed plaques.
+        masonry(c, (WX(3), WY(36), WX(176), 199), hx(0xaca593), seed=941, brick=(17, 8))
+        roof(c, WX(1), WX(176), WY(5), WY(31), base=hx(0xaaa68f), seed=94)
+        box(c, (WX(1), WY(32), WX(178), WY(38)), CREAM)
+        for x in range(WX(4), WX(176), 6):                   # Dentils under its cornice
+            c.fill(x, WY(38) + 1, x + 2, WY(38) + 3, mix(CREAM, INK, .3))
+        c.disc(WX(90), WY(21), 9, hx(0xb7a264), 9)
+        c.disc(WX(90), WY(21), 6, hx(0x938762), 6)
+        c.vline(WX(90), WY(21) - 6, WY(21) + 6, CREAM)
+        c.hline(WX(90) - 4, WX(90) + 4, WY(21) - 2, CREAM)
+        big_sign(c, 'BANCO', WX(67) - 2, WY(42), WX(113) - WX(67) + 4, color=hx(0x777b6d))
+        opening(c, WX(18), WY(65), WX(36) - WX(18), 37, bars=True, arch=True)
+        opening(c, WX(144), WY(65), WX(162) - WX(144), 37, bars=True, arch=True)
+        for x in (52, 118):
+            box(c, WB(x - 3, 54, x + 12, 59), CREAM)
+            px0, py0, px1, py1 = WB(x, 60, x + 9, 121)
+            box(c, (px0, py0, px1, py1), hx(0xbdb8a2))
+            for xx in range(px0 + 2, px1 - 1, 3):
+                c.vline(xx, py0 + 2, py1 - 2, hx(0x989d8b))
+                c.vline(xx + 1, py0 + 2, py1 - 2, mix(hx(0xbdb8a2), CREAM, .3))
+            box(c, WB(x - 3, 121, x + 12, 127), CREAM)
+        bx0, by0, bx1, by1 = WB(8, 112, 32, 122)
+        box(c, (bx0, by0, bx1, by1), hx(0x777e6b))
+        lettering(c, 'BANCO', bx0 + 4, by0 + 3, CREAM)
+        sx0, sy0, sx1, sy1 = WB(151, 111, 170, 121)
+        box(c, (sx0, sy0, sx1, sy1), hx(0x777e6b))
+        c.hline(sx0 + 4, sx1 - 4, sy0 + 3, INK)
+        c.set(sx1 - 5, sy1 - 3, BRASS)
+        crack(c, [(WX(166), WY(42)), (WX(162), WY(49)), (WX(164), WY(54)), (WX(159), WY(58))],
+              color=hx(0x77796b), lip=STONE)
+        door_reveal(c, *door, stone=True)
+        weathered(c, WY(38) + 4, in_door)
+    return c
+
+
+def finish_west(image: Image) -> Image:
+    """terrain/facades at 288 x 200, drawn at that size; the doorway band is
+    the refined source's, unscaled (the door overlay and the road through it)."""
+    frames = image.width // FRAME_WIDTH['facades']
+    out = Image(WEST_W * frames, WEST_H)
+    for index in range(frames):
+        drawn = western_native(index).image()
+        for y in range(WEST_H):
+            for x in range(WEST_W):
+                color = drawn.get(x, y)
+                if 122 <= x < 166 and y >= 136:
+                    color = image.get(index * FRAME_WIDTH['facades'] + x - 54, y - 72)
+                out.set(index * WEST_W + x, y, color)
+    return out
+
+
 def urban(c: Canvas,index:int) -> None:
+    index %= 8
     # All urban door openings remain at x98,y128, 44x64; dress around them.
     door_reveal(c,98,128,44,64,stone=index!=0)
+    if index>=4:
+        # New service buildings have authored equipment; add only grounded
+        # architectural wear, without substituting the checkpoint's furniture.
+        for x in (8,230):
+            c.vline(x,139,185,mix(STONE,INK,.35))
+        crack(c,[(49,176),(53,180),(51,186)],color=hx(0x545c53),lip=STONE)
+        for x in (95,145):
+            bolt(c,x,135);bolt(c,x,181)
+        return
     if index==0:
         sign(c,'MERCADO MARTIN',13,93,212,color=hx(0x34594c))
         for x in (22,76,136,190):
@@ -480,6 +943,36 @@ def urban(c: Canvas,index:int) -> None:
             c.hline(159,166,y,hx(0x747f68))
         c.line(74,68,83,91,IRON)
         for y in range(71,93,6):c.hline(74,81,y,IRON)
+        # A cabin with folded corner posts, recessed glazing and lower panels.
+        for x in (9,74):
+            c.line(x,19,x,61,hx(0x293a2f),2)
+            c.vline(x+2,20,61,hx(0x87927a))
+        for x in (13,34,55):
+            box(c,(x,50,x+17,59),hx(0x50644d))
+            c.hline(x+2,x+14,52,hx(0x6e8062))
+        c.hline(12,73,24,INK);c.hline(12,73,43,hx(0x829180))
+        for x in (29,48,67):
+            c.line(x,26,x,42,hx(0x33473f),2)
+            c.vline(x-1,27,41,hx(0x7a8981))
+        # Hooded cylindrical spotlight and its U-shaped tilt bracket.
+        c.fill(76,28,90,40,None)
+        c.line(75,43,85,43,IRON,2);c.line(85,43,86,38,IRON,2)
+        c.poly([(76,30),(87,26),(92,29),(91,38),(78,40)],hx(0x526866))
+        c.line(77,30,88,27,hx(0x91a29a))
+        for x in (79,82):c.line(x,32,x+1,37,hx(0x2d4141))
+        c.disc(90,32,3,INK,6);c.disc(91,32,2,hx(0x94aaa2),4)
+        c.line(90,29,90,31,hx(0xc8cbb4))
+        c.light(91,33,hx(0xe4d39c));c.light(92,32,hx(0xd1c58f))
+        c.line(77,29,90,25,IRON,2);bolt(c,84,39)
+        # Rectangular floodlight: deep housing, cooling fins and recessed glass.
+        c.fill(212,12,229,25,None)
+        box(c,(213,13,228,25),hx(0x3d5154))
+        c.fill(215,15,226,22,hx(0x202e32))
+        c.fill(216,16,225,21,hx(0xa6b4ac))
+        for x in (217,220,223):c.light(x,18,hx(0xe1d4aa))
+        c.hline(215,226,14,hx(0x99aaa4))
+        c.line(217,26,224,26,IRON);c.vline(221,26,31,IRON)
+        for y in (15,19,23):c.set(212,y,hx(0x778987))
 
 
 def palisade(c: Canvas,state:int) -> None:
@@ -623,6 +1116,35 @@ def _canvas(image: Image,frame:int,width:int) -> Canvas:
     return c
 
 
+FRONT_SIZES = {'facades': (288, 200), 'city_fronts': (288, 216)}
+
+
+def street_scale(name: str, image: Image) -> Image:
+    """Expand the architecture around a fixed, person-sized door and jambs.
+
+    The lower 72 rows and middle 56 columns retain their native dimensions;
+    walls, upper floors and roofs supply the extra span. No door is stretched.
+    Apply after the construction pass so equipment and markings move with it.
+    """
+    old_w = FRAME_WIDTH[name]
+    width, height = FRONT_SIZES[name]
+    out = Image(image.width // old_w * width, height)
+    def source(at, old, new, fixed, bottom=False):
+        if bottom:
+            return old - (new - at) if at >= new - fixed else at * (old - fixed) // (new - fixed)
+        lo, hi = (new - fixed) // 2, (old - fixed) // 2
+        if at < lo: return at * hi // lo
+        if at < lo + fixed: return hi + at - lo
+        return old - 1 - (new - 1 - at) * hi // lo
+    for frame in range(image.width // old_w):
+        for y in range(height):
+            sy = source(y, image.height, height, 72, True)
+            for x in range(width):
+                sx = source(x, old_w, width, 56)
+                out.set(frame * width + x, y, image.get(frame * old_w + sx, sy))
+    return out
+
+
 def finish(name: str, image: Image) -> Image:
     """Return the finished sheet, preserving frame bounds and open doorways."""
     if name not in SUPPORTED:
@@ -661,20 +1183,25 @@ def preview(path:Path,assets:Path) -> None:
     from embed_assets import decode_png_rgba
     names=['wall','wall_ruins','facades','city_fronts','door']
     pairs=[]
+    import make_terrain, make_city
+    from refine_terrain import refine
     for name in names:
         w,h,raw=decode_png_rgba(assets/f'sprites/terrain/{name}.png')
         image=Image(w,h)
         image.px=[tuple(raw[i:i+4]) for i in range(0,len(raw),4)]
-        pairs.append((name,image,finish(name,image)))
+        if name in FRONT_SIZES:
+            source = make_terrain.make_facades() if name=='facades' else make_city.make_city_fronts(marked=False)
+            pairs.append((name,source,refine(name,source)))
+        else: pairs.append((name,image,finish(name,image)))
     scale=3
-    height=sum(image.height*scale+35 for _,image,_ in pairs)
+    height=sum(max(before.height,after.height)*scale+35 for _,before,after in pairs)
     review=Canvas(1500,height)
     review.fill(0,0,1499,height-1,hx(0x292627))
     top=0
     for name,before,after in pairs:
         lettering(review,name.upper(),12,top+4,CREAM)
-        count=FRAME_WIDTH[name]
         for side,image in enumerate((before,after)):
+            count=FRONT_SIZES[name][0] if name in FRONT_SIZES and side else FRAME_WIDTH[name]
             max_frames=min(3,image.width//count)
             for frame in range(max_frames):
                 # Show western church, sheriff and smithy; three urban uses;
@@ -687,7 +1214,7 @@ def preview(path:Path,assets:Path) -> None:
                         if color[3]:
                             review.fill(ox+x*scale,top+22+y*scale,
                                         ox+x*scale+scale-1,top+22+y*scale+scale-1,color[:3])
-        top+=before.height*scale+35
+        top+=max(before.height,after.height)*scale+35
     review.image().save(path)
 
 

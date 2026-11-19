@@ -14,8 +14,11 @@
  * placeholder tint. */
 #define SKIN_SHEETS 4 /* walk, jump, shoot, sit */
 
-typedef struct {
+typedef struct CharacterSkin {
     const CharacterDef *character;
+    /* The same character in the laboratory train's hazmat suit (its sheets
+     * from sprites/characters/<id>/suit/, tools/make_hazmat.py), or NULL. */
+    const struct CharacterSkin *suit;
     SDL_Texture *sheets[SKIN_SHEETS];
     bool owned[SKIN_SHEETS]; /* Tinted copies we made and must destroy */
     bool placeholder;        /* At least one sheet is the tinted stand-in */
@@ -48,6 +51,7 @@ typedef struct {
      * character's sit sheet. */
     SDL_Texture *weapon_sit[WEAPON_COUNT];
     SDL_Texture *throw_sheet; /* Its grenade throw, if it has one */
+    SDL_Texture *car_sheet, *car_shotgun_sheet;
     /* Its blow with the gun: per gun (WeaponDef.melee_sheet), else its own
      * "melee", else NULL (the shoot sheet stands in). */
     SDL_Texture *weapon_melee[WEAPON_COUNT];
@@ -67,6 +71,9 @@ typedef struct {
 } CharacterSkin;
 
 void skin_load(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *character);
+/* The character in its hazmat suit: each sheet from its suit/ folder (else
+ * its usual one). False, and nothing loaded, if it has no suit sheets. */
+bool skin_load_suit(CharacterSkin *skin, SDL_Renderer *renderer, const CharacterDef *character);
 void skin_free(CharacterSkin *skin);
 
 /* This character's texture for one of the template's sheets

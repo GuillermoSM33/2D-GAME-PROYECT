@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "game/car_pass.h"
 #include "game/combat.h"
 #include "game/damage.h"
 
@@ -29,28 +30,37 @@ static bool is_hazard(TerrainKind kind)
            kind == TERRAIN_SNARE || kind == TERRAIN_WIRE;
 }
 
-static bool stands_big(TerrainKind kind)
+static bool stands_on_road(TerrainKind kind)
 {
     return kind == TERRAIN_OUTPOST || kind == TERRAIN_SUPPLY || kind == TERRAIN_BENCH || kind == TERRAIN_CAMPFIRE ||
            kind == TERRAIN_WALL || kind == TERRAIN_BARRICADE || kind == TERRAIN_GOAL ||
-           kind == TERRAIN_SIREN;
+           kind == TERRAIN_SIREN || kind == TERRAIN_CRATE || kind == TERRAIN_BARREL ||
+           kind == TERRAIN_DYNAMITE || kind == TERRAIN_BOTTLES || kind == TERRAIN_LAMP ||
+           kind == TERRAIN_COFFIN || kind == TERRAIN_BURNER || kind == TERRAIN_HYDRANT;
 }
 
-/* How far apart what stands on the road must be, center to center, or 0 if it
- * doesn't matter: a trap keeps its distance from other traps, from what's big
- * and from a zombie standing there. */
+/* A building's doorway is on the playable road; its facade stands behind it.
+ * The supply truck, however, occupies its whole native drawing on the road. */
+static float road_half(const Piece *p)
+{
+    return p->kind == TERRAIN_WALL ? terrain_piece_half_width(p) : terrain_front_half_width(p);
+}
+
+/* Separate standing objects by their footprints. Traps also need landing
+ * room and cannot begin under a sleeping zombie. */
 static float road_gap(const StageRun *run, int a, int b)
 {
     int count = run->terrain.count;
     bool za = a >= count, zb = b >= count;
     bool ha = !za && is_hazard(run->terrain.items[a].kind), hb = !zb && is_hazard(run->terrain.items[b].kind);
     if (!ha && !hb)
-        return 0.0f;
-    if (ha && hb)
-        return HAZARD_GAP;
+        return za || zb ? 0.0f : road_half(&run->terrain.items[a]) +
+                                 road_half(&run->terrain.items[b]) + SCENERY_GAP;
     float half = ZOMBIE_HALF_WIDTH * SPRITE_SCALE;
-    float ah = za ? half : terrain_piece_half_width(&run->terrain.items[a]);
-    float bh = zb ? half : terrain_piece_half_width(&run->terrain.items[b]);
+    float ah = za ? half : road_half(&run->terrain.items[a]);
+    float bh = zb ? half : road_half(&run->terrain.items[b]);
+    if (ha && hb)
+        return fmaxf(HAZARD_GAP, ah + bh + SCENERY_GAP);
     return ah + bh + (za || zb ? DECOY_ROOM : HAZARD_ROOM);
 }
 
@@ -65,7 +75,7 @@ static void make_room(StageRun *run)
     for (int i = 0; i < t->count + run->zombie_count; i++) {
         bool zombie = i >= t->count;
         if (zombie ? run->ambush_x[i - t->count] > 0.0f
-                   : !is_hazard(t->items[i].kind) && !stands_big(t->items[i].kind))
+                   : !is_hazard(t->items[i].kind) && !stands_on_road(t->items[i].kind))
             continue;
         order[n] = i;
         xs[i] = zombie ? run->zombies[i - t->count].x : t->items[i].x;
@@ -127,7 +137,7 @@ static void scatter_decoys(Terrain *terrain, int stage_index, float start_x, flo
         bool room = true;
         for (int i = 0; i < terrain->count && room; i++) {
             const Piece *p = &terrain->items[i];
-            room = fabsf(p->x - x) >= half + terrain_piece_half_width(p) + DECOY_ROOM;
+            room = fabsf(p->x - x) >= half + terrain_front_half_width(p) + DECOY_ROOM;
         }
         if (!room) { /* A little farther on, then */
             x += DECOY_ROOM * 2.0f;
@@ -147,16 +157,16 @@ static void scatter_vehicles(Terrain *terrain, const ThemeDef *theme, int stage_
         return;
     unsigned seed = (unsigned)stage_index * 2246822519u + 29u;
     int n = 0;
-    float half = terrain_half_width(TERRAIN_VEHICLE);
     for (float x = start_x + VEHICLE_EVERY * 0.5f; x < start_x + length - 600.0f;) {
         seed = seed * 1103515245u + 12345u;
         unsigned roll = seed >> 16;
+        int variant = theme->vehicles[n % theme->vehicle_count];
+        float half = terrain_vehicle_half_width(variant); /* What it takes of the road, not its frame */
         bool room = true;
         for (int i = 0; i < terrain->count && room; i++) {
             const Piece *p = &terrain->items[i];
             /* Clear of a building's whole front, not only of its door. */
-            float other = p->kind == TERRAIN_WALL ? (float)(CITY_FRONT_W * SPRITE_SCALE) / 2.0f
-                                                  : terrain_piece_half_width(p);
+            float other = terrain_front_half_width(p);
             room = fabsf(p->x - x) >= half + other + VEHICLE_ROOM;
         }
         if (!room) {
@@ -164,8 +174,10 @@ static void scatter_vehicles(Terrain *terrain, const ThemeDef *theme, int stage_
             continue;
         }
         Piece *car = terrain_add(terrain, TERRAIN_VEHICLE, x);
-        if (car)
-            car->variant = theme->vehicles[n++ % theme->vehicle_count];
+        if (car) {
+            car->variant = variant;
+            n++;
+        }
         x += VEHICLE_EVERY * (0.6f + (float)(roll % 80u) / 100.0f);
     }
 }
@@ -199,6 +211,10 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
         case SPOT_AMBUSH:
         case SPOT_RUNNERS:
         case SPOT_SIREN:
+            if (run->train.present && spot->kind == SPOT_ZOMBIES && spot->count == TRAIN_CREW) {
+                run->train.first_zombie = run->zombie_count;
+                run->train.zombie_count = spot->count;
+            }
             if (spot->kind == SPOT_SIREN) /* The car; its horde waits off the road */
                 siren = terrain_add(&run->terrain, TERRAIN_SIREN, x);
             for (int i = 0; i < spot->count && run->zombie_count < RUN_MAX_ZOMBIES; i++) {
@@ -312,6 +328,8 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
             /* Every other one is a building across the road, its door barred. */
             else if (wall && walls++ % 2 == 1)
                 wall->variant = 1 + facades++ % FACADE_KINDS;
+            if (wall && spot->kind == SPOT_TRAIN && stage_index == TRAIN_STAGE)
+                run->train.present = true;
             break;
         case SPOT_DYNAMITE:
             terrain_add(&run->terrain, TERRAIN_DYNAMITE, x);
@@ -337,6 +355,7 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
     }
     terrain_add(&run->terrain, TERRAIN_GOAL, run->goal_x);
     make_room(run);
+    train_install(run);
     /* A few traps have a warning sign before them (it says what kind). */
     int pieces = run->terrain.count;
     for (int i = 0; i < pieces; i++) {
@@ -348,6 +367,8 @@ void run_start(StageRun *run, int stage_index, float player_x, bool drops_chests
             continue;
         /* Before it, however long the trap: never on it. */
         float gap = fmaxf(SIGN_GAP, terrain_piece_half_width(p) + terrain_half_width(TERRAIN_SIGN) + SIGN_ROOM);
+        if (!terrain_prop_clear(&run->terrain, p->x - gap, terrain_half_width(TERRAIN_SIGN)))
+            continue;
         Piece *sign = terrain_add(&run->terrain, TERRAIN_SIGN, p->x - gap);
         if (sign)
             sign->variant = (int)p->kind;
@@ -387,7 +408,7 @@ static int fighting_group(const StageRun *run)
 {
     for (int k = 0; k < run->zombie_count; k++) {
         const Zombie *z = &run->zombies[k];
-        if (z->awake && zombie_alive(z))
+        if (z->awake && zombie_alive(z) && train_zombie_visible(run,k))
             return run->group_of[k];
     }
     return -1;
@@ -410,11 +431,25 @@ void run_place_player(const StageRun *run, Player *player)
     player->hot = run->stage->hot;
     player->cold = run->stage->cold;
     player->cozy = terrain_by_campfire(&run->terrain, player->x);
+    if (run->train.inside) player->wind = player->hot = player->cold = false;
     float min_x = -1e9f, max_x = 1e9f;
     if (run->wall_x > 0.0f)
         max_x = run->wall_x;
     max_x = fminf(max_x, run->goal_x + GOAL_FRAME_W * SPRITE_SCALE);
-    if (player->vaulting) { /* Over the low ones, down to the ground past them */
+    if (run->train.present) {
+        if (run->train.inside) {
+            min_x = run->train.left + 16 * SPRITE_SCALE;
+            max_x = fminf(max_x, run->train.right - 16 * SPRITE_SCALE);
+        } else if (!run->train.complete) {
+            max_x = fminf(max_x, run->train.left + 40 * SPRITE_SCALE);
+        } else {
+            min_x = fmaxf(min_x, run->train.right + 16 * SPRITE_SCALE);
+        }
+    }
+    if (player->state == PLAYER_CAR && player->car_index >= 0 && player->car_index < run->terrain.count &&
+        terrain_car_look(&run->terrain.items[player->car_index]) >= 0) /* Not saved: from the car */
+        player->car_look = terrain_car_look(&run->terrain.items[player->car_index]);
+    if (player->vaulting || player->state == PLAYER_CAR) {
         terrain_wall_bounds(&run->terrain, player->x, &min_x, &max_x);
         player_set_ground(player, 0.0f, min_x, max_x);
         return;
@@ -440,7 +475,7 @@ int run_bullets(StageRun *run, Bullets *bullets, Effects *effects)
     int hits = terrain_shoot(&run->terrain, bullets);
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
-        if (!z->hidden) { /* Shut in or off the road, no bullet reaches it */
+        if (!z->hidden && train_zombie_visible(run,k)) { /* Separate the enclosed train from the road. */
             int impacts = combat_bullets_vs_zombie(bullets, z, effects);
             hits += impacts;
             if (impacts > 0) {
@@ -475,9 +510,25 @@ float run_road_length(int stage_index)
 
 bool run_vault(StageRun *run, Player *player)
 {
+    if (player->state == PLAYER_CAR) return false;
     if (!terrain_barricade_ahead(&run->terrain, player->x, player->facing) || player->jump.height > 0.0f)
         return false;
-    /* Far enough to land past it in the one leap: a car is a long one. */
+    int car = terrain_car_ahead(&run->terrain, player->x, player->facing);
+    if (car >= 0) {
+        const Piece *p = &run->terrain.items[car];
+        float exit = car_pass_exit_x(p->x, player->facing);
+        float lo = fminf(player->x, exit), hi = fmaxf(player->x, exit);
+        if (run->wall_x > 0.0f && exit > run->wall_x) return false;
+        for (int i = 0; i < run->terrain.count; i++) {
+            const Piece *other = &run->terrain.items[i];
+            if (i == car || !terrain_blocks(other)) continue;
+            float half = terrain_piece_half_width(other)+PLAYER_BODY_HALF_WIDTH;
+            if (other->x+half > lo && other->x-half < hi) return false;
+        }
+        return player_enter_car(player, car, terrain_car_look(p), p->x,
+                                terrain_car_locked(p) && !(p->car_flags & CAR_WINDOW_BROKEN));
+    }
+    /* Low barricades retain their vault; cars use their doors or windows. */
     float span = terrain_vault_span(&run->terrain, player->x, player->facing);
     if (!player_vault(player))
         return false;
@@ -508,7 +559,7 @@ static float bolt_roll(StageRun *run)
  * down there, hurting what is close (zombies and her) and burning her. */
 static void lightning(StageRun *run, Player *player, const Progress *progress, float dt)
 {
-    if (run->stage->weather != WEATHER_STORM)
+    if (run->stage->weather != WEATHER_STORM || run->train.inside)
         return;
     if (run->bolt_warn > 0.0f) {
         run->bolt_warn -= dt;
@@ -578,7 +629,7 @@ void run_melee(StageRun *run, const Player *player, const Progress *progress)
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
         float half = zombie_body_half_width(z);
-        if (!z->awake || z->hidden || !zombie_alive(z) || z->x + half < lo || z->x - half > hi)
+        if (!z->awake || z->hidden || !train_zombie_visible(run,k) || !zombie_alive(z) || z->x + half < lo || z->x - half > hi)
             continue;
         hit_zombie(run, z, progress_damage(progress) * MELEE_DAMAGE_MULT, MELEE_ARMOR_SHARE);
         z->x += (float)player->facing * MELEE_PUSH;
@@ -667,7 +718,7 @@ static void blow_up(StageRun *run, Player *player, const Progress *progress)
         float damage = progress_damage(progress) * BARREL_DAMAGE_MULT;
         for (int k = 0; k < run->zombie_count; k++) {
             Zombie *z = &run->zombies[k];
-            if (!z->hidden && zombie_alive(z) && fabsf(z->x - xs[b]) - zombie_body_half_width(z) <= BARREL_RADIUS) {
+            if (!z->hidden && train_zombie_visible(run,k) && zombie_alive(z) && fabsf(z->x - xs[b]) - zombie_body_half_width(z) <= BARREL_RADIUS) {
                 hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
                 wake_group(run, run->group_of[k]); /* Caught asleep, its group wakes too */
             }
@@ -706,7 +757,7 @@ static void grenade_blast(StageRun *run, Player *player, const Progress *progres
     float damage = progress_damage(progress) * GRENADE_DAMAGE_MULT;
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
-        if (!z->hidden && zombie_alive(z) && fabsf(z->x - x) - zombie_body_half_width(z) <= GRENADE_RADIUS) {
+        if (!z->hidden && train_zombie_visible(run,k) && zombie_alive(z) && fabsf(z->x - x) - zombie_body_half_width(z) <= GRENADE_RADIUS) {
             hit_zombie(run, z, damage, BARREL_ARMOR_SHARE);
             wake_group(run, run->group_of[k]); /* Caught asleep, its group wakes too */
         }
@@ -758,7 +809,7 @@ static void move_grenades(StageRun *run, Player *player, const Progress *progres
 static void wake_groups(StageRun *run, const Player *player)
 {
     for (int k = 0; k < run->zombie_count; k++) {
-        if (run->zombies[k].awake || run->zombies[k].hidden)
+        if (run->zombies[k].awake || run->zombies[k].hidden || !train_zombie_visible(run,k))
             continue;
         int group = run->group_of[k];
         float farthest = -1e9f;
@@ -936,6 +987,7 @@ static void move_zombies(StageRun *run, Player *player, Progress *progress, floa
     run->target_x = player->x;
     for (int k = 0; k < run->zombie_count; k++) {
         Zombie *z = &run->zombies[k];
+        if (!train_zombie_visible(run,k) && zombie_alive(z)) continue;
         int barricade;
         float target = terrain_zombie_target(&run->terrain, z->x, player->x, &barricade);
         if (z->awake && zombie_alive(z)) /* Each one in line stands a step farther back */
@@ -1186,6 +1238,16 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
 
     mission_advance(&run->mission, dt);
 
+    if (player->car_action)
+        terrain_car_open(&run->terrain, player->car_index, player->car_smash, player->facing);
+    if (player->state == PLAYER_CAR && player->car_index >= 0 &&
+        player->car_index < run->terrain.count && run->terrain.items[player->car_index].spent) {
+        /* An exploding car cannot retain a crossing animation in empty air. */
+        player->x = player_car_progress(player) < .5f ? player->car_from : player->car_to;
+        player->state = PLAYER_IDLE;
+        player->car_duration = 0.0f;
+    }
+
     int holding = run->holding;
     trip_sirens(run, player);
     spring_ambushes(run, player);
@@ -1200,6 +1262,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     }
     wake_groups(run, player);
     lightning(run, player, progress, dt);
+    train_update(run, player, dt);
     terrain_update(&run->terrain, dt);
     if (!run->hinted && run->stage_index < 2) { /* Nothing else says crates hold things */
         for (int i = 0; i < run->terrain.count; i++) {
@@ -1260,7 +1323,7 @@ void run_update(StageRun *run, Player *player, Progress *progress, float dt)
     }
 
     /* Once every body is gone (so their chests are out on the road too). */
-    bool all_gone = run->defeated >= run->stage->zombies;
+    bool all_gone = run->defeated >= run->zombie_count && (!run->train.present || run->train.complete);
     for (int k = 0; k < run->zombie_count; k++)
         all_gone &= run->chest_done[k];
     if (all_gone && run->mission_chest < 0) {

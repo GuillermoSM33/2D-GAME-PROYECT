@@ -112,7 +112,7 @@ const ClueDef CLUES[CLUE_COUNT] = {
     {"Carta de porte",
      "Tren especial 4-G. Carga: *12 contenedores refrigerados* y 40 cajas de archivo. Origen: "
      "apartadero del Laboratorio 4. Destino: *Puesto Cerro Gris*.",
-     "Documento ferroviario con dos sellos: el de Vantrell como remitente y el del ejército como consignatario. Un tercer sello, en rojo: *PRIORIDAD SOBRE LA EVACUACIÓN CIVIL*.",
+     "Recuperada en la terminal de la sala de control del tren laboratorio. Archivo 4: *Cerro Gris, búnker 2*. El registro del prototipo reserva tres módulos al tren y deriva los cinco restantes a Santa Brasa y al puesto militar. Documento ferroviario con dos sellos: el de Vantrell como remitente y el del ejército como consignatario. Un tercer sello, en rojo: *PRIORIDAD SOBRE LA EVACUACIÓN CIVIL*.",
      CLUE_DOCUMENT, 5, 7, CLUE_FROM_MISSION, 0.0f, 0},
     {"Sello de contenedor",
      "Un precinto de metal roto. Grabado: *MRC-2. MANTENER A -20 GRADOS.*",
@@ -702,6 +702,16 @@ void story_start(Story *story, const StoryBeat *beat)
     memset(story, 0, sizeof(*story));
     story->beat = *beat;
     story->done = beat->count <= 0;
+}
+
+bool story_start_stage(Story *story, CaseFile *file, int stage, bool before)
+{
+    const StoryBeat *beat = before ? story_before_stage(stage) : story_after_stage(stage);
+    if (!beat)
+        return false;
+    file->beats_seen |= story_bit(stage, before);
+    story_start(story, beat);
+    return true;
 }
 
 void story_update(Story *story, bool advance, bool skip, float dt)

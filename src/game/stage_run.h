@@ -12,6 +12,7 @@
 #include "game/progression.h"
 #include "game/stages.h"
 #include "game/terrain.h"
+#include "game/train.h"
 #include "game/zombie.h"
 
 /* One play of a stage: a road from her start to a gate. Its zombies wait
@@ -55,7 +56,7 @@ typedef struct {
     float fuse;      /* Seconds left */
 } Grenade;
 
-typedef struct {
+typedef struct StageRun {
     int stage_index;
     const StageDef *stage;
     bool drops_chests; /* The character's ability: every zombie leaves a chest */
@@ -130,6 +131,8 @@ typedef struct {
     bool bolt_struck;  /* It struck on this update */
     bool bolt_hit_her; /* ...and caught her */
     unsigned bolt_seed;
+    TrainJourney train;
+    unsigned weapon_parts; /* Eight persistent research components, shared by the case file. */
 } StageRun;
 
 /* Drain impacts/traps once after run_update. Includes run_bullets/run_melee

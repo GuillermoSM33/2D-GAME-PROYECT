@@ -14,8 +14,11 @@
 #include "game/weather.h"
 #include "game/world.h"
 
-/* What the pause shows: its list, or the volume or controls screen opened from it. */
-typedef enum { PAUSE_VIEW_LIST, PAUSE_VIEW_VOLUME, PAUSE_VIEW_CONTROLS } PauseView;
+/* What the pause shows: its list, or the volume or controls screen opened from
+ * it; or, opened straight from the stage, the train's map (M) or what she
+ * carries (P), the stage frozen behind them as in the pause. */
+typedef enum { PAUSE_VIEW_LIST, PAUSE_VIEW_VOLUME, PAUSE_VIEW_CONTROLS, PAUSE_VIEW_MAP,
+               PAUSE_VIEW_INVENTORY } PauseView;
 
 #define APP_PROFILE_CAPACITY 8
 
@@ -78,6 +81,8 @@ typedef struct {
     int clue_count;
     int clue_toast;         /* The clue the HUD is announcing, or -1 */
     float clue_toast_time;  /* Seconds left of it */
+    int part_toast;
+    float part_toast_time;
     bool flashlight;
     float flashlight_since; /* Seconds since its switch was flipped */
     bool flashlight_click_pending; /* Wait until the raising animation reaches the switch */

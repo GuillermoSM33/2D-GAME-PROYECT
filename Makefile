@@ -27,7 +27,7 @@ CORE_SRC := src/engine/input.c src/engine/animation.c src/game/movement.c src/ga
             src/game/menu.c src/game/weapons.c src/game/characters.c src/game/char_select.c \
             src/game/terrain.c src/game/settings.c src/game/crows.c src/game/bats.c src/game/weather.c \
             src/game/hallucination.c src/game/almanac.c src/game/lighting.c src/game/mission.c \
-            src/game/intro.c src/game/casefile.c
+            src/game/intro.c src/game/casefile.c src/game/train.c src/game/car_pass.c
 APP_SRC  := src/main.c src/app/application.c src/app/capture.c src/app/navigation.c src/app/options.c \
             src/app/smoke.c src/app/stage.c src/app/stage_render.c src/app/intro_render.c src/app/story_render.c src/app/story_audio.c src/app/verify.c src/app/savegame.c src/app/autosave.c \
             src/engine/platform.c src/engine/assets.c src/engine/text.c src/engine/audio.c src/engine/pixfont.c src/engine/prefs.c src/engine/storage.c \
@@ -35,7 +35,7 @@ APP_SRC  := src/main.c src/app/application.c src/app/capture.c src/app/navigatio
             src/game/bullet_render.c src/game/zombie_render.c src/game/effects_render.c \
             src/game/health_bar.c src/game/smoke_render.c src/game/chest_render.c \
             src/game/character_skin.c src/game/terrain_render.c src/game/ui.c src/game/hang_render.c \
-            src/game/weather_render.c src/game/almanac_render.c src/game/casefile_render.c
+            src/game/weather_render.c src/game/almanac_render.c src/game/casefile_render.c src/game/train_render.c
 TESTS    := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/test_*.c))
 AUDIO_TEST := $(BUILD)/tests/audio_mixer
 ASSETS_LOADER_TEST := $(BUILD)/tests/assets_loader
@@ -148,7 +148,10 @@ test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_zombie_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/cowgirl_reload_art.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/swat_art.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_hazmat.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/car_model_art.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/project_tools.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_scenery_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/persistence_process.py $(PERSISTENCE_TEST)
 
 run: $(BIN)

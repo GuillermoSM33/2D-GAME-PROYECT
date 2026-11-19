@@ -12,6 +12,7 @@
 #include "game/hang_render.h"
 #include "game/menu.h"
 #include "game/terrain.h"
+#include "game/train_render.h"
 #include "game/ui.h"
 #include "game/weapons.h"
 
@@ -127,6 +128,11 @@ static void hud_plate(SDL_Renderer *renderer, int x, int y, int w, int h)
     SDL_Rect rivets[] = {{x + 2, y + 2, 2, 2}, {x + w - 4, y + 2, 2, 2},
                          {x + 2, y + h - 4, 2, 2}, {x + w - 4, y + h - 4, 2, 2}};
     SDL_RenderFillRects(renderer, rivets, 4);
+}
+
+void hud_draw_plate(SDL_Renderer *renderer, int x, int y, int w, int h)
+{
+    hud_plate(renderer, x, y, w, h);
 }
 
 /* Critical numbers always remain complete. Current names fit at scale two;
@@ -390,9 +396,9 @@ static void draw_mission(SDL_Renderer *renderer, const Player *player, const Sta
     snprintf(str, sizeof(str), "SALIDA %d M", meters);
     hud_text_fit(renderer, str, right, y0 + 19, EXIT_W, 2, COLOR_HUD_PRIMARY, ANCHOR_NE);
     ui_icon(renderer, ICON_SKULL, x, y0 + 43, 1);
-    snprintf(str, sizeof(str), "%d/%d", run->defeated, run->stage->zombies);
+    snprintf(str, sizeof(str), "%d/%d", run->defeated, run->zombie_count);
     hud_text_fit(renderer, str, x + 16, y0 + 38, DEFEATED_W, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
-    float share = run->stage->zombies > 0 ? (float)run->defeated / (float)run->stage->zombies : 1.0f;
+    float share = run->zombie_count > 0 ? (float)run->defeated / (float)run->zombie_count : 1.0f;
     int bar_x = x + 16 + DEFEATED_W + 6, bar_end = right;
     if (clues_total > 0) { /* Its clues at the plate's end: the mission is zombies and clues */
         snprintf(str, sizeof(str), "%d/%d", clues_found, clues_total);
@@ -709,11 +715,27 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
     char str[80];
     if (run->phase != RUN_FIGHTING)
         return;
+    if (player->state == PLAYER_CAR) {
+        draw_context(renderer, NULL, "CRUZANDO EL COCHE", COLOR_HUD_PRIMARY);
+        return;
+    }
     if (player->state == PLAYER_CAUGHT) { /* First things first */
         if (player->catch_blows > 0) {
             snprintf(str, sizeof(str), "GOLPEA LA CUERDA · %d RESTANTES", player->catch_blows);
             draw_context(renderer, "V", str, COLOR_HUD_DANGER);
         }
+        return;
+    }
+    TrainPromptKind train_kind;
+    const char *train_hint = train_prompt(run, player, &train_kind);
+    if (train_hint) { /* Only what E would do carries its key. */
+        draw_context(renderer, train_kind == TRAIN_PROMPT_USE ? "E" : NULL, train_hint,
+                     train_kind == TRAIN_PROMPT_USE ? COLOR_HUD_TITLE
+                     : train_kind == TRAIN_PROMPT_DONE ? COLOR_HUD_XP : COLOR_HUD_DANGER);
+        return;
+    }
+    if (train_in_fumes(run, player)) {
+        draw_context(renderer, NULL, "AIRE TÓXICO · PONTE UN TRAJE DEL VAGÓN 01", COLOR_HUD_DANGER);
         return;
     }
     int kind = terrain_sign_ahead(&run->terrain, player->x, player->facing, SIGN_WARN_RANGE);
@@ -735,12 +757,15 @@ static void draw_prompt(SDL_Renderer *renderer, const Player *player, const Stag
         draw_context(renderer, "E", "DESCANSAR", COLOR_HUD_TITLE);
     } else if (terrain_barricade_ahead(&run->terrain, player->x, player->facing) &&
                player->jump.height <= 0.0f) {
-        draw_context(renderer, "N", "CRUZAR BARRICADA", COLOR_HUD_TITLE);
+        int car = terrain_car_ahead(&run->terrain, player->x, player->facing);
+        const Piece *p = car >= 0 ? &run->terrain.items[car] : NULL;
+        draw_context(renderer, "N", p ? (terrain_car_locked(p) && !(p->car_flags & CAR_WINDOW_BROKEN)
+                     ? "ROMPER VENTANA Y CRUZAR" : "ABRIR Y CRUZAR EL COCHE") : "CRUZAR BARRICADA", COLOR_HUD_TITLE);
     } else if (run_fight_left(run) > 0) {
         int left = run_fight_left(run);
         snprintf(str, sizeof(str), "DESPEJA EL CAMINO · %s %d", left == 1 ? "FALTA" : "FALTAN", left);
         draw_context(renderer, NULL, str, COLOR_HUD_DANGER);
-    } else if (run->defeated >= run->stage->zombies) {
+    } else if (run->defeated >= run->zombie_count) {
         draw_context(renderer, NULL, "EL COFRE TE ESPERA EN LA SALIDA →", COLOR_HUD_TITLE);
     }
 }
@@ -991,6 +1016,16 @@ void hud_draw_resume_hint(SDL_Renderer *renderer, const char *stage_name)
                   COLOR_HUD_XP, ANCHOR_N);
 }
 
+/* The inventory board (P), window px. */
+#define INV_W 720
+#define INV_H 430
+#define INV_X ((WINDOW_WIDTH - INV_W) / 2)
+#define INV_Y 30
+#define INV_PORTRAIT_W 156
+#define INV_ROW 40
+#define INV_LIST_X (INV_X + 28 + INV_PORTRAIT_W + 24) /* Where the right column starts */
+#define INV_LIST_W (INV_X + INV_W - 28 - INV_LIST_X)
+
 bool hud_verify_layout(void)
 {
     if (!pixfont_init())
@@ -1083,6 +1118,24 @@ bool hud_verify_layout(void)
         fprintf(stderr, "HUD: estados fuera de su fila.\n");
         ok = false;
     }
+    /* A recovered part's brief toast stays clear of the status row. */
+    if (TRAIN_TOAST_Y < STATE_Y + STATE_H + 4) {
+        fprintf(stderr, "HUD: aviso del tren sobre los estados.\n");
+        ok = false;
+    }
+    ok = train_render_verify_layout() && ok;
+    /* The inventory at its fullest: three guns, the tablet and the parts. */
+    int inv_bottom = INV_Y + 60 + 24 + INV_ROW + HUD_INVENTORY_GUNS * INV_ROW + 4 + 24 + INV_ROW + 24 + 2 * INV_ROW;
+    if (inv_bottom > INV_Y + INV_H - 8 || INV_Y + INV_H + 10 + 14 * UI_SCALE > WINDOW_HEIGHT) {
+        fprintf(stderr, "HUD: el inventario no cabe (%d).\n", inv_bottom);
+        ok = false;
+    }
+    if (ui_text_width("TRAJE AISLANTE", 2) + 44 + 12 + ui_text_width("EN EL VAGÓN 01", 2) > INV_LIST_W ||
+        3 * (30 + ui_text_width("DINAMITA", 2) + 8 + ui_text_width("999", 2)) > INV_LIST_W ||
+        44 + ui_text_width("PIEZAS DEL PROTOTIPO", 2) + 12 + ui_text_width("8/8", 2) > INV_LIST_W) {
+        fprintf(stderr, "HUD: una fila del inventario no cabe.\n");
+        ok = false;
+    }
     return ok;
 }
 
@@ -1130,11 +1183,13 @@ void hud_draw_controls(SDL_Renderer *renderer)
         {{"V", NULL}, "CULATAZO", "CORTA ALAMBRE, ROMPE CAJAS"},
         {{"U", NULL}, "VENDAR / BEBER", "MANTÉN: VENDAR · PULSA: BEBER"},
         {{"L", NULL}, "LINTERNA", NULL},
+        {{"M", NULL}, "MAPA DEL TREN", "CON LA TABLETA DEL VAGÓN 01"},
+        {{"P", NULL}, "INVENTARIO", "TRAJE, ARMAS, AGUA, DINAMITA"},
         {{"B", NULL}, "ALMANAQUE", NULL},
         {{"ESC", NULL}, "PAUSA", NULL},
         {{"A", "D"}, "VOLUMEN Y MÚSICA", "EN OPCIONES: BAJAR / SUBIR"},
     };
-    enum { LEFT_ROWS = 8, PITCH = 48, KEYS_W = 186 };
+    enum { LEFT_ROWS = 9, PITCH = 44, KEYS_W = 186 }; /* Nine a side: under the window with its hints */
     int count = (int)(sizeof(rows) / sizeof(rows[0]));
     int w = 900, h = 52 + LEFT_ROWS * PITCH + 8, x = (WINDOW_WIDTH - w) / 2, y = 12;
     ui_panel(renderer, x, y, w, h);
@@ -1194,6 +1249,151 @@ void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes
     add_zone(HUD_ZONE_ITEM, VOLUME_BACK, WINDOW_WIDTH / 2 - 110, y + h - 60, 220, 44);
     static const char *const hints[] = {"W/S", "ELEGIR", "A/D", "BAJAR/SUBIR", "ESC", "VOLVER"};
     draw_hints(renderer, hints, 3, WINDOW_HEIGHT - 52);
+}
+
+/* ---- The inventory (P) ------------------------------------------------------ */
+
+/* A section's name over its rows, with a rule after it. */
+static int inv_heading(SDL_Renderer *renderer, const char *label, int y)
+{
+    int w = ui_text(renderer, label, INV_LIST_X, y, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
+    SDL_SetRenderDrawColor(renderer, 107, 80, 56, 255);
+    SDL_Rect rule = {INV_LIST_X + w + 10, y + 8, INV_LIST_W - w - 10, 1};
+    SDL_RenderFillRect(renderer, &rule);
+    return y + 24;
+}
+
+/* The suit's own mark: a small hazmat suit, yellow if worn, else its outline. */
+static void inv_suit(SDL_Renderer *renderer, int x, int y, bool worn)
+{
+    static const char *const rows[] = {"  ####  ", " #....# ", " #.##.# ", "  ####  ", "########",
+                                       "#.####.#", "#.####.#", "#.####.#", " ###### ", " ##  ## ",
+                                       " ##  ## ", " ##  ## ", "###  ###"};
+    for (int j = 0; j < 13; j++)
+        for (int i = 0; i < 8; i++) {
+            char c = rows[j][i];
+            if (c == ' ') continue;
+            unsigned rgb = !worn ? (c == '#' ? 0x6b5a48 : 0x231915)
+                         : c == '.' ? (j < 3 ? 0x3d6a74 : 0xb08a28) : 0xe0b83c;
+            SDL_SetRenderDrawColor(renderer, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb, 255);
+            SDL_Rect px = {x + i * 2, y + j * 2, 2, 2};
+            SDL_RenderFillRect(renderer, &px);
+        }
+}
+
+/* The train's tablet: a dark slate with a teal screen. */
+static void inv_tablet(SDL_Renderer *renderer, int x, int y)
+{
+    SDL_Rect body = {x, y + 3, 22, 18}, screen = {x + 2, y + 5, 18, 13};
+    SDL_SetRenderDrawColor(renderer, 0x14, 0x18, 0x1a, 255);
+    SDL_RenderFillRect(renderer, &body);
+    SDL_SetRenderDrawColor(renderer, 0x2f, 0x9a, 0x92, 255);
+    SDL_RenderFillRect(renderer, &screen);
+    SDL_SetRenderDrawColor(renderer, 0x8f, 0xe8, 0xde, 255);
+    for (int k = 0; k < 3; k++) {
+        SDL_Rect car = {x + 3 + k * 6, y + 10, 4, 3};
+        SDL_RenderFillRect(renderer, &car);
+    }
+}
+
+void hud_draw_inventory(SDL_Renderer *renderer, const HudInventory *inv)
+{
+    char str[64];
+    ui_dim(renderer, 160);
+    SDL_Texture *board = assets_texture("sprites/ui/field_inventory");
+    if (board) {
+        SDL_Rect dst = {INV_X, INV_Y, INV_W, INV_H};
+        SDL_RenderCopy(renderer, board, NULL, &dst);
+    } else ui_panel(renderer, INV_X, INV_Y, INV_W, INV_H);
+    ui_text(renderer, "INVENTARIO", WINDOW_WIDTH / 2, INV_Y + 22, 3, COLOR_HUD_TITLE, ANCHOR_N);
+    /* Left: herself as she stands now, the suit on if she wears it. */
+    int px = INV_X + 28, py = INV_Y + 60, ph = 250;
+    hud_well(renderer, px, py, INV_PORTRAIT_W, ph);
+    SDL_Rect inner = {px + 2, py + 2, INV_PORTRAIT_W - 4, ph - 4};
+    SDL_SetRenderDrawColor(renderer, 0x3a, 0x30, 0x28, 255);
+    SDL_RenderFillRect(renderer, &inner);
+    if (inv->portrait) {
+        int scale = 3, w = inv->portrait_src.w * scale, h = inv->portrait_src.h * scale;
+        SDL_Rect dst = {px + (INV_PORTRAIT_W - w) / 2, py + ph - 8 - h, w, h};
+        SDL_Rect previous_clip;
+        SDL_bool clipped = SDL_RenderIsClipEnabled(renderer);
+        SDL_RenderGetClipRect(renderer, &previous_clip);
+        SDL_RenderSetClipRect(renderer, &inner);
+        SDL_RenderCopy(renderer, inv->portrait, &inv->portrait_src, &dst);
+        SDL_RenderSetClipRect(renderer, clipped ? &previous_clip : NULL);
+    }
+    hud_text_fit(renderer, inv->character, px + INV_PORTRAIT_W / 2, py + ph + 10, INV_PORTRAIT_W, 2,
+                 COLOR_HUD_TITLE, ANCHOR_N);
+    /* Right: what she wears, what she shoots, what she has left. */
+    int x = INV_LIST_X, y = inv_heading(renderer, "EQUIPO", INV_Y + 60);
+    inv_suit(renderer, x + 10, y + 7, inv->suit);
+    ui_text(renderer, "TRAJE AISLANTE", x + 44, y + 4, 2, inv->suit ? COLOR_HUD_PRIMARY : COLOR_HUD_SECONDARY,
+            ANCHOR_NW);
+    ui_text(renderer, inv->suit ? "PUESTO" : inv->suits_here ? "EN EL VAGÓN 01" : "NINGUNO",
+            x + INV_LIST_W, y + 4, 2, inv->suit ? COLOR_HUD_XP : COLOR_HUD_SECONDARY, ANCHOR_NE);
+    if (inv->suit)
+        ui_text(renderer, "PROTEGE DEL AIRE TÓXICO", x + 44, y + 22, 1, COLOR_HUD_SECONDARY, ANCHOR_NW);
+    y += INV_ROW;
+    for (int i = 0; i < inv->gun_count && i < HUD_INVENTORY_GUNS; i++, y += INV_ROW) {
+        const HudInventoryGun *g = &inv->guns[i];
+        hud_well(renderer, x, y - 2, UI_WEAPON_W * 2 + 8, UI_WEAPON_H * 2 + 8);
+        ui_weapon(renderer, g->id, x + 4, y + 2, 2);
+        int name_x = x + UI_WEAPON_W * 2 + 18, name_w = INV_LIST_W - (UI_WEAPON_W * 2 + 18) - 150;
+        hud_text_fit(renderer, g->name, name_x, y + 4, name_w, 2,
+                     g->in_hand ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW);
+        ui_text(renderer, g->in_hand ? "EN LA MANO" : "GUARDADA", name_x, y + 22, 1,
+                COLOR_HUD_SECONDARY, ANCHOR_NW);
+        if (g->magazine <= 0)
+            snprintf(str, sizeof(str), "SIN LÍMITE");
+        else if (g->other_rounds >= 0)
+            snprintf(str, sizeof(str), "%d/%d · %d/%d", g->rounds, g->magazine, g->other_rounds, g->magazine);
+        else
+            snprintf(str, sizeof(str), "%d/%d", g->rounds, g->magazine);
+        int w = ui_text(renderer, str, x + INV_LIST_W, y + 4, 2,
+                        g->magazine > 0 && g->rounds == 0 ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NE);
+        ui_icon(renderer, g->id == WEAPON_SHOTGUN ? ICON_SHELL : ICON_BULLET, x + INV_LIST_W - w - 28, y + 3, 2);
+    }
+    y = inv_heading(renderer, "PROVISIONES", y + 4);
+    const UiIcon icons[] = {ICON_WATER, ICON_DYNAMITE, ICON_GOLD};
+    const char *const names[] = {"AGUA", "DINAMITA", "ORO"};
+    const int counts[] = {inv->water, inv->dynamite, inv->gold};
+    int column = INV_LIST_W / 3;
+    for (int i = 0; i < 3; i++) {
+        int cx = x + i * column;
+        ui_icon(renderer, icons[i], cx, y + 2, 2);
+        int w = ui_text(renderer, names[i], cx + 30, y + 4, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
+        snprintf(str, sizeof(str), "%d", counts[i]);
+        ui_text(renderer, str, cx + 30 + w + 8, y + 4, 2,
+                i == 2 ? COLOR_HUD_TITLE : counts[i] == 0 ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NW);
+    }
+    y += INV_ROW;
+    if (inv->tablet || inv->parts >= 0) {
+        y = inv_heading(renderer, "OBJETOS", y);
+        if (inv->tablet) {
+            inv_tablet(renderer, x + 4, y);
+            ui_text(renderer, "TABLETA DEL TREN", x + 44, y + 4, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+            int w = ui_text(renderer, "MAPA", x + INV_LIST_W, y + 4, 2, COLOR_HUD_SECONDARY, ANCHOR_NE);
+            ui_key(renderer, x + INV_LIST_W - w - 8 - ui_key_width("M"), y - 2, "M");
+            y += INV_ROW;
+        }
+        if (inv->parts >= 0) {
+            SDL_SetRenderDrawColor(renderer, 0xc1, 0x9a, 0x4c, 255);
+            for (int k = 0; k < 6; k++) {
+                SDL_Rect row = {x + 14 - k, y + 4 + k, 1 + 2 * k, 1}, low = {x + 14 - k, y + 16 - k, 1 + 2 * k, 1};
+                SDL_RenderFillRect(renderer, &row);
+                SDL_RenderFillRect(renderer, &low);
+            }
+            SDL_SetRenderDrawColor(renderer, 0x7f, 0xf0, 0xe6, 255);
+            SDL_Rect core = {x + 12, y + 8, 5, 5};
+            SDL_RenderFillRect(renderer, &core);
+            ui_text(renderer, "PIEZAS DEL PROTOTIPO", x + 44, y + 4, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+            snprintf(str, sizeof(str), "%d/8", inv->parts);
+            ui_text(renderer, str, x + INV_LIST_W, y + 4, 2, inv->parts == 8 ? COLOR_HUD_XP : COLOR_HUD_PRIMARY,
+                    ANCHOR_NE);
+        }
+    }
+    static const char *const hints[] = {"P", "CERRAR", "ESC", "VOLVER"};
+    draw_hints(renderer, hints, 2, INV_Y + INV_H + 10);
 }
 
 void hud_draw_pause(SDL_Renderer *renderer, const ListMenu *menu)

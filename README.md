@@ -32,11 +32,13 @@ que hace o provoca: disparos, recargas, explosiones, provisiones) y Zombis (sus 
 | `E` | Poner dinamita en un muro alto, sentarse en una banca, o plantar dinamita en el suelo |
 | `V` | Culatazo (un mazazo; cada 1.5 s): empuja y hiere a los zombis, corta alambre, rompe cajas; atrapado, golpea la cuerda |
 | `U` | Si sangra, vendarse (mantener; detiene el sangrado en 1.5 s, caminando a la mitad de velocidad); si no, beber un galón de agua |
-| `N` | Saltar una barricada (son más altas que el salto normal; también se pueden romper) |
+| `N` | Cruzar una barricada; en un coche, abrir la puerta o romper la ventana y pasar por dentro |
 | `K` | SWAT: rifle en ráfagas o tiro a tiro (15 balas) |
 | `F` o clic central | Poder de nivel 3 (cada 15 s): granada del SWAT, disparo de rebote de la vaquera |
 | `B` | Abrir el almanaque durante la partida, también mientras está pausada |
 | `L` | Encender o apagar la linterna durante el nivel; ilumina hacia donde mira; empieza encendida de noche y de día se ve más tenue |
+| `M` | Con la tableta del vagón 01: abrir o cerrar el mapa y los objetivos del tren (el nivel queda en pausa) |
+| `P` | Inventario: traje puesto, armas y sus balas, agua, dinamita, oro, tableta y piezas (el nivel queda en pausa) |
 | `Esc` | Pausa: Continuar, Reiniciar nivel, Almanaque, Opciones, Controles, Salir al menú |
 | `F11` | Pantalla completa o ventana, en cualquier momento |
 | `W`/`S`, `Enter` | Moverse y aceptar en los menús (`A`/`D` en personajes y opciones) |
@@ -368,7 +370,7 @@ Subir de nivel rellena toda la vida hasta el nuevo máximo; no elimina sangrado 
 | 1-5 | 22 | 5, el último **6** (jefe) | 1.50 | Completa las variantes y combina los peligros |
 | 2-1 | 28 | 6 | 1.60 | Las afueras: patrullas con sirena y su **horda**, barriles ardiendo, autos y vallas |
 | 2-2 | 31 | 7 | 1.70 | El centro con lluvia: hordas mayores, escaparates cerrados y un élite |
-| 2-3 | 33 | 8 | 1.80 | Las vías: tres **trenes averiados** cortan el paso (dinamita o barril) |
+| 2-3 | 63 | 8 | 1.80 | Las vías: trenes averiados y el **tren laboratorio** de 15 vagones (30 infectados dentro, tableta, trajes y aire tóxico) |
 | 2-4 | 36 | 9 | 1.90 | El centro de noche, con frío y tormenta: dos hordas |
 | 2-5 | 38 | 10, el último **11** (jefe) | 2.00 | La base militar: alambre, retenes, dos élites |
 
@@ -387,10 +389,16 @@ de dos plantas y los bidones le llegan a la cintura.
   **fogonazo** que quema a quien esté cerca, y siguen ardiendo tirados mientras su aceite quema el piso.
 - **Hidrantes** (`SPOT_HYDRANTS`): un tiro los revienta; el chorro dura 2 s, **daña y empuja** a
   zombis y a la jugadora (la moja) y deja un charco.
-- **Autos y motos como barricada** (tres modelos de cada uno): se saltan con N (el auto, de un
-  brinco largo) y **explotan** con 6 tiros (auto) o 4 (moto), al ser destrozados o por otra
+- **Autos y motos como barricada** (tres modelos de cada uno): con N, la sheriff y el SWAT
+  caminan a la puerta, la abren, entran agachados, cruzan sentados en el piso y salen por la
+  otra puerta; si está bloqueado, rompen el cristal de un puñetazo y quitan el seguro por
+  dentro. Autos y camiones son algo más grandes que la vida real junto a ella.
+  La camioneta tiene una sola puerta: entran y salen por ella.
+  Algunos conservan una alarma operativa: romper el cristal la dispara y atrae zombis.
+  La ventana rota y la alarma se guardan, y la animación puede reanudarse tras cargar la partida.
+  Las motos conservan su salto. Los vehículos **explotan** con 6 tiros (auto) o 4 (moto), al ser destrozados o por otra
   explosión, con la misma explosión de los barriles.
-- **Tren averiado** (`SPOT_TRAIN`): un muro hecho de dos vagones; se abre con dinamita.
+- **Tren laboratorio** (`SPOT_TRAIN`, 2-3): E entra por el vagón 01; dentro se buscan la tableta, tres piezas y el Archivo 4. La escotilla requiere despejar sus quince salas. La tableta abre el mapa y los objetivos; M/P alternan entre mapa e inventario y Esc los cierra.
 - **Puesto de avanzada** (`SPOT_OUTPOST`): con E se registra una vez (dinamita, agua, cargadores
   llenos y algo de vida) y se enciende su reflector.
 - **Vehículos de paso**: autos, un todoterreno militar y camiones del ejército quedan sobre el
@@ -564,8 +572,8 @@ tareas **Grabar sonido (8 bits)** y **Convertir archivo a sonido (8 bits)**.
 
 ## Mundo
 
-El nivel es una franja de 96 000 px (unas 100 pantallas) dividida en tramos de 480 px.
-La vaquera empieza a la mitad y la cámara la sigue centrada (se detiene en los extremos).
+El nivel es una franja de 153 600 unidades (80 vistas completas) dividida en tramos de 960 unidades.
+La vaquera empieza en la coordenada 48000 y la cámara la sigue centrada (se detiene en los extremos).
 Cada tramo se genera a partir de `WORLD_SEED`, su número y el **tema** del nivel: hasta dos
 decorados grandes (cactus, rocas, cercas, árboles secos…) y matas de pasto. Solo existen en
 memoria los tramos a la vista más uno a cada lado: al caminar a la izquierda se cargan los

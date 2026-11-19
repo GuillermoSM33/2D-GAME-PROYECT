@@ -44,8 +44,17 @@ PYTHONDONTWRITEBYTECODE=1 python3 tools/make_zombies.py --verify
 step "Comprobando el arte de UI, objetos y reparto de apoyo"
 PYTHONDONTWRITEBYTECODE=1 python3 tools/rebuild_support_art.py --verify
 
+step "Comprobando el arte de la tableta y el inventario"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/make_field_ui.py --verify
+
 step "Comprobando todas las poses del SWAT"
 PYTHONDONTWRITEBYTECODE=1 python3 tools/rebuild_swat.py --verify
+
+step "Comprobando el paso por los coches"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/make_car_passage.py --verify
+
+step "Comprobando el traje aislante de la sheriff y el SWAT"
+PYTHONDONTWRITEBYTECODE=1 python3 tools/make_hazmat.py --verify
 
 step "Comprobando el arte de las cinemáticas"
 PYTHONDONTWRITEBYTECODE=1 python3 tools/make_cinematics.py --only lab ambulance --verify

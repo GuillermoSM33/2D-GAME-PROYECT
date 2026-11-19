@@ -16,7 +16,7 @@ from make_sprites import Image, rgb
 from scenery_materials import FONT
 
 WIDTHS = {'vehicles': 184, 'car_wreck': 136, 'siren_car': 136,
-          'supply_truck': 184, 'train': 300, 'outpost': 168,
+          'supply_truck': 184, 'train': 15 * 360 + 32, 'outpost': 168,
           'burner': 40, 'hydrant': 20}
 INK, STEEL, EDGE = 0x18191c, 0x60656b, 0xa7aaa6
 FLAMES = {(255, 246, 220), (255, 210, 60), (240, 138, 36), (200, 74, 20)}
@@ -361,90 +361,11 @@ def truck(d: Draw, base: int, load: int):
 
 
 def train(d: Draw):
-    # Boxcar: the ribbed wall has a weathered top flange, individual sheet
-    # panels, riveted channel ribs, sliding door tracks and a maintenance step.
-    for x in range(5, 125):
-        lift = (128 - x) // 14
-        top, bottom = 30 - lift, 89 - lift
-        for y in range(top + 2, bottom - 1):
-            rib = (x - 5) % 12
-            value = 0x774a32 if rib < 7 else 0x59372a
-            if rib == 0:
-                value = 0xa16c43
-            elif rib == 1:
-                value = 0x442e26
-            if y > bottom - 8:
-                value = shade(value, .7)
-            d.p(x, y, value)
-        d.p(x, top + 1, 0xba8251)
-        d.p(x, bottom - 1, 0x332c29)
-        if (x - 5) % 12 in (0, 1):
-            for y in range(top + 5, bottom - 5, 10):
-                d.bolt(x, y, 0xa38a69)
-    for x0 in (39, 75):
-        d.box(x0, 39, x0 + 25, 82, 0x493229)
-        d.box(x0 + 2, 42, x0 + 23, 79, 0x724a33)
-        for x in range(x0 + 5, x0 + 22, 5):
-            d.line(x, 43, x, 78, 0x4b352a)
-            d.line(x + 1, 43, x + 1, 78, 0x99704a)
-        d.line(x0 - 2, 37, x0 + 28, 37, 0x9f9d87)
-        d.line(x0 - 2, 38, x0 + 28, 38, 0x323539)
-        d.line(x0 + 4, 77, x0 + 20, 46, 0x49362c)
-        d.line(x0 + 5, 77, x0 + 21, 46, 0x9a7050)
-        d.box(x0 + 20, 58, x0 + 22, 64, 0x2b2b2c)
-        d.line(x0 + 21, 59, x0 + 21, 63, 0xa29d87)
-    for y in range(37, 78, 8):
-        d.line(7, y, 16, y, 0x7e8077)
-        d.line(7, y + 1, 16, y + 1, 0x36393b)
-    d.box(21, 48, 33, 56, 0x453d30)
-    d.text('07', 23, 50, 0xc4b596)
-    # Locomotive: an upper hood plane, removable access hatches and deep
-    # louver banks above the safety stripe; no drawing enters the door gap.
-    d.poly([(175, 43), (236, 43), (242, 47), (175, 47)], 0x9a8b4e)
-    d.box(176, 48, 238, 59, 0x4a4b31)
-    for x0 in (178, 200, 222):
-        d.box(x0, 49, x0 + 17, 59, 0x282e28)
-        d.line(x0, 49, x0 + 17, 49, 0xb0aa82)
-        for x in range(x0 + 2, x0 + 16, 3):
-            d.line(x, 51, x, 57, 0x858773)
-            d.line(x + 1, 51, x + 1, 58, 0x3b4136)
-        d.bolt(x0 + 1, 58)
-        d.bolt(x0 + 16, 58)
-    for x0 in (177, 198, 219):
-        pressed_panel(d, x0, 66, x0 + 18, 85, 0x615a32)
-        d.box(x0 + 12, 69, x0 + 14, 73, 0x272d26)
-        d.bolt(x0 + 3, 69, 0x8a896f)
-    d.line(176, 61, 294, 61, 0xbb5139)
-    d.line(176, 64, 294, 64, 0x572d26)
-    # Cab has a framed pair of windows, steering wheel and one shattered pane.
-    d.poly([(240, 20), (296, 20), (299, 24), (238, 24)], 0x9a8e59)
-    pane(d, [(246, 27), (261, 27), (261, 40), (246, 40)], False)
-    pane(d, [(267, 27), (287, 27), (287, 40), (267, 40)], True)
-    d.line(245, 26, 288, 26, 0xb5b28c)
-    d.line(264, 26, 264, 41, 0x323b2d)
-    d.ellipse(255, 38, 3, 2, 0x24302b)
-    d.p(254, 37, 0x9d9c80)
-    d.box(248, 46, 273, 57, 0x5a5736)
-    d.text('07', 253, 49, 0xd0c5a1)
-    for y in range(46, 85, 7):
-        d.line(282, y, 290, y, 0x919483)
-        d.line(282, y + 1, 290, y + 1, 0x2a302c)
-    # Handrail and cylindrical fuel tank under the engine's hood.
-    for y in (71, 72):
-        d.line(175, y, 239, y, 0xa3a58d if y == 71 else 0x272d29)
-    for x in (180, 203, 226):
-        d.line(x, 72, x, 87, 0x585e51)
-        d.p(x - 1, 73, 0xb1b099)
-    d.box(220, 88, 239, 94, 0x414849)
-    d.ellipse(220, 91, 3, 3, 0x636b65)
-    d.ellipse(238, 91, 2, 3, 0x282f31)
-    d.line(221, 89, 235, 89, 0x969b89)
-    for x in (224, 235):
-        d.line(x, 89, x, 94, 0x232b2e)
-    for x, lift in ((24, 7), (40, 6), (100, 2), (116, 1)):
-        tyre(d, x, 98 - lift, 5.1, bare=True)
-    for x in (198, 216, 254, 272):
-        tyre(d, x, 98, 5.1, bare=True)
+    from train_art import make_train
+    image = make_train()
+    for y in range(image.height):
+        for x in range(image.width):
+            d.p(x, y, image.get(x, y))
 
 
 def sack(d: Draw, x: int, y: int, width: int = 12):

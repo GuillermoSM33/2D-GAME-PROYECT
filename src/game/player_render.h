@@ -11,5 +11,9 @@
  * shooting with the gun in weapon_slot. */
 void player_render(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
                    const WeaponId *guns, int weapon_slot, float camera_x);
+/* Crossing a car: what of her is inside it, drawn before its doors and body
+ * cover her (player_render draws the rest, out of it). */
+void player_render_car_inside(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
+                              const WeaponId *guns, int weapon_slot, float camera_x);
 
 #endif

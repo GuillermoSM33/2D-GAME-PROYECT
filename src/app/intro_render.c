@@ -576,13 +576,17 @@ void cine_vehicle_wheels(SDL_Renderer *r, int variant, float view_x, float trave
     const int px = SPRITE_SCALE;
     int left = (int)lroundf(view_x) - VEHICLE_FRAME_W * px / 2;
     int top = BASELINE - VEHICLE_FRAME_H * px;
+    /* These are the native drawing coordinates from make_city.VEHICLE_LAYOUT:
+     * the jeep is authored at 1.2 with x offset 55; the truck at 1.6 with
+     * offset 2. Scaling the old 184 x 70 anchors by the frame ratio would
+     * put separate wheels on the canvas and leave the real tires still. */
     if (variant == 3) {
-        cine_wheel(r, left + 32 * px, top + 57 * px, 12.1f, px, travel);
-        cine_wheel(r, left + 122 * px, top + 57 * px, 12.1f, px, travel);
+        cine_wheel(r, left + 93 * px, top + 97 * px, 14.64f, px, travel);
+        cine_wheel(r, left + 201 * px, top + 97 * px, 14.64f, px, travel);
     } else if (variant == 4) {
-        static const int axles[] = {26, 50, 152};
+        static const int axles[] = {44, 82, 245};
         for (int k = 0; k < 3; k++)
-            cine_wheel(r, left + axles[k] * px, top + 59 * px, 10.1f, px, travel);
+            cine_wheel(r, left + axles[k] * px, top + 95 * px, 16.32f, px, travel);
     }
 }
 

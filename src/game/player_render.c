@@ -197,6 +197,31 @@ static void draw_caught(SDL_Renderer *renderer, const CharacterSkin *skin, int g
 static void render_at(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
                       const WeaponId *guns, int weapon_slot, float camera_x);
 
+/* One of the two rows of her car sheet (game/car_pass.h): 0 what of her is out
+ * of the car, 1 what is in it. Each is placed as the whole frame would be. */
+static void draw_car_layer(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin, int gun,
+                           int layer, float camera_x)
+{
+    SDL_Texture *car = gun == WEAPON_SHOTGUN && skin->car_shotgun_sheet ? skin->car_shotgun_sheet : skin->car_sheet;
+    const AnimationDef *def = player_car_animation();
+    bool left = player->facing == FACING_LEFT;
+    float anchor_x = left ? (float)def->frame_w - def->anchor_x : def->anchor_x;
+    SDL_Rect src = {player_car_frame(player) * def->frame_w, layer * def->frame_h, def->frame_w, def->frame_h};
+    SDL_Rect dst = {(int)lroundf(player->x - camera_x - anchor_x * SPRITE_SCALE),
+                    BASELINE - def->ground_y * SPRITE_SCALE - (int)lroundf(player->jump.height),
+                    def->frame_w * SPRITE_SCALE, def->frame_h * SPRITE_SCALE};
+    tint(car, player);
+    SDL_RenderCopyEx(renderer, car, &src, &dst, 0.0, NULL, left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+    untint(car);
+}
+
+void player_render_car_inside(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
+                              const WeaponId *guns, int weapon_slot, float camera_x)
+{
+    if (player->state == PLAYER_CAR && skin->car_sheet)
+        draw_car_layer(renderer, player, skin, guns[weapon_slot], 1, camera_x);
+}
+
 void player_render(SDL_Renderer *renderer, const Player *player, const CharacterSkin *skin,
                    const WeaponId *guns, int weapon_slot, float camera_x)
 {
@@ -220,6 +245,10 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
         player->sit_time >= player_sit_down_duration(player))
         weapon_slot = player->sit_gun; /* The gun on her lap, not the one in hand */
     int gun = guns[weapon_slot];
+    if (player->state == PLAYER_CAR && skin->car_sheet) {
+        draw_car_layer(renderer, player, skin, gun, 0, camera_x); /* What is out of the car */
+        return;
+    }
     SDL_Texture *sheet = def ? skin_sheet(skin, def->sheet, gun) : NULL;
     int frame = player->anim.frame;
     if (player->state == PLAYER_SIT)
@@ -337,8 +366,9 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     SDL_Texture *walk = legs ? skin_legs(skin, gun, skin_sheet(skin, legs->sheet, gun)) : NULL;
     if (player->reload_walk && walk) {
         /* Walking while reloading: the walk's legs below her waist, the
-         * reload above it. Every sheet shares the ground row, so the waist is
-         * the same height above it in both. */
+         * reload above it, and its action mask (hands, arms and guns) below.
+         * Convert the waist using both ground rows; the sheriff's cut is 53
+         * in the reload template, rather than the walk's ground row 61. */
         int waist = walk_waist_row(skin) + (def->ground_y - legs->ground_y);
         tint(walk, player);
         draw_rows(renderer, walk, legs, player->legs.frame, walk_waist_row(skin), legs->frame_h, player, camera_x);

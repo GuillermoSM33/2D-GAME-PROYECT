@@ -26,6 +26,7 @@ def generate(destination: Path, objects_only: bool) -> None:
         scripts.insert(0, 'make_landscape.py')
     for script in scripts:
         subprocess.run([sys.executable, str(ROOT / 'tools' / script), str(destination)], check=True)
+    subprocess.run([sys.executable,str(ROOT/'tools/make_car_passage.py'),str(destination),'--cars-only'],check=True)
 
 
 def main() -> int:

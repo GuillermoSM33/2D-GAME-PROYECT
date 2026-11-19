@@ -23,6 +23,9 @@ static SDL_Texture *previous_target;
 static SDL_Rect previous_viewport;
 static float previous_scale_x, previous_scale_y;
 static bool foreground_active;
+static const Terrain *road_terrain;
+
+void scene_set_terrain(const Terrain *terrain) { road_terrain = terrain; }
 
 static void release_props(void)
 {
@@ -70,6 +73,7 @@ void scene_shutdown(void)
     foreground = NULL;
     foreground_renderer = NULL;
     foreground_active = false;
+    road_terrain = NULL;
     release_props();
 }
 
@@ -139,8 +143,13 @@ static void draw_props(SDL_Renderer *renderer, const World *world, float camera_
         float screen_x = (float)(chunk->index * WORLD_CHUNK_W) - camera_x;
         if (screen_x > VIEW_WIDTH || screen_x + WORLD_CHUNK_W < 0.0f)
             continue; /* Loaded ahead, not on screen yet (props stay inside their chunk) */
-        for (int p = 0; p < chunk->prop_count; p++)
-            draw_prop(renderer, &chunk->props[p], screen_x);
+        for (int p = 0; p < chunk->prop_count; p++) {
+            const Prop *prop = &chunk->props[p];
+            float at = (float)(chunk->index * WORLD_CHUNK_W) + prop->x;
+            float half = prop_def(prop->kind)->frame_w * PX * .5f;
+            if (terrain_prop_clear(road_terrain, at, half))
+                draw_prop(renderer, prop, screen_x);
+        }
     }
 }
 
@@ -196,7 +205,8 @@ static void draw_houses(SDL_Renderer *renderer, const ThemeDef *theme, float cam
         int variant = theme->house_count > 0 ? theme->houses[(hash >> 8) % (unsigned)theme->house_count]
                                              : (int)((hash >> 8) % HOUSE_FRAMES_WEST);
         float jitter = (float)((hash >> 16) % (unsigned)HOUSE_JITTER);
-        if (over_a_river((float)slot * HOUSE_SPACING + jitter, (float)w))
+        float house_left = (float)slot * HOUSE_SPACING + jitter;
+        if (over_a_river(house_left, (float)w) || !terrain_house_clear(road_terrain, house_left, (float)w))
             continue;
         SDL_Rect src = {variant * HOUSE_FRAME_W, 0, HOUSE_FRAME_W, HOUSE_FRAME_H};
         SDL_Rect dst = {(int)lroundf((float)slot * HOUSE_SPACING + jitter - strip),

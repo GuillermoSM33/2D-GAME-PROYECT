@@ -1,4 +1,5 @@
 #include "app/savegame.h"
+#include "game/car_pass.h"
 
 #include <limits.h>
 #include <math.h>
@@ -10,7 +11,7 @@
 
 /* Increment this schema when changing field order, enum/catalogue order or
  * the meaning of saved data. Never serialize native padding or addresses. */
-#define SAVE_SCHEMA 8u /* 8: preserve the paired reload's holster/handoff animation */
+#define SAVE_SCHEMA 11u /* Fifteen-car train: its tablet, hazmat suits and fumes. */
 #define SAVE_MAGIC 0x31535156u
 #define ANIMATION_LIMIT 512
 
@@ -251,7 +252,7 @@ static void checkpoint(Codec *c, SaveGame *game)
         CHECK(p->inventory_at_start.water >= 0 && p->inventory_at_start.dynamite >= 0);
     }
     B(p->flashlight); F(p->flashlight_since); B(p->flashlight_click_pending);
-    int encounters = c->schema >= 5 ? RUN_MAX_ZOMBIES : RUN_MAX_ZOMBIES_V4; /* Older saves hold 24 */
+    int encounters = c->schema >= 10 ? RUN_MAX_ZOMBIES : c->schema >= 5 ? RUN_MAX_ZOMBIES_V9 : RUN_MAX_ZOMBIES_V4;
     for (int i = 0; i < RUN_MAX_ZOMBIES; i++) {
         if (i >= encounters) {
             if (c->reading) { p->encounter.entry[i] = -1; p->encounter.defeated[i] = false; }
@@ -297,6 +298,31 @@ static void checkpoint(Codec *c, SaveGame *game)
             p->player.shot.rounds < p->player.shot.magazine &&
             p->player.shot.other_rounds < p->player.shot.magazine;
     }
+    if (c->schema >= 10) {
+        TrainJourney *t = &p->run.train;
+        B(t->present); B(t->inside); B(t->complete); B(t->control_read);
+        F(t->left); F(t->right); I(t->first_zombie); I(t->zombie_count);
+        U(p->run.weapon_parts);
+        CHECK(p->run.weapon_parts < (1u << EXPERIMENTAL_PARTS));
+        /* Before schema 11 the train had ten rooms and twenty crew; such a
+         * checkpoint is read whole, then abandoned (save_game_decode). */
+        CHECK(!t->present || (p->run.stage_index == TRAIN_STAGE && t->right > t->left &&
+              t->first_zombie >= 0 && t->zombie_count == (c->schema >= 11 ? TRAIN_CREW : 20) &&
+              t->first_zombie + t->zombie_count <= p->run.zombie_count));
+        CHECK(!t->inside || (t->present && !t->complete));
+        CHECK(!t->complete || (t->present && t->control_read));
+    }
+    if (c->schema >= 11) {
+        TrainJourney *t = &p->run.train;
+        B(t->tablet); B(t->suit); F(t->fumes);
+        CHECK(!t->suit || t->inside);
+        CHECK(!t->control_read || t->tablet);
+        CHECK(t->fumes >= 0.0f && t->fumes <= TRAIN_FUMES_TICK);
+    } else if (c->reading) {
+        p->run.train.tablet = p->run.train.control_read;
+        p->run.train.suit = false;
+        p->run.train.fumes = TRAIN_FUMES_TICK;
+    }
 }
 
 static void game_codec(Codec *c, SaveGame *game)
@@ -341,7 +367,11 @@ static void game_codec(Codec *c, SaveGame *game)
         u32(c, &found); u32(c, &solved); u32(c, &beats);
         CHECK(found < (1u << CLUE_COUNT) && solved < (1u << CASE_COUNT));
         if (c->reading && c->ok)
-            game->case_file = (CaseFile){found, solved, beats};
+            game->case_file = (CaseFile){.found=found, .solved=solved, .beats_seen=beats};
+    }
+    if (c->schema >= 10 && c->ok) {
+        U(game->case_file.weapon_parts);
+        CHECK(game->case_file.weapon_parts < (1u << EXPERIMENTAL_PARTS));
     }
 }
 
@@ -432,6 +462,16 @@ bool save_game_decode(const unsigned char *bytes, size_t size, void *output)
             if (c.schema == 1)
                 game->profiles[game->checkpoint_hero].inventory =
                     (Inventory){game->checkpoint.player.water, game->checkpoint.run.dynamite};
+            if (c.schema < 11 && game->checkpoint.run.stage_index == TRAIN_STAGE) {
+                /* Older 2-3 layouts used either the ten-room train or the
+                 * original train barriers (schemas 1..9 have no train flag).
+                 * Start that attempt over, as if left from the pause, keeping
+                 * the case file and its permanently collected parts. */
+                int hero = game->checkpoint_hero;
+                game->profiles[hero].progress = game->checkpoint.progress_at_start;
+                game->profiles[hero].inventory = game->checkpoint.inventory_at_start;
+                game->has_checkpoint = false;
+            }
         }
     }
     free(candidate);
@@ -587,8 +627,15 @@ static void codec_Player(Codec *c, Player *p)
     I(p->sit_reloaded_gun);
     A(p->anim);
     if (c->schema >= 5) { F(p->fear); F(p->vault_speed); }
+    if (c->schema >= 9) {
+        F(p->car_time); F(p->car_duration); F(p->car_from); F(p->car_to); F(p->car_center);
+        I(p->car_index); B(p->car_smash); B(p->car_action);
+    }
     CHECK(p->fear >= 0.0f && p->fear <= FEAR_TIME + 1.0f);
-    CHECK(p->state >= PLAYER_IDLE && p->state <= PLAYER_DEAD);
+    CHECK(p->state >= PLAYER_IDLE && p->state <= PLAYER_CAR);
+    CHECK(p->car_time >= 0.0f && p->car_duration >= 0.0f && p->car_duration <= CAR_PASS_MAX_SECONDS);
+    CHECK(p->state != PLAYER_CAR || (p->car_duration > 0.0f && p->car_time <= p->car_duration &&
+          p->car_index >= 0 && p->car_index < TERRAIN_MAX));
     CHECK(p->facing == FACING_LEFT || p->facing == FACING_RIGHT);
     CHECK(p->level >= 1 && p->level <= MAX_LEVEL && p->max_health > 0);
     CHECK(p->health >= 0 && p->health <= p->max_health && p->water >= 0);
@@ -655,6 +702,8 @@ static void codec_Piece(Codec *c, Piece *p)
     I(p->zombie);
     F(p->ripple);
     I(p->variant);
+    if (c->schema >= 9) U(p->car_flags);
+    CHECK(p->car_flags <= (CAR_WINDOW_BROKEN | CAR_DOOR_USED | CAR_ALARM_TRIPPED | CAR_BROKEN_RIGHT));
     CHECK(p->kind >= 0 && p->kind < TERRAIN_KINDS);
     CHECK(p->zombie >= -1 && p->zombie < RUN_MAX_ZOMBIES);
     CHECK(p->variant >= 0 && p->variant <= 64 && p->damage >= 0 && p->hits >= 0);

@@ -53,12 +53,35 @@ static void test_props_fit_their_chunk_and_sheet(void)
                     if (other->kind == PROP_GRASS || other->kind == PROP_LITTER)
                         continue;
                     float reach = half_w + (float)(prop_def(other->kind)->frame_w * SPRITE_SCALE) / 2.0f;
-                    CHECK(fabsf(prop->x - other->x) >= reach * 0.69f);
+                    CHECK(fabsf(prop->x - other->x) >= reach + SCENERY_GAP - .01f);
                 }
             }
         }
         /* At most WORLD_BIG_SLOTS a chunk, a little over half of them taken. */
         CHECK(big > WORLD_CHUNKS && big < WORLD_CHUNKS * 3);
+    }
+}
+
+static void test_neighboring_chunks_leave_room_between_large_props(void)
+{
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        Chunk previous;
+        chunk_generate(&previous, 0, STAGES[stage].theme);
+        for (int index = 1; index < WORLD_CHUNKS; index++) {
+            Chunk next;
+            chunk_generate(&next, index, STAGES[stage].theme);
+            for (int a = 0; a < previous.prop_count; a++) {
+                const Prop *left = &previous.props[a];
+                if (left->kind == PROP_GRASS || left->kind == PROP_LITTER) continue;
+                for (int b = 0; b < next.prop_count; b++) {
+                    const Prop *right = &next.props[b];
+                    if (right->kind == PROP_GRASS || right->kind == PROP_LITTER) continue;
+                    float reach = (prop_def(left->kind)->frame_w + prop_def(right->kind)->frame_w) * SPRITE_SCALE * .5f;
+                    CHECK(WORLD_CHUNK_W + right->x - left->x >= reach + SCENERY_GAP - .01f);
+                }
+            }
+            previous = next;
+        }
     }
 }
 
@@ -181,6 +204,7 @@ int main(void)
     RUN(test_camera_follows_and_stops_at_ends);
     RUN(test_same_index_same_chunk);
     RUN(test_props_fit_their_chunk_and_sheet);
+    RUN(test_neighboring_chunks_leave_room_between_large_props);
     RUN(test_theme_picks_its_props);
     RUN(test_every_theme_lights_its_scenery);
     RUN(test_loads_only_what_is_in_view);

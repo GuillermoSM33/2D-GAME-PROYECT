@@ -51,7 +51,7 @@ def source_assets() -> dict[str, Image]:
         'burner': city.make_burner(), 'hydrant': city.make_hydrant(),
         'siren_car': city.make_siren_car(), 'car_wreck': city.make_car_wreck(),
         'vehicles': city.make_vehicles(), 'supply_truck': city.make_supply_truck(),
-        'outpost': city.make_outpost(), 'city_fronts': city.make_city_fronts(),
+        'outpost': city.make_outpost(), 'city_fronts': city.make_city_fronts(marked=False),
         'train': city.make_train(),
     }
     return {f'sprites/terrain/{name}.png': image for name, image in out.items()}
@@ -65,9 +65,9 @@ FRAME_WIDTH = {
     'net': 84, 'snare': 72, 'spikes': 40, 'river': 200, 'river_front': 200,
     'puddle': 64, 'sign': 22, 'bottles': 40, 'trap': 48, 'coffin': 32,
     'lamp': 14, 'fire': 32, 'bench': 76, 'campfire': 48, 'supply': 100,
-    'goal': 108, 'burner': 40, 'hydrant': 20, 'siren_car': 136, 'car_wreck': 136,
-    'vehicles': 184, 'supply_truck': 184, 'outpost': 168, 'city_fronts': 240,
-    'train': 300,
+    'goal': 108, 'burner': 40, 'hydrant': 20, 'siren_car': city.SIREN_W, 'car_wreck': city.CAR_W,
+    'vehicles': city.VEHICLE_W, 'supply_truck': city.VEHICLE_W, 'outpost': 168, 'city_fronts': 240,
+    'train': city.TRAIN_W,
 }
 
 WOOD = set(west.WOOD + west.GREY_WOOD + west.ROAD_PAL['wood'])
@@ -128,6 +128,9 @@ def material(name: str, color) -> str:
 
 def refine(name: str, source: Image) -> Image:
     """Finish surfaces while leaving the original drawing's boundaries alone."""
+    if name == 'train':
+        # This sheet is authored at its final size, including running gear.
+        return source
     out = Image(source.width, source.height)
     out.px = list(source.px)
     fw = FRAME_WIDTH[name]
@@ -237,6 +240,15 @@ def refine(name: str, source: Image) -> Image:
                     out.px[i] = tone(color, -8)
     construction_details(name, out, source)
     object_craft(name, out, source)
+    if name == 'facades':
+        # Drawn at its final size, not stretched (stretched it looked plastic).
+        from terrain_architecture_detail import finish_west
+        out = finish_west(out)
+    elif name == 'city_fronts':
+        from terrain_architecture_detail import finish, street_scale
+        out = finish(name, out)
+        out = city.mark_city_fronts(out)
+        out = street_scale(name, out)
     return out
 
 
@@ -291,15 +303,16 @@ def construction_details(name: str, out: Image, source: Image) -> None:
             line(0, x0 + 3, 78, x0 + 18, 50, rgb(0x52352a))
     elif name in ('vehicles', 'supply_truck', 'siren_car', 'car_wreck'):
         for frame in range(source.width // fw):
+            S = city.scaler(vehicle_layout(name, frame)[0])
             # Stamped bodywork has shorter, grouped scratches at wheel height;
             # cabin glass, white police doors and emblems remain unobscured.
-            for x0 in range(17, fw - 12, 31):
-                y = source.height - 15 - (x0 // 31) % 3
-                line(frame, x0, y, x0 + 8, y - 1, rgb(0x716557), PAINT)
-                line(frame, x0 + 2, y + 1, x0 + 9, y, rgb(0x3d372f), PAINT)
+            for x0 in range(S(17), fw - S(12), S(31)):
+                y = source.height - S(15) - (x0 // S(31)) % 3
+                line(frame, x0, y, x0 + S(8), y - 1, rgb(0x716557), PAINT)
+                line(frame, x0 + 2, y + 1, x0 + S(9), y, rgb(0x3d372f), PAINT)
             # Small fasteners and reflected wear on the original handles.
-            for x in range(15, fw - 10, 29):
-                pixel(frame, x, source.height - 23, shine, IRON)
+            for x in range(S(15), fw - S(10), S(29)):
+                pixel(frame, x, source.height - S(23), shine, IRON)
     elif name == 'coffin':
         for frame in (0, 2):
             # Forged hinges on the left, a worn brass lock plate on the right.
@@ -518,41 +531,49 @@ def object_craft(name: str, out: Image, source: Image) -> None:
     elif name in ('vehicles', 'car_wreck', 'siren_car', 'supply_truck'):
         for frame in range(source.width // fw):
             burnt = name == 'car_wreck' and frame % 3 == 2 or name == 'vehicles' and frame == 2
+            # Each vehicle's own 1x drawing (make_city), at its scale and place.
+            scale, ox = vehicle_layout(name, frame)
+            S = city.scaler(scale)
+
+            def X(x, ox=ox, S=S):
+                return ox + S(x)
+
+            def Y(up, S=S):
+                return h - 1 - S(up)              # Rows above its wheels' row
+            truck = name == 'supply_truck' or name == 'vehicles' and frame == 4
             if name == 'vehicles' and frame == 3:
-                centers, cy, radius = (62, 152), h - 13, 12.2
-            elif name == 'supply_truck' or name == 'vehicles' and frame == 4:
-                centers, cy, radius = (28, 52, 154), h - 11, 10.2
+                centers, cy, radius = (32, 122), Y(12), 12.2
+            elif truck:
+                centers, cy, radius = (26, 50, 152), Y(10), 10.2
             else:
-                ox = 24 if name == 'vehicles' else 0
-                centers, cy, radius = (28 + ox, 108 + ox), h - (6 if burnt else 9), 5.2 if burnt else 8.2
+                centers, cy, radius = (28, 108), Y(5 if burnt else 8), 5.2 if burnt else 8.2
             for cx in centers:
-                wheel(frame, cx, cy, radius, burnt)
-            if name == 'supply_truck' or name == 'vehicles' and frame == 4:
+                wheel(frame, X(cx), cy, radius * scale, burnt)
+            if truck:
                 # Truck grille, hood hinges, mirror glass and cargo-bed latches.
-                for y in range(38, 50, 3):
-                    ln(frame, 170, y, 174, y, ink)
-                    p(frame, 170, y - 1, steel)
-                for x in range(12, 124, 28):
-                    ln(frame, x, 48, x + 3, 48, steel, PAINT)
-                    rivet(frame, x, 51, PAINT)
-                seam(frame, 10, 8, 118, 8, set(rgb(v) for v in (0x3a3c28, 0x52563a, 0x6c7050, 0x868a66)))
-                ln(frame, 146, 24, 148, 24, rgb(0x899798), GLASS)
+                for up in range(31, 19, -3):
+                    ln(frame, X(168), Y(up), X(172), Y(up), ink)
+                    p(frame, X(168), Y(up) - 1, steel)
+                for x in range(10, 122, 28):
+                    ln(frame, X(x), Y(21), X(x) + 3, Y(21), steel, PAINT)
+                    rivet(frame, X(x), Y(18), PAINT)
+                seam(frame, X(8), Y(61), X(116), Y(61), set(rgb(v) for v in (0x3a3c28, 0x52563a, 0x6c7050, 0x868a66)))
+                ln(frame, X(144), Y(45), X(146), Y(45), rgb(0x899798), GLASS)
             elif not burnt:
-                ox = 24 if name == 'vehicles' else 0
-                belt = h - 30
+                belt = Y(29)
                 # Handles have a recessed pocket, a metallic pull and a tiny
                 # keyhole. Fine wipers and an intact/broken mirror catch light.
-                for x in (50 + ox, 70 + ox):
-                    ln(frame, x, belt + 5, x + 5, belt + 5, ink)
-                    ln(frame, x + 1, belt + 4, x + 4, belt + 4, steel)
-                    p(frame, x, belt + 7, edge)
-                ln(frame, 88 + ox, belt - 1, 94 + ox, belt - 5, ink, GLASS)
-                ln(frame, 90 + ox, belt + 1, 95 + ox, belt + 1, edge, PAINT)
+                for x in (50, 70):
+                    ln(frame, X(x), belt + S(5), X(x + 5), belt + S(5), ink)
+                    ln(frame, X(x) + 1, belt + S(5) - 1, X(x + 5) - 1, belt + S(5) - 1, steel)
+                    p(frame, X(x), belt + S(7), edge)
+                ln(frame, X(88), belt - 1, X(94), belt - S(5), ink, GLASS)
+                ln(frame, X(90), belt + 1, X(95), belt + 1, edge, PAINT)
             # Underbody rocker seam and small suspension fasteners; marks
             # are clipped, so no axle appears floating between silhouettes.
-            ln(frame, centers[0] + 11, h - 10, centers[-1] - 11, h - 10, ink)
+            ln(frame, X(centers[0] + 11), Y(9), X(centers[-1] - 11), Y(9), ink)
             for x in (centers[0] + 13, centers[-1] - 13):
-                rivet(frame, x, h - 11)
+                rivet(frame, X(x), Y(10))
     elif name == 'outpost':
         olive = set(city.PAINTS['olive'])
         for frame in (0, 1):
@@ -650,9 +671,23 @@ def object_craft(name: str, out: Image, source: Image) -> None:
                         p(frame, x0 + k // 3 - 1, y0 + k, rgb(0xac9275), stone)
 
 
+def vehicle_layout(name: str, frame: int) -> tuple:
+    """A vehicle sheet's frame: the scale it is drawn at and where its
+    drawing's x 0 is (make_city)."""
+    if name == 'vehicles':
+        return city.VEHICLE_LAYOUT[frame]
+    if name == 'supply_truck':
+        return city.VEHICLE_LAYOUT[4]
+    return city.CAR_SCALE, 0
+
+
 def build_assets() -> dict[str, Image]:
     """Public generator API used by the other scenery rebuild tools."""
-    return {path: refine(Path(path).stem, image) for path, image in source_assets().items()}
+    from train_art import make_interior, make_parts, make_gear
+    return {path: refine(Path(path).stem, image) for path, image in source_assets().items()} | {
+        'sprites/terrain/train_interior.png': make_interior(),
+        'sprites/terrain/experimental_parts.png': make_parts(),
+        'sprites/terrain/train_gear.png': make_gear()}
 
 
 def preview(path: Path, original: dict[str, Image], refined: dict[str, Image]) -> None:
@@ -667,7 +702,9 @@ def preview(path: Path, original: dict[str, Image], refined: dict[str, Image]) -
     for row, name in enumerate(names):
         key = f'sprites/terrain/{name}.png'
         for side, source in enumerate((original[key], refined[key])):
-            count = min(source.width, FRAME_WIDTH[name] * (3 if name in ('barrel', 'coffin', 'wall', 'barricade') else 1))
+            frames = original[key].width // FRAME_WIDTH[name]
+            frame_width = source.width // frames
+            count = min(source.width, frame_width * (3 if name in ('barrel', 'coffin', 'wall', 'barricade') else 1))
             for y in range(source.height):
                 for x in range(count):
                     c = source.get(x, y)
@@ -688,6 +725,10 @@ def main() -> int:
     args = parser.parse_args()
     original = source_assets()
     out = {path: refine(Path(path).stem, image) for path, image in original.items()}
+    from train_art import make_interior, make_parts, make_gear
+    out['sprites/terrain/train_interior.png']=make_interior()
+    out['sprites/terrain/experimental_parts.png']=make_parts()
+    out['sprites/terrain/train_gear.png']=make_gear()
     for name, image in out.items():
         image.save(args.assets_dir / name)
         print(f'refine_terrain: {name} ({image.width} x {image.height})')

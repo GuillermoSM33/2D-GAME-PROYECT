@@ -814,6 +814,140 @@ static void test_field_guide_request_and_light_preserve_stage_state(void)
     CHECK(game.request_almanac && game.paused);
 }
 
+static void setup_train_tablet(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    stage_start(&game, TRAIN_STAGE, &CHARACTERS[0], &profile.progress);
+    CHECK(game.run.train.present && !game.run.train.tablet);
+    game.run.train.inside = true;
+    game.run.dynamite = 0;
+    game.player.x = train_tablet_x(&game.run);
+    run_place_player(&game.run, &game.player);
+    clear_cues();
+}
+
+static void check_tablet_overlay_freezes_the_world(void)
+{
+    CHECK(game.paused);
+    Player player;
+    StageRun run;
+    Bullets bullets;
+    World world;
+    WeatherState weather;
+    memcpy(&player, &game.player, sizeof(player));
+    memcpy(&run, &game.run, sizeof(run));
+    memcpy(&bullets, &game.bullets, sizeof(bullets));
+    memcpy(&world, &game.world, sizeof(world));
+    memcpy(&weather, &game.weather, sizeof(weather));
+    PauseView view = game.pause_view;
+    float light = game.flashlight_since, cooldown = game.power_cooldown;
+    InputState input = {0};
+    input.down[ACTION_RIGHT] = input.down[ACTION_RUN] = input.down[ACTION_SHOOT] = true;
+    input.pressed[ACTION_SHOOT] = input.pressed[ACTION_RELOAD] = true;
+    input.pressed[ACTION_JUMP] = input.pressed[ACTION_USE] = true;
+    /* Movement, combat and E cannot run beneath either paused overlay. The
+     * real run includes living crew, animated terrain and a mission clock. */
+    for (int tick = 0; tick < 30; tick++) step(&input);
+    CHECK(game.paused && game.pause_view == view);
+    CHECK(memcmp(&game.player, &player, sizeof(player)) == 0);
+    CHECK(memcmp(&game.run, &run, sizeof(run)) == 0);
+    CHECK(memcmp(&game.bullets, &bullets, sizeof(bullets)) == 0);
+    CHECK(memcmp(&game.world, &world, sizeof(world)) == 0);
+    CHECK(memcmp(&game.weather, &weather, sizeof(weather)) == 0);
+    CHECK(game.flashlight_since == light && game.power_cooldown == cooldown);
+}
+
+static void test_taking_the_tablet_opens_its_briefing_and_overlay_keys_pause_the_world(void)
+{
+    setup_train_tablet();
+    game.run.dynamite = 3;
+    game.power_cooldown = 2.0f;
+    Piece *charge = terrain_add(&game.run.terrain, TERRAIN_CHARGE, game.player.x + 1000.0f);
+    CHECK(charge != NULL);
+    if (charge) charge->fuse = .4f;
+    CHECK(bullets_spawn(&game.bullets, game.player.x, game.player.x + 140.0f, BASELINE - 80, 1));
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_USE); /* The actual E interaction, rather than setting paused by hand. */
+    CHECK(game.run.train.tablet && game.paused && game.pause_view == PAUSE_VIEW_MAP);
+    CHECK(game.run.mission.ticks == ticks && game.run.dynamite == 3 && game.player.plant_time == 0.0f);
+    CHECK(plays("ui/confirm") == 1 && plays("world/fuse") == 0);
+    CHECK(bullets_active_count(&game.bullets) == 0);
+    check_tablet_overlay_freezes_the_world();
+    press(ACTION_MAP);
+    CHECK(!game.paused && game.run.mission.ticks == ticks);
+    idle();
+    CHECK(!game.paused && game.run.mission.ticks > ticks); /* Resumes; no repeated auto-open. */
+    if (charge) CHECK(charge->fuse < .4f && charge->fuse > 0.0f);
+
+    press(ACTION_MAP);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_MAP);
+    check_tablet_overlay_freezes_the_world();
+    ticks = game.run.mission.ticks;
+    press(ACTION_INVENTORY);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY && game.run.mission.ticks == ticks);
+    check_tablet_overlay_freezes_the_world();
+    press(ACTION_MAP);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_MAP);
+    press(ACTION_INVENTORY);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY);
+    press(ACTION_INVENTORY);
+    CHECK(!game.paused && game.run.mission.ticks == ticks);
+    press(ACTION_INVENTORY);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY);
+    press(ACTION_QUIT);
+    CHECK(!game.paused && game.run.mission.ticks == ticks);
+    press(ACTION_MAP);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_MAP);
+    press(ACTION_CONFIRM);
+    CHECK(!game.paused && game.run.mission.ticks == ticks);
+    CHECK(game.run.train.tablet && plays("world/fuse") == 0);
+}
+
+static void test_map_requires_the_tablet_and_taking_it_keeps_player_use_guards(void)
+{
+    setup_train_tablet();
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_MAP);
+    CHECK(!game.paused && !game.run.train.tablet && game.run.mission.ticks > ticks);
+    press(ACTION_INVENTORY); /* P remains useful before recovering the tablet. */
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY);
+    press(ACTION_MAP);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY && !game.run.train.tablet);
+    press(ACTION_INVENTORY);
+    CHECK(!game.paused);
+
+    for (int guard = 0; guard < 7; guard++) {
+        setup_train_tablet();
+        switch (guard) {
+        case 0: press(ACTION_JUMP); CHECK(game.player.jump.height > 0.0f); break;
+        case 1: CHECK(player_catch(&game.player, CATCH_NET, game.player.x, BASELINE - 200)); break;
+        case 2: CHECK(player_sit(&game.player, game.player.x, 0)); break;
+        case 3: CHECK(player_enter_car(&game.player, -1, 0, game.player.x, false)); break;
+        case 4: CHECK(player_hit(&game.player, 1e8f, 1)); break;
+        case 5: game.run.phase = RUN_FAILED; break;
+        case 6: game.run.phase = RUN_CLEARED; break;
+        }
+        clear_cues();
+        press(ACTION_USE);
+        CHECK(!game.run.train.tablet && !game.paused && plays("ui/confirm") == 0);
+    }
+}
+
+static void test_locked_train_interactions_consume_e_without_planting_dynamite(void)
+{
+    for (int i = 0; i < 2; i++) {
+        setup_train_tablet();
+        game.run.dynamite = 3;
+        game.player.x = i == 0 ? train_terminal_x(&game.run) : train_exit_x(&game.run);
+        run_place_player(&game.run, &game.player);
+        press(ACTION_USE);
+        CHECK(!game.paused && !game.run.train.tablet && !game.run.train.control_read);
+        CHECK(game.run.train.inside && !game.run.train.complete);
+        CHECK(game.run.dynamite == 3 && game.player.plant_time == 0.0f);
+        CHECK(plays("world/fuse") == 0);
+    }
+}
+
 static void test_flashlight_click_follows_the_beam_and_cancels_with_the_switch(void)
 {
     for (int id = 0; id < WEAPON_COUNT; id++) {
@@ -1406,6 +1540,9 @@ int main(void)
     RUN(test_bandage_starts_once_and_stops_only_when_cancelled);
     RUN(test_player_volume_preview_uses_player_group);
     RUN(test_field_guide_request_and_light_preserve_stage_state);
+    RUN(test_taking_the_tablet_opens_its_briefing_and_overlay_keys_pause_the_world);
+    RUN(test_map_requires_the_tablet_and_taking_it_keeps_player_use_guards);
+    RUN(test_locked_train_interactions_consume_e_without_planting_dynamite);
     RUN(test_flashlight_click_follows_the_beam_and_cancels_with_the_switch);
     RUN(test_landing_uses_water_only_on_wet_ground);
     RUN(test_lightning_warning_starts_once_and_stops_on_impact_or_failure);

@@ -18,7 +18,8 @@ typedef enum {
     PLAYER_THROW, /* Throwing a grenade (player_throw): planted until it ends */
     PLAYER_MELEE, /* A blow with the gun (player_melee): planted until it ends */
     PLAYER_CAUGHT, /* Hanging in a net or a snare (player_catch) until she cuts free */
-    PLAYER_DEAD   /* Out of health; only a reset brings her back */
+    PLAYER_DEAD,  /* Out of health; only a reset brings her back */
+    PLAYER_CAR    /* N: handle/window, enter, cross cabin, emerge. Appended for save compatibility. */
 } PlayerState;
 
 typedef enum {
@@ -90,6 +91,14 @@ typedef struct {
     float min_x, max_x;
     bool vaulting;      /* Leaping over a low barricade (player_vault): carried across */
     float vault_speed;  /* ...at this many px a second (a car is a longer leap); 0 = PLAYER_VAULT_SPEED */
+    /* Through a car (game/car_pass.h): seconds into it and its length, where
+     * she set out, ends and the car's middle (world x), which piece it is and
+     * whether its glass must break; car_action: the handle gives or the glass
+     * breaks on this update. car_look is the car's (the stage sets it again
+     * every update, so it is not saved). */
+    float car_time, car_duration, car_from, car_to, car_center;
+    int car_index, car_look;
+    bool car_smash, car_action;
     /* Walking while a magazine goes in: the legs walk (legs) under the reload. */
     bool reload_walk;
     bool light_on;     /* Her flashlight (for drawing it: the switch is the stage's)... */
@@ -205,6 +214,15 @@ bool player_light_ready(const Player *player);
 /* N at a low barricade: a jump that carries her over it, the way she faces.
  * Only from the ground and not mid-shot. Returns whether she leapt. */
 bool player_vault(Player *player);
+/* N at a car across the road: through it, by its doors (game/car_pass.h). */
+bool player_enter_car(Player *player, int index, int look, float car_x, bool smash);
+float player_car_progress(const Player *player);
+int player_car_frame(const Player *player);
+/* The car's state for its layers while she crosses it (car_plan_doors). */
+int player_car_doors(const Player *player, int broken);
+/* Whether the glass of the car she crosses is on the road yet (car_plan_glass_down). */
+bool player_car_glass_down(const Player *player);
+const AnimationDef *player_car_animation(void);
 
 /* Takes a hit of raw damage through her armor, pushed toward push_dir
  * (-1 or +1). Returns true if it killed her. */
@@ -213,6 +231,10 @@ bool player_hit(Player *player, float damage, int push_dir);
 /* A trap's bite: she bleeds damage every BLEED_TICK (armor doesn't stop it)
  * until she bandages it, and limps for SLOW_TIME. */
 void player_bleed(Player *player, float damage);
+
+/* Breathing a broken tank's fumes: share of her max health, through no
+ * armor and with no push. Returns true if it killed her. */
+bool player_fumes(Player *player, float share);
 
 bool player_alive(const Player *player);
 

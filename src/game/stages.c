@@ -119,12 +119,13 @@ static const StageSpot ROUTE_2_2[] = {
 static const StageSpot ROUTE_2_3[] = {
     {0.03f, SPOT_ZOMBIES, 2}, {0.05f, SPOT_CRATES, 2}, {0.08f, SPOT_SPIKES, 1}, {0.10f, SPOT_BURNERS, 2},
     {0.12f, SPOT_RUNNERS, 3}, {0.15f, SPOT_DYNAMITE, 1}, {0.17f, SPOT_BARRICADE, 1}, {0.20f, SPOT_TRAIN, 1},
+    {0.20f, SPOT_ZOMBIES, TRAIN_CREW}, /* Two infected crew in each of the train's rooms. */
     {0.23f, SPOT_ZOMBIES, 3}, {0.26f, SPOT_WIRE, 1}, {0.28f, SPOT_SIREN, 5}, {0.31f, SPOT_BARRELS, 2},
     {0.33f, SPOT_CRATES, 2}, {0.36f, SPOT_TRAPS, 2}, {0.38f, SPOT_ZOMBIES, 2}, {0.40f, SPOT_AMBUSH, 3},
     {0.43f, SPOT_BOTTLES, 1}, {0.445f, SPOT_OUTPOST, 1}, {0.46f, SPOT_BARRICADE, 1}, {0.49f, SPOT_SUPPLY, 1}, {0.52f, SPOT_REST, 1},
-    {0.55f, SPOT_RUNNERS, 3}, {0.58f, SPOT_SPIKES, 2}, {0.61f, SPOT_TRAIN, 2}, {0.64f, SPOT_ZOMBIES, 3},
+    {0.55f, SPOT_RUNNERS, 3}, {0.58f, SPOT_SPIKES, 2}, {0.64f, SPOT_ZOMBIES, 3},
     {0.67f, SPOT_BURNERS, 2}, {0.70f, SPOT_SIREN, 6}, {0.73f, SPOT_CRATES, 2}, {0.75f, SPOT_WIRE, 1},
-    {0.78f, SPOT_DYNAMITE, 1}, {0.80f, SPOT_TRAIN, 1}, {0.83f, SPOT_BARRICADE, 1}, {0.86f, SPOT_REST, 1},
+    {0.78f, SPOT_DYNAMITE, 1}, {0.83f, SPOT_BARRICADE, 1}, {0.86f, SPOT_REST, 1},
     {0.88f, SPOT_ZOMBIES, 2}, {0.92f, SPOT_ELITE, 1},
 };
 static const StageSpot ROUTE_2_4[] = {
@@ -159,7 +160,7 @@ const StageDef STAGES[] = {
     {"1-5", 5, 1, 22, 1, 1.50f, &THEME_PUEBLO_FANTASMA, 31000.0f, SPOTS(ROUTE_1_5), WEATHER_STORM, false, false, "music/ruta_1_5"},
     {"2-1", 6, 0, 28, 1, 1.60f, &THEME_AFUERAS, 34000.0f, SPOTS(ROUTE_2_1), WEATHER_WIND, false, false, "music/ruta_2_1"},
     {"2-2", 7, 0, 31, 1, 1.70f, &THEME_CENTRO, 37000.0f, SPOTS(ROUTE_2_2), WEATHER_RAIN, false, false, "music/ruta_2_2"},
-    {"2-3", 8, 0, 33, 1, 1.80f, &THEME_VIAS, 40000.0f, SPOTS(ROUTE_2_3), WEATHER_WIND, false, false, "music/ruta_2_3"},
+    {"2-3", 8, 0, 33 + TRAIN_CREW, 1, 1.80f, &THEME_VIAS, 40000.0f, SPOTS(ROUTE_2_3), WEATHER_WIND, false, false, "music/ruta_2_3"},
     {"2-4", 9, 0, 36, 1, 1.90f, &THEME_CIUDAD_NOCHE, 41000.0f, SPOTS(ROUTE_2_4), WEATHER_STORM, false, true, "music/ruta_2_4"},
     {"2-5", 10, 1, 38, 1, 2.00f, &THEME_BASE_MILITAR, 44000.0f, SPOTS(ROUTE_2_5), WEATHER_WIND, false, true, "music/ruta_2_5"},
 };
@@ -240,6 +241,10 @@ const ZombieStats *stage_zombie_stats(const StageDef *stage, int index)
                     stats = &ZOMBIE_ELITE;
                 } else if (mission == 0) {
                     stats = &ZOMBIE_RIOT;
+                } else if (mission==7 && spot->kind==SPOT_ZOMBIES && spot->count==20) {
+                    const ZombieKind crew[]={ZOMBIE_KIND_CITY_NURSE,ZOMBIE_KIND_CITY_WORKER,
+                                              ZOMBIE_KIND_CITY_OFFICE,ZOMBIE_KIND_CITY_GUARD};
+                    stats=zombie_stats(crew[(body/2)%4],body%5==4);
                 } else if (route->theme->city) {
                     stats = city_zombie(route->theme, city++, spot->kind == SPOT_RUNNERS);
                 } else if (spot->kind == SPOT_RUNNERS) {

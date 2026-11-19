@@ -24,6 +24,8 @@ typedef enum {
     ACTION_ALMANAC, /* Field guide of encountered zombie types */
     ACTION_LIGHT,   /* Toggle the hand-held night light */
     ACTION_FIRE_MODE, /* Bursts or single shots (the SWAT's rifle) */
+    ACTION_MAP,       /* The train's map, once she has its tablet */
+    ACTION_INVENTORY, /* What she carries: suit, gun, water, dynamite, rounds */
     ACTION_COUNT
 } Action;
 

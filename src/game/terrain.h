@@ -75,6 +75,7 @@ typedef struct {
     int variant;  /* Campfire: 1 with a pot hung over it. Coffin: 1 the night's. Wall: 0 a palisade in ruins,
                    * 1..FACADE_KINDS a building's front (church, sheriff, smithy, stable)
                    * with its door barred */
+    unsigned car_flags; /* Door/window/alarm state, independent of projectile hits. */
 } Piece;
 
 /* What happened to the pieces on this step, for the stage to act on:
@@ -111,13 +112,31 @@ float terrain_half_width(TerrainKind kind);
  * motorcycle. Both take bullets and, shot enough, clawed down or caught in a
  * blast, blow up like a barrel. */
 int terrain_car_look(const Piece *piece);
+int terrain_car_ahead(const Terrain *terrain, float x, int dir);
+bool terrain_car_locked(const Piece *piece);
+bool terrain_car_alarm_armed(const Piece *piece);
+void terrain_car_open(Terrain *terrain, int index, bool smash, int dir);
+#define CAR_WINDOW_BROKEN 1
+#define CAR_DOOR_USED 2
+#define CAR_ALARM_TRIPPED 4
+#define CAR_BROKEN_RIGHT 8
 int terrain_moto_look(const Piece *piece);
 /* The barricade variant of a car or a motorcycle's look. */
 int terrain_car_variant(int look);
 int terrain_moto_variant(int look);
 
-/* The same for a piece: a barricade that is a car is as wide as a car. */
+/* The same for a piece: a barricade that is a car is as wide as a car, a
+ * vehicle left on the road as wide as itself (not its sheet's frame). */
 float terrain_piece_half_width(const Piece *piece);
+/* Half what a terrain/vehicles frame (its variant) takes of the road, window px. */
+float terrain_vehicle_half_width(int variant);
+
+/* Visual footprint, independent of the central doorway's collision width. */
+float terrain_front_half_width(const Piece *piece);
+/* Ground decoration stays clear of the whole drawn object, also after use. */
+bool terrain_prop_clear(const Terrain *terrain, float x, float half_width);
+/* A background house must stay clear of fronts throughout their parallax sweep. */
+bool terrain_house_clear(const Terrain *terrain, float house_left, float width);
 
 /* The width of the standing barricade right ahead of x (terrain_barricade_ahead), or 0. */
 float terrain_vault_span(const Terrain *terrain, float x, int dir);
@@ -135,6 +154,8 @@ bool terrain_burner_burning(const Piece *piece);
  * town's fronts and its supply truck. */
 const char *terrain_car_wreck_sheet(void);
 const char *terrain_city_front_sheet(void);
+/* Sheet frame, or -1 for a palisade, western front, train or invalid variant. */
+int terrain_city_front_frame(int variant);
 const char *terrain_supply_truck_sheet(void);
 
 /* A drum's fire flaring up, its pivot at the bottom center. */

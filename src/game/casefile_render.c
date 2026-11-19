@@ -7,6 +7,7 @@
 #include "game/casefile_render.h"
 #include "game/hud.h"
 #include "game/stages.h"
+#include "game/train.h"
 #include "game/ui.h"
 
 #define CORK 0x8a6a44
@@ -204,7 +205,9 @@ static void draw_detail(SDL_Renderer *r, const CaseFile *file, const BoardView *
         static const char *const WHERE[] = {"ESTÁ EN EL COFRE DE SALIDA", "LA LLEVA UNO DE LOS ZOMBIS",
                                             "ALGO SE ESCONDE EN EL CAMINO"};
         char str[96];
-        snprintf(str, sizeof(str), "NIVEL %s: %s", STAGES[CLUES[clue].stage].name, WHERE[CLUES[clue].source]);
+        snprintf(str, sizeof(str), "NIVEL %s: %s", STAGES[CLUES[clue].stage].name,
+                 CLUES[clue].stage==TRAIN_STAGE && CLUES[clue].source==CLUE_FROM_MISSION
+                 ? "TERMINAL DE LA SALA DE CONTROL" : WHERE[CLUES[clue].source]);
         pixfont_draw(r, str, text_x, y + 44, 2, COLOR_HUD_PRIMARY, ANCHOR_NW, 255);
     } else {
         int row = view->row;
@@ -249,6 +252,8 @@ void casefile_render(SDL_Renderer *r, const CaseFile *file, const BoardView *vie
     int page = board_page(view->row), pages = (CASE_COUNT + BOARD_ROWS - 1) / BOARD_ROWS;
     snprintf(str, sizeof(str), "RUTA %d DE %d", page + 1, pages);
     ui_text(r, str, WINDOW_WIDTH / 2, 30, 2, COLOR_HUD_SECONDARY, ANCHOR_N);
+    snprintf(str,sizeof(str),"PROTOTIPO: %d/8 PIEZAS",train_part_count(file->weapon_parts));
+    ui_text(r,str,WINDOW_WIDTH-BOARD_X,52,1,COLOR_HUD_TITLE,ANCHOR_NE);
     int board_h = BOARD_ROWS * BOARD_ROW_H;
     ui_panel(r, BOARD_X - 6, BOARD_Y - 10, BOARD_W + 12, board_h + 16);
     casefile_draw_cork(r, BOARD_X + 6, BOARD_Y - 2, BOARD_W - 12, board_h);

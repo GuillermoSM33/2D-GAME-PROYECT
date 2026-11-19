@@ -77,7 +77,7 @@ def frame(sheet: Image, f: int) -> dict:
 SHOOT_BELT, SHOOT_MID = 49, 34    # Her belt's row and her buckle's middle, on the shoot template
 
 
-def body_without_arm(aim: dict, low: dict, rest: dict, hand_on_hip: bool = True) -> dict:
+def body_without_arm(aim: dict, low: dict, rest: dict, hand_on_hip: bool = True, standing=None) -> dict:
     """The aim frame less her gun arm and gun: what is not the same in her
     other poses there. Her clothes carry on (from the left) where it lay. Her other arm is
     the one she stands with, its hand on her hip; or none, for a pose that draws it."""
@@ -96,7 +96,7 @@ def body_without_arm(aim: dict, low: dict, rest: dict, hand_on_hip: bool = True)
             elif c is None and fill is not None:
                 body[(x, y)] = fill
     # Her side, under where the arm lay, was never drawn: from her standing pose.
-    walk = load(ROOT / 'assets/sprites/characters/cowgirl/stand.png')
+    walk = standing if standing is not None else load(ROOT / 'assets/sprites/characters/cowgirl/stand.png')
     grey = {tuple(c[:3]) for c in SLEEVE}
     added = []
     for y in range(WALK_BODY_ROWS[0], WALK_BODY_ROWS[1] + 1):

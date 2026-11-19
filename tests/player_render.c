@@ -7,6 +7,7 @@
 
 #include "app/stage.h"
 #include "engine/assets.h"
+#include "game/car_pass.h"
 #include "game/player_render.h"
 #include "test.h"
 
@@ -110,6 +111,110 @@ static void low_reload_barrels_are_drawn_over_the_walking_legs(void)
     skin.weapon_reload_lower[WEAPON_DUAL] = NULL;
     CHECK(draw_body() != complete); /* A cropped body alone loses the low muzzle. */
     skin.weapon_reload_lower[WEAPON_DUAL] = lower;
+}
+
+static Uint32 reload_pixels[PLAYER_SHOOT_FRAME_W * SPRITE_SCALE * PLAYER_SHOOT_FRAME_H * SPRITE_SCALE];
+
+static bool reload_steel(unsigned color)
+{
+    return color == 0xb3b8b6 || color == 0xa1aaa9 || color == 0x747b77;
+}
+
+static void walking_dual_reloads_keep_the_complete_guns_and_hands_in_every_pose(void)
+{
+    CharacterSkin sheriff = skin;
+    const char *preview = SDL_getenv("THE_MIRACLE_RELOAD_PREVIEW");
+    for (int suit = 0; suit < 2; suit++) {
+        if (suit) CHECK(skin_load_suit(&skin, renderer, &CHARACTERS[0]));
+        char name[128];
+        const EmbeddedImage *full[2], *lower[2];
+        for (int hand = 0; hand < 2; hand++) {
+            snprintf(name, sizeof(name), "sprites/characters/cowgirl/%sreload_dual%s", suit ? "suit/" : "", hand ? "_b" : "");
+            full[hand] = assets_find_image(name);
+            snprintf(name, sizeof(name), "sprites/characters/cowgirl/%sreload_dual%s_lower", suit ? "suit/" : "", hand ? "_b" : "");
+            lower[hand] = assets_find_image(name);
+            CHECK(full[hand] != NULL && lower[hand] != NULL);
+        }
+        snprintf(name, sizeof(name), "sprites/characters/cowgirl/%slegs_dual", suit ? "suit/" : "");
+        const EmbeddedImage *legs = assets_find_image(name);
+        CHECK(legs != NULL);
+        progress_init(&profile.progress);
+        profile.progress.level = POWER_LEVEL;
+        stage_start(&play, 0, &CHARACTERS[0], &profile.progress);
+        play.player.shot.rounds = play.player.shot.other_rounds = 2;
+        InputState input = {0};
+        input.pressed[ACTION_RELOAD] = input.down[ACTION_RIGHT] = true;
+        player_update(&play.player, &input, FIXED_DT);
+        CHECK(play.player.reload_walk && shot_reloading(&play.player.shot));
+        CHECK_NEAR(play.player.shot.mag_reload_time, 1.2f, .0001f);
+        CHECK(play.player.shot.magazine == 8);
+        const AnimationDef *def = play.player.anim.def, *walk = play.player.legs.def;
+        int split = PLAYER_WAIST_ROW + def->ground_y - walk->ground_y;
+        int x_offset = (int)lroundf(def->anchor_x - walk->anchor_x), y_offset = def->ground_y - walk->ground_y;
+        int width = def->frame_w * SPRITE_SCALE, height = def->frame_h * SPRITE_SCALE;
+        /* Each hand alone, each hand first in a pair, and each hand second.
+         * Two opposite leg phases at every reload pose cover the walk cycle. */
+        for (int mode = 0; mode < 6; mode++)
+            for (int f = 0; f < PLAYER_DUAL_RELOAD_FRAMES; f++)
+                for (int facing = -1; facing <= 1; facing += 2)
+                    for (int phase = 0; phase < 2; phase++) {
+                        int hand = mode % 2;
+                        play.player.shot.reload_other = hand != 0;
+                        play.player.shot.reload_pair = mode >= 2;
+                        play.player.shot.reload_all = mode == 2 || mode == 3;
+                        play.player.shot.mag_reload = play.player.shot.mag_reload_time *
+                            (1.0f - ((float)f + .5f) / PLAYER_DUAL_RELOAD_FRAMES);
+                        int frame = mode >= 4 ? f + PLAYER_DUAL_RELOAD_FRAMES
+                                  : mode >= 2 && f > PLAYER_DUAL_RELOAD_HANDOFF_FRAME ? PLAYER_DUAL_RELOAD_HANDOFF_FRAME : f;
+                        int step = (f + phase * 4) % PLAYER_WALK_FRAMES;
+                        animation_seek(&play.player.legs, step);
+                        play.player.facing = facing;
+                        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                        SDL_RenderClear(renderer);
+                        player_render(renderer, &play.player, &skin, play.guns, 0, play.player.x - VIEW_WIDTH / 2);
+                        float anchor = facing < 0 ? def->frame_w - def->anchor_x : def->anchor_x;
+                        SDL_Rect box = {(int)lroundf(VIEW_WIDTH / 2 - anchor * SPRITE_SCALE),
+                                        BASELINE - def->ground_y * SPRITE_SCALE, width, height};
+                        CHECK(SDL_RenderReadPixels(renderer, &box, SDL_PIXELFORMAT_ARGB8888, reload_pixels, width * 4) == 0);
+                        int mismatches = 0, missing_gun = 0, highlights = 0;
+                        if (!full[hand] || !lower[hand] || !legs) continue;
+                        for (int y = 0; y < def->frame_h; y++)
+                            for (int x = 0; x < def->frame_w; x++) {
+                                const unsigned char *upper = full[hand]->rgba + (y * full[hand]->width + frame * def->frame_w + x) * 4;
+                                const unsigned char *c = upper;
+                                static const unsigned char transparent[4] = {0};
+                                if (y >= split) {
+                                    c = lower[hand]->rgba + (y * lower[hand]->width + frame * def->frame_w + x) * 4;
+                                    if (!c[3]) {
+                                        int lx = x - x_offset, ly = y - y_offset;
+                                        c = lx >= 0 && lx < walk->frame_w && ly >= 0 && ly < walk->frame_h
+                                              ? legs->rgba + (ly * legs->width + step * walk->frame_w + lx) * 4 : transparent;
+                                    }
+                                }
+                                unsigned expected = c[3] ? ((unsigned)c[0] << 16) | ((unsigned)c[1] << 8) | c[2] : 0;
+                                int px = (facing < 0 ? def->frame_w - 1 - x : x) * SPRITE_SCALE + SPRITE_SCALE / 2;
+                                unsigned actual = reload_pixels[(y * SPRITE_SCALE + SPRITE_SCALE / 2) * width + px] & 0xffffff;
+                                mismatches += actual != expected;
+                                unsigned gun = ((unsigned)upper[0] << 16) | ((unsigned)upper[1] << 8) | upper[2];
+                                if (y >= split && upper[3] && reload_steel(gun)) {
+                                    highlights++;
+                                    missing_gun += actual != gun;
+                                }
+                            }
+                        CHECK(mismatches == 0); /* Action over animated legs, no static thigh. */
+                        CHECK(highlights > 0 && missing_gun == 0); /* Full-frame guns survive the cut. */
+                        if (preview && phase == 0 && (mode == 2 || mode == 5)) {
+                            SDL_Surface *shot = SDL_CreateRGBSurfaceWithFormatFrom(reload_pixels, width, height, 32, width * 4,
+                                                                                  SDL_PIXELFORMAT_ARGB8888);
+                            snprintf(name, sizeof(name), "%s/%s_%s_%02d.bmp", preview, suit ? "suit" : "sheriff",
+                                     facing < 0 ? "left" : "right", f + (mode == 5 ? PLAYER_DUAL_RELOAD_FRAMES : 0));
+                            CHECK(shot && SDL_SaveBMP(shot, name) == 0);
+                            SDL_FreeSurface(shot);
+                        }
+                    }
+        if (suit) skin_free(&skin);
+        skin = sheriff;
+    }
 }
 
 static void swat_reload_keeps_the_whole_walking_thigh_and_magazine(void)
@@ -421,6 +526,74 @@ static void swat_grenade_and_bench_keep_each_full_frame_in_both_directions(void)
     skin = sheriff;
 }
 
+static bool solid(const EmbeddedImage *image, int x, int y)
+{
+    return x >= 0 && y >= 0 && x < image->width && y < image->height && image->rgba[(y * image->width + x) * 4 + 3];
+}
+
+/* Through a car (N), on every car, both ways, opened or broken into: what of
+ * her is in the car (row 1 of her sheet) always lies on the car, under its
+ * panels and doors or seen through a doorway or its glass; never above its
+ * roof (her hat ducks under it) nor below its floor. While she is out of it
+ * (walking, opening, breaking the glass and reaching in by it, shutting)
+ * nothing of her is in that row, so the car never covers her. Checked with
+ * car_plan and the embedded sheets the game draws. */
+static void car_crossing_keeps_her_on_the_right_side_of_the_car(void)
+{
+    const char *sheets[] = {"sprites/characters/cowgirl/car", "sprites/characters/swat/car",
+                            "sprites/characters/swat/car_shotgun"};
+    const EmbeddedImage *body = assets_find_image("sprites/terrain/car_passage");
+    CHECK(body != NULL && body->width == CAR_DOOR_STATES * VEHICLE_LOOKS * CAR_WRECK_W);
+    for (int who = 0; who < 3 && body; who++) {
+        const EmbeddedImage *her = assets_find_image(sheets[who]);
+        CHECK(her != NULL && her->width == CAR_PASS_FRAMES * CAR_FRAME_W && her->height == 2 * CAR_FRAME_H);
+        if (!her) continue;
+        for (int look = 0; look < VEHICLE_LOOKS; look++)
+            for (int facing = -1; facing <= 1; facing += 2)
+                for (int smash = 0; smash < 2; smash++) {
+                    float car_x = 4000.0f;
+                    float from = car_x - (float)facing * (CAR_WRECK_W * SPRITE_SCALE / 2.0f + PLAYER_BODY_HALF_WIDTH);
+                    CarPlan plan;
+                    car_plan(&plan, from, car_x, look, facing, smash);
+                    float end = plan.at[CAR_STEPS], hit = car_plan_action(&plan);
+                    CHECK(end > 2.0f && end < CAR_PASS_MAX_SECONDS);
+                    float last = from;
+                    int stray = 0, covered = 0;
+                    for (float t = 0.0f; t < end; t += FIXED_DT) {
+                        float x = car_plan_x(&plan, t);
+                        CHECK((x - last) * (float)facing >= -0.001f); /* Never back the way she came */
+                        last = x;
+                        int frame = car_plan_frame(&plan, t);
+                        float phase;
+                        CarStep step = car_plan_step(&plan, t, &phase);
+                        int glass = smash && t >= hit ? (facing > 0 ? 1 : 2) : 0;
+                        int state = look * CAR_DOOR_STATES + car_plan_doors(&plan, t, glass);
+                        bool out_of_it = step == CAR_STEP_WALK_IN || step == CAR_STEP_SETTLE ||
+                                         step == CAR_STEP_REACH || step == CAR_STEP_STRIKE ||
+                                         step == CAR_STEP_PULL || step == CAR_STEP_READY ||
+                                         step == CAR_STEP_WALK_OUT;
+                        for (int y = 0; y < CAR_FRAME_H; y++)
+                            for (int col = 0; col < CAR_FRAME_W; col++) {
+                                if (!solid(her, frame * CAR_FRAME_W + col, CAR_FRAME_H + y))
+                                    continue;
+                                covered += out_of_it;
+                                /* Her pixel's middle, in art px from the car frame's left. */
+                                float left = facing > 0 ? (float)col - 31.5f : 30.5f - (float)col;
+                                float at = (x - car_x) / SPRITE_SCALE + left + 0.5f + CAR_WRECK_W / 2.0f;
+                                int cx = (int)floorf(at), cy = y - (68 - CAR_WRECK_H);
+                                bool on = false;
+                                for (int d = -1; d <= 1 && !on; d++) /* A px of rounding either way */
+                                    on = cx + d >= 0 && cx + d < CAR_WRECK_W &&
+                                         solid(body, state * CAR_WRECK_W + cx + d, cy);
+                                stray += !on;
+                            }
+                    }
+                    CHECK(stray == 0);
+                    CHECK(covered == 0);
+                }
+    }
+}
+
 int main(void)
 {
     SDL_SetMainReady();
@@ -438,12 +611,14 @@ int main(void)
         RUN(an_empty_cylinder_on_fire_keeps_the_whole_character_visible);
         RUN(walking_left_with_a_light_keeps_both_reloads_visible);
         RUN(low_reload_barrels_are_drawn_over_the_walking_legs);
+        RUN(walking_dual_reloads_keep_the_complete_guns_and_hands_in_every_pose);
         RUN(swat_reload_keeps_the_whole_walking_thigh_and_magazine);
         RUN(swat_uses_painted_carry_and_each_visible_muzzle);
         RUN(swat_drink_uses_the_full_hand_sequence_and_keeps_the_slung_weapon_while_walking);
         RUN(swat_breathing_with_the_flashlight_keeps_the_belt_connected);
         RUN(swat_walking_pelvis_matches_the_standing_belt_root_in_both_directions);
         RUN(swat_grenade_and_bench_keep_each_full_frame_in_both_directions);
+        RUN(car_crossing_keeps_her_on_the_right_side_of_the_car);
         skin_free(&skin);
         assets_unload();
         SDL_DestroyRenderer(renderer);

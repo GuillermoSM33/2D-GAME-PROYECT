@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "config.h"
 #include "game/player.h"
 #include "game/terrain.h"
@@ -360,10 +362,88 @@ static void test_explosions_preserve_source_kind(void)
     CHECK(terrain_explosions_typed(&t, xs, kinds, 4) == 0);
 }
 
+static void test_car_interaction_does_not_spend_its_projectile_resistance(void)
+{
+    Terrain t;terrain_clear(&t);
+    Piece *car=terrain_add(&t,TERRAIN_BARRICADE,1000);
+    car->variant=BARRICADE_CAR;
+    terrain_car_open(&t,0,true,-1);
+    unsigned flags=car->car_flags;
+    CHECK(flags && car->hits==0 && !car->blowing);
+    for (int shot=1;shot<=CAR_BLOW_HITS;shot++) {
+        Bullets bullets;bullets_clear(&bullets);
+        Bullet *b=&bullets.items[0];
+        b->active=true;b->prev_x=500;b->x=1000;b->y=BASELINE-60;b->dir=1;
+        CHECK(terrain_shoot(&t,&bullets)==1);
+        CHECK(car->hits==shot && car->car_flags==flags);
+        CHECK(car->blowing==(shot==CAR_BLOW_HITS));
+    }
+    car->blowing=false;car->hits=CAR_BLOW_HITS/2;
+    int damaged=terrain_frame(car);
+    terrain_car_open(&t,0,false,1);
+    CHECK(terrain_frame(car)==damaged && car->hits==CAR_BLOW_HITS/2);
+}
+
+static void test_background_houses_clear_the_whole_front_during_parallax(void)
+{
+    Terrain t; terrain_clear(&t);
+    float width = HOUSE_FRAME_W * SPRITE_SCALE;
+    CHECK(terrain_house_clear(NULL, 0, width));
+    Piece *p = terrain_add(&t, TERRAIN_WALL, 2800);
+    const int variants[] = {1, CITY_FRONT_VARIANT(0), FACADE_TRAIN};
+    for (int i = 0; i < 3; i++) {
+        p->variant = variants[i];
+        float half = terrain_front_half_width(p);
+        CHECK(half > terrain_piece_half_width(p));
+        CHECK(!terrain_house_clear(&t, p->x * HOUSE_PARALLAX - width / 2, width));
+        CHECK(terrain_house_clear(&t, p->x + half + 10000, width)); /* Far past its end, however long */
+        /* Every accepted house stays separated over the full camera sweep,
+         * including positions where it only borders the front of the train. */
+        for (float house = 0; house < 7000; house += 111) {
+            if (!terrain_house_clear(&t, house, width)) continue;
+            for (float camera = p->x - half - VIEW_WIDTH; camera <= p->x + half; camera += 31) {
+                float gap = fabsf(house + width / 2 - p->x + (1 - HOUSE_PARALLAX) * camera);
+                CHECK(gap >= width / 2 + half + 48 * SPRITE_SCALE - .01f);
+            }
+        }
+        p->spent = true;
+        CHECK(!terrain_house_clear(&t, p->x * HOUSE_PARALLAX - width / 2, width));
+        p->spent = false;
+    }
+}
+
+static void test_decoration_clears_native_vehicle_and_building_sizes(void)
+{
+    Terrain t; terrain_clear(&t);
+    CHECK(terrain_prop_clear(NULL, 500, 100));
+    Piece *piece = terrain_add(&t, TERRAIN_SUPPLY, 1400);
+    piece->variant = 1;
+    float half = terrain_front_half_width(piece), decor = 120;
+    CHECK(half > terrain_piece_half_width(piece) * 2);
+    CHECK(!terrain_prop_clear(&t, piece->x + half + decor - 1, decor));
+    CHECK(terrain_prop_clear(&t, piece->x + half + decor + SCENERY_GAP, decor));
+    piece->spent = true;
+    CHECK(!terrain_prop_clear(&t, piece->x + half, decor));
+    piece->kind = TERRAIN_WALL;
+    piece->variant = CITY_FRONT_VARIANT(0);
+    CHECK(!terrain_prop_clear(&t, piece->x + terrain_front_half_width(piece) - decor, decor));
+    CHECK(terrain_prop_clear(&t, piece->x - terrain_front_half_width(piece) - decor - SCENERY_GAP, decor));
+    piece->variant = FACADE_TRAIN;
+    CHECK(!terrain_prop_clear(&t, piece->x + TRAIN_W * SPRITE_SCALE * .4f, decor));
+}
+
 int main(void)
 {
+    CHECK(FACADE_TRAIN==10);
+    for (int frame=0;frame<FACADE_URBAN;frame++)
+        CHECK(terrain_city_front_frame(CITY_FRONT_VARIANT(frame))==frame);
+    CHECK(terrain_city_front_frame(FACADE_TRAIN)==-1);
+    CHECK(terrain_city_front_frame(CITY_FRONT_VARIANT(FACADE_URBAN))==-1);
     printf("test_terrain\n");
     RUN(test_barricade_blocks_below_its_top);
+    RUN(test_background_houses_clear_the_whole_front_during_parallax);
+    RUN(test_decoration_clears_native_vehicle_and_building_sizes);
+    RUN(test_car_interaction_does_not_spend_its_projectile_resistance);
     RUN(test_zombies_claw_through);
     RUN(test_she_stands_on_it_and_falls_when_it_breaks);
     RUN(test_only_a_vault_clears_a_barricade);

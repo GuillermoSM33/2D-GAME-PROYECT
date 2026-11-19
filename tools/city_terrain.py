@@ -112,114 +112,190 @@ def barricade_military(f: Frame, state: int) -> None:
 
 
 def motorcycle(f: Frame, ox: int, base: int, paint: list, lean: int = 0, dead: bool = False,
-               kind: int = 0) -> None:
+               kind: int = 0, burnt: bool = False) -> None:
     """A motorcycle at her scale, side on, facing right, its wheels on row
-    base (2 m long, the bars at her chest): spoked wheels, engine and
-    exhaust, tank, seat, rear fender, forks, bars and headlamp. lean tips it
-    toward the viewer (its top slides right). kind 0 a street bike; 1 a
-    chopper (long raked forks, high bars, a sissy bar); 2 a dirt bike (high
-    fenders, a flat seat up high, a number plate)."""
-    front = 60 if kind == 1 else 55
-    def px(x: int, y: int, c) -> None:
-        f.px(ox + x + (base - y) * lean // 24, y, c)
+    base (2 m long, the bars at her chest): spoked wheels in round tyres
+    under curved fenders, a V-twin (two finned cylinders over a rounded
+    crankcase), an exhaust sweeping back and up past the rear wheel, the
+    tank, the seat, forks, bars, a round headlamp and its kickstand down.
+    lean tips it toward the viewer (its top slides right); dead: knocked
+    about (a flat front tyre, a dented tank, a broken lamp); burnt: blown up,
+    on its bare rims. kind 0 a street bike; 1 a chopper (long raked forks,
+    high bars, a sissy bar); 2 a dirt bike (high fenders, a flat seat up
+    high, a number plate). Nothing is a filled box: every part has its shape."""
+    front = 54 if kind == 1 else 53
+    sink = 3 if burnt else 0                              # On its rims, lower
 
-    for wx in (11, front):                                # Wheels
-        for yy in range(-10, 11):
-            for xx in range(-10, 11):
+    def px(x: int, y: int, c) -> None:
+        f.px(ox + x + (base - y) * lean // 24, y + sink, c)
+
+    def line(x0, y0, x1, y1, color):
+        steps = max(abs(x1 - x0), abs(y1 - y0), 1)
+        for i in range(steps + 1):
+            px(round(x0 + (x1 - x0) * i / steps), round(y0 + (y1 - y0) * i / steps), color)
+
+    def arc(cx, cy, r, a0, a1, color, width=1):
+        for k in range(48):
+            a = math.radians(a0 + (a1 - a0) * k / 47)
+            for w in range(width):
+                px(round(cx + (r + w) * math.cos(a)), round(cy + (r + w) * math.sin(a)), color)
+
+    for wx in (11, front):                                # Wheels: tyre, rim, spokes, hub
+        flat = dead and wx == front
+        for yy in range(-11, 12):
+            for xx in range(-11, 12):
                 d = math.hypot(xx, yy)
-                if d <= 10.3:
-                    spoke = d < 7 and (abs(xx) < 1 or abs(yy) < 1 or abs(abs(xx) - abs(yy)) < 1)
-                    c = IRON[0] if d > 7 else IRON[3] if d < 2 or spoke else (0, 0, 0, 0)
-                    if c[3]:
-                        px(wx + xx, base - 10 + yy, c)
-    for x in range(22, 44):                               # Engine and gearbox
-        for y in range(base - 19, base - 6):
-            if x + (base - y) > 26:
-                px(x, y, IRON[3] if (x + y) % 4 == 0 else IRON[2] if y < base - 12 else IRON[1])
-    for x in range(26, 34, 2):                            # Cooling fins
-        px(x, base - 20, IRON[4])
-    for x in range(4, 32):                                # Exhaust
-        px(x, base - 5, IRON[4] if x < 26 else IRON[2])
-        px(x, base - 4, IRON[1])
+                if burnt:
+                    if 6.0 <= d <= 7.4:                   # The tyre burnt off its bare rim
+                        px(wx + xx, base - 10 + yy, IRON[2] if yy < 0 else IRON[1])
+                    elif d < 1.5:
+                        px(wx + xx, base - 10 + yy, IRON[1])
+                    continue
+                if flat and yy > 7:
+                    continue                              # Its flat tyre squashed on the road
+                if d > 10.3:
+                    continue
+                if d > 7.3:                               # Rubber, lit on its upper left
+                    c = IRON[1] if (yy < -4 and xx < 3) else IRON[0]
+                elif d > 6.1:                             # Chrome rim
+                    c = IRON[4] if yy < 0 else IRON[3]
+                elif d < 1.6:
+                    c = IRON[4]                           # Hub
+                elif abs(xx) < .8 or abs(yy) < .8 or abs(abs(xx) - abs(yy)) < .8:
+                    c = IRON[2]                           # Spokes
+                else:
+                    continue
+                px(wx + xx, base - 10 + yy, c)
+        if flat:
+            for x in range(wx - 10, wx + 11):
+                px(x, base - 2, IRON[0])
+                px(x, base - 1, IRON[0])
+    if not burnt and kind != 2:                           # Curved fenders over the wheels
+        arc(11, base - 10, 11, 195, 285, paint[2], 2)
+        arc(front, base - 10, 11, 235, 320, paint[2], 1)
+        arc(front, base - 10, 12, 240, 300, paint[3], 1)
+    # Open tubular frame: the road is visible between wheel, tank and engine.
+    for a, b in (((11, base - 10), (23, base - 24)), ((23, base - 24), (33, base - 7)),
+                 ((33, base - 7), (front - 9, base - 31)), ((11, base - 10), (30, base - 8))):
+        line(*a, *b, IRON[1])
+    # Two finned cylinders in a V over a rounded crankcase, a gearbox behind.
+    for side in (-1, 1):
+        for row in range(8):
+            cy = base - 19 + row
+            center = 32 + side * (5 - row // 2)
+            for dx in range(-2, 3):
+                col = IRON[4] if row % 2 == 0 and dx < 1 else IRON[3] if row % 2 == 0 else IRON[0]
+                if dx == 2:
+                    col = IRON[1]
+                px(center + dx, cy, col)
+        line(32 + side * 6, base - 20, 32 + side * 3, base - 20, IRON[4])
+    for yy in range(-4, 5):                               # Crankcase
+        for xx in range(-6, 7):
+            r = xx * xx / 36 + yy * yy / 16
+            if r <= 1:
+                px(32 + xx, base - 9 + yy, IRON[0] if r > .72 else IRON[3] if xx < -1 and yy < 1 else IRON[2])
+    for yy in range(-3, 3):                               # Gearbox, rounded
+        for xx in range(-3, 4):
+            if xx * xx / 9 + yy * yy / 7 <= 1:
+                px(24 + xx, base - 9 + yy, IRON[1] if xx > 0 else IRON[2])
+    px(31, base - 10, IRON[4])
+    px(33, base - 8, IRON[0])
+    # Headers down from the cylinders, the pipe back under the engine and a
+    # silencer rising past the rear wheel.
+    line(38, base - 13, 39, base - 6, IRON[3])
+    line(39, base - 5, 22, base - 5, IRON[3])
+    line(38, base - 4, 22, base - 4, IRON[1])
+    for i in range(16):                                   # The silencer, two pixels thick
+        x, y = 21 - i, base - 5 - i * 5 // 15
+        px(x, y, IRON[4] if i < 14 else IRON[2])
+        px(x, y + 1, IRON[2])
+    px(5, base - 11, IRON[0])
+    if not burnt:
+        line(27, base - 5, 23, base, IRON[1])             # Kickstand down
+    seat_color = OUTLINE if not burnt else IRON[1]
     for x in range(26, 48):                               # Tank
         for y in range(base - 29, base - 20):
             if (x - 37) ** 2 / 121 + (y - (base - 24)) ** 2 / 25 <= 1.0:
-                px(x, y, paint[3] if y < base - 26 else paint[2] if y < base - 22 else paint[1])
-    for x in range(8, 28):                                # Seat, rear fender
-        px(x, base - 26, OUTLINE)
-        px(x, base - 25, IRON[1])
+                c = paint[3] if y < base - 26 else paint[2] if y < base - 22 else paint[1]
+                if dead and (x - 34) ** 2 + (y - (base - 24)) ** 2 <= 3:
+                    c = paint[0]                          # A dent
+                px(x, y, c)
+    if not burnt:
+        px(33, base - 28, paint[3])
+        px(34, base - 28, BONE[3] if len(BONE) > 3 else paint[3])   # A glint on the tank
+    for x in range(8, 28):                                # Seat, rear fender rail
+        px(x, base - 26, seat_color)
+        px(x, base - 25, IRON[1] if not burnt else IRON[0])
         px(x, base - 24, IRON[1] if x > 12 else paint[1])
+    if not burnt:
+        for x in range(10, 26, 5):
+            px(x, base - 25, IRON[2])                     # Seat stitching, its leather lit
     for i in range(9):
         px(3 + i, base - 22 + i // 3, paint[2])
-    px(2, base - 21, RED[3] if not dead else IRON[1])     # Tail light
+    px(2, base - 21, RED[3] if not dead and not burnt else IRON[1])     # Tail light
     rake = 18 if kind == 1 else 9
     for i in range(24):                                   # Forks, raked
         px(front - i * rake // 24, base - 10 - i, IRON[4])
         px(front + 1 - i * rake // 24, base - 10 - i, IRON[2])
+    top = base - 33                                       # Bars low enough to stay in the cell
     if kind == 1:                                         # High bars, a sissy bar behind the seat
+        for i in range(2):
+            px(41, top - 1 - i, IRON[4])
         for i in range(8):
-            px(41, base - 34 - i, IRON[4])
             px(6, base - 26 - i, IRON[3])
         for x in range(36, 43):
-            px(x, base - 42, IRON[3])
+            px(x, top - 2, IRON[3])
     if kind == 2:                                         # High fenders, a number plate
-        for x in range(front - 12, front + 4):
-            px(x, base - 23, paint[3])
-        for x in range(2, 16):
-            px(x, base - 30, paint[3])
-        for y in range(base - 33, base - 27):
+        if not burnt:
+            arc(front, base - 10, 13, 215, 325, paint[2], 2)   # Its front fender, high over the tyre
+            arc(front, base - 10, 14, 230, 300, paint[3], 1)
+            for i in range(14):                           # Its tail, sweeping up off the seat
+                x, y = 15 - i, base - 26 - i * 5 // 13
+                px(x, y, paint[3])
+                px(x, y + 1, paint[2])
+        for y in range(base - 32, base - 27):
             for x in range(44, 49):
                 px(x, y, BONE[2])
         for x in range(10, 36):
             px(x, base - 29, OUTLINE)
             px(x, base - 28, IRON[1])
-    for x in range(40, 50):                               # Bars, a mirror
-        px(x, base - 35, IRON[3])
-    px(40, base - 36, IRON[4])
-    px(39, base - 38, IRON[2])
-    for y in range(base - 32, base - 26):                 # Headlamp
-        for x in range(49, 54):
-            px(x, y, BONE[2] if not dead and x > 51 else IRON[2])
+    bent = 2 if burnt else 0
+    for x in range(40, 50):                               # Bars, grips, a mirror
+        px(x, top + (bent if x > 46 else 0), IRON[3])
+    px(40, top, IRON[0])
+    px(49, top + bent, IRON[0])
+    px(41, top - 1, IRON[2])
+    px(40, top - 2, IRON[4])
+    for yy in range(-3, 4):                               # A round headlamp
+        for xx in range(-2, 3):
+            if xx * xx / 6.25 + yy * yy / 12.25 <= 1:
+                lit = not dead and not burnt and xx > 0
+                px(51 + xx, base - 29 + yy, BONE[2] if lit else IRON[2] if xx > -1 else IRON[1])
 
 
 def barricade_motos(f: Frame, state: int, kind: int = 0) -> None:
-    """A motorcycle chained across the road, another dropped on its side in
-    front of it; knocked half over, holed; both flat and burnt (it blew up).
-    kind: a red street bike, a black chopper, a yellow dirt bike."""
+    """A motorcycle chained across the road; knocked half over, dented, its
+    front tyre flat; burnt out on its bare rims (it blew up). kind: a red
+    street bike, a black chopper, a yellow dirt bike."""
     red = [[rgb(0x4a1612), rgb(0x74231a), rgb(0x9c3424), rgb(0xc24e32)],
            [rgb(0x101014), rgb(0x1e1e24), rgb(0x30303a), rgb(0x4a4a56)],
            [rgb(0x5a4410), rgb(0x8a6a18), rgb(0xc09a24), rgb(0xe8c84a)]][kind]
-    blue = [[rgb(0x182440), rgb(0x24386a), rgb(0x3a5aa0), rgb(0x5a7ac0)],
-            [rgb(0x3a1414), rgb(0x5a1e1c), rgb(0x7c2c26), rgb(0xa04436)],
-            [rgb(0x1c2a26), rgb(0x2c4038), rgb(0x40584a), rgb(0x5c7660)]][kind]
     if state == 2:
-        red = blue = [rgb(0x141210), rgb(0x241e1a), rgb(0x3a2e26), rgb(0x54402e)]
-
-    def fallen(x0: int, paint: list) -> None:             # Seen from above its side, on the road
-        for x in range(x0, x0 + 56):
-            f.px(x, 22, IRON[2] if x % 6 else IRON[4])
-            f.px(x, 23, IRON[1])
-        f.fill(x0 + 20, 19, x0 + 38, 21, paint[2])
-        f.fill(x0 + 20, 19, x0 + 38, 19, paint[3])
-        for wx in (x0 + 6, x0 + 50):
-            f.fill(wx - 6, 20, wx + 6, 24, IRON[0])
-            f.fill(wx - 2, 21, wx + 2, 22, IRON[3])
-
-    if state == 2:
-        fallen(2, red)
-        fallen(10, blue)
-        for x in range(20, 44, 4):
-            f.px(x, 17 + x % 3, IRON[2])                  # A bent bar sticking up
+        burnt = [rgb(0x141210), rgb(0x241e1a), rgb(0x3a2e26), rgb(0x54402e)]
+        motorcycle(f, 1 if kind != 1 else 0, 25, burnt, 3, True, kind, burnt=True)
+        for x, y in ((8, 25), (15, 24), (44, 25), (50, 24), (58, 25)):   # Debris on the road
+            f.px(x, y, IRON[1])
+            f.px(x + 1, y, IRON[0])
         return
     motorcycle(f, 1 if kind != 1 else 0, 25, red, 0 if state == 0 else 7, state == 1, kind)
-    fallen(8, blue)
     if state == 0:
-        for i in range(44):                               # The chain to a post, a padlock
-            f.px(10 + i, 12 + round(3 * math.sin(i * .15)), IRON[4] if i % 2 else IRON[2])
+        for i in range(44):                               # The chain through its wheels, a padlock
+            f.px(10 + i, 14 + round(2 * math.sin(i * .15)), IRON[4] if i % 2 else IRON[2])
         f.fill(30, 15, 33, 18, BRASS[1])
+        f.px(31, 14, BRASS[3] if len(BRASS) > 3 else BRASS[1])
     else:
-        for y in range(-2, 6):
-            f.px(44 + y // 2, y, OUTLINE)                 # Cracked: its bars twisted
+        for y in range(-1, 5):
+            f.px(46 + y // 2, y, OUTLINE)                 # Its bars twisted
 
 
 def barricade_motos_2(f: Frame, state: int) -> None:

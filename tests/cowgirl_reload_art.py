@@ -10,6 +10,28 @@ from make_powers import load
 
 
 class ReloadArms(unittest.TestCase):
+    def test_walking_overlay_keeps_every_low_held_gun_and_glove(self):
+        # The walk joins at row 46, with ground rows 61 (walk) and 68
+        # (reload): action pixels from row 53 must survive the torso cut.
+        split = 46 + 68 - 61
+        for other, name in ((False, 'reload_dual_lower'), (True, 'reload_dual_b_lower')):
+            overlay = load(art.OUT / (name + '.png'))
+            for second in (False, True):
+                for frame in range(24):
+                    hands, angles, held = art.dual_reload_pose(other, frame, second)
+                    for hand in range(2):
+                        top = art.FAR_TOP if hand else art.SHOULDER
+                        lengths = art.FAR_ARM if hand else (7, 7)
+                        elbow, wrist = art.reload_bones(top, hands[hand], lengths, -1 if hand else 1)
+                        expected = art.glove(wrist, elbow)
+                        if held[hand]:
+                            expected.update(art.pistol_pointing(wrist, angles[hand]))
+                        with self.subTest(other=other, second=second, frame=frame, hand=hand):
+                            for x, y in expected:
+                                if split <= y < 80:
+                                    self.assertNotEqual(overlay.get((frame + second * 24) * 81 + x, y)[3], 0,
+                                                        'Walking lost a hand or a segment of its held revolver')
+
     def test_bones_elbows_and_wrists_stay_anatomically_consistent(self):
         for other in (False, True):
             for second in (False, True):

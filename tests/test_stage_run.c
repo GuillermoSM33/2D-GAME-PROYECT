@@ -18,6 +18,25 @@ static void setup(StageRun *run, Player *player, Progress *progress, int stage, 
  * appeared on this step. */
 static int walk_and_kill(StageRun *run, Player *player, Progress *progress)
 {
+    if (run->train.present) {
+        if (!run->train.inside) train_use(run,player);
+        if (run->train.inside) {
+            /* Only use each hook once: E there a second time removes the suit. */
+            if (!run->train.suit && fabsf(player->x-train_suit_x(run)) <= 32*SPRITE_SCALE)
+                train_use(run,player);
+            if (!run->train.tablet && fabsf(player->x-train_tablet_x(run)) <= 32*SPRITE_SCALE)
+                train_use(run,player);
+            for (int part=0;part<3;part++) {
+                float at;
+                if (!(run->weapon_parts&(1u<<part)) && train_part_position(run,part,&at) &&
+                    player->x>at && player->x<at+20) { player->x=at;train_use(run,player); }
+            }
+            if (!run->train.control_read && fabsf(player->x-train_terminal_x(run)) <= 32*SPRITE_SCALE)
+                train_use(run,player);
+            if (train_exit_open(run) && fabsf(player->x-train_exit_x(run)) <= 32*SPRITE_SCALE)
+                train_use(run,player);
+        }
+    }
     int before = 0, after = 0;
     float chest_x = -1.0f;
     for (int c = 0; c < RUN_MAX_CHESTS; c++) {
@@ -64,7 +83,8 @@ static void test_road_is_laid_out(void)
         setup(&run, &player, &progress, s, true);
         CHECK(run.zombie_count == STAGES[s].zombies);
         /* Its length, and a little more where the road made room */
-        CHECK(run.goal_x >= player.x + STAGES[s].length && run.goal_x <= player.x + STAGES[s].length * 1.35f);
+        float extension=run.train.present ? TRAIN_W*SPRITE_SCALE+160*SPRITE_SCALE : 0;
+        CHECK(run.goal_x >= player.x + STAGES[s].length && run.goal_x <= player.x + STAGES[s].length * 1.35f+extension);
         CHECK_NEAR(run.goal_x - player.x, run_road_length(s), 1e-2f);
         CHECK(player.x + run_road_length(s) < WORLD_WIDTH - VIEW_WIDTH);
         CHECK_NEAR(terrain_goal_x(&run.terrain), run.goal_x, 1e-3f);
@@ -1367,13 +1387,13 @@ static void test_some_walls_are_buildings(void)
                 if (s < 5) /* The first route: palisades and western fronts */
                     CHECK(p->variant >= 0 && p->variant <= FACADE_KINDS);
                 else /* The town: only its fronts and the derailed trains */
-                    CHECK(p->variant > FACADE_KINDS && p->variant <= FACADE_TRAIN);
+                    CHECK(p->variant == FACADE_TRAIN || terrain_city_front_frame(p->variant) >= 0);
                 trains += p->variant == FACADE_TRAIN;
             }
         }
     }
     CHECK(buildings > 0 && palisades > 0);
-    CHECK(trains == 3); /* All in the rail yard, 2-3 */
+    CHECK(trains == 1); /* One complete eight-car laboratory in 2-3. */
 }
 
 /* 2-1: walking past a patrol car sets its siren off. Its horde walks in from
@@ -1502,11 +1522,13 @@ static void test_car_vault_outpost_and_truck(void)
     player.x = car->x - half - PLAYER_BODY_HALF_WIDTH;
     run_place_player(&run, &player);
     CHECK(player.max_x <= car->x - half - PLAYER_BODY_HALF_WIDTH + 1.0f); /* It stops her */
-    CHECK(run_vault(&run, &player) && player.vaulting);
+    run.wall_x = 0.0f;
+    CHECK(run_vault(&run, &player) && player.state == PLAYER_CAR && !player.vaulting);
     InputState idle = {0};
-    for (int i = 0; i < 90 && (player.vaulting || player.jump.airborne); i++) {
+    for (int i = 0; i < 400 && player.state == PLAYER_CAR; i++) {
         run_place_player(&run, &player);
         player_update(&player, &idle, FIXED_DT);
+        CHECK(!player.jump.airborne && player.jump.height == 0.0f);
     }
     CHECK(player.x > car->x + half + PLAYER_BODY_HALF_WIDTH - 1.0f && player.jump.height == 0.0f);
 
@@ -1714,6 +1736,28 @@ static void test_blast_hurts_her_only_inside_the_fireball(void)
     }
 }
 
+static void test_road_objects_do_not_overlap(void)
+{
+    for (int stage = 0; stage < STAGE_COUNT; stage++) {
+        StageRun run;
+        run_start(&run, stage, PLAYER_START_X, true);
+        for (int a = 0; a < run.terrain.count; a++) {
+            const Piece *p = &run.terrain.items[a];
+            if (p->kind == TERRAIN_PUDDLE || p->kind == TERRAIN_RIVER ||
+                (run.train.present && p->x >= run.train.left && p->x <= run.train.right)) continue;
+            for (int b = 0; b < a; b++) {
+                const Piece *q = &run.terrain.items[b];
+                if (q->kind == TERRAIN_PUDDLE || q->kind == TERRAIN_RIVER ||
+                    (run.train.present && q->x >= run.train.left && q->x <= run.train.right)) continue;
+                /* The building is behind the road; its door is on the road. */
+                float ph = p->kind == TERRAIN_WALL ? terrain_piece_half_width(p) : terrain_front_half_width(p);
+                float qh = q->kind == TERRAIN_WALL ? terrain_piece_half_width(q) : terrain_front_half_width(q);
+                CHECK(fabsf(p->x - q->x) >= ph + qh + SCENERY_GAP - .05f);
+            }
+        }
+    }
+}
+
 static void test_traps_leave_room_between_them(void)
 {
     /* Every stage: no two traps closer than HAZARD_GAP, so she can land
@@ -1810,10 +1854,63 @@ static void test_a_burn_needs_a_bandage_then_water(void)
     CHECK(!player.burned && !player.burn_bandaged && player.water == 0);
 }
 
+static void test_car_passage_uses_doors_glass_and_persistent_alarm(void)
+{
+    bool unlocked=false, quiet=false, alarm=false;
+    for (int side=-1;side<=1;side+=2) for (int n=0;n<18;n++) {
+        StageRun run; Player p; Progress progress;
+        setup(&run,&p,&progress,5,true);
+        terrain_clear(&run.terrain);run.zombie_count=0;run.wall_x=0;
+        Piece *car=terrain_add(&run.terrain,TERRAIN_BARRICADE,900+n*17);
+        car->variant=terrain_car_variant(n%VEHICLE_LOOKS);
+        p.facing=side;
+        p.x=car->x-side*(terrain_piece_half_width(car)+PLAYER_BODY_HALF_WIDTH);
+        bool locked=terrain_car_locked(car), armed=terrain_car_alarm_armed(car);
+        CHECK(run_vault(&run,&p) && p.state==PLAYER_CAR && p.car_smash==locked);
+        CHECK(!run_vault(&run,&p));
+        InputState spam={0};
+        spam.down[ACTION_RIGHT]=spam.pressed[ACTION_SHOOT]=spam.pressed[ACTION_JUMP]=true;
+        int actions=0;float previous=p.x;
+        for (int step=0;step<400 && p.state==PLAYER_CAR;step++) {
+            run_place_player(&run,&p);
+            player_update(&p,&spam,FIXED_DT);
+            CHECK((p.x-previous)*side>=-.001f && !p.jump.airborne && !p.shot_fired);
+            previous=p.x;
+            if (p.car_action) {
+                actions++;
+                terrain_car_open(&run.terrain,p.car_index,p.car_smash,side);
+            }
+        }
+        CHECK(actions==1 && p.state==PLAYER_IDLE);
+        CHECK((p.x-car->x)*side>terrain_piece_half_width(car)+PLAYER_BODY_HALF_WIDTH);
+        CHECK(!!(car->car_flags & CAR_WINDOW_BROKEN)==locked);
+        CHECK(car->hits==0 && car->damage==0 && !car->blowing && !car->spent);
+        CHECK(terrain_siren_on(car)==(locked && armed));
+        int events=run.terrain.events.siren_count;
+        terrain_car_open(&run.terrain,0,locked,side);
+        CHECK(run.terrain.events.siren_count==events); /* Never reroll or retrigger. */
+        unlocked |= !locked;quiet |= locked && !armed;alarm |= locked && armed;
+        if (locked && armed) {
+            terrain_update(&run.terrain,SIREN_TIME+1);
+            CHECK(!terrain_siren_on(car));
+        }
+    }
+    CHECK(unlocked && quiet && alarm);
+    StageRun run;Player p;Progress progress;
+    setup(&run,&p,&progress,5,true);
+    terrain_clear(&run.terrain);run.wall_x=0;
+    Piece *car=terrain_add(&run.terrain,TERRAIN_BARRICADE,900);
+    car->variant=BARRICADE_CAR;
+    p.x=car->x-terrain_piece_half_width(car)-PLAYER_BODY_HALF_WIDTH;
+    terrain_add(&run.terrain,TERRAIN_WALL,car->x+100);
+    CHECK(!run_vault(&run,&p)); /* Do not emerge through another obstacle. */
+}
+
 int main(void)
 {
     printf("test_stage_run\n");
     RUN(test_road_is_laid_out);
+    RUN(test_road_objects_do_not_overlap);
     RUN(test_traps_leave_room_between_them);
     RUN(test_lightning_warns_then_strikes_and_burns);
     RUN(test_a_burn_needs_a_bandage_then_water);
@@ -1872,6 +1969,7 @@ int main(void)
     RUN(test_a_shot_sets_a_siren_off);
     RUN(test_burning_drum_tips_into_fire);
     RUN(test_car_vault_outpost_and_truck);
+    RUN(test_car_passage_uses_doors_glass_and_persistent_alarm);
     RUN(test_vehicles_blow_up_and_hydrants_burst);
     RUN(test_fear_hurries_her_feet_and_slows_her_hands);
     return TEST_EXIT();

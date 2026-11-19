@@ -57,6 +57,7 @@ typedef struct {
     unsigned found;      /* Bit per clue */
     unsigned solved;     /* Bit per case */
     unsigned beats_seen; /* Bit per stage: its end-of-stage beat was played */
+    unsigned weapon_parts; /* Eight pieces of the plasma prototype, shared across characters. */
 } CaseFile;
 
 void casefile_init(CaseFile *file);
@@ -140,11 +141,11 @@ typedef struct {
     int scene;           /* Which tape's shots play under its lines (app/story_render.c) */
 } StoryBeat;
 
-/* What the landscape's change after a stage means, played when it is first
+/* What the landscape's change after a stage means, played when it is
  * cleared; NULL for stages with none. */
 const StoryBeat *story_after_stage(int stage);
 
-/* What is told before a stage is first played (2-1: the town leads to the
+/* What is told before a stage is played (2-1: the town leads to the
  * city); NULL for the rest. */
 const StoryBeat *story_before_stage(int stage);
 
@@ -228,6 +229,8 @@ typedef struct {
 } Story;
 
 void story_start(Story *story, const StoryBeat *beat);
+/* Start the stage's beat on every visit; discovery only unlocks its tape. */
+bool story_start_stage(Story *story, CaseFile *file, int stage, bool before);
 void story_update(Story *story, bool advance, bool skip, float dt);
 /* The line typed so far into buf; its opacity. */
 bool story_caption(const Story *story, char *buf, int size, float *alpha);

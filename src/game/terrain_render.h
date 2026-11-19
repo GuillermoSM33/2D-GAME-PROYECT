@@ -9,10 +9,13 @@
 
 /* The road's pieces in view, standing on the ground line (a blown barrel is
  * gone; a wrecked barricade and an empty wagon stay). */
-void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera_x);
+void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera_x, bool inside_train);
 
 /* A river's surface again, over the feet of whoever wades it: after them. */
 void terrain_render_front(SDL_Renderer *renderer, const Terrain *terrain, float camera_x);
+/* Articulated doors before the character, sill/roof after it. */
+void terrain_render_car_body(SDL_Renderer *renderer, const Terrain *terrain, const Player *player, float camera_x);
+void terrain_render_car_cover(SDL_Renderer *renderer, const Terrain *terrain, const Player *player, float camera_x);
 
 /* Surface illumination, perspective ground shadows and atmospheric bloom.
  * Call after the world/effects, before restoring the window's HUD viewport. */

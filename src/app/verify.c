@@ -7,6 +7,7 @@
 #include "engine/assets.h"
 #include "engine/pixfont.h"
 #include "game/character_skin.h"
+#include "game/car_pass.h"
 #include "game/casefile.h"
 #include "game/player.h"
 #include "game/props.h"
@@ -222,12 +223,23 @@ int app_verify_assets(void)
     failures += !verify_image(terrain_facade_sheet(), FACADE_KINDS * FACADE_W, FACADE_H);
     failures += !verify_image(terrain_city_front_sheet(), FACADE_URBAN * CITY_FRONT_W, CITY_FRONT_H);
     failures += !verify_image(terrain_car_wreck_sheet(), 3 * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image("sprites/terrain/car_passage", CAR_DOOR_STATES * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image("sprites/terrain/car_passage_front", CAR_DOOR_STATES * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image("sprites/terrain/car_passage_damaged", CAR_DOOR_STATES * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image("sprites/terrain/car_passage_damaged_front", CAR_DOOR_STATES * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image("sprites/terrain/car_glass", 2 * VEHICLE_LOOKS * CAR_WRECK_W, CAR_WRECK_H);
+    failures += !verify_image("sprites/characters/cowgirl/car", CAR_PASS_FRAMES * CAR_FRAME_W, 2 * CAR_FRAME_H);
+    failures += !verify_image("sprites/characters/swat/car", CAR_PASS_FRAMES * CAR_FRAME_W, 2 * CAR_FRAME_H);
+    failures += !verify_image("sprites/characters/swat/car_shotgun", CAR_PASS_FRAMES * CAR_FRAME_W, 2 * CAR_FRAME_H);
     failures += !verify_image(terrain_supply_truck_sheet(), 2 * VEHICLE_FRAME_W, VEHICLE_FRAME_H);
     failures += !verify_image("sprites/effects/flare", FLARE_FRAMES * FLARE_FRAME_W, FLARE_FRAME_H);
     failures += !verify_image("sprites/effects/paper", 4 * TUMBLE_FRAME, TUMBLE_FRAME);
     failures += !verify_image("sprites/effects/hydrant_jet", 4 * JET_FRAME_W, JET_FRAME_H);
     failures += !verify_image(terrain_door_sheet(), 3 * 3 * DOOR_FRAME_W, DOOR_FRAME_H); /* Planks, shutter, coupling */
     failures += !verify_image(terrain_train_sheet(), TRAIN_W, TRAIN_H);
+    failures += !verify_image("sprites/terrain/train_interior", TRAIN_ROOMS*TRAIN_ROOM_W, TRAIN_INTERIOR_H);
+    failures += !verify_image("sprites/terrain/train_gear", 2 * TRAIN_GEAR_W, TRAIN_GEAR_H);
+    failures += !verify_image("sprites/terrain/experimental_parts", EXPERIMENTAL_PARTS*32, 32);
     failures += !verify_image("sprites/sparrow/sparrow", CROW_FRAMES * CROW_FRAME_W, CROW_FRAME_H);
     failures += !verify_image("sprites/weapons/grenade", 4 * GRENADE_FRAME, GRENADE_FRAME);
     failures += !verify_image("sprites/effects/blood", 4 * 8, 4);
@@ -258,6 +270,8 @@ int app_verify_assets(void)
     } kit[] = {
         {"sprites/ui/panel", 24, 24}, {"sprites/ui/button", 32, 16}, {"sprites/ui/key", 14, 14},
         {"sprites/ui/pip", 12, 10}, {"sprites/ui/bar", 12, 8},
+        {"sprites/ui/field_tablet", 448, 252}, {"sprites/ui/field_inventory", 360, 215},
+        {"sprites/ui/train_map_rooms", TRAIN_ROOMS * 44, 22},
         {"sprites/ui/notice_dev", UI_NOTICE_W, UI_NOTICE_H},
         {"sprites/ui/icons", ICON_COUNT * UI_ICON_SIZE, UI_ICON_SIZE},
         {"sprites/ui/icons_hd", ICON_COUNT * UI_ICON_HD_SIZE, UI_ICON_HD_SIZE},

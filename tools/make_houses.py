@@ -23,15 +23,15 @@ from scenery_materials import planks as material_planks, masonry, metal, window,
 W, H, FLOOR = 256, 192, 191
 INK = hx(0x28282b)
 HOLE = hx(0x25292d)
-WOOD = hx(0x987653)
-PALE_WOOD = hx(0xb8a17a)
-GREY_WOOD = hx(0x837f70)
-RED_WOOD = hx(0x956255)
-TRIM = hx(0xbfb293)
-STONE = hx(0xa19a86)
-IRON = hx(0x777d7b)
+WOOD = hx(0x8d7359)
+PALE_WOOD = hx(0xac9b7f)
+GREY_WOOD = hx(0x7b8075)
+RED_WOOD = hx(0x895e52)
+TRIM = hx(0xb3ad96)
+STONE = hx(0x969d90)
+IRON = hx(0x6c7d80)
 RUST = hx(0x925d43)
-ROOF = hx(0x77766e)
+ROOF = hx(0x687573)
 GLASS = hx(0x667e87)
 
 
@@ -85,7 +85,7 @@ def beam(c: Canvas, x0: int, y0: int, x1: int, y1: int, color=WOOD, width=4) -> 
     """A solid timber, with a chipped lit edge and nail heads."""
     c.line(x0, y0 + 1, x1, y1 + 1, mix(color, INK, .52), width + 1)
     c.line(x0, y0, x1, y1, color, width)
-    c.line(x0, y0, x1, y1, mix(color, TRIM, .42))
+    c.line(x0, y0, x1, y1, mix(color, TRIM, .25))
     c.set(x0 + width // 2, y0 + 2, INK)
     c.set(x1 + width // 2, y1 - 2, INK)
     if width >= 4 and x0 == x1 and abs(y1-y0) > 25:
@@ -99,8 +99,8 @@ def beam(c: Canvas, x0: int, y0: int, x1: int, y1: int, color=WOOD, width=4) -> 
 def box(c: Canvas, bounds, color, edge=TRIM) -> None:
     x0, y0, x1, y1 = bounds
     c.fill(x0, y0, x1, y1, color)
-    c.hline(x0, x1, y0, mix(color, edge, .55))
-    c.vline(x0, y0, y1, mix(color, edge, .32))
+    c.hline(x0, x1, y0, mix(color, edge, .36))
+    c.vline(x0, y0, y1, mix(color, edge, .21))
     c.hline(x0, x1, y1, mix(color, INK, .65))
     c.vline(x1, y0, y1, mix(color, INK, .45))
 
@@ -858,6 +858,12 @@ def watchtower() -> Canvas:
     for x in (73,178):
         beam(c,x,91,x-7 if x<100 else x+7,185,GREY_WOOD,6)
         box(c,(x-10,185,x+12,191),STONE)
+        direction=-1 if x<100 else 1
+        c.line(x+3,100,x+direction*6+3,178,mix(GREY_WOOD,INK,.35))
+        c.line(x+1,118,x+direction*4+1,145,mix(GREY_WOOD,TRIM,.20))
+        for yy in (105,143,178):
+            xx=x+direction*(yy-91)//14
+            c.set(xx+2,yy,HOLE);c.set(xx+1,yy-1,IRON)
     for ya,yb in ((95,136),(137,184)):
         beam(c,78,ya,179,yb,GREY_WOOD,3)
         beam(c,179,ya,75,yb,WOOD,3)
@@ -869,11 +875,34 @@ def watchtower() -> Canvas:
     beam(c,50,78,207,78,PALE_WOOD,2)
     for x in (119,132):beam(c,x,100,x,185,IRON,2)
     for y in range(105,186,8):beam(c,120,y,133,y,IRON,2)
-    c.line(162,15,162,0,IRON,2)
-    # Hooded searchlight on the balcony.
-    beam(c,198,67,207,70,IRON,3)
-    box(c,(203,58,220,69),IRON)
-    c.fill(218,59,222,68,hx(0xb8b89b))
+    # The mast reaches its roof saddle; its aerial and coax are separate parts.
+    c.line(153,2,153,29,mix(IRON,INK,.2),2)
+    for yy,span in ((6,5),(11,7),(16,5)):
+        c.hline(153-span,153+span,yy,IRON)
+    c.line(157,18,157,31,HOLE)
+    box(c,(149,26,159,29),IRON)
+    # A cylindrical searchlight in a bolted tilt yoke, with a deep hood and
+    # recessed elliptical lens. At native scale its air gaps stay visible.
+    c.line(200,76,200,69,mix(IRON,INK,.45),3)
+    c.line(200,76,216,76,mix(IRON,INK,.45),3)
+    c.line(216,76,218,68,IRON,2)
+    c.line(198,77,207,77,IRON,2)
+    c.poly([(202,60),(222,54),(227,57),(226,68),(205,72),(200,68)],mix(IRON,INK,.3))
+    c.poly([(203,60),(222,54),(225,56),(205,64)],mix(IRON,TRIM,.26))
+    c.poly([(205,65),(223,60),(225,67),(205,71)],mix(IRON,INK,.08))
+    for x in (204,208,212):
+        c.line(x,62-(x-204)//4,x+1,68-(x-204)//4,mix(IRON,INK,.42))
+    c.disc(225,61,5,HOLE,8)
+    c.disc(225,61,4,mix(IRON,TRIM,.18),7)
+    c.disc(226,61,3,HOLE,6)
+    c.disc(226,61,2,hx(0x8faaa6),5)
+    c.line(225,57,225,60,hx(0xc0c7b5))
+    for xx,yy in ((226,61),(226,62),(227,61)):
+        c.light(xx,yy,hx(0xd8c78f))
+    c.poly([(203,59),(224,52),(230,54),(228,56),(224,55),(205,62)],mix(IRON,INK,.2))
+    c.line(205,59,225,53,mix(IRON,TRIM,.4))
+    c.disc(216,68,2,HOLE,2);c.set(216,67,TRIM)
+    c.line(201,72,197,73,HOLE);c.line(197,73,197,80,HOLE)
     return c
 
 
@@ -883,25 +912,54 @@ def radar() -> Canvas:
     box(c,(36,129,218,137),hx(0x9a9e88))
     door(c,62,width=24,height=42,color=hx(0x727e6b))
     sash(c,150,151,31,20)
-    metal(c,(114,87,140,130),hx(0x798575),seed=2102)
-    c.poly([(99,128),(120,93),(134,93),(155,128)],hx(0x78816e))
-    # Tilted dish: the right-hand face has a fine wire mesh, not a solid arc.
-    for y in range(22,104):
-        for x in range(62,184):
-            xx=(x-123)/63
-            yy=(y-63)/43
-            if xx*xx+yy*yy>1:continue
-            # An open slice defines the concave upper-right lip.
-            if x>105+(y-25)*.66:continue
-            col=mix(hx(0x8c9990),INK,.12+max(0,xx)*.2)
-            if (x+2*y)%10==0 or (x-y)%9==0:col=mix(col,INK,.35)
-            c.set(x,y,col)
-    c.line(107,23,158,98,TRIM,3)
-    c.line(85,55,159,98,IRON,2)
-    c.line(72,76,159,98,IRON,2)
-    c.line(93,95,159,98,IRON,2)
-    c.line(122,56,177,34,IRON,2)
-    box(c,(174,29,183,37),IRON)
+    # A geared azimuth pedestal and an open elevation fork support the bowl.
+    box(c,(106,122,148,128),mix(IRON,INK,.2))
+    metal(c,(116,106,137,121),IRON,seed=2102)
+    c.hline(116,138,113,HOLE)
+    for xx in range(118,138,4):c.set(xx,115,TRIM)
+    for xx in (112,140):
+        beam(c,xx,121,xx-3,95,IRON,4)
+        c.disc(xx-3,97,4,HOLE,4);c.disc(xx-3,97,2,IRON,2)
+        c.set(xx-4,96,TRIM)
+    # The parabola is curved in dish coordinates. Curved ribs and mesh follow
+    # that surface, rather than a flat diagonal pattern stamped over a block.
+    def dish(u,v):return round(123+.815*u+.58*v),round(67-.58*u+.815*v)
+    curve=[dish(-34*(1-(v/50)**2),v) for v in range(-50,51)]
+    face=Canvas(W,H)
+    face.poly(curve+[dish(0,50),dish(0,-50)],IRON)
+    back=[(x-3,y+2) for x,y in curve]
+    c.poly(back+[dish(0,50),dish(0,-50)],mix(IRON,INK,.48))
+    for yy in range(15,112):
+        for xx in range(64,160):
+            if not face.solid(xx,yy):continue
+            dx,dy=xx-123,yy-67
+            u=.815*dx-.58*dy;v=.58*dx+.815*dy
+            depth=max(1,34*(1-(v/50)**2))
+            bend=max(0,min(1,-u/depth))
+            col=mix(hx(0x9ba9a4),hx(0x485f63),.12+.52*bend)
+            # Sparse screen grid is subordinate to the broad curved shading.
+            if int(v+50)%9==0 or int(-u)%9==0:col=mix(col,INK,.20)
+            c.set(xx,yy,col)
+    for fraction in (.18,.50,.82,1.0):
+        points=[dish(-34*(1-(v/50)**2)*fraction,v) for v in range(-50,51,2)]
+        for a,b in zip(points,points[1:]):
+            c.line(*a,*b,mix(IRON,INK,.25 if fraction<1 else .05))
+    # Rolled rim, with visible dark thickness on its sheltered side.
+    a,b=dish(0,-50),dish(0,50)
+    c.line(a[0]+2,a[1],b[0]+2,b[1],HOLE,2)
+    c.line(*a,*b,mix(IRON,TRIM,.55),2)
+    for v in range(-43,49,13):
+        x,y=dish(0,v);c.set(x,y,HOLE);c.set(x-1,y-1,TRIM)
+    # Feed horn held at the focus by two thin struts, with a return cable.
+    focus=(171,34)
+    for v in (-45,45):
+        x,y=dish(0,v)
+        c.line(x,y,*focus,HOLE,2)
+        c.line(x,y-1,focus[0],focus[1]-1,IRON)
+    c.poly([(167,32),(174,29),(179,31),(178,37),(171,39),(168,37)],mix(IRON,INK,.3))
+    c.line(168,31,175,30,mix(IRON,TRIM,.45))
+    c.disc(177,33,2,HOLE,3);c.set(176,32,IRON)
+    c.line(170,39,159,47,HOLE);c.line(159,47,142,97,HOLE)
     # Antenna and vent grilles on the service hut.
     c.vline(199,98,128,IRON)
     c.hline(187,211,106,IRON)
@@ -1260,7 +1318,7 @@ def dress_building(c: Canvas, index: int) -> None:
         c.line(88,105,95,98,INK)
         for x in range(55,207,12):c.vline(x,94,97,INK)
         sack(c,65,91,18,12)
-        c.line(160,16,181,40,INK)
+        c.line(153,16,181,40,INK)
         c.line(181,40,197,58,INK)
         for x in (76,183):
             c.set(x,104,IRON)
@@ -1274,9 +1332,6 @@ def dress_building(c: Canvas, index: int) -> None:
         c.vline(194,142,147,INK)
         c.hline(192,205,112,IRON)
         c.hline(194,203,118,IRON)
-        for x,y in ((109,27),(122,47),(134,67),(148,88)):
-            c.set(x,y,INK)
-            c.set(x-1,y-1,TRIM)
         box(c,(152,177,188,182),hx(0x787b69))
         c.hline(155,185,178,TRIM)
 
@@ -1286,10 +1341,39 @@ HOUSES = [saloon, cabin, barn, ruined, water_tower, church, sheriff, smithy,
           shops, flats, warehouse, hangar, watchtower, radar]
 
 
+def settle_building(c: Canvas, index: int) -> None:
+    """Sheltered edges and damp footings unify the building with its ground.
+
+    Work on its existing surface only. Windows marked as light remain light;
+    holes and the native silhouette retain their exact coverage.
+    """
+    original=c.px[:]
+    def at(x,y):
+        return original[y*c.w+x] if 0<=x<c.w and 0<=y<c.h else None
+    for y in range(c.h):
+        for x in range(c.w):
+            col=at(x,y)
+            if col is None or (x,y) in c.lights:
+                continue
+            # Occlusion on inner right jambs and beneath overhanging surfaces.
+            recess = (at(x-1,y) is None and at(x-2,y) is None and
+                      at(x-3,y) is not None and at(x,y-1) is not None)
+            if recess:
+                c.set(x,y,mix(col,INK,.28))
+            elif at(x+1,y) is None and at(x-1,y) is not None:
+                c.set(x,y,mix(col,INK,.16))
+            if y>=178:
+                # Irregular soil stain follows the base, not a straight filter band.
+                depth=(y-177)/15
+                damp=.10+.08*hash2(x//9,0,index+440)
+                c.set(x,y,mix(c.get(x,y),hx(0x4c5144),depth*damp))
+
+
 def make_houses():
     frames=[draw() for draw in HOUSES]
     for index,c in enumerate(frames):
         dress_building(c,index)
+        settle_building(c,index)
     return sheet(frames)
 
 

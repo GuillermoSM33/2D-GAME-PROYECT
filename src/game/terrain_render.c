@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "engine/assets.h"
+#include "game/car_pass.h"
 
 static void draw_sunk(SDL_Renderer *renderer, const char *sheet_name, int frame, int w, int h, float x,
                       float camera_x, int sink)
@@ -31,6 +32,52 @@ static bool water(const Piece *p)
     return p->kind == TERRAIN_RIVER || p->kind == TERRAIN_PUDDLE;
 }
 
+/* Which of its glass is broken: 0 none, 1 the rear door's, 2 the front's. */
+static int car_glass(const Piece *p)
+{
+    return p->car_flags & CAR_WINDOW_BROKEN ? (p->car_flags & CAR_BROKEN_RIGHT ? 2 : 1) : 0;
+}
+
+static void draw_crossing_car(SDL_Renderer *renderer, const Terrain *terrain, const Player *player,
+                               float camera_x, bool cover)
+{
+    if (player->state != PLAYER_CAR || player->car_index < 0 || player->car_index >= terrain->count) return;
+    const Piece *p = &terrain->items[player->car_index];
+    int look = terrain_car_look(p);
+    if (p->spent || look < 0) return;
+    bool damaged=terrain_frame(p)%3>0;
+    const char *sheet=damaged ? (cover ? "sprites/terrain/car_passage_damaged_front" : "sprites/terrain/car_passage_damaged")
+                              : (cover ? "sprites/terrain/car_passage_front" : "sprites/terrain/car_passage");
+    draw(renderer, sheet, look * CAR_DOOR_STATES + player_car_doors(player, car_glass(p)),
+         CAR_WRECK_W, CAR_WRECK_H, p->x, camera_x);
+}
+
+/* A broken window's bits on the road under its door: not until they have
+ * fallen there, while she breaks it. */
+static void draw_car_glass(SDL_Renderer *renderer, const Terrain *terrain, const Player *player, float camera_x)
+{
+    for (int i = 0; i < terrain->count; i++) {
+        const Piece *p = &terrain->items[i];
+        int look = terrain_car_look(p), glass = car_glass(p);
+        if (look < 0 || p->spent || glass == 0)
+            continue;
+        if (player->state == PLAYER_CAR && player->car_index == i && !player_car_glass_down(player))
+            continue;
+        draw(renderer, "sprites/terrain/car_glass", look * 2 + glass - 1, CAR_WRECK_W, CAR_WRECK_H, p->x, camera_x);
+    }
+}
+
+void terrain_render_car_body(SDL_Renderer *r, const Terrain *t, const Player *p, float camera_x)
+{
+    draw_car_glass(r,t,p,camera_x);
+    draw_crossing_car(r,t,p,camera_x,false);
+}
+
+void terrain_render_car_cover(SDL_Renderer *r, const Terrain *t, const Player *p, float camera_x)
+{
+    draw_crossing_car(r,t,p,camera_x,true);
+}
+
 void terrain_render_front(SDL_Renderer *renderer, const Terrain *terrain, float camera_x)
 {
     SDL_Texture *front = assets_texture("sprites/terrain/river_front");
@@ -49,7 +96,7 @@ void terrain_render_front(SDL_Renderer *renderer, const Terrain *terrain, float 
     SDL_SetTextureAlphaMod(front, 255);
 }
 
-void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera_x)
+void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera_x, bool inside_train)
 {
     for (int i = 0; i < terrain->count; i++) { /* Behind everything: what a wall closes, water */
         const Piece *p = &terrain->items[i];
@@ -62,10 +109,11 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
         }
         if (p->kind != TERRAIN_WALL)
             continue;
+        if (p->variant == FACADE_TRAIN && inside_train) continue;
         if (p->variant == FACADE_TRAIN)
             draw(renderer, terrain_train_sheet(), 0, TRAIN_W, TRAIN_H, p->x, camera_x);
-        else if (p->variant > FACADE_KINDS) /* The town's fronts: two storeys at her scale */
-            draw(renderer, terrain_city_front_sheet(), p->variant - FACADE_KINDS - 1, CITY_FRONT_W, CITY_FRONT_H,
+        else if (terrain_city_front_frame(p->variant) >= 0) /* Urban fronts skip the saved train ID. */
+            draw(renderer, terrain_city_front_sheet(), terrain_city_front_frame(p->variant), CITY_FRONT_W, CITY_FRONT_H,
                  p->x, camera_x);
         else if (p->variant > 0)
             draw(renderer, terrain_facade_sheet(), p->variant - 1, FACADE_W, FACADE_H, p->x, camera_x);
@@ -76,15 +124,21 @@ void terrain_render(SDL_Renderer *renderer, const Terrain *terrain, float camera
         const Piece *p = &terrain->items[i];
         bool gone = p->spent && (p->kind == TERRAIN_BARREL || p->kind == TERRAIN_DYNAMITE ||
                                  p->kind == TERRAIN_FIRE || p->kind == TERRAIN_CHARGE);
-        if (gone || water(p))
+        if (gone || water(p) || (p->kind==TERRAIN_WALL && p->variant==FACADE_TRAIN && (inside_train || p->spent)))
             continue;
         int w, h, frames;
         terrain_frame_size(p->kind, &w, &h, &frames);
         if (p->kind == TERRAIN_WALL && p->variant > 0) /* A building's door in its doorway */
             draw(renderer, terrain_door_sheet(), terrain_door_look(p) * 3 + terrain_frame(p), DOOR_FRAME_W,
                  DOOR_FRAME_H, p->x, camera_x);
-        else if (terrain_car_look(p) >= 0) /* A car, a car's size: its look's three states */
-            draw(renderer, terrain_car_wreck_sheet(), terrain_frame(p), CAR_WRECK_W, CAR_WRECK_H, p->x, camera_x);
+        else if (terrain_car_look(p) >= 0) {
+            if (!p->spent && (p->car_flags & CAR_WINDOW_BROKEN))
+                draw(renderer, terrain_frame(p)%3>0 ? "sprites/terrain/car_passage_damaged" : "sprites/terrain/car_passage",
+                     terrain_car_look(p) * CAR_DOOR_STATES + car_glass(p) * CAR_DOOR_KINDS, CAR_WRECK_W,
+                     CAR_WRECK_H, p->x, camera_x);
+            else
+                draw(renderer, terrain_car_wreck_sheet(), terrain_frame(p), CAR_WRECK_W, CAR_WRECK_H, p->x, camera_x);
+        }
         else if (p->kind == TERRAIN_SUPPLY && p->variant == 1) /* The town's: an army truck */
             draw(renderer, terrain_supply_truck_sheet(), terrain_frame(p), VEHICLE_FRAME_W, VEHICLE_FRAME_H, p->x,
                  camera_x);

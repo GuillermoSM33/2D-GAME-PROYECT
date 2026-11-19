@@ -8,7 +8,6 @@
 enum { SALT_DECOR = 1, SALT_GRASS_COUNT, SALT_GRASS };
 
 #define DECOR_CHANCE 0.55f /* Per slot of a chunk: one big prop (cactus, fence, tree...) */
-#define DECOR_OVERLAP 0.7f /* Two big props may share this much of their frames' empty edges */
 #define GRASS_MIN 2        /* Grass tufts scattered over every chunk */
 #define GRASS_MAX 6
 
@@ -74,11 +73,12 @@ void chunk_generate(Chunk *chunk, int index, const ThemeDef *theme)
             continue;
         float half_w = (float)(prop_def(kind)->frame_w * SPRITE_SCALE) / 2.0f;
         float x = ((float)slot + rand01(index, SALT_DECOR, slot * 4 + 2)) * slot_w;
-        x = fminf((float)WORLD_CHUNK_W - half_w, fmaxf(half_w, x));
+        float edge = half_w + SCENERY_GAP * .5f;
+        x = fminf((float)WORLD_CHUNK_W - edge, fmaxf(edge, x));
         bool clear = true;
         for (int p = 0; p < chunk->prop_count; p++) {
             float other = (float)(prop_def(chunk->props[p].kind)->frame_w * SPRITE_SCALE) / 2.0f;
-            if (fabsf(chunk->props[p].x - x) < (half_w + other) * DECOR_OVERLAP)
+            if (fabsf(chunk->props[p].x - x) < half_w + other + SCENERY_GAP)
                 clear = false;
         }
         if (clear)
