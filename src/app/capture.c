@@ -379,7 +379,11 @@ static void capture_train(Platform *platform,const char *dir,CharacterSkin *skin
         snprintf(name,sizeof(name),"train_03c_suit_%d",hero);
         save_capture(platform->renderer,dir,name);
         suited.paused=true;suited.pause_view=PAUSE_VIEW_INVENTORY;
-        stage_draw(platform,&suited,&skins[hero],&profiles[hero].progress,1,suited.player.x,0,options);
+        suited.player.water=3;suited.run.dynamite=2;
+        suited.inventory_selected=2; /* A stored shotgun, or water. */
+        Progress inventory_progress=profiles[hero].progress;
+        inventory_progress.gold=128;
+        stage_draw(platform,&suited,&skins[hero],&inventory_progress,1,suited.player.x,0,options);
         snprintf(name,sizeof(name),"train_03d_inventory_%d",hero);
         save_capture(platform->renderer,dir,name);
     }

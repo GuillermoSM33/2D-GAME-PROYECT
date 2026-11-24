@@ -1017,14 +1017,20 @@ void hud_draw_resume_hint(SDL_Renderer *renderer, const char *stage_name)
 }
 
 /* The inventory board (P), window px. */
-#define INV_W 720
-#define INV_H 430
+#define INV_W 880
+#define INV_H 480
 #define INV_X ((WINDOW_WIDTH - INV_W) / 2)
-#define INV_Y 30
-#define INV_PORTRAIT_W 156
-#define INV_ROW 40
+#define INV_Y 26
+#define INV_PORTRAIT_W 184
+#define INV_ROW 32
 #define INV_LIST_X (INV_X + 28 + INV_PORTRAIT_W + 24) /* Where the right column starts */
 #define INV_LIST_W (INV_X + INV_W - 28 - INV_LIST_X)
+#define INV_ACTION_Y (INV_Y + 434)
+#define INV_INK 0xd8e9e8
+#define INV_MUTED 0x8eacb7
+#define INV_ACCENT 0xd5a06c
+#define INV_NAVY 0x101f2c
+#define INV_FOCUS 0x244451
 
 bool hud_verify_layout(void)
 {
@@ -1125,13 +1131,14 @@ bool hud_verify_layout(void)
     }
     ok = train_render_verify_layout() && ok;
     /* The inventory at its fullest: three guns, the tablet and the parts. */
-    int inv_bottom = INV_Y + 60 + 24 + INV_ROW + HUD_INVENTORY_GUNS * INV_ROW + 4 + 24 + INV_ROW + 24 + 2 * INV_ROW;
-    if (inv_bottom > INV_Y + INV_H - 8 || INV_Y + INV_H + 10 + 14 * UI_SCALE > WINDOW_HEIGHT) {
+    int inv_bottom = INV_Y + 66 + 20 + (1 + HUD_INVENTORY_GUNS) * INV_ROW + 4 + 20 + 3 * INV_ROW + 4 + 20 + 2 * INV_ROW;
+    if (inv_bottom > INV_ACTION_Y - 8 || INV_ACTION_Y + 36 > INV_Y + INV_H - 8 ||
+        INV_Y + INV_H > WINDOW_HEIGHT) {
         fprintf(stderr, "HUD: el inventario no cabe (%d).\n", inv_bottom);
         ok = false;
     }
     if (ui_text_width("TRAJE AISLANTE", 2) + 44 + 12 + ui_text_width("EN EL VAGÓN 01", 2) > INV_LIST_W ||
-        3 * (30 + ui_text_width("DINAMITA", 2) + 8 + ui_text_width("999", 2)) > INV_LIST_W ||
+        44 + ui_text_width("DINAMITA", 2) + 12 + ui_text_width("2147483647", 2) > INV_LIST_W ||
         44 + ui_text_width("PIEZAS DEL PROTOTIPO", 2) + 12 + ui_text_width("8/8", 2) > INV_LIST_W) {
         fprintf(stderr, "HUD: una fila del inventario no cabe.\n");
         ok = false;
@@ -1256,11 +1263,60 @@ void hud_draw_volume(SDL_Renderer *renderer, const ListMenu *menu, const Volumes
 /* A section's name over its rows, with a rule after it. */
 static int inv_heading(SDL_Renderer *renderer, const char *label, int y)
 {
-    int w = ui_text(renderer, label, INV_LIST_X, y, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
-    SDL_SetRenderDrawColor(renderer, 107, 80, 56, 255);
+    int w = ui_text(renderer, label, INV_LIST_X, y, 2, INV_MUTED, ANCHOR_NW);
+    SDL_SetRenderDrawColor(renderer, 50, 80, 94, 255);
     SDL_Rect rule = {INV_LIST_X + w + 10, y + 8, INV_LIST_W - w - 10, 1};
     SDL_RenderFillRect(renderer, &rule);
-    return y + 24;
+    return y + 20;
+}
+
+static void inv_rect(SDL_Renderer *r, int x, int y, int w, int h, unsigned rgb)
+{
+    SDL_SetRenderDrawColor(r, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb, 255);
+    SDL_Rect box = {x, y, w, h};
+    SDL_RenderFillRect(r, &box);
+}
+
+static void inv_row_focus(SDL_Renderer *r, int row, int selected, int y)
+{
+    bool focus = row == selected;
+    inv_rect(r, INV_LIST_X, y, INV_LIST_W, INV_ROW - 2,
+             focus ? INV_FOCUS : row % 2 ? 0x142a39 : 0x122533);
+    inv_rect(r, INV_LIST_X + 1, y, INV_LIST_W - 2, 1, focus ? 0x487684 : 0x243e4e);
+    inv_rect(r, INV_LIST_X + 1, y + INV_ROW - 3, INV_LIST_W - 2, 1, 0x0a1823);
+    if (focus) {
+        inv_rect(r, INV_LIST_X, y + 1, 4, INV_ROW - 4, INV_ACCENT);
+        inv_rect(r, INV_LIST_X + INV_LIST_W - 6, y + 2, 4, 2, INV_ACCENT);
+        inv_rect(r, INV_LIST_X + INV_LIST_W - 4, y + INV_ROW - 6, 2, 4, INV_ACCENT);
+    }
+    add_zone(HUD_ZONE_ITEM, row, INV_LIST_X, y, INV_LIST_W, INV_ROW - 2);
+}
+
+/* Small inventory details use the pixel font at scale one, wrapped at words.
+ * The stage supplies short descriptions; a line cap keeps feedback inside
+ * its dedicated pocket even when an item name or number is unusually long. */
+static void inv_text_block(SDL_Renderer *r, const char *text, int x, int y, int width,
+                           int max_lines, unsigned rgb)
+{
+    char line[256] = "", word[128];
+    const char *p = text ? text : "";
+    int lines = 0;
+    while (*p && lines < max_lines) {
+        while (*p == ' ') p++;
+        int n = 0;
+        while (p[n] && p[n] != ' ' && n < (int)sizeof(word) - 1) n++;
+        if (!n) break;
+        memcpy(word, p, (size_t)n);word[n] = '\0';p += n;
+        char trial[sizeof(line) + sizeof(word)];
+        snprintf(trial, sizeof(trial), "%s%s%s", line, line[0] ? " " : "", word);
+        if (line[0] && ui_text_width(trial, 1) > width) {
+            hud_text_fit(r, line, x, y, width, 1, rgb, ANCHOR_NW);
+            y += 11;lines++;
+            SDL_strlcpy(line, word, sizeof(line));
+        } else SDL_strlcpy(line, trial, sizeof(line));
+    }
+    if (line[0] && lines < max_lines)
+        hud_text_fit(r, line, x, y, width, 1, rgb, ANCHOR_NW);
 }
 
 /* The suit's own mark: a small hazmat suit, yellow if worn, else its outline. */
@@ -1273,7 +1329,7 @@ static void inv_suit(SDL_Renderer *renderer, int x, int y, bool worn)
         for (int i = 0; i < 8; i++) {
             char c = rows[j][i];
             if (c == ' ') continue;
-            unsigned rgb = !worn ? (c == '#' ? 0x6b5a48 : 0x231915)
+            unsigned rgb = !worn ? (c == '#' ? 0x6d8995 : 0x182c3a)
                          : c == '.' ? (j < 3 ? 0x3d6a74 : 0xb08a28) : 0xe0b83c;
             SDL_SetRenderDrawColor(renderer, (Uint8)(rgb >> 16), (Uint8)(rgb >> 8), (Uint8)rgb, 255);
             SDL_Rect px = {x + i * 2, y + j * 2, 2, 2};
@@ -1298,23 +1354,31 @@ static void inv_tablet(SDL_Renderer *renderer, int x, int y)
 
 void hud_draw_inventory(SDL_Renderer *renderer, const HudInventory *inv)
 {
-    char str[64];
-    ui_dim(renderer, 160);
+    char str[96];
+    ui_dim(renderer, 182);
     SDL_Texture *board = assets_texture("sprites/ui/field_inventory");
     if (board) {
         SDL_Rect dst = {INV_X, INV_Y, INV_W, INV_H};
         SDL_RenderCopy(renderer, board, NULL, &dst);
-    } else ui_panel(renderer, INV_X, INV_Y, INV_W, INV_H);
-    ui_text(renderer, "INVENTARIO", WINDOW_WIDTH / 2, INV_Y + 22, 3, COLOR_HUD_TITLE, ANCHOR_N);
-    /* Left: herself as she stands now, the suit on if she wears it. */
-    int px = INV_X + 28, py = INV_Y + 60, ph = 250;
-    hud_well(renderer, px, py, INV_PORTRAIT_W, ph);
-    SDL_Rect inner = {px + 2, py + 2, INV_PORTRAIT_W - 4, ph - 4};
-    SDL_SetRenderDrawColor(renderer, 0x3a, 0x30, 0x28, 255);
-    SDL_RenderFillRect(renderer, &inner);
+    } else {
+        inv_rect(renderer, INV_X, INV_Y, INV_W, INV_H, 0x284858);
+        inv_rect(renderer, INV_X + 10, INV_Y + 10, INV_W - 20, INV_H - 20, INV_NAVY);
+    }
+    ui_text(renderer, "INVENTARIO", WINDOW_WIDTH / 2, INV_Y + 22, 3, INV_INK, ANCHOR_N);
+    /* Clear of the corner protectors (native 17 px wide, drawn at 2x). */
+    ui_text(renderer, "EQUIPO DE CAMPO", INV_X + 56, INV_Y + 26, 1, INV_MUTED, ANCHOR_NW);
+    ui_text(renderer, "W/S  ELEGIR", INV_X + INV_W - 56, INV_Y + 26, 1, INV_ACCENT, ANCHOR_NE);
+
+    int px = INV_X + 28, py = INV_Y + 66, ph = 224;
+    inv_rect(renderer, px, py, INV_PORTRAIT_W, ph, 0x405e6d);
+    inv_rect(renderer, px + 2, py + 2, INV_PORTRAIT_W - 4, ph - 4, 0x091725);
+    SDL_Rect inner = {px + 8, py + 8, INV_PORTRAIT_W - 16, ph - 16};
+    inv_rect(renderer, inner.x, inner.y, inner.w, inner.h, 0x142a3b);
+    for (int y = inner.y + 2; y < inner.y + inner.h; y += 8)
+        inv_rect(renderer, inner.x + 2, y, inner.w - 4, 1, 0x183143);
     if (inv->portrait) {
         int scale = 3, w = inv->portrait_src.w * scale, h = inv->portrait_src.h * scale;
-        SDL_Rect dst = {px + (INV_PORTRAIT_W - w) / 2, py + ph - 8 - h, w, h};
+        SDL_Rect dst = {px + (INV_PORTRAIT_W - w) / 2, py + ph - 10 - h, w, h};
         SDL_Rect previous_clip;
         SDL_bool clipped = SDL_RenderIsClipEnabled(renderer);
         SDL_RenderGetClipRect(renderer, &previous_clip);
@@ -1322,78 +1386,110 @@ void hud_draw_inventory(SDL_Renderer *renderer, const HudInventory *inv)
         SDL_RenderCopy(renderer, inv->portrait, &inv->portrait_src, &dst);
         SDL_RenderSetClipRect(renderer, clipped ? &previous_clip : NULL);
     }
-    hud_text_fit(renderer, inv->character, px + INV_PORTRAIT_W / 2, py + ph + 10, INV_PORTRAIT_W, 2,
-                 COLOR_HUD_TITLE, ANCHOR_N);
-    /* Right: what she wears, what she shoots, what she has left. */
-    int x = INV_LIST_X, y = inv_heading(renderer, "EQUIPO", INV_Y + 60);
-    inv_suit(renderer, x + 10, y + 7, inv->suit);
-    ui_text(renderer, "TRAJE AISLANTE", x + 44, y + 4, 2, inv->suit ? COLOR_HUD_PRIMARY : COLOR_HUD_SECONDARY,
-            ANCHOR_NW);
+    for (int side = 0; side < 2; side++) {
+        int x = px + (side ? INV_PORTRAIT_W - 7 : 3);
+        for (int bottom = 0; bottom < 2; bottom++) {
+            int y = py + (bottom ? ph - 14 : 4);
+            inv_rect(renderer, x, y, 4, 10, 0xa7734c);
+            inv_rect(renderer, x, y, 4, 2, 0xe3b17c);
+        }
+    }
+    hud_text_fit(renderer, inv->character, px + INV_PORTRAIT_W / 2, py + ph + 8, INV_PORTRAIT_W, 2,
+                 INV_INK, ANCHOR_N);
+
+    /* This pocket explains the focused object; all decisions and actions
+     * stay in the stage. It never extends into the buttons below it. */
+    int detail_y = INV_Y + 318;
+    inv_rect(renderer, px, detail_y, INV_PORTRAIT_W, 110, 0x355261);
+    inv_rect(renderer, px + 2, detail_y + 2, INV_PORTRAIT_W - 4, 106, 0x0d1d2c);
+    ui_text(renderer, "DETALLE", px + 10, detail_y + 8, 1, INV_ACCENT, ANCHOR_NW);
+    inv_rect(renderer, px + 10, detail_y + 21, INV_PORTRAIT_W - 20, 1, 0x355365);
+    inv_text_block(renderer, inv->detail ? inv->detail : "Elige un objeto para consultar su estado.",
+                   px + 10, detail_y + 27, INV_PORTRAIT_W - 20, 6, INV_INK);
+
+    int row = 0, x = INV_LIST_X, y = inv_heading(renderer, "EQUIPO", INV_Y + 66);
+    inv_row_focus(renderer, row++, inv->selected, y);
+    inv_suit(renderer, x + 16, y + 2, inv->suit);
+    ui_text(renderer, "TRAJE AISLANTE", x + 48, y + 3, 2, INV_INK, ANCHOR_NW);
     ui_text(renderer, inv->suit ? "PUESTO" : inv->suits_here ? "EN EL VAGÓN 01" : "NINGUNO",
-            x + INV_LIST_W, y + 4, 2, inv->suit ? COLOR_HUD_XP : COLOR_HUD_SECONDARY, ANCHOR_NE);
-    if (inv->suit)
-        ui_text(renderer, "PROTEGE DEL AIRE TÓXICO", x + 44, y + 22, 1, COLOR_HUD_SECONDARY, ANCHOR_NW);
+            x + INV_LIST_W - 12, y + 3, 2, inv->suit ? 0x90cbbd : INV_MUTED, ANCHOR_NE);
+    ui_text(renderer, inv->suit ? "Protege del aire tóxico" : "Equipo de protección",
+            x + 48, y + 20, 1, INV_MUTED, ANCHOR_NW);
     y += INV_ROW;
     for (int i = 0; i < inv->gun_count && i < HUD_INVENTORY_GUNS; i++, y += INV_ROW) {
         const HudInventoryGun *g = &inv->guns[i];
-        hud_well(renderer, x, y - 2, UI_WEAPON_W * 2 + 8, UI_WEAPON_H * 2 + 8);
-        ui_weapon(renderer, g->id, x + 4, y + 2, 2);
-        int name_x = x + UI_WEAPON_W * 2 + 18, name_w = INV_LIST_W - (UI_WEAPON_W * 2 + 18) - 150;
-        hud_text_fit(renderer, g->name, name_x, y + 4, name_w, 2,
-                     g->in_hand ? COLOR_HUD_TITLE : COLOR_HUD_PRIMARY, ANCHOR_NW);
-        ui_text(renderer, g->in_hand ? "EN LA MANO" : "GUARDADA", name_x, y + 22, 1,
-                COLOR_HUD_SECONDARY, ANCHOR_NW);
-        if (g->magazine <= 0)
-            snprintf(str, sizeof(str), "SIN LÍMITE");
+        inv_row_focus(renderer, row++, inv->selected, y);
+        inv_rect(renderer, x + 10, y + 2, UI_WEAPON_W * 2 + 8, 28, 0x0c1b28);
+        ui_weapon(renderer, g->id, x + 14, y + 2, 2);
+        int name_x = x + UI_WEAPON_W * 2 + 28;
+        int name_w = INV_LIST_W - (name_x - x) - 176;
+        hud_text_fit(renderer, g->name, name_x, y + 3, name_w, 2, INV_INK, ANCHOR_NW);
+        ui_text(renderer, g->in_hand ? "EN LA MANO" : "GUARDADA", name_x, y + 20, 1,
+                g->in_hand ? 0x90cbbd : INV_MUTED, ANCHOR_NW);
+        if (g->magazine <= 0) snprintf(str, sizeof(str), "SIN LÍMITE");
         else if (g->other_rounds >= 0)
             snprintf(str, sizeof(str), "%d/%d · %d/%d", g->rounds, g->magazine, g->other_rounds, g->magazine);
-        else
-            snprintf(str, sizeof(str), "%d/%d", g->rounds, g->magazine);
-        int w = ui_text(renderer, str, x + INV_LIST_W, y + 4, 2,
-                        g->magazine > 0 && g->rounds == 0 ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NE);
-        ui_icon(renderer, g->id == WEAPON_SHOTGUN ? ICON_SHELL : ICON_BULLET, x + INV_LIST_W - w - 28, y + 3, 2);
+        else snprintf(str, sizeof(str), "%d/%d", g->rounds, g->magazine);
+        hud_text_fit(renderer, str, x + INV_LIST_W - 12, y + 7, 158, 2,
+                     g->magazine > 0 && g->rounds == 0 ? 0xd7927c : INV_ACCENT, ANCHOR_NE);
     }
     y = inv_heading(renderer, "PROVISIONES", y + 4);
     const UiIcon icons[] = {ICON_WATER, ICON_DYNAMITE, ICON_GOLD};
     const char *const names[] = {"AGUA", "DINAMITA", "ORO"};
     const int counts[] = {inv->water, inv->dynamite, inv->gold};
-    int column = INV_LIST_W / 3;
-    for (int i = 0; i < 3; i++) {
-        int cx = x + i * column;
-        ui_icon(renderer, icons[i], cx, y + 2, 2);
-        int w = ui_text(renderer, names[i], cx + 30, y + 4, 2, COLOR_HUD_SECONDARY, ANCHOR_NW);
+    for (int i = 0; i < 3; i++, y += INV_ROW) {
+        inv_row_focus(renderer, row++, inv->selected, y);
+        ui_icon(renderer, icons[i], x + 12, y + 3, 2);
+        ui_text(renderer, names[i], x + 48, y + 7, 2, INV_INK, ANCHOR_NW);
         snprintf(str, sizeof(str), "%d", counts[i]);
-        ui_text(renderer, str, cx + 30 + w + 8, y + 4, 2,
-                i == 2 ? COLOR_HUD_TITLE : counts[i] == 0 ? COLOR_HUD_DANGER : COLOR_HUD_PRIMARY, ANCHOR_NW);
+        hud_text_fit(renderer, str, x + INV_LIST_W - 12, y + 7, 176, 2,
+                     counts[i] == 0 ? 0xd7927c : i == 2 ? INV_ACCENT : 0x90cbbd, ANCHOR_NE);
     }
-    y += INV_ROW;
     if (inv->tablet || inv->parts >= 0) {
-        y = inv_heading(renderer, "OBJETOS", y);
+        y = inv_heading(renderer, "OBJETOS", y + 4);
         if (inv->tablet) {
-            inv_tablet(renderer, x + 4, y);
-            ui_text(renderer, "TABLETA DEL TREN", x + 44, y + 4, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
-            int w = ui_text(renderer, "MAPA", x + INV_LIST_W, y + 4, 2, COLOR_HUD_SECONDARY, ANCHOR_NE);
-            ui_key(renderer, x + INV_LIST_W - w - 8 - ui_key_width("M"), y - 2, "M");
+            inv_row_focus(renderer, row++, inv->selected, y);
+            inv_tablet(renderer, x + 12, y + 3);
+            ui_text(renderer, "TABLETA DEL TREN", x + 48, y + 7, 2, INV_INK, ANCHOR_NW);
+            ui_text(renderer, "MAPA", x + INV_LIST_W - 12, y + 7, 2, INV_MUTED, ANCHOR_NE);
             y += INV_ROW;
         }
         if (inv->parts >= 0) {
-            SDL_SetRenderDrawColor(renderer, 0xc1, 0x9a, 0x4c, 255);
+            inv_row_focus(renderer, row++, inv->selected, y);
             for (int k = 0; k < 6; k++) {
-                SDL_Rect row = {x + 14 - k, y + 4 + k, 1 + 2 * k, 1}, low = {x + 14 - k, y + 16 - k, 1 + 2 * k, 1};
-                SDL_RenderFillRect(renderer, &row);
-                SDL_RenderFillRect(renderer, &low);
+                inv_rect(renderer, x + 24 - k, y + 6 + k, 1 + 2 * k, 1, INV_ACCENT);
+                inv_rect(renderer, x + 24 - k, y + 18 - k, 1 + 2 * k, 1, INV_ACCENT);
             }
-            SDL_SetRenderDrawColor(renderer, 0x7f, 0xf0, 0xe6, 255);
-            SDL_Rect core = {x + 12, y + 8, 5, 5};
-            SDL_RenderFillRect(renderer, &core);
-            ui_text(renderer, "PIEZAS DEL PROTOTIPO", x + 44, y + 4, 2, COLOR_HUD_PRIMARY, ANCHOR_NW);
+            inv_rect(renderer, x + 22, y + 10, 5, 5, 0x7fe0d6);
+            ui_text(renderer, "PIEZAS DEL PROTOTIPO", x + 48, y + 7, 2, INV_INK, ANCHOR_NW);
             snprintf(str, sizeof(str), "%d/8", inv->parts);
-            ui_text(renderer, str, x + INV_LIST_W, y + 4, 2, inv->parts == 8 ? COLOR_HUD_XP : COLOR_HUD_PRIMARY,
-                    ANCHOR_NE);
+            ui_text(renderer, str, x + INV_LIST_W - 12, y + 7, 2,
+                    inv->parts == 8 ? 0x90cbbd : INV_MUTED, ANCHOR_NE);
         }
     }
-    static const char *const hints[] = {"P", "CERRAR", "ESC", "VOLVER"};
-    draw_hints(renderer, hints, 2, INV_Y + INV_H + 10);
+    if (inv->feedback && inv->feedback[0])
+        inv_text_block(renderer, inv->feedback, x + 8, INV_ACTION_Y - 13,
+                       INV_LIST_W - 16, 1, INV_ACCENT);
+    unsigned action = inv->action_enabled ? INV_ACCENT : 0x4e6875;
+    inv_rect(renderer, x, INV_ACTION_Y, INV_LIST_W, 36, action);
+    inv_rect(renderer, x + 2, INV_ACTION_Y + 2, INV_LIST_W - 4, 32,
+             inv->action_enabled ? 0x304856 : 0x182c3b);
+    inv_rect(renderer, x + 2, INV_ACTION_Y + 2, INV_LIST_W - 4, 1,
+             inv->action_enabled ? 0xe6b482 : 0x5b7681);
+    ui_text(renderer, "ENTER", x + 16, INV_ACTION_Y + 11, 1,
+            inv->action_enabled ? INV_ACCENT : INV_MUTED, ANCHOR_NW);
+    hud_text_fit(renderer, inv->action_label ? inv->action_label : "EXAMINAR",
+                 x + INV_LIST_W / 2, INV_ACTION_Y + 8, INV_LIST_W - 144, 2,
+                 inv->action_enabled ? INV_INK : INV_MUTED, ANCHOR_N);
+    if (inv->action_enabled)
+        add_zone(HUD_ZONE_ACCEPT, inv->selected, x, INV_ACTION_Y, INV_LIST_W, 36);
+    /* P and Esc both close it. Keys start right of the case's corner
+     * protector (native x 7..23) and stay inside the rubber inset. */
+    int kx = INV_X + 52, ky = INV_Y + 438;
+    int kw = ui_key_compact(renderer, kx, ky, "P");
+    int ew = ui_key_compact(renderer, kx + kw + 6, ky, "ESC");
+    int lw = ui_text(renderer, "CERRAR", kx + kw + 6 + ew + 8, ky + 8, 1, INV_MUTED, ANCHOR_NW);
+    add_zone(HUD_ZONE_BACK, 0, kx, ky, kw + 6 + ew + 8 + lw, 28);
 }
 
 void hud_draw_pause(SDL_Renderer *renderer, const ListMenu *menu)
@@ -1541,7 +1637,7 @@ static void draw_card(SDL_Renderer *renderer, const CharacterSkin *skin, const P
                         PLAYER_WALK_FRAME_W * PORTRAIT_SCALE, PLAYER_WALK_FRAME_H * PORTRAIT_SCALE};
         if (carry) {
             walk = carry;
-            src = (SDL_Rect){PLAYER_WALK_FRAMES * PLAYER_SHOOT_FRAME_W, 0,
+            src = (SDL_Rect){character_walk_frames(c) * PLAYER_SHOOT_FRAME_W, 0,
                              PLAYER_SHOOT_FRAME_W, PLAYER_SHOOT_FRAME_H};
             dst = (SDL_Rect){cx - (int)(31.5f * PORTRAIT_SCALE), portrait_top - 7 * PORTRAIT_SCALE,
                              PLAYER_SHOOT_FRAME_W * PORTRAIT_SCALE, PLAYER_SHOOT_FRAME_H * PORTRAIT_SCALE};

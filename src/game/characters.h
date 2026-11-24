@@ -32,6 +32,7 @@ typedef struct {
 typedef struct {
     const char *id;   /* Its folder: assets/sprites/characters/<id>/ */
     const char *name;
+    int walk_frames; /* 0 retains the eight-frame template; pivot and cycle duration stay shared. */
     int walk_waist_row; /* Art row where moving legs join the torso; 0 uses the template. */
     float drink_duration; /* Full handling sequence; zero uses DRINK_TIME. */
     CharacterSit sit;
@@ -53,6 +54,8 @@ typedef struct {
 
 extern const CharacterDef CHARACTERS[];
 extern const int CHARACTER_COUNT;
+
+int character_walk_frames(const CharacterDef *character);
 
 /* index if it is a character that can be played, else the first that can
  * (a save may name one that went into development). */

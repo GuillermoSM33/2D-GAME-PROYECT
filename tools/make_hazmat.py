@@ -81,10 +81,10 @@ COW_HAT = [0x4a4033, 0x75654d, 0x45382e, 0x36271d]
 COW_SKIN = [0xebc1a4, 0xd7a786, 0xbf8964, 0xa87057, 0xc59174, 0x8f5c4f]
 COW_CLOTH = {
     'wine': [0x6f2638, 0x924657, 0x743044, 0x995367, 0x441c2a, 0x4c2633],
-    'slate': [0x4b464b, 0x777174, 0x605d74, 0x2a2a30, 0x4a4a54, 0x74747e, 0x1e1a20],
+    'slate': [0x4b464b, 0x777174, 0x625c61, 0x39353a, 0x605d74, 0x2a2a30, 0x4a4a54, 0x74747e, 0x1e1a20],
     'grey': [0x5d6870, 0x4c535b, 0x30343b, 0x364149, 0x29343b, 0x777e85, 0x404c53, 0x727f86, 0x9aa0a8],
 }
-COW_LEATHER = [0x483326, 0x6f4d33, 0x60432e, 0x70462c, 0x8a6448, 0x96745a, 0xa27248, 0x916c48, 0x80633f,
+COW_LEATHER = [0x483326, 0x6f4d33, 0x35271d, 0x60432e, 0x70462c, 0x8a6448, 0x96745a, 0xa27248, 0x916c48, 0x80633f,
                0x9a643a, 0x2c2c2c, 0x424242]
 COW_BRASS = [0x9e7c42, 0xa27d43, 0xb59050, 0xb6985c, 0xc2a66e, 0xc9ab6d, 0xdbc58d, 0xb99a62, 0x77603c]
 COW_LACE = [0xe0dbc9, 0xbdbbb1, 0x96948b, 0xd8d0c0, 0xe6dcc0, 0xf0ecdc, 0xb8ac94, 0x9a9488]
@@ -283,9 +283,7 @@ def cowgirl_coveralls(px, out, heads, gun, sheet, w, h):
     waist or chaps. Added fabric has the same volume at chest, waist and hip.
     """
     hair = {hx(c) for c in COW_HAIR}
-    wine = {hx(c) for c in COW_CLOTH['wine']}
-    lower_material = {hx(c) for c in COW_CLOTH['slate'] + COW_CLOTH['grey'] + COW_LEATHER +
-                      [0x322e2c, 0x48423e, 0x5e5650, 0x463322, 0x684833]}
+    wine = {hx(c) for c in (0x6f2638, 0x924657, 0x441c2a)}   # Her sleeves, not her sash
     protected = gun | {p for p, c in px.items() if c[:3] == INK and
                        any((p[0] + dx, p[1] + dy) in gun for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))}
     for cx, cy in heads:
@@ -308,54 +306,53 @@ def cowgirl_coveralls(px, out, heads, gun, sheet, w, h):
                 for x, y in ((1, 0), (-1, 0), (0, 1), (0, -1)))
             if (c[:3] in hair or is_hair_edge) and math.hypot(p[0] + .5 - cx, p[1] + .5 - cy) > HOOD_R + .5:
                 out.pop(p, None)
-        # Replace chaps, strips and exposed thigh contours with a wider pair
-        # of trousers. Every source leg still bends and plants its own foot.
-        legs = {p for p, c in nearby.items() if local(p)[1] >= 25 and c[:3] in lower_material and p not in protected}
-        if legs:
-            thick = {world(local(p)[0] + n, local(p)[1]) for p in legs for n in (-1, 0, 1)}
-            for p, c in nearby.items():
-                u, v = local(p)
-                if v >= 25 and abs(u) < 16 and p not in protected:
-                    out.pop(p, None)  # Remove the old hip sash and holster silhouette.
-            feet = {side: max((local(p)[1] for p in legs if (local(p)[0] >= 0) == side), default=43)
-                    for side in (False, True)}
-            for p in thick:
-                if p in protected: continue
-                u, v = local(p)
-                if v > feet[u >= 0] - 4:
-                    col = RUBBER[3 if u % 6 < 2 else 1]
-                else:
-                    col = SUIT[4 if u % 7 < 2 else 3 if u % 7 < 5 else 2]
-                out[p] = col + (255,)
-            for p in thick:
-                for x, y in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                    q = p[0] + x, p[1] + y
-                    if q not in out and q not in protected: out[q] = INK + (255,)
-        if sheet in ('legs', 'legs_dual'):
-            continue  # These are composited under the held-weapon torso.
+        # Brown hat/neck remnants were mapped to black rubber before the
+        # hood was rebuilt. They are neither gloves nor the hood's own rim.
+        collar_materials = hair | {hx(c) for c in COW_LEATHER} | {hx(0x1e1a20)}
+        remnants = {p for p, c in nearby.items() if 3 <= local(p)[1] <= 9 and
+                    c[:3] in collar_materials and p not in protected and
+                    math.hypot(p[0] + .5 - cx, p[1] + .5 - cy) > HOOD_R + .5}
+        for p, c in nearby.items():
+            if p in protected or math.hypot(p[0] + .5 - cx, p[1] + .5 - cy) <= HOOD_R + .5:
+                continue
+            if p in remnants or c[:3] == INK and any((p[0] + dx, p[1] + dy) in remnants
+                                                     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                out.pop(p, None)
+        # Rebuild legs on hip/knee/ankle chains. Copying and thickening chaps
+        # retained their triangular stance, holster spikes and knee bulges.
+        from hazmat_legs import frame_width, raster, rig, trousers
+        pose = int(cx) // frame_width(sheet)
+        pelvis, chains = rig(sheet, pose, cx, cy, local, world)
+        hip_u, hip_v = local(pelvis)
+        for p in nearby:
+            if local(p)[1] >= min(23, hip_v - 1) and p not in protected:
+                out.pop(p, None)
+        pants = trousers(pelvis, chains, local, world, INK, SUIT, RUBBER)
+        out.update({p: c for p, c in pants.items() if p not in protected})
         # Compact air pack behind the shoulders, with two retaining straps.
+        pack = {}
         for v in range(9, 25):
             for u in range(-11, -7):
-                p = world(u, v)
-                if p in protected: continue
                 edge = u in (-11, -8) or v in (9, 24)
                 col = RUBBER[0] if edge else RUBBER[3] if u == -10 else RUBBER[1]
                 if v in (13, 21): col = RUBBER[0]
-                out[p] = col + (255,)
+                pack[u, v] = col + (255,)
+        out.update({p: c for p, c in raster(pack, local, world).items() if p not in protected})
         # One continuous baggy torso: no narrowing waist or bust planes.
-        for v in range(7, 29):
+        end = max(14, round(hip_v + 3)) if sheet.startswith('car') else 27
+        torso = {}
+        for v in range(7, end):
             half = 5 if v == 7 else 7 if v == 8 else 8
+            bend = hip_u * max(0, min(1, (v - 8) / max(1, end - 10)))
             for u in range(-half, half + 1):
-                p = world(u, v)
-                if p in protected: continue
                 col = INK if abs(u) == half else SUIT[4 if u < -2 else 3 if u < 4 else 2]
-                if 11 <= v <= 25 and abs(u) in (5, 6): col = RUBBER[2 if u < 0 else 1]
+                if 11 <= v <= 25 and u in (-6, -5, 5, 6): col = RUBBER[2 if u < 0 else 1]
                 if 12 <= v <= 26 and u == 1: col = SUIT[1]  # Closed zip, no rigid corset panel.
                 if v in (20, 21) and -5 <= u <= 5: col = RUBBER[1]
-                if v == 27 and u < -2: col = SUIT[2]
                 if (v, u) in ((16, -3), (17, -2), (17, -1), (24, 3), (25, 4), (26, -3)):
                     col = SUIT[2]  # Small fabric creases, never a fitted waist.
-                out[p] = col + (255,)
+                torso[round(u + bend), v] = col + (255,)
+        out.update({p: c for p, c in raster(torso, local, world).items() if p not in protected})
         # Sleeves and working gloves stay in front of the loose torso.
         # The jacket's front lapels stay covered; its outer sleeves still act.
         for p, c in nearby.items():
@@ -368,65 +365,62 @@ def cowgirl_coveralls(px, out, heads, gun, sheet, w, h):
             if p in px: out[p] = px[p]
 
 
-@lru_cache(maxsize=None)
-def cowgirl_action_mask(sheet):
-    """Foreground sleeve/hand masks from the same authored action functions.
+def drop_floating_ink(out, largest=4):
+    """Outline specks left in the air once hat, hair and chaps are gone.
 
-    A loose torso must not hide a hand working in front of the stomach.
-    Masks contain no old torso, waistband, chaps or fitted outfit.
+    An outline always borders some material. A small group of outline
+    pixels touching none (8-neighbourhood) read as dirt round the hood.
     """
-    if sheet in ('reload_dual', 'reload_dual_b', 'reload_dual_lower', 'reload_dual_b_lower'):
-        name = sheet if sheet.endswith('_lower') else sheet + '_lower'
-        return read(CHARS / 'cowgirl' / (name + '.png'))[2]
-    mask = {}
-    if sheet in ('drink', 'bandage', 'plant'):
-        import make_care
-        import make_plant
-        if sheet == 'drink':
-            poses = [(make_care.bent_to(make_care.SHOULDER, at, True), make_care.hand(at)) for at, _ in make_care.DRINK]
-        elif sheet == 'bandage':
-            poses = [(make_care.arm(at), make_care.hand(at)) for at in make_care.BIND]
-        else:
-            poses = [(make_plant.reaching(at, drop), make_plant.edged(make_plant.big_hand(at)))
-                     for at, _, _, drop in make_plant.COWGIRL]
-        for frame, parts in enumerate(poses):
-            for part in parts:
-                mask.update({(x + frame * 81, y): c for (x, y), c in part.items()})
-    elif sheet == 'reload':
-        import make_flashlight
-        from make_swat import load
-        original = make_flashlight.body_without_arm
-        make_flashlight.body_without_arm = lambda *args, **kwargs: {}
-        try:
-            image = make_flashlight.make_reload(load(CHARS / 'cowgirl/shoot.png'))
-            mask = {(i % image.width, i // image.width): c for i, c in enumerate(image.px) if c[3]}
-        finally:
-            make_flashlight.body_without_arm = original
-    return mask
-
-
-def cowgirl_action_foreground(px, out, sheet):
-    from cowgirl_arm import SLEEVE, GLOVE
-    sleeves = {c[:3] for c in SLEEVE} | {hx(c) for c in COW_CLOTH['wine']}
-    gloves = {c[:3] for c in GLOVE} | {hx(c) for c in COW_LEATHER}
-    pal = cowgirl_palette()
-    for p, tag in cowgirl_action_mask(sheet).items():
-        if p not in px: continue
-        c = px[p]
-        if tag[:3] in sleeves:
-            if c[:3] not in sleeves | {INK}: continue  # Occluded by body or held equipment.
-            out[p] = (SUIT[4 if lum(c) > 90 else 2] if c[:3] != INK else INK) + (255,)
-        elif tag[:3] in gloves or c[:3] in gloves:
-            if c[:3] not in gloves | {INK}: continue
-            out[p] = (RUBBER[3 if lum(c) > 90 else 1] if c[:3] != INK else INK) + (255,)
-        elif c[:3] in sleeves:
-            out[p] = pal.get(c[:3], SUIT[3]) + (255,)
-        else:
-            out[p] = c  # Guns, speedloaders, cartridges and action outlines.
+    ink = {p for p, c in out.items() if c[:3] == INK and c[3]}
+    around = [(dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
+    seen = set()
+    for start in ink:
+        if start in seen: continue
+        group, todo = [start], [start]
+        seen.add(start)
+        while todo:
+            x, y = todo.pop()
+            for dx, dy in around:
+                q = (x + dx, y + dy)
+                if q in ink and q not in seen:
+                    seen.add(q)
+                    group.append(q)
+                    todo.append(q)
+        if len(group) > largest: continue
+        if not any((x + dx, y + dy) in out and out[(x + dx, y + dy)][:3] != INK
+                   for x, y in group for dx, dy in around):
+            for p in group:
+                del out[p]
 
 
 def suit_cowgirl(px, w, h, sheet=''):
-    # Care/plant sheets can still carry the author's pre-finish colour tags.
+    """A sheet of hers in the suit: composed on her own poses (hazmat_figure) or, sitting,
+    fainting and in a car, made from the sheet itself."""
+    import hazmat_figure
+    if sheet in hazmat_figure.UPRIGHT + hazmat_figure.ARMS_ONLY:
+        out = hazmat_figure.sheet_pixels(sheet, SUIT, RUBBER, VISOR)
+        out = {p: c for p, c in out.items() if 0 <= p[0] < w and 0 <= p[1] < h}   # Of the sheet asked for
+        if sheet in hazmat_figure.UPRIGHT:
+            close_outline(out, w, h, hazmat_figure.hazmat_legs.frame_width(sheet))
+            drop_floating_ink(out)
+        else:                                            # Exactly what her own sheet covers, its outline too
+            out = {p: out.get(p, INK + (255,)) for p in px}
+        return out
+    if sheet == 'flashlight':
+        return dict(px)
+    if sheet == 'car':                                   # Her own joints through the car, the suit's parts
+        from make_car_passage import Figure, character_sheet
+        image = character_sheet(Figure('cowgirl', suit=(SUIT, RUBBER, VISOR)))
+        out = {(i % w, i // w): c for i, c in enumerate(image.px) if c[3]}
+        drop_floating_ink(out)
+        return out
+    if sheet == 'faint':                                 # Her suited stance, falling as she does
+        from make_faint import make
+        fallen = make(to_image(42, 67, suit_cowgirl({}, 42, 67, 'stand')))
+        out = {(i % w, i // w): c for i, c in enumerate(fallen.px) if c[3]}
+        drop_floating_ink(out)
+        return out
+    # These sheets can still carry the author's pre-finish colour tags.
     # Normalize their material labels in memory; never fall back to the normal
     # hat or bare face when an action uses that older source palette.
     legacy_skin = {hx(v) for v in (0xfedca3, 0xd99a5b, 0x89411f, 0x8a4322)}
@@ -440,23 +434,23 @@ def suit_cowgirl(px, w, h, sheet=''):
         px = normalized
     pal = cowgirl_palette()
     gun = cowgirl_guns(px)
-    if sheet.endswith('_lower'):
-        gun |= {p for p, c in px.items() if c[:3] in COW_GUN_STEEL | COW_GUN_GRIP}
     out = {p: c if p in gun else pal.get(c[:3], c[:3]) + (c[3],) for p, c in px.items()}
     heads = hood(px, out, w, h, gun)
-    if sheet in ('legs', 'legs_dual'):
-        heads = [(f * 42 + 20.4, 19.1) for f in range(w // 42)]
     cowgirl_coveralls(px, out, heads, gun, sheet, w, h)
-    cowgirl_action_foreground(px, out, sheet)
-    if sheet.startswith('car'):
-        # The sitter's soles still rest on the car floor. Loose fabric adds
-        # width, never extra height through its floor or into the next row.
-        bottoms = {}
-        for x, y in px:
-            key = x // 81, y // 80
-            bottoms[key] = max(bottoms.get(key, 0), y)
-        out = {p: c for p, c in out.items() if p[1] <= bottoms.get((p[0] // 81, p[1] // 80), -1)}
+    drop_floating_ink(out)
     return out
+
+
+def close_outline(out, w, h, width):
+    """An outline where the suit's own cloth or rubber meets nothing."""
+    own = {c for c in SUIT + RUBBER}
+    for (x, y), c in list(out.items()):
+        if c[:3] not in own:
+            continue
+        for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            q = x + a, y + b
+            if q not in out and 0 <= q[0] < w and 0 <= q[1] < h and q[0] // width == x // width:
+                out[q] = INK + (255,)
 
 
 # ---------------------------------------------------------------- the SWAT

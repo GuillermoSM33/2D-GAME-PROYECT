@@ -7,6 +7,7 @@
 #include "app/stage_render.h"
 #include "app/navigation.h"
 #include "engine/audio.h"
+#include "engine/assets.h"
 #include "game/camera.h"
 #include "game/scene.h"
 #include "game/hud.h"
@@ -619,11 +620,11 @@ static int count_steps(const char *prefix, bool water, int *takes)
 
 static void test_footsteps_keep_time_with_the_legs(void)
 {
-    /* A step only as a foot lands (frames 0 and 4), two per walk cycle:
-     * walking 3 a second, running 3.75. */
+    /* A step only as a foot lands (frames 0 and 10 of her 20), two per walk cycle:
+     * walking 2.4 a second, running 3.6. */
     const struct { bool run; const char *prefix; float per_second; } cases[] = {
-        {false, "world/footstep", PLAYER_WALK_FPS / (PLAYER_WALK_FRAMES / 2)},
-        {true, "world/run_step", PLAYER_WALK_FPS * PLAYER_RUN_ANIM_MULT / (PLAYER_WALK_FRAMES / 2)},
+        {false, "world/footstep", PLAYER_SHERIFF_WALK_FPS / (PLAYER_SHERIFF_WALK_FRAMES / 2)},
+        {true, "world/run_step", PLAYER_SHERIFF_WALK_FPS * PLAYER_RUN_SPEED_MULT / (PLAYER_SHERIFF_WALK_FRAMES / 2)},
     };
     for (int c = 0; c < 2; c++) {
         setup_weapon(WEAPON_REVOLVER);
@@ -636,7 +637,7 @@ static void test_footsteps_keep_time_with_the_legs(void)
             step(&input);
             int steps = count_steps(cases[c].prefix, false, NULL);
             if (steps > heard) {
-                CHECK(game.player.anim.frame % (PLAYER_WALK_FRAMES / 2) == 0);
+                CHECK(game.player.anim.frame % (PLAYER_SHERIFF_WALK_FRAMES / 2) == 0);
                 heard = steps;
             }
         }
@@ -844,8 +845,10 @@ static void check_tablet_overlay_freezes_the_world(void)
     InputState input = {0};
     input.down[ACTION_RIGHT] = input.down[ACTION_RUN] = input.down[ACTION_SHOOT] = true;
     input.pressed[ACTION_SHOOT] = input.pressed[ACTION_RELOAD] = true;
-    input.pressed[ACTION_JUMP] = input.pressed[ACTION_USE] = true;
-    /* Movement, combat and E cannot run beneath either paused overlay. The
+    input.pressed[ACTION_JUMP] = true;
+    if (view != PAUSE_VIEW_INVENTORY) input.pressed[ACTION_USE] = true;
+    /* World controls cannot run beneath the paused overlays. E is an
+     * inventory action now, tested independently below. The
      * real run includes living crew, animated terrain and a mission clock. */
     for (int tick = 0; tick < 30; tick++) step(&input);
     CHECK(game.paused && game.pause_view == view);
@@ -946,6 +949,322 @@ static void test_locked_train_interactions_consume_e_without_planting_dynamite(v
         CHECK(game.run.dynamite == 3 && game.player.plant_time == 0.0f);
         CHECK(plays("world/fuse") == 0);
     }
+}
+
+static int inventory_row(StageInventoryKind kind, int slot)
+{
+    int selected = game.inventory_selected, found = -1;
+    int rows = stage_inventory_rows(&game, &profile.progress);
+    for (int row = 0; row < rows; row++) {
+        game.inventory_selected = row;
+        StageInventoryChoice item = stage_inventory_choice(&game, &profile.progress);
+        if (item.kind == kind && (kind != STAGE_ITEM_WEAPON || item.slot == slot)) {
+            found = row;
+            break;
+        }
+    }
+    game.inventory_selected = selected;
+    CHECK(found >= 0);
+    return found;
+}
+
+static void test_inventory_keyboard_and_wheel_focus_items_without_advancing_the_stage(void)
+{
+    setup_weapon(WEAPON_RIFLE);
+    press(ACTION_INVENTORY);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY);
+    CHECK(stage_inventory_rows(&game, &profile.progress) == 6);
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_DOWN);
+    CHECK(game.inventory_selected == 1);
+    CHECK(stage_inventory_choice(&game, &profile.progress).kind == STAGE_ITEM_WEAPON);
+    press(ACTION_DOWN);
+    CHECK(game.inventory_selected == 2 && stage_inventory_choice(&game, &profile.progress).slot == 1);
+    InputState wheel = {.wheel = -1};
+    step(&wheel);
+    CHECK(game.inventory_selected == 3);
+    CHECK(stage_inventory_choice(&game, &profile.progress).kind == STAGE_ITEM_WATER);
+    wheel.wheel = 1;
+    step(&wheel);
+    CHECK(game.inventory_selected == 2);
+    press(ACTION_UP);
+    press(ACTION_UP);
+    press(ACTION_UP);
+    CHECK(game.inventory_selected == stage_inventory_rows(&game, &profile.progress) - 1);
+    CHECK(stage_inventory_choice(&game, &profile.progress).kind == STAGE_ITEM_GOLD);
+    press(ACTION_DOWN);
+    CHECK(game.inventory_selected == 0 && game.run.mission.ticks == ticks);
+    CHECK(!game.inventory_has_pending);
+}
+
+static void test_inventory_equips_both_swat_weapons_without_refilling_or_unpausing(void)
+{
+    setup_weapon(WEAPON_RIFLE);
+    game.player.shot.rounds = 4;
+    game.rounds[1] = 2;
+    press(ACTION_INVENTORY);
+    StageRun before;
+    memcpy(&before, &game.run, sizeof(before));
+    float x = game.player.x;
+    game.inventory_selected = inventory_row(STAGE_ITEM_WEAPON, 1);
+    CHECK(stage_inventory_choice(&game, &profile.progress).enabled);
+    press(ACTION_CONFIRM);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY && !game.inventory_has_pending);
+    CHECK(game.weapon_slot == 1 && game.player.shot.rounds == 2 && game.rounds[0] == 4);
+    game.inventory_selected = inventory_row(STAGE_ITEM_WEAPON, 0);
+    press(ACTION_USE);
+    CHECK(game.paused && game.weapon_slot == 0 && game.player.shot.rounds == 4 && game.rounds[1] == 2);
+    CHECK(game.player.x == x && memcmp(&game.run, &before, sizeof(before)) == 0);
+    CHECK(plays("weapons/switch") == 2);
+}
+
+static void test_inventory_reload_is_a_normal_reload_on_the_next_simulation_step(void)
+{
+    setup_weapon(WEAPON_RIFLE);
+    game.player.shot.rounds = 4;
+    press(ACTION_INVENTORY);
+    game.inventory_selected = inventory_row(STAGE_ITEM_WEAPON, 0);
+    StageInventoryChoice item = stage_inventory_choice(&game, &profile.progress);
+    CHECK(item.enabled && strcmp(item.action, "RECARGAR") == 0);
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_CONFIRM);
+    CHECK(!game.paused && game.inventory_has_pending && game.inventory_pending == ACTION_RELOAD);
+    CHECK(game.player.shot.rounds == 4 && !shot_reloading(&game.player.shot));
+    CHECK(game.run.mission.ticks == ticks && plays("weapons/rifle_reload") == 0);
+    idle();
+    CHECK(!game.inventory_has_pending && shot_reloading(&game.player.shot));
+    CHECK(game.player.shot.rounds == 4 && plays("weapons/rifle_reload") == 1);
+    for (int guard = 0; guard < 240 && shot_reloading(&game.player.shot); guard++) idle();
+    CHECK(!shot_reloading(&game.player.shot) && game.player.shot.rounds == stage_weapon(&game)->magazine);
+    CHECK(plays("weapons/rifle_reload") == 1);
+}
+
+static void test_inventory_water_waits_for_resume_and_consumes_exactly_one_jug(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    game.player.water = 2;
+    press(ACTION_INVENTORY);
+    game.inventory_selected = inventory_row(STAGE_ITEM_WATER, -1);
+    CHECK(stage_inventory_choice(&game, &profile.progress).enabled);
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_CONFIRM);
+    CHECK(!game.paused && game.inventory_has_pending && game.inventory_pending == ACTION_BANDAGE);
+    CHECK(game.player.water == 2 && game.player.drink_time == 0.0f && game.run.mission.ticks == ticks);
+    CHECK(plays("player/drink") == 0);
+    idle();
+    CHECK(!game.inventory_has_pending && game.player.water == 2 && game.player.drink_time > 0.0f);
+    CHECK(plays("player/drink") == 1);
+    for (int guard = 0; guard < 240 && !game.player.drank; guard++) idle();
+    CHECK(game.player.drank && game.player.water == 1 && game.player.drink_time == 0.0f);
+    for (int tick = 0; tick < 20; tick++) idle();
+    CHECK(game.player.water == 1 && plays("player/drink") == 1);
+}
+
+static void test_inventory_empty_water_and_wounds_disable_drinking_with_an_explanation(void)
+{
+    for (int wound = 0; wound < 2; wound++) {
+        setup_weapon(WEAPON_REVOLVER);
+        game.player.water = wound ? 2 : 0;
+        if (wound) {
+            game.player.bleeding = true;
+            game.player.bleed_tick = BLEED_TICK;
+        }
+        press(ACTION_INVENTORY);
+        game.inventory_selected = inventory_row(STAGE_ITEM_WATER, -1);
+        StageInventoryChoice item = stage_inventory_choice(&game, &profile.progress);
+        CHECK(!item.enabled && item.detail && item.detail[0]);
+        if (wound) CHECK(strstr(item.detail, "U") != NULL);
+        unsigned ticks = game.run.mission.ticks;
+        press(ACTION_CONFIRM);
+        CHECK(game.paused && !game.inventory_has_pending && game.inventory_feedback[0]);
+        CHECK(game.player.water == (wound ? 2 : 0) && game.player.drink_time == 0.0f);
+        CHECK(game.run.mission.ticks == ticks && plays("player/drink") == 0);
+    }
+}
+
+static void test_reopening_inventory_cancels_a_drink_that_has_not_started(void)
+{
+    setup_weapon(WEAPON_REVOLVER);
+    game.player.water = 2;
+    press(ACTION_INVENTORY);
+    game.inventory_selected = inventory_row(STAGE_ITEM_WATER, -1);
+    press(ACTION_CONFIRM);
+    CHECK(!game.paused && game.inventory_has_pending && game.player.water == 2);
+    press(ACTION_INVENTORY); /* No simulation tick or drinking animation yet. */
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_INVENTORY && !game.inventory_has_pending);
+    CHECK(game.player.water == 2 && game.player.drink_time == 0.0f);
+    press(ACTION_INVENTORY);
+    idle();
+    CHECK(!game.paused && game.player.water == 2 && game.player.drink_time == 0.0f);
+    CHECK(plays("player/drink") == 0);
+}
+
+static void test_inventory_dynamite_at_suit_hooks_places_a_charge_instead_of_using_the_hooks(void)
+{
+    setup_train_tablet();
+    game.player.x = train_suit_x(&game.run);
+    run_place_player(&game.run, &game.player);
+    game.run.dynamite = 2;
+    CHECK(!game.run.train.suit);
+    press(ACTION_INVENTORY);
+    game.inventory_selected = inventory_row(STAGE_ITEM_DYNAMITE, -1);
+    CHECK(stage_inventory_choice(&game, &profile.progress).enabled);
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_CONFIRM);
+    CHECK(!game.paused && game.inventory_has_pending && game.inventory_pending == ACTION_USE);
+    CHECK(game.run.dynamite == 2 && !game.run.train.suit && game.run.mission.ticks == ticks);
+    idle();
+    CHECK(!game.inventory_has_pending && game.run.dynamite == 1 && game.player.plant_time > 0.0f);
+    CHECK(!game.run.train.suit && !game.run.train.tablet);
+    CHECK(plays("world/fuse") == 1 && plays("world/supply") == 0);
+    bool planted = false;
+    for (int i = 0; i < game.run.terrain.count; i++) {
+        const Piece *piece = &game.run.terrain.items[i];
+        if (piece->kind == TERRAIN_CHARGE && piece->fuse > 0.0f) planted = true;
+    }
+    CHECK(planted);
+}
+
+static void test_inventory_suit_changes_only_at_its_hooks_and_keeps_the_world_paused(void)
+{
+    setup_train_tablet();
+    press(ACTION_INVENTORY);
+    CHECK(game.inventory_selected == 0 && !stage_inventory_choice(&game, &profile.progress).enabled);
+    press(ACTION_USE);
+    CHECK(!game.run.train.suit && game.paused && game.inventory_feedback[0]);
+    game.player.x = train_suit_x(&game.run);
+    CHECK(stage_inventory_choice(&game, &profile.progress).enabled);
+    Player before;
+    memcpy(&before, &game.player, sizeof(before));
+    unsigned ticks = game.run.mission.ticks;
+    press(ACTION_USE);
+    CHECK(game.run.train.suit && game.paused && !game.inventory_has_pending);
+    CHECK(game.run.mission.ticks == ticks && memcmp(&game.player, &before, sizeof(before)) == 0);
+    press(ACTION_CONFIRM);
+    CHECK(!game.run.train.suit && game.paused && game.run.mission.ticks == ticks);
+    CHECK(plays("world/supply") == 2);
+}
+
+static void test_inventory_opens_the_tablet_and_casefile_and_inspects_gold_without_advancing_time(void)
+{
+    setup_train_tablet();
+    game.run.train.tablet = true;
+    profile.progress.gold = 77;
+    press(ACTION_INVENTORY);
+    CHECK(stage_inventory_rows(&game, &profile.progress) == 7);
+    unsigned ticks = game.run.mission.ticks;
+    game.inventory_selected = inventory_row(STAGE_ITEM_GOLD, -1);
+    press(ACTION_USE);
+    CHECK(game.paused && profile.progress.gold == 77 && strstr(game.inventory_feedback, "77"));
+    game.inventory_selected = inventory_row(STAGE_ITEM_TABLET, -1);
+    press(ACTION_CONFIRM);
+    CHECK(game.paused && game.pause_view == PAUSE_VIEW_MAP && game.run.mission.ticks == ticks);
+    press(ACTION_INVENTORY);
+    game.inventory_selected = inventory_row(STAGE_ITEM_PARTS, -1);
+    press(ACTION_USE);
+    CHECK(game.request_casefile && game.paused && game.pause_view == PAUSE_VIEW_INVENTORY);
+    CHECK(!game.inventory_has_pending && game.run.mission.ticks == ticks);
+}
+
+static void test_inventory_charge_interrupts_a_reload_without_refilling_or_leaving_its_sound(void)
+{
+    setup_weapon(WEAPON_RIFLE);
+    game.player.shot.rounds = 4;
+    game.run.dynamite = 1;
+    press(ACTION_RELOAD);
+    CHECK(shot_reloading(&game.player.shot));
+    press(ACTION_INVENTORY);
+    game.inventory_selected = inventory_row(STAGE_ITEM_DYNAMITE, -1);
+    CHECK(stage_inventory_choice(&game, &profile.progress).enabled);
+    clear_cues();
+    press(ACTION_CONFIRM);
+    CHECK(!game.paused && game.inventory_has_pending && game.player.shot.rounds == 4);
+    idle();
+    CHECK(!shot_reloading(&game.player.shot) && game.player.shot.rounds == 4);
+    CHECK(game.run.dynamite == 0 && game.player.plant_time > 0.0f);
+    CHECK(plays("world/fuse") == 1 && stops("weapons/rifle_reload") >= 1);
+}
+
+static bool inventory_zone_point(HudZoneKind kind, int index, int *x, int *y)
+{
+    /* Locate a real registered hit region after drawing, without duplicating
+     * the renderer's private row/button dimensions in the input test. */
+    for (int py = 0; py < WINDOW_HEIGHT; py += 4)
+        for (int px = 0; px < WINDOW_WIDTH; px += 4) {
+            HudZone zone;
+            if (hud_zone_at(px, py, &zone) && zone.kind == kind && zone.index == index) {
+                *x = px;*y = py;return true;
+            }
+        }
+    return false;
+}
+
+static void draw_inventory_input_fixture(SDL_Renderer *renderer)
+{
+    StageInventoryChoice choice = stage_inventory_choice(&game, &profile.progress);
+    HudInventory inv = {
+        .character = game.character->name, .parts = -1,
+        .gun_count = game.character->weapon_count,
+        .water = game.player.water, .dynamite = game.run.dynamite, .gold = profile.progress.gold,
+        .selected = game.inventory_selected, .action_label = choice.action,
+        .detail = choice.detail, .feedback = game.inventory_feedback, .action_enabled = choice.enabled,
+    };
+    for (int i = 0; i < inv.gun_count; i++) {
+        const WeaponDef *weapon = weapon_def(game.guns[i]);
+        inv.guns[i] = (HudInventoryGun){.id = game.guns[i], .name = weapon->name,
+            .rounds = i == game.weapon_slot ? game.player.shot.rounds : game.rounds[i],
+            .magazine = weapon->magazine, .other_rounds = -1, .in_hand = i == game.weapon_slot};
+    }
+    hud_zones_clear();
+    hud_draw_inventory(renderer, &inv);
+    SDL_RenderPresent(renderer);
+}
+
+static void test_inventory_real_mouse_regions_select_rows_and_activate_only_enabled_actions(void)
+{
+    SDL_SetMainReady();
+    SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
+    CHECK(SDL_InitSubSystem(SDL_INIT_VIDEO) == 0);
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32,
+                                                          SDL_PIXELFORMAT_ARGB8888);
+    CHECK(surface != NULL);
+    SDL_Renderer *renderer = surface ? SDL_CreateSoftwareRenderer(surface) : NULL;
+    CHECK(renderer != NULL);
+    if (renderer) {
+        CHECK(assets_load(renderer));
+        CHECK(hud_init(renderer));
+        setup_weapon(WEAPON_RIFLE);
+        game.player.water = 2;
+        press(ACTION_INVENTORY);
+        draw_inventory_input_fixture(renderer);
+        int x = 0, y = 0, rows = stage_inventory_rows(&game, &profile.progress);
+        for (int row = 0; row < rows; row++)
+            CHECK(inventory_zone_point(HUD_ZONE_ITEM, row, &x, &y));
+        /* The focused suit is unavailable on this road: no active action
+         * button, while every row remains inspectable. */
+        CHECK(!inventory_zone_point(HUD_ZONE_ACCEPT, 0, &x, &y));
+        int water = inventory_row(STAGE_ITEM_WATER, -1);
+        CHECK(inventory_zone_point(HUD_ZONE_ITEM, water, &x, &y));
+        InputState pointer = {.pointer_x = x, .pointer_y = y, .pointer_clicked = true};
+        unsigned ticks = game.run.mission.ticks;
+        step(&pointer);
+        CHECK(game.paused && game.inventory_selected == water && !game.inventory_has_pending);
+        CHECK(game.player.water == 2 && game.run.mission.ticks == ticks);
+        draw_inventory_input_fixture(renderer); /* The next real frame updates the action. */
+        CHECK(inventory_zone_point(HUD_ZONE_ACCEPT, water, &x, &y));
+        pointer.pointer_x = x;pointer.pointer_y = y;
+        step(&pointer);
+        CHECK(!game.paused && game.inventory_has_pending && game.player.water == 2);
+        CHECK(game.player.drink_time == 0.0f && game.run.mission.ticks == ticks);
+        idle();
+        CHECK(game.player.drink_time > 0.0f && game.player.water == 2);
+        hud_zones_clear();
+        hud_shutdown();
+        assets_unload();
+        SDL_DestroyRenderer(renderer);
+    }
+    SDL_FreeSurface(surface);
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
 static void test_flashlight_click_follows_the_beam_and_cancels_with_the_switch(void)
@@ -1543,6 +1862,17 @@ int main(void)
     RUN(test_taking_the_tablet_opens_its_briefing_and_overlay_keys_pause_the_world);
     RUN(test_map_requires_the_tablet_and_taking_it_keeps_player_use_guards);
     RUN(test_locked_train_interactions_consume_e_without_planting_dynamite);
+    RUN(test_inventory_keyboard_and_wheel_focus_items_without_advancing_the_stage);
+    RUN(test_inventory_equips_both_swat_weapons_without_refilling_or_unpausing);
+    RUN(test_inventory_reload_is_a_normal_reload_on_the_next_simulation_step);
+    RUN(test_inventory_water_waits_for_resume_and_consumes_exactly_one_jug);
+    RUN(test_inventory_empty_water_and_wounds_disable_drinking_with_an_explanation);
+    RUN(test_reopening_inventory_cancels_a_drink_that_has_not_started);
+    RUN(test_inventory_dynamite_at_suit_hooks_places_a_charge_instead_of_using_the_hooks);
+    RUN(test_inventory_suit_changes_only_at_its_hooks_and_keeps_the_world_paused);
+    RUN(test_inventory_opens_the_tablet_and_casefile_and_inspects_gold_without_advancing_time);
+    RUN(test_inventory_charge_interrupts_a_reload_without_refilling_or_leaving_its_sound);
+    RUN(test_inventory_real_mouse_regions_select_rows_and_activate_only_enabled_actions);
     RUN(test_flashlight_click_follows_the_beam_and_cancels_with_the_switch);
     RUN(test_landing_uses_water_only_on_wet_ground);
     RUN(test_lightning_warning_starts_once_and_stops_on_impact_or_failure);

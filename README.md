@@ -672,7 +672,13 @@ tools/make_terrain.py    Genera el terreno del camino (barricadas, muro, barrile
 tools/make_ui.py         Genera la fuente pixel y el kit de interfaz (tableros, botones, teclas, iconos, armas)
 tools/make_sit.py        Genera las hojas de sentado, de frente (sentarse, descansar, recargar sentada, cabecear)
 tools/make_sun.py        Pinta el sol entero en los cielos de atardecer y pueblo fantasma
-tools/rebuild_cowgirl.py Regenera todas las hojas de la vaquera en orden (empieza por rework_cowgirl y termina en finish_cowgirl)
+tools/rebuild_cowgirl.py Regenera todas las hojas de la vaquera en orden (empieza por rework_cowgirl y termina en make_car_passage)
+tools/cowgirl_pose.py    La carrera de la sheriff medida en la referencia: articulaciones de sus 20 cuadros
+tools/cowgirl_torso.py   Su cuerpo en tres cuartos: torso, cinturón, funda y pañuelo
+tools/cowgirl_legs.py    Caderas, piernas y botas de la sheriff sobre esas articulaciones
+tools/hazmat_figure.py   El traje aislante de la sheriff, con las capas de sus propias poses
+tools/measure_cowgirl_pixels.py Mide referencia y sheriff en la misma cuadrícula (necesita Pillow)
+tools/preview_cowgirl.py Junta sus hojas ampliadas para revisarlas (necesita Pillow)
 tools/rebuild_swat.py    Regenera 28 hojas SWAT y 23 capas; --verify compara ambas (también en build.sh)
 tools/swat_authored.py   Compone mangas pintadas, cabeza común, porte y piernas animadas
 tools/prepare_swat_authored.py Importa cuatro fuentes transparentes al tamaño nativo (autoría con Pillow)

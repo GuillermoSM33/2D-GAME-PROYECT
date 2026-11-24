@@ -469,9 +469,12 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
         return make(gun, kind)
     char = CHARS[name]
     weapons = load(ROOT / 'assets/sprites/ui/weapons.png')
-    # Her walk with no arms: hers are drawn here, none of the swinging ones on her
+    # Sitting faces the camera: her body from the front, not her three-quarter one mirrored.
     if name == 'cowgirl':
-        walk = load(ROOT / 'assets/sprites/characters/cowgirl/legs.png')
+        from rework_cowgirl import front_body
+        walk = Image(42, 67)
+        for (x, y), colour in front_body().items():
+            walk.set(x, y, colour)
         # Match dress()/landmarks(): the light face plane defines the body,
         # not the skin shadow two rows higher under the hat.
         face = min(y for y in range(walk.height) for x in range(42) if walk.get(x, y)[:3] == (0xfe, 0xdc, 0xa3))

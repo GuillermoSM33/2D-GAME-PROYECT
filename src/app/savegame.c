@@ -81,6 +81,9 @@ static int animation_catalogue(const Codec *c, const AnimationDef **all)
     list = bullet_animations(&count);
     for (int i = 0; i < count; i++) all[total++] = list[i];
     all[total++] = chest_animation();
+    /* Append after every pre-existing animation, preserving all schema-11
+     * player, zombie, bullet and chest IDs in older checkpoints. */
+    all[total++] = player_walk_animation(PLAYER_SHERIFF_WALK_FRAMES);
     return total;
 }
 
@@ -501,6 +504,7 @@ bool save_game_resume(const SaveGame *game, StagePlay *play, int hero, int stage
     memcpy(play->rounds, cp->rounds, sizeof(play->rounds));
     play->dual_rounds = cp->dual_rounds;
     play->player = cp->player; play->run = cp->run; play->encounter = cp->encounter;
+    player_set_walk_frames(&play->player, character_walk_frames(&CHARACTERS[hero]));
     play->player.drink_duration = CHARACTERS[hero].drink_duration;
     play->player.sit_down_duration = CHARACTERS[hero].sit.down_duration;
     play->player.sit_reload_duration = CHARACTERS[hero].sit.reload_duration;

@@ -60,6 +60,8 @@ static int verify_characters(void)
                      SKIN_SHEET_NAMES[s]);
             const EmbeddedImage *ref = assets_find_image(template_name);
             int width = ref->width;
+            if (strcmp(SKIN_SHEET_NAMES[s], "walk") == 0)
+                width = character_walk_frames(&CHARACTERS[c]) * PLAYER_WALK_FRAME_W;
             if (strcmp(SKIN_SHEET_NAMES[s], "sit") == 0 && CHARACTERS[c].sit.down_frames > 0)
                 width = (CHARACTERS[c].sit.down_frames + CHARACTERS[c].sit.reload_frames + 8) * PLAYER_SIT_FRAME_W;
             failures += !verify_image(names[s], width, ref->height);
@@ -92,7 +94,7 @@ static int verify_characters(void)
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->light_sheet);
                 failures += !verify_image(name, PLAYER_LIGHT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
                 snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, def->light_walk_sheet);
-                failures += !verify_image(name, (PLAYER_WALK_FRAMES + PLAYER_LIGHT_BREATHS) * PLAYER_SHOOT_FRAME_W, shoot->height);
+                failures += !verify_image(name, (character_walk_frames(&CHARACTERS[c]) + PLAYER_LIGHT_BREATHS) * PLAYER_SHOOT_FRAME_W, shoot->height);
             }
         }
         {
@@ -109,10 +111,18 @@ static int verify_characters(void)
                     snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, ricochets[k]);
                     failures += !verify_image(name, PLAYER_SHOOT_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
                 }
-                snprintf(name, sizeof(name), "sprites/characters/%s/stand_dual", CHARACTERS[c].id);
-                failures += !verify_image(name, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H);
-                snprintf(name, sizeof(name), "sprites/characters/%s/stand", CHARACTERS[c].id);
-                failures += !verify_image(name, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H);
+                const char *standing[] = {"stand", "stand_dual"};
+                for (int k = 0; k < 2; k++) { /* Breathing, and pulling up from a run */
+                    snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, standing[k]);
+                    failures += !verify_image(name, (PLAYER_STAND_BREATHS + PLAYER_STAND_SETTLES) * PLAYER_WALK_FRAME_W,
+                                              PLAYER_WALK_FRAME_H);
+                }
+                const char *moving[] = {"legs", "legs_dual"};
+                for (int k = 0; k < 2; k++) { /* Her running legs under another action */
+                    snprintf(name, sizeof(name), "sprites/characters/%s/%s", CHARACTERS[c].id, moving[k]);
+                    failures += !verify_image(name, character_walk_frames(&CHARACTERS[c]) * PLAYER_WALK_FRAME_W,
+                                              PLAYER_WALK_FRAME_H);
+                }
                 snprintf(name, sizeof(name), "sprites/characters/%s/swap_lit", CHARACTERS[c].id);
                 failures += !verify_image(name, PLAYER_SWAP_FRAMES * PLAYER_SHOOT_FRAME_W, shoot->height);
             }
@@ -270,7 +280,7 @@ int app_verify_assets(void)
     } kit[] = {
         {"sprites/ui/panel", 24, 24}, {"sprites/ui/button", 32, 16}, {"sprites/ui/key", 14, 14},
         {"sprites/ui/pip", 12, 10}, {"sprites/ui/bar", 12, 8},
-        {"sprites/ui/field_tablet", 448, 252}, {"sprites/ui/field_inventory", 360, 215},
+        {"sprites/ui/field_tablet", 448, 252}, {"sprites/ui/field_inventory", 440, 240},
         {"sprites/ui/train_map_rooms", TRAIN_ROOMS * 44, 22},
         {"sprites/ui/notice_dev", UI_NOTICE_W, UI_NOTICE_H},
         {"sprites/ui/icons", ICON_COUNT * UI_ICON_SIZE, UI_ICON_SIZE},

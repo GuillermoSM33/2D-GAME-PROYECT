@@ -50,7 +50,18 @@
 #define PLAYER_WALK_FRAME_W 42
 #define PLAYER_WALK_FRAME_H 67
 #define PLAYER_WALK_FRAMES 8
+#define PLAYER_SHERIFF_WALK_FRAMES 20 /* The ten poses measured on her reference and one between each two */
 #define PLAYER_WALK_FPS 12.0f /* 5 display frames per art frame at 60 Hz: an even cadence */
+/* Her feet cover 50 art px a cycle, so at PLAYER_WALK_SPEED (60 art px a second)
+ * they hold the ground instead of sliding over it; running, the legs go faster by
+ * as much as she does (PLAYER_RUN_SPEED_MULT). */
+#define PLAYER_SHERIFF_WALK_FPS 24.0f
+#define PLAYER_SHERIFF_WALK_START 2 /* The frame nearest to standing: one foot down, the other just lifted */
+/* Her stand sheet: breathing, then pulling up from a run. Other characters have one still frame. */
+#define PLAYER_STAND_BREATHS 4
+#define PLAYER_STAND_SETTLES 2
+#define PLAYER_STAND_FPS 2.6f       /* Breathing */
+#define PLAYER_SETTLE_TIME 0.17f    /* Seconds of pulling up */
 
 #define PLAYER_JUMP_FRAME_W 54
 #define PLAYER_JUMP_FRAME_H 82
@@ -69,13 +80,13 @@
 #define PLAYER_PISTON_FPS 20.0f    /* Two guns taking turns: a whole turn each shot, 0.4 s */
 #define PLAYER_PISTON_FRAMES 16    /* ...drawn in this many frames: the arms swing, they don't jump */
 /* Her ricochet: both hands together, its muzzles off the aim's (tools/make_flashlight.py prints them) */
-#define PLAYER_POWER_BACK 10
+#define PLAYER_POWER_BACK 14
 #define PLAYER_POWER_ROWS 10
-#define PLAYER_POWER_FAR_BACK 13
+#define PLAYER_POWER_FAR_BACK 17
 #define PLAYER_POWER_FAR_ROWS 6
 #define PLAYER_POWER_GAP 2         /* With one gun: its two bullets, either side of its line */
 #define POWER_LENS {{-5.6f, 14.1f}, {-6.7f, 9.7f}, {-8.4f, 6.4f}, {-9.5f, 6.0f}, {-9.5f, 6.0f}, {-10.0f, 2.7f}, {-9.7f, 5.1f}, {-7.4f, 7.8f}}
-#define PLAYER_FAR_GUN_BACK 20     /* Her far gun's muzzle is this many art px behind the near one's (it fires from her hip)... */
+#define PLAYER_FAR_GUN_BACK 24     /* The level arm's muzzle is farther forward; the other still fires from her hip. */
 #define PLAYER_FAR_GUN_ROWS 10     /* ...and this many under it, flashlight or not */
 #define PLAYER_SHOOT_RELOAD_FRAME 6 /* Recoil frame held while the next ball goes in */
 /* Seconds from a bullet until the next shot can start. With the aim frame

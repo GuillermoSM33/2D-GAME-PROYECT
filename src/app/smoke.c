@@ -75,7 +75,7 @@ void smoke_observe(SmokeTest *smoke, const Player *player, const Bullets *bullet
     if (smoke->time < SMOKE_END)
         return;
 
-    unsigned all_walk = (1u << PLAYER_WALK_FRAMES) - 1;
+    unsigned all_walk = (1u << player_walk_frames(player)) - 1;
     unsigned all_jump = (1u << PLAYER_JUMP_FRAMES) - 1;
     unsigned all_shoot = (1u << PLAYER_SHOOT_FRAMES) - 1;
     bool advanced = smoke->x_after_right > PLAYER_START_X + 20.0f;

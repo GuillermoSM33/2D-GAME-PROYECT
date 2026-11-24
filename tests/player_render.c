@@ -166,7 +166,8 @@ static void walking_dual_reloads_keep_the_complete_guns_and_hands_in_every_pose(
                             (1.0f - ((float)f + .5f) / PLAYER_DUAL_RELOAD_FRAMES);
                         int frame = mode >= 4 ? f + PLAYER_DUAL_RELOAD_FRAMES
                                   : mode >= 2 && f > PLAYER_DUAL_RELOAD_HANDOFF_FRAME ? PLAYER_DUAL_RELOAD_HANDOFF_FRAME : f;
-                        int step = (f + phase * 4) % PLAYER_WALK_FRAMES;
+                        int step = (f + phase * walk->frame_count / 2) % walk->frame_count;
+                        int leg_step = step * (legs->width / walk->frame_w) / walk->frame_count;
                         animation_seek(&play.player.legs, step);
                         play.player.facing = facing;
                         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -188,7 +189,7 @@ static void walking_dual_reloads_keep_the_complete_guns_and_hands_in_every_pose(
                                     if (!c[3]) {
                                         int lx = x - x_offset, ly = y - y_offset;
                                         c = lx >= 0 && lx < walk->frame_w && ly >= 0 && ly < walk->frame_h
-                                              ? legs->rgba + (ly * legs->width + step * walk->frame_w + lx) * 4 : transparent;
+                                              ? legs->rgba + (ly * legs->width + leg_step * walk->frame_w + lx) * 4 : transparent;
                                     }
                                 }
                                 unsigned expected = c[3] ? ((unsigned)c[0] << 16) | ((unsigned)c[1] << 8) | c[2] : 0;
@@ -455,9 +456,8 @@ static void swat_uses_painted_carry_and_each_visible_muzzle(void)
     skin = sheriff;
 }
 
-static void check_entire_swat_cell(const EmbeddedImage *image, int frame)
+static void check_entire_cell(const EmbeddedImage *image, int frame, const AnimationDef *def)
 {
-    const AnimationDef *def = play.player.anim.def;
     int width = def->frame_w, height = def->frame_h;
     static Uint32 cell[324 * 320];
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -474,10 +474,151 @@ static void check_entire_swat_cell(const EmbeddedImage *image, int frame)
             const unsigned char *c = image->rgba + (y * image->width + frame * width + x) * 4;
             unsigned expected = c[3] ? ((unsigned)c[0] << 16) | ((unsigned)c[1] << 8) | c[2] : 0;
             int px = (play.player.facing < 0 ? width - 1 - x : x) * SPRITE_SCALE + 1;
-            mismatches += (cell[(y * SPRITE_SCALE + 1) * box.w + px] & 0xffffff) != expected;
+            unsigned actual = cell[(y * SPRITE_SCALE + 1) * box.w + px] & 0xffffff;
+            mismatches += actual != expected;
         }
     }
+    if (mismatches)
+        fprintf(stderr, "  cell %s frame=%d facing=%d gun=%d differences=%d\n",
+                image->name, frame, play.player.facing, play.guns[play.weapon_slot], mismatches);
     CHECK(mismatches == 0);
+}
+
+static void check_entire_swat_cell(const EmbeddedImage *image, int frame)
+{
+    check_entire_cell(image, frame, play.player.anim.def);
+}
+
+static void every_sheriff_walk_frame_is_visible_in_both_skins_and_directions(void)
+{
+    CharacterSkin normal = skin;
+    for (int suit = 0; suit < 2; suit++) {
+        if (suit) CHECK(skin_load_suit(&skin, renderer, &CHARACTERS[0]));
+        for (int dual = 0; dual < 2; dual++) {
+            progress_init(&profile.progress);
+            profile.progress.level = dual ? POWER_LEVEL : 1;
+            stage_start(&play, 0, &CHARACTERS[0], &profile.progress);
+            play.player.light_on = false;
+            play.player.light_since = 10.0f;
+            play.player.state = PLAYER_WALK;
+            animation_play(&play.player.anim, player_walk_animation(PLAYER_SHERIFF_WALK_FRAMES));
+            char name[96];
+            snprintf(name, sizeof(name), "sprites/characters/cowgirl/%swalk%s", suit ? "suit/" : "", dual ? "_dual" : "");
+            const EmbeddedImage *image = assets_find_image(name);
+            CHECK(image != NULL);
+            if (!image) continue;
+            CHECK(image->width == PLAYER_SHERIFF_WALK_FRAMES * PLAYER_WALK_FRAME_W);
+            snprintf(name, sizeof(name), "sprites/characters/cowgirl/%slight_walk%s", suit ? "suit/" : "", dual ? "_dual" : "");
+            const EmbeddedImage *lit = assets_find_image(name);
+            CHECK(lit != NULL);
+            if (!lit) continue;
+            CHECK(lit->width == (PLAYER_SHERIFF_WALK_FRAMES + PLAYER_LIGHT_BREATHS) * PLAYER_SHOOT_FRAME_W);
+            for (int direction = -1; direction <= 1; direction += 2) {
+                play.player.facing = direction;
+                play.player.state = PLAYER_WALK;
+                for (int frame = 0; frame < PLAYER_SHERIFF_WALK_FRAMES; frame++) {
+                    play.player.light_on = false;
+                    animation_seek(&play.player.anim, frame);
+                    check_entire_swat_cell(image, frame);
+                    draw_body();
+                    play.player.light_on = true;
+                    check_entire_cell(lit, frame, player_melee_animation());
+                }
+                play.player.state = PLAYER_IDLE;
+                for (int breath = 0; breath < PLAYER_LIGHT_BREATHS; breath++) {
+                    play.player.light_since = (12.0f + (float)breath + .25f) / PLAYER_LIGHT_BREATH_FPS;
+                    check_entire_cell(lit, PLAYER_SHERIFF_WALK_FRAMES + breath, player_melee_animation());
+                }
+            }
+        }
+        if (suit) skin_free(&skin);
+        skin = normal;
+    }
+}
+
+/* The dual walking path already has an exhaustive action/legs comparison
+ * above. Cover the upright single reload and planted dual reloads as well:
+ * comparing the actual frame prevents a renderer cut or a lighting overlay
+ * from erasing a correctly authored forearm, glove or held weapon. */
+static void single_and_planted_dual_reloads_keep_every_action_pixel(void)
+{
+    CharacterSkin normal = skin;
+    static unsigned char combined[PLAYER_SHOOT_FRAME_W * PLAYER_SHOOT_FRAME_H * 4];
+    for (int suit = 0; suit < 2; suit++) {
+        if (suit) CHECK(skin_load_suit(&skin, renderer, &CHARACTERS[0]));
+        for (int dual = 0; dual < 2; dual++) {
+            progress_init(&profile.progress);
+            profile.progress.level = dual ? POWER_LEVEL : 1;
+            stage_start(&play, 0, &CHARACTERS[0], &profile.progress);
+            play.player.light_on = false;
+            play.player.shot.rounds = 2;
+            play.player.shot.other_rounds = 3;
+            InputState input = {0};
+            input.pressed[ACTION_RELOAD] = true;
+            player_update(&play.player, &input, FIXED_DT);
+            CHECK(shot_reloading(&play.player.shot));
+            const AnimationDef *def = play.player.anim.def;
+            const AnimationDef *walk = player_walk_animation(PLAYER_SHERIFF_WALK_FRAMES);
+            int split = PLAYER_WAIST_ROW + def->ground_y - walk->ground_y;
+            int dx = (int)lroundf(def->anchor_x - walk->anchor_x), dy = def->ground_y - walk->ground_y;
+            char name[128];
+            snprintf(name, sizeof(name), "sprites/characters/cowgirl/%slegs", suit ? "suit/" : "");
+            const EmbeddedImage *legs = assets_find_image(name);
+            CHECK(legs != NULL);
+            for (int hand = 0; hand < (dual ? 2 : 1); hand++) {
+                snprintf(name, sizeof(name), "sprites/characters/cowgirl/%sreload%s",
+                         suit ? "suit/" : "", dual ? (hand ? "_dual_b" : "_dual") : "");
+                const EmbeddedImage *image = assets_find_image(name);
+                CHECK(image != NULL);
+                if (!image || !legs) continue;
+                int count = dual ? PLAYER_DUAL_RELOAD_SHEET_FRAMES : PLAYER_RELOAD_FRAMES;
+                for (int frame = 0; frame < count; frame++) {
+                    play.player.shot.reload_other = hand != 0;
+                    play.player.shot.reload_pair = dual && frame >= PLAYER_DUAL_RELOAD_FRAMES;
+                    play.player.shot.reload_all = false;
+                    int progress = dual ? frame % PLAYER_DUAL_RELOAD_FRAMES : frame;
+                    int frames = dual ? PLAYER_DUAL_RELOAD_FRAMES : PLAYER_RELOAD_FRAMES;
+                    play.player.shot.mag_reload = play.player.shot.mag_reload_time *
+                        (1.0f - ((float)progress + .5f) / (float)frames);
+                    animation_set_frame(&play.player.anim, dual ? 0 : frame);
+                    for (int facing = -1; facing <= 1; facing += 2) {
+                        play.player.facing = facing;
+                        play.player.state = PLAYER_SHOOT;
+                        play.player.reload_walk = false;
+                        check_entire_cell(image, frame, def);
+                        if (dual) continue; /* Its walking cases are tested above. */
+                        for (int phase = 0; phase < 3; phase++) {
+                            int step = phase == 0 ? 0 : phase == 1 ? 7 : walk->frame_count - 1;
+                            animation_play(&play.player.legs, walk);
+                            animation_seek(&play.player.legs, step);
+                            int leg_frame = player_walk_art_frame(&play.player.legs, legs->width / walk->frame_w);
+                            for (int y = 0; y < def->frame_h; y++)
+                                for (int x = 0; x < def->frame_w; x++) {
+                                    const unsigned char *c = image->rgba +
+                                        (y * image->width + frame * def->frame_w + x) * 4;
+                                    static const unsigned char transparent[4] = {0};
+                                    if (y >= split) {
+                                        int lx = x - dx, ly = y - dy;
+                                        c = lx >= 0 && lx < walk->frame_w && ly >= 0 && ly < walk->frame_h
+                                                ? legs->rgba + (ly * legs->width + leg_frame * walk->frame_w + lx) * 4
+                                                : transparent;
+                                    }
+                                    for (int channel = 0; channel < 4; channel++)
+                                        combined[(y * def->frame_w + x) * 4 + channel] = c[channel];
+                                }
+                            EmbeddedImage expected = {.name = "single walking reload composite", .width = def->frame_w,
+                                                       .height = def->frame_h, .rgba = combined};
+                            play.player.state = PLAYER_WALK;
+                            play.player.reload_walk = true;
+                            check_entire_cell(&expected, 0, def);
+                        }
+                    }
+                }
+            }
+        }
+        if (suit) skin_free(&skin);
+        skin = normal;
+    }
 }
 
 static void swat_grenade_and_bench_keep_each_full_frame_in_both_directions(void)
@@ -606,6 +747,8 @@ int main(void)
     if (renderer) {
         CHECK(assets_load(renderer));
         skin_load(&skin, renderer, &CHARACTERS[0]);
+        RUN(every_sheriff_walk_frame_is_visible_in_both_skins_and_directions);
+        RUN(single_and_planted_dual_reloads_keep_every_action_pixel);
         RUN(stationary_duals_animate_both_reloads);
         RUN(fire_damage_does_not_hide_a_stationary_reload);
         RUN(an_empty_cylinder_on_fire_keeps_the_whole_character_visible);

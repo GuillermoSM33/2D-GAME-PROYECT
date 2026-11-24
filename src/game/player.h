@@ -61,6 +61,8 @@ typedef struct {
     bool bandaged;        /* The bleeding stopped on this update */
     float bandage_shown;  /* Seconds left of the done bandage on her leg */
     bool power_shot;      /* This shot is her ricochet: both hands together */
+    float still;          /* Seconds stood still (drawing only: not saved) */
+    float settle;         /* Seconds left of pulling up from a walk or run (drawing only: not saved) */
     float swap_time;      /* Seconds left of taking her second pistol out or away (player_swap) */
     bool swap_back;       /* ...away: the same frames backwards */
     float plant_time;     /* Seconds left of setting a charge (player_plant): she stands to it */
@@ -109,6 +111,7 @@ typedef struct {
     float light_kick[2][3]; /* Render-only recoil/settle lens positions from WeaponDef */
     bool light_swings; /* ...and it stays on through a blow (art of its own for it) */
     Animation legs;
+    int walk_frames; /* Character art metadata; rebound after loading, not serialized. */
     float sit_time;    /* Seconds on the bench */
     float sit_down_duration, sit_reload_duration; /* Character metadata, rebound after loading. */
     unsigned sit_guns; /* Weapon slots (bits) still to reload sat, one after another */
@@ -121,6 +124,14 @@ typedef struct {
 
 /* Level 1, standing at the start, full health. */
 void player_init(Player *player);
+/* Character-specific frame count at the shared cycle duration; safe to rebind a saved walk. */
+void player_set_walk_frames(Player *player, int frames);
+int player_walk_frames(const Player *player);
+const AnimationDef *player_walk_animation(int frames);
+/* Same phase on a walking sheet with another number of frames (e.g. eight action legs). */
+int player_walk_art_frame(const Animation *walk, int frames);
+/* The frame of a stand sheet of that many: breathing, or pulling up from a run. */
+int player_stand_frame(const Player *player, int frames);
 float player_drink_duration(const Player *player);
 float player_sit_down_duration(const Player *player);
 float player_sit_reload_duration(const Player *player);

@@ -22,9 +22,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_care import GLOVE, bent_arm, hand  # noqa: E402
-from make_melee import AIM, HOLSTER, LOW, SHOULDER, body_without_arm, frame, sleeve  # noqa: E402
+from make_melee import AIM, HOLSTER, LOW, SHOULDER, behind, body_without_arm, frame, sleeve  # noqa: E402
 from make_powers import INK, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+import cowgirl_legs  # noqa: E402
+import cowgirl_torso  # noqa: E402
 import make_swat  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -70,11 +72,16 @@ THIGH, SHIN = 8.5, 9.0
 SHOULDER_AT = (40, 38)            # Where her near arm starts on the standing frame
 ARM_BONE = 7.5
 GROUND_ROW = 67
-TROUSER = [rgb(0x5e5650), rgb(0x48423e), rgb(0x423c38)]
-FAR_TROUSER = [rgb(0x423c38), rgb(0x322e2c), rgb(0x322e2c)]
+TROUSER = list(cowgirl_legs.TONES[:3])            # Her trousers: light, base, shade
+FAR_TROUSER = list(cowgirl_legs.TONES[1:])
 BOOT = [rgb(0x684833), rgb(0x463322), rgb(0x2c2c2c)]
 STRAP_AT, STRAP_HALF = 0.72, 0.9  # Her thigh strap: how far down the thigh, and half its width in px
-SASH_COLORS = {(0x64, 0x18, 0x2a), (0x8a, 0x24, 0x38), (0x46, 0x10, 0x1e)}
+# Down on a knee: her hips and both legs standing and at the lowest (hip, knee, ankle, foot),
+# the near one, on our left, with its knee on the ground.
+KNEEL_DROP = 10
+NEAR_LEG = (((30.0, 52.0), (29.5, 57.0), (28.5, 62.4), 8), ((31.0, 61.0), (31.6, 63.9), (26.0, 62.6), 88))
+FAR_LEG = (((36.2, 52.0), (36.8, 57.0), (37.6, 62.4), 6), ((37.6, 61.0), (43.6, 58.4), (43.4, 62.6), 2))
+FEET_ROW = 66                     # The row under her soles, as standing
 # The SWAT's, in his walk-frame points (make_swat's at() shifts them).
 SWAT = [((19, 40), True, 0), ((20, 41), True, 0), ((21, 42), True, 1),
         ((21, 42), True, 3), ((20, 40), False, 0), ((19, 38), False, 0)]
@@ -111,10 +118,13 @@ def capsule(a: tuple, b: tuple, r0: float, r1: float, paint) -> dict:
     return px
 
 
-def leg(hip: tuple, foot: tuple, tones: list, toe: int, strap: bool = False) -> dict:
+def leg(hip: tuple, foot: tuple, tones: list, toe: int, strap: bool = False, worked: bool = False) -> dict:
     """A trouser leg bent at the knee, the striped cloth of her art, into its boot."""
     kn = knee(hip, foot)
-    cloth = lambda x, y, side: tones[2] if side > 0.5 else tones[1 if x % 3 == 0 else 0]  # noqa: E731
+    if worked:                                            # Dark seams, a lit band down the middle
+        cloth = lambda x, y, side: tones[2] if side > .45 or side < -.8 else tones[0 if -.35 < side < .2 else 1]  # noqa: E731
+    else:
+        cloth = lambda x, y, side: tones[2] if side > 0.5 else tones[1 if x % 3 == 0 else 0]  # noqa: E731
     leather = lambda x, y, side: BOOT[1] if side > 0.3 else BOOT[0]  # noqa: E731
     ankle = (kn[0] + (foot[0] - kn[0]) * 0.6, kn[1] + (foot[1] - kn[1]) * 0.6)
     px = capsule(hip, kn, 2.5, 1.9, cloth)
@@ -142,22 +152,32 @@ def edged(px: dict) -> dict:
     return out
 
 
+def between(a: tuple, b: tuple, k: float) -> tuple:
+    return tuple(tuple(p + (q - p) * k for p, q in zip(u, v)) if isinstance(u, tuple) else u + (v - u) * k
+                 for u, v in zip(a, b))
+
+
 def down_on_a_knee(body: dict, drop: int) -> dict:
     """Her upper half, belt and sash, come down leaning a little forward, on her legs
     drawn bent; a standing frame keeps its own."""
     if drop == 0:
         return dict(body)
-    lean = drop // 4
-    sash = {p: c for p, c in body.items() if c[:3] in SASH_COLORS}
-    near_hip = (HIP_NEAR[0] + lean, HIP_NEAR[1] + drop)
-    far_hip = (HIP_FAR[0] + lean, HIP_FAR[1] + drop)
-    px = edged(leg(far_hip, FOOT_FAR, FAR_TROUSER, -1))
-    px.update(edged(leg(near_hip, FOOT_NEAR, TROUSER, 3, True)))
+    lean, k = drop // 4, drop / KNEEL_DROP
+    sash = {p: c for p, c in body.items() if c in cowgirl_torso.SASH_TONES}
+    far, near = between(*FAR_LEG, k), between(*NEAR_LEG, k)
+    parts = [cowgirl_legs.painted(cowgirl_legs.sections(chain), chain, i == 0) for i, chain in enumerate((far, near))]
+    hips = cowgirl_legs.hips(33 + lean, 49.4 + drop, 6.4)
+    px = {p: c for p, c in cowgirl_legs.outlined(sash_down(sash, lean, drop)).items() if p[1] <= FEET_ROW}
+    px.update(cowgirl_legs.lower_body(parts[0], parts[1], hips, 49 + drop, FEET_ROW, crotch=4))
     for (x, y), c in sorted(body.items(), key=lambda p: p[0][1]):
         if y < WAIST_DOWN:
             px[(x + lean, y + drop)] = c
-    px.update({(x + lean, y + drop): c for (x, y), c in sash.items() if y + drop <= GROUND_ROW - 2})
-    return {p: c for p, c in px.items() if p[1] <= GROUND_ROW + 1}
+    return px
+
+
+def sash_down(sash: dict, lean: int, drop: int) -> dict:
+    """Her sash hanging from the lowered belt, folding on the ground."""
+    return {(x + lean, y + drop): c for (x, y), c in sash.items() if y + drop < FEET_ROW}
 
 
 def reaching(at: tuple, drop: int) -> dict:
@@ -179,10 +199,10 @@ def make_cowgirl() -> Image:
     body = body_without_arm(frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER))
     img = Image(W * FRAMES, H)
     for f, (at, top, lit, drop) in enumerate(COWGIRL):
-        px = down_on_a_knee(body, drop)
+        px = behind(reaching(at, drop), down_on_a_knee(body, drop))
         if top:
             px.update(stick(top, lit))
-        px.update(reaching(at, drop))
+        px.update({p: c for p, c in reaching(at, drop).items() if math.dist(p, at) < ARM_BONE})
         px.update(edged(big_hand(at)))
         set_down(img, f, px)
     return img

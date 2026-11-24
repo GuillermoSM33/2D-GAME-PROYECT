@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""The cowgirl's melee poses and arm (tools/make_flashlight.py draws the sheets): a smash with the gun (V), overhead and
-down like a mace (like the SWAT's), drawn from her own shoot sheet.
+"""The cowgirl's body on the shoot grid for every action, and her melee poses and arm
+(tools/make_flashlight.py draws the sheets): a smash with the gun (V), overhead and down
+like a mace (like the SWAT's).
 
 Frames: 0 the gun coming up; 1 raised over her head, the muzzle back; 2
 swinging down; 3 the smash, level in front of her with a swoosh (the hit
 lands here: PLAYER_MELEE_HIT_FRAME); 4 the follow-through, down; 5 back up;
-6 the holster frame of its shoot sheet. Her body is the aim frame without
-the gun arm (what differs from her other poses, her clothes carried on where
-it lay); the arm is her grey sleeve drawn again, as slim as on her art, from the
-shoulder to the hand, and the gun with its glove is turned about
-the hand in whole pixels, so nothing stretches or breaks off. Her other hand
-stays on her hip. The SWAT's sheets come from tools/make_swat.py. Uses only the standard library.
+6 the holster frame of her shoot sheet. She leans back on the wind-up and into the
+blow. Her body is rework_cowgirl's one three-quarter body; the gun arm is her far one,
+its shoulder behind the far lapel, the gun turned about the hand in whole pixels, so
+nothing stretches or breaks off. Her other hand stays on her hip. The SWAT's sheets come
+from tools/make_swat.py. Uses only the standard library.
 """
 from __future__ import annotations
 
@@ -20,23 +20,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cowgirl_arm import arm_limb, glove, pistol_pointing  # noqa: E402
-from make_powers import INK, SLEEVE, load  # noqa: E402
+from make_powers import INK, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
-from rework_cowgirl import (BELT_UNDER_FACE, ON_HIPS, corset_bust, cropped_jacket, draw_arm, fit_back,  # noqa: E402
-                            fit_torso, jacket_buttons, no_art_arms, sheriff_badge)
+from rework_cowgirl import arm_pixels, behind_arm, rest_arms, standing_body  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 81, 80
 AIM, LOW, HOLSTER = 3, 0, 7      # Shoot-sheet frames used
-ARM_ROWS = range(29, 43)         # Where her gun arm and gun are on the aim frame...
-ARM_FROM_X = 36                  # ...from this column on
 WALK_SHIFT = (12, 7)             # A walk-frame point on the shoot template
-WALK_CHIN_ROW = 23               # A walk row across her face, to find her middle
-WALK_CHEST_ROWS = (28, 34)       # Walk rows from the choker to the lace
-WALK_CHEST_HALF = 8              # Art columns each side of her neck
-WALK_BODY_ROWS = (33, 41)        # Walk rows of her torso
 HAND = (48, 35)                  # A hand to measure the blow's arc from
-SHOULDER = (39, 36)
+SHOULDER = (41, 37)
 SWOOSH = [rgb(0xfff6dc), rgb(0xd8d0c0), rgb(0x9a9488)]
 # Per frame: hand (from the shoulder), gun angle (degrees, + raises the
 # muzzle), lean. Like the SWAT's: overhead and down.
@@ -60,7 +53,7 @@ POSES = [_steady(p) for p in POSES]
 
 
 def sleeve(shoulder: tuple, hand: tuple) -> dict:
-    """Her gun arm: the same arm as all her others, straight from the shoulder to the hand."""
+    """Her gun arm, the far one: the same arm as all her others, straight from the shoulder to the hand."""
     return arm_limb(shoulder, ((shoulder[0] + hand[0]) / 2, (shoulder[1] + hand[1]) / 2), hand)
 
 
@@ -77,61 +70,38 @@ def frame(sheet: Image, f: int) -> dict:
 SHOOT_BELT, SHOOT_MID = 49, 34    # Her belt's row and her buckle's middle, on the shoot template
 
 
-def body_without_arm(aim: dict, low: dict, rest: dict, hand_on_hip: bool = True, standing=None) -> dict:
-    """The aim frame less her gun arm and gun: what is not the same in her
-    other poses there. Her clothes carry on (from the left) where it lay. Her other arm is
-    the one she stands with, its hand on her hip; or none, for a pose that draws it."""
-    moving = {p for p, c in aim.items()
-              if p[0] >= ARM_FROM_X and p[1] in ARM_ROWS and not (low.get(p) == c and rest.get(p) == c)}
-    body = {p: c for p, c in aim.items() if p not in moving}
-    for y in ARM_ROWS:
-        inside = [x for (x, yy) in body if yy == y and x < ARM_FROM_X + 10]
-        if not inside:
-            continue
-        fill = None
-        for x in range(min(inside), max(inside) + 1):   # Holes inside her: the cloth to their left
-            c = body.get((x, y))
-            if c is not None and c[:3] != INK[:3]:
-                fill = c
-            elif c is None and fill is not None:
-                body[(x, y)] = fill
-    # Her side, under where the arm lay, was never drawn: from her standing pose.
-    walk = standing if standing is not None else load(ROOT / 'assets/sprites/characters/cowgirl/stand.png')
-    grey = {tuple(c[:3]) for c in SLEEVE}
-    added = []
-    for y in range(WALK_BODY_ROWS[0], WALK_BODY_ROWS[1] + 1):
-        for x in range(42):
-            c = walk.get(x, y)
-            at = (x + WALK_SHIFT[0], y + WALK_SHIFT[1])
-            if c[3] and at not in body and c[:3] != INK[:3] and c[:3] not in grey and at[0] >= ARM_FROM_X - 4 and at[0] <= ARM_FROM_X + 8:
-                body[at] = c
-                added.append(at)
-    for x, y in added:
-        for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            if (x + a, y + b) not in body:
-                body[(x + a, y + b)] = INK
-    # Her neckline, whole, the same as standing: choker, skin, shoulders and lace.
-    # What she had here lost parts with the arm.
-    skin = [x for y in range(WALK_CHIN_ROW, WALK_CHIN_ROW + 1) for x in range(42)
-            if walk.get(x, y)[3] and walk.get(x, y)[:3] == (0xfe, 0xdc, 0xa3)]
-    neck = sum(skin) // len(skin)
-    for y in range(WALK_CHEST_ROWS[0], WALK_CHEST_ROWS[1] + 1):
-        for x in range(neck - WALK_CHEST_HALF, neck + WALK_CHEST_HALF + 1):
-            c = walk.get(x, y)
-            if c[3]:
-                body[(x + WALK_SHIFT[0], y + WALK_SHIFT[1])] = c
-    fit_torso(body, SHOOT_BELT, SHOOT_MID)
-    fit_back(body, SHOOT_BELT, SHOOT_MID)
-    no_art_arms(body, SHOOT_BELT, SHOOT_MID)
-    corset_bust(body, SHOOT_BELT, SHOOT_MID)
-    cropped_jacket(body, SHOOT_BELT, SHOOT_MID)
-    jacket_buttons(body, SHOOT_BELT, SHOOT_MID)
-    sheriff_badge(body, SHOOT_MID, SHOOT_BELT - BELT_UNDER_FACE)  # Her badge, as on every pose
-    body = {p: c for p, c in body.items()                  # No loose speck left where the arm was
-            if any((p[0] + a, p[1] + b) in body for a in (-1, 0, 1) for b in (-1, 0, 1) if a or b)}
+def body_at(lean: int = 0, chest: int = 0, sway: float = 0.) -> dict:
+    """Her one body standing, on the shoot grid, with no arm: leaning (columns at her head) and
+    her covered chest a row off it, if she is moved by what she does."""
+    return {(x + WALK_SHIFT[0], y + WALK_SHIFT[1]): c
+            for (x, y), c in standing_body(chest=chest, lean=lean, sway=sway).items()}
+
+
+def hip_arm(lean: int = 0) -> dict:
+    """Her near arm, the hand on her hip; its shoulder goes with her as she leans."""
+    top, elbow, hand = rest_arms()[0]
+    half = lean * .75
+    return arm_pixels(((top[0] + half, top[1]), (elbow[0] + half * .6, elbow[1]), hand), SHOOT_BELT, SHOOT_MID)
+
+
+def body_without_arm(aim: dict, low: dict, rest: dict, hand_on_hip: bool = True, standing=None,
+                     lean: int = 0, chest: int = 0, sway: float = 0.) -> dict:
+    """The shared body on the shoot grid before the gun arm is added: idle, aim, reload and
+    blow have the same hips, boots, jacket and head. The first parameters remain for the
+    pose builders."""
+    body = body_at(lean, chest, sway)
     if hand_on_hip:
-        draw_arm(body, ON_HIPS[0], SHOOT_BELT, SHOOT_MID)
+        arm = hip_arm(lean)
+        body = behind_arm(body, arm)
+        body.update(arm)
     return body
+
+
+def behind(far: dict, body: dict) -> dict:
+    """Her body over what is on her far side: the gun arm's root goes behind her far lapel."""
+    out = dict(far)
+    out.update(body)
+    return out
 
 
 def no_holes(px: dict) -> dict:

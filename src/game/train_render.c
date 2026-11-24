@@ -214,7 +214,6 @@ void train_render_world(SDL_Renderer *r, const StageRun *run, const Player *play
 
 /* ---- Over the view -------------------------------------------------------------- */
 
-typedef enum { ROW_PENDING, ROW_NEXT, ROW_DONE, ROW_LOCKED } RowState;
 typedef enum { GLYPH_PART, GLYPH_TERMINAL } Glyph;
 
 static void glyph(SDL_Renderer *r, Glyph kind, int x, int y)
@@ -316,7 +315,7 @@ static void toast_card(SDL_Renderer *r, const StageRun *run, int part)
 #define MAP_H 504
 #define MAP_BEZEL 28
 #define MAP_COLUMNS 5
-#define MAP_ROWS 3
+#define MAP_ROWS ((TRAIN_ROOMS + MAP_COLUMNS - 1) / MAP_COLUMNS)
 #define MAP_CELL_W 96
 #define MAP_CELL_H 94
 #define MAP_GAP 14

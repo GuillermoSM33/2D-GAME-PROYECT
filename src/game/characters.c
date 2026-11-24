@@ -6,6 +6,7 @@
 const CharacterDef CHARACTERS[] = {
     {
         .id = "cowgirl", .name = "La Sheriff", /* Dolores Vega (docs/LORE.md) */
+        .walk_frames = PLAYER_SHERIFF_WALK_FRAMES,
         .ability = ABILITY_CHEST_DROPS, .ability_name = "Botín",
         .ability_lines = {"Los zombis que vence", "sueltan cofres con XP."},
         .weapons = {WEAPON_REVOLVER}, .weapon_count = 1,
@@ -37,6 +38,11 @@ const CharacterDef CHARACTERS[] = {
 };
 
 const int CHARACTER_COUNT = (int)(sizeof(CHARACTERS) / sizeof(CHARACTERS[0]));
+
+int character_walk_frames(const CharacterDef *character)
+{
+    return character && character->walk_frames > 0 ? character->walk_frames : PLAYER_WALK_FRAMES;
+}
 
 int character_playable(int index)
 {

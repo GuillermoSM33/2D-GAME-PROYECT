@@ -63,40 +63,86 @@ def tablet():
 
 
 def inventory():
-    img = Image(360, 215)
-    box(img, 5, 5, 354, 211, 0x141a18)
-    box(img, 1, 10, 358, 206, 0x141a18)
-    box(img, 6, 6, 353, 208, 0x4a4938)
-    rim(img, 7, 7, 352, 207, 0x77735a, 0x242a24)
-    box(img, 12, 23, 347, 201, 0x282d27)
-    # Canvas apron, restrained diagonal weave, leather binding and stitching.
-    for y in range(24, 201):
-        for x in range(13, 347):
-            if (x + y) % 8 == 0: img.set(x, y, rgb(0x30352b))
-    for y in range(14, 204, 5):
-        for x in (9, 349): box(img, x, y, x, y + 1, 0x999074)
-    for x in range(15, 346, 5):
-        for y in (10, 204): box(img, x, y, x + 1, y, 0x999074)
-    # Name strip and the portrait's secured equipment pocket.
-    box(img, 107, 10, 253, 24, 0x1c2521)
-    rim(img, 108, 11, 252, 23, 0x6a7158, 0x111a17)
-    box(img, 12, 27, 94, 164, 0x111a18)
-    rim(img, 13, 28, 93, 163, 0x777760, 0x171d17)
-    for x in (17, 86):
-        box(img, x, 30, x + 4, 158, 0x4c4534)
-        box(img, x + 1, 31, x + 2, 157, 0x71624a)
-        for y in (40, 142):
-            box(img, x - 1, y, x + 5, y + 8, 0x9c9576)
-            box(img, x, y + 2, x + 4, y + 6, 0x33392e)
-    # Side binding, hinges and carrying latches give the board its own silhouette.
-    for y in (45, 150):
-        box(img, 1, y, 6, y + 24, 0x232e2a)
-        rim(img, 2, y + 1, 5, y + 22, 0x6d7866, 0x0f1917)
-        box(img, 353, y, 358, y + 24, 0x232e2a)
-        rim(img, 354, y + 1, 357, y + 22, 0x6d7866, 0x0f1917)
-    for x in (20, 330):
-        box(img, x, 2, x + 9, 11, 0x252d26)
-        rim(img, x + 1, 3, x + 8, 10, 0x8d8769, 0x151d18)
+    """A reinforced petroleum-blue field case, navy lining and copper fittings.
+
+    Drawn at native 440 x 240; the inventory uses its exact integer 2x size.
+    Pocket rims, folded gussets and broad light planes give the materials
+    volume without bright outlines or a flat military-green canvas fill.
+    """
+    img = Image(440, 240)
+    box(img, 7, 1, 432, 238, 0x07101a)
+    box(img, 1, 8, 438, 231, 0x07101a)
+    box(img, 5, 5, 434, 234, 0x294756)
+    rim(img, 6, 6, 433, 233, 0x7b9ea6, 0x0b1a27)
+    rim(img, 8, 8, 431, 231, 0x476b7a, 0x101f2d)
+    # The aluminium shell is lit on its upper and left planes. Copper trim
+    # lies in a recessed channel rather than around every pixel-art object.
+    for y, color in ((9, 0x547e8c), (10, 0x3f697b), (11, 0x284e62)):
+        box(img, 11, y, 428, y, color)
+    box(img, 10, 13, 12, 227, 0x476d7b)
+    box(img, 427, 13, 430, 227, 0x132c3d)
+    rim(img, 13, 31, 426, 225, 0x9a704d, 0x302b29)
+    box(img, 14, 32, 425, 224, 0x0d1c2c)
+    # The padded navy apron uses wide shade bands and occasional diagonal
+    # stitches; the surface behind item names stays quiet and dark.
+    for y in range(33, 224):
+        color = 0x132b3b if y < 95 else 0x102535 if y < 164 else 0x0c1e2e
+        box(img, 15, y, 424, y, color)
+        for x in range(16, 424):
+            if (x + y) % 17 == 0 and x < 111:
+                img.set(x, y, rgb(0x1b3546))
+    # Broad, recessed seams separate the portrait pocket and item apron.
+    box(img, 110, 33, 113, 224, 0x081726)
+    box(img, 110, 33, 110, 223, 0x355463)
+    box(img, 114, 34, 115, 224, 0x284a5d)
+    # Title plate: dark enamel held in a thin copper frame, not a label
+    # printed onto the canvas. The runtime places its title inside it.
+    box(img, 143, 10, 296, 29, 0x091724)
+    rim(img, 144, 11, 295, 28, 0xb88859, 0x3c312b)
+    box(img, 146, 13, 293, 26, 0x173746)
+    box(img, 147, 13, 292, 14, 0x2c5361)
+    # Portrait pocket and its folded side walls; the portrait renderer lays
+    # its own inner frame over this well and keeps the buckles outside it.
+    box(img, 12, 32, 107, 150, 0x071522)
+    rim(img, 13, 33, 106, 149, 0x60818b, 0x0b1b2a)
+    for x in (15, 101):
+        box(img, x, 35, x + 4, 146, 0x263e50)
+        box(img, x, 35, x + 1, 145, 0x496575)
+        box(img, x + 3, 36, x + 4, 147, 0x142839)
+        for y in (43, 132):
+            box(img, x - 1, y, x + 5, y + 8, 0xa97850)
+            rim(img, x, y + 1, x + 4, y + 7, 0xe0b17b, 0x4e3e32)
+            box(img, x + 1, y + 3, x + 3, y + 5, 0x1e3442)
+    box(img, 14, 151, 106, 157, 0x1b3546)
+    box(img, 14, 151, 106, 151, 0x496a76)
+    # The detail pocket has a raised opening and a bevel along its gusset.
+    box(img, 12, 159, 107, 214, 0x091826)
+    rim(img, 13, 160, 106, 213, 0x63828b, 0x0c1a27)
+    box(img, 15, 162, 104, 211, 0x102536)
+    box(img, 15, 162, 104, 163, 0x2f5061)
+    # A metal rail under the action button and inset rubber closing controls.
+    box(img, 117, 216, 426, 235, 0x091a28)
+    rim(img, 118, 217, 425, 234, 0x6a8790, 0x102331)
+    box(img, 13, 218, 106, 235, 0x142d3d)
+    box(img, 14, 218, 105, 218, 0x3d6071)
+    # Corner protectors, hinges, stitching and worn screw heads provide the
+    # case's silhouette at native size. No uniform shiny edging.
+    for x in (7, 416):
+        for y in (7, 219):
+            box(img, x, y, x + 16, y + 13, 0x142a39)
+            rim(img, x + 1, y + 1, x + 15, y + 12, 0x4d6c7a, 0x091624)
+            box(img, x + 6, y + 4, x + 10, y + 8, 0xb3845b)
+            box(img, x + 7, y + 4, x + 8, y + 7, 0xe6b985)
+            box(img, x + 8, y + 5, x + 8, y + 8, 0x3f3a31)
+    for y in (48, 180):
+        for x in (1, 433):
+            box(img, x, y, x + 5, y + 27, 0x102535)
+            rim(img, x + 1, y + 1, x + 4, y + 25, 0x6e9099, 0x081522)
+            box(img, x + 2, y + 8, x + 3, y + 17, 0xa47451)
+    for x in range(29, 411, 9):
+        for y in (8, 231): box(img, x, y, x + 2, y, 0x9b8369)
+    for y in range(28, 214, 9):
+        for x in (8, 431): box(img, x, y, x, y + 2, 0x8c806d)
     return img
 
 

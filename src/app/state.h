@@ -75,6 +75,10 @@ typedef struct {
     bool music_on;   /* Its track still playing, not yet faded by the ending */
     ListMenu pause_menu;
     PauseView pause_view;
+    int inventory_selected; /* A focused item in P, never part of a checkpoint. */
+    char inventory_feedback[96];
+    bool inventory_has_pending;
+    Action inventory_pending; /* A real use/reload/drink performed after closing P. */
     bool request_almanac;
     bool request_casefile;  /* The pause's EXPEDIENTE */
     int clues_now[3];       /* Clues this step turned up (STAGE_CLUES), for the caller to keep */

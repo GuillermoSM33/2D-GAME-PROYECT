@@ -141,13 +141,6 @@ def finish(px: dict, sheet: str) -> dict:
             if px.get(at) in SKIN:
                 out[at] = rgb(col)
 
-    # Belt cartridge loops: a few brass ends, only on exposed belt leather.
-    if face and sheet != 'faint':
-        for x in (middle - 6, middle - 4, middle + 5):
-            if px.get((x, belt)) in LEATHER and px.get((x, belt - 1)) in LEATHER:
-                out[(x, belt - 1)] = rgb(0xb99a62)
-                out[(x, belt)] = rgb(0x80633f)
-
     return out
 
 

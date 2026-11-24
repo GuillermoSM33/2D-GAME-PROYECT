@@ -40,28 +40,29 @@ assets/
     weapons/             bullet (una para todas las armas, teñida por cada una), grenade
     chest/               open, sparks
     effects/             armor_sparks, explosion, heal, glow (efectos que no son de una sola entidad)
+    characters/cowgirl/walk, walk_dual  Carrera de 20 cuadros (42 × 67, 24 por segundo) medida píxel por píxel en la referencia: tools/cowgirl_pose.py guarda la tabla, tools/cowgirl_torso.py y cowgirl_legs.py dibujan su cuerpo en tres cuartos y rework_cowgirl.py une cabeza, brazos y cuerpo. tools/measure_cowgirl_pixels.py mide referencia y sheriff en la misma cuadrícula; tools/preview_cowgirl.py junta sus hojas ampliadas (ambas necesitan Pillow)
     characters/cowgirl/walk_dual, jump_dual  Caminar y saltar con las duales: una funda en cada cadera
     characters/cowgirl/weapons/bullet  La bala del rebote (14 × 20 × 16, tools/make_ricochet.py): 0-3 en vuelo, 4-7 girando tras rebotar, 8-13 el impacto
     characters/cowgirl/ricochet, ricochet_dual, y sus _lit  El rebote (F): 8 cuadros de plantilla de shoot, las dos manos juntas y dos balas, con una o con las dos armas
     characters/cowgirl/weapons/pistol  Revólver de 8 balas (17 × 11), generado por tools/make_revolver.py; el mismo dibujo en las dos manos. La mano lo toma por GRIP_AT en tools/cowgirl_arm.py
-    characters/cowgirl/reload  Recarga del tambor con cargador rápido, 8 × 81 × 80 en 1.2 s; tools/make_flashlight.py, acabado final de tools/detail_cowgirl.py
+    characters/cowgirl/reload  Recarga simple con cañón vertical y cargador rápido, 8 × 81 × 80 en 1.2 s; tools/cowgirl_reload.py vía tools/make_flashlight.py, acabado final de tools/detail_cowgirl.py
     characters/cowgirl/reload_dual, reload_dual_b  Recarga de cada mano, 48 × 81 × 80: dos bloques de 24 (recarga individual/primera y segunda de una pareja), con trabajo al cinturón, hombros fijos y transición de enfundado; 1.2 s por tambor
-    characters/cowgirl/reload_dual_lower, reload_dual_b_lower  Solo las puntas bajas de los cañones, misma plantilla y cuadros; se superponen a las piernas al recargar caminando
-    characters/<id>/suit/  Trajes sellados del tren: sheriff con overol amarillo holgado, silueta neutra y visor azul; SWAT con visor naranja, placas, protecciones y botella de aire adicionales; armas intactas. De tools/make_hazmat.py; no se editan a mano
+    characters/cowgirl/reload_dual_lower, reload_dual_b_lower  Máscara completa de antebrazos, manos, revólveres y cargador, misma plantilla y cuadros; se superpone a las piernas al recargar caminando
+    characters/<id>/suit/  Trajes sellados del tren: sheriff con overol amarillo holgado, silueta neutra, mochila y visor azul, compuesta con las mismas capas de brazos y armas de sus hojas (tools/hazmat_figure.py) y las articulaciones de cowgirl_pose. SWAT con visor naranja, placas, protecciones y botella de aire adicionales; armas intactas. De tools/make_hazmat.py; no se editan a mano
     characters/cowgirl/swap_far, light_dual_far  Solo su brazo lejano y su pistola, en los cuadros de swap y light_dual que la lleva: se dibujan enteros sobre las piernas al caminar
-    characters/cowgirl/legs, legs_dual  Su caminar sin brazos (8 cuadros como walk): las piernas bajo otra pose mientras camina
-    characters/cowgirl/stand, stand_dual  De pie, quieta: las manos en la cadera (1 cuadro del tamaño de walk; sin ella, el primer cuadro de walk)
+    characters/cowgirl/legs, legs_dual  Sus piernas de carrera sin brazos (20 cuadros como walk), a la altura de pie: las piernas bajo otra acción mientras camina (recarga, disparo y cuidados)
+    characters/cowgirl/stand, stand_dual  De pie, quieta: 4 cuadros respirando y 2 frenando al venir de correr, del tamaño de walk (un personaje sin frenado lleva 1 cuadro; sin hoja, el primero de walk)
     characters/cowgirl/shoot_dual, shoot_dual_b  Las duales turnándose (16 cuadros de plantilla de shoot por turno, `PLAYER_PISTON_FRAMES`): la cercana dispara desde el hombro y sube en retroceso; la lejana baja junto a la pierna y dispara desde la cadera, cada brazo en un arco continuo a lo largo de los dos turnos
     characters/cowgirl/melee_lit, melee_dual_lit  El culatazo con la linterna en el arma; termina en la pose con linterna
     characters/cowgirl/shoot_dual_lit, shoot_dual_b_lit  Los mismos turnos con la linterna encendida: su pistola sigue arriba y la otra dispara desde la cadera
     characters/cowgirl/swap, swap_lit  Sacar la segunda pistola de la funda, bajarla por fuera de la pierna y volver a guardarla (12 cuadros, plantilla de shoot; swap_lit con la linterna puesta)
-    characters/*/light*  Encender la linterna (16 cuadros, plantilla de shoot; el último se mantiene), light_walk* caminando con ella (8) y de pie respirando (4); cowgirl/flashlight: la linterna sola sobre shoot
+    characters/*/light*  Encender la linterna (16 cuadros, plantilla de shoot; el último se mantiene), light_walk* caminando con ella (sheriff 20, SWAT 8) y de pie respirando (4); cowgirl/flashlight: la linterna sola sobre shoot
     terrain/             barricade, wall, wall_ruins, barrel, dynamite, charge, crate, bottles, trap, coffin,
                          lamp, fire, bench, campfire, supply, goal: lo que hay en el camino
     props/               Decorados del paisaje, compartidos por todos los temas
     ui/                  badge_player, badge_zombie (placas de nivel); font, panel, button, key,
                          pip, bar, icons, weapons, notice_dev (la interfaz)
-                         field_tablet (448 × 252), field_inventory (360 × 215), train_map_rooms (15 × 44 × 22): arte propio de consulta y planos del tren; tools/make_field_ui.py
+                         field_tablet (448 × 252), field_inventory (440 × 240), train_map_rooms (15 × 44 × 22): arte propio de consulta y planos del tren; tools/make_field_ui.py
     mercenary/           walk: un mercenario en silueta con rifle y linterna (12 × 81 × 80, el cuerpo de swat/light_walk: 8 de caminar y 4 parado);
                          aim: de frente a la cámara, apuntando y disparando (4 × 110 × 130, de la cintura arriba)
     clues/               clues: las 30 pistas del Expediente, un cuadro de 24 × 24 por pista en el orden de CLUES; stamp: el sello RESUELTO inclinado (tools/make_clues.py)

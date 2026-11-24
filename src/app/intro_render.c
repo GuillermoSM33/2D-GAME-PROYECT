@@ -798,6 +798,7 @@ static void step_sheriff(float t)
 {
     if (sheriff_time < 0.0f || t < sheriff_time) {
         player_init(&sheriff_view);
+        player_set_walk_frames(&sheriff_view, PLAYER_SHERIFF_WALK_FRAMES);
         sheriff_view.x = PLAYER_START_X + VIEW_WIDTH / 2.0f; /* Mid-view, looking at the town */
         sheriff_time = 0.0f;
     }

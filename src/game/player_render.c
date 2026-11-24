@@ -100,6 +100,17 @@ static int walk_waist_row(const CharacterSkin *skin)
                ? skin->character->walk_waist_row : PLAYER_WAIST_ROW;
 }
 
+/* Action legs may retain eight authored frontal poses while the whole-body
+ * sheriff walk has sixteen side-view poses. Match phase, never crop past the
+ * end of the shorter sheet; a fallback whole walk uses all of its own frames. */
+static int leg_art_frame(SDL_Texture *sheet, const Animation *walk)
+{
+    int width = 0;
+    if (!walk->def || SDL_QueryTexture(sheet, NULL, NULL, &width, NULL) != 0)
+        return 0;
+    return player_walk_art_frame(walk, width / walk->def->frame_w);
+}
+
 /* Drinking or binding a wound: her own sheet for it (<id>/drink, <id>/bandage,
  * the shoot template). Walking meanwhile, the walk's legs below and it above
  * (for the bandage, down to her thigh). Returns whether it drew her. */
@@ -128,7 +139,7 @@ static bool draw_care(SDL_Renderer *renderer, const Player *player, const Charac
         int waist = walk_waist_row(skin) + (care->ground_y - walk_def->ground_y);
         split = player->bandage > 0.0f ? waist + 8 : waist;
         tint(walk, player);
-        draw_rows(renderer, walk, walk_def, player->anim.frame, walk_waist_row(skin), walk_def->frame_h, player, camera_x);
+        draw_rows(renderer, walk, walk_def, leg_art_frame(walk, &player->anim), walk_waist_row(skin), walk_def->frame_h, player, camera_x);
         untint(walk);
     }
     tint(sheet, player);
@@ -269,7 +280,9 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     }
     if (player->state == PLAYER_IDLE && def && def->frame_w == PLAYER_WALK_FRAME_W && skin_stand(skin, gun)) {
         sheet = skin_stand(skin, gun); /* Stood still: its own pose, if it has one */
-        frame = 0;
+        int width = 0;
+        SDL_QueryTexture(sheet, NULL, NULL, &width, NULL);
+        frame = player_stand_frame(player, width / def->frame_w);
     }
     if (sheet == NULL && def && player_reload_animation(def)) {
         /* No reload art (a stand-in skin): hold the recoil frame, same template. */
@@ -333,7 +346,7 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
                                       ? skin->weapon_light_walk[gun] : NULL;
         if (light_walk && (walking || player->state == PLAYER_IDLE)) {
             /* All on: its torso rocking with its legs, or stood there, breathing. */
-            int shown = walking ? frame : PLAYER_WALK_FRAMES + player_light_breath(player);
+            int shown = walking ? frame : character_walk_frames(skin->character) + player_light_breath(player);
             tint(light_walk, player);
             draw_rows(renderer, light_walk, light, shown, 0, light->frame_h, player, camera_x);
             untint(light_walk);
@@ -346,7 +359,7 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
             split = walk_waist_row(skin) + (light->ground_y - def->ground_y);
             SDL_Texture *under = skin_legs(skin, gun, sheet);
             tint(under, player);
-            draw_rows(renderer, under, def, frame, walk_waist_row(skin), def->frame_h, player, camera_x);
+            draw_rows(renderer, under, def, leg_art_frame(under, &player->anim), walk_waist_row(skin), def->frame_h, player, camera_x);
             untint(under);
         }
         tint(light_sheet, player);
@@ -371,7 +384,7 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
          * in the reload template, rather than the walk's ground row 61. */
         int waist = walk_waist_row(skin) + (def->ground_y - legs->ground_y);
         tint(walk, player);
-        draw_rows(renderer, walk, legs, player->legs.frame, walk_waist_row(skin), legs->frame_h, player, camera_x);
+        draw_rows(renderer, walk, legs, leg_art_frame(walk, &player->legs), walk_waist_row(skin), legs->frame_h, player, camera_x);
         untint(walk);
         tint(sheet, player);
         draw_rows(renderer, sheet, def, frame, 0, waist, player, camera_x);
@@ -393,7 +406,7 @@ static void render_at(SDL_Renderer *renderer, const Player *player, const Charac
     int care_frame;
     if (carry && !player->fainted && player_care_animation(player, &care_frame) == NULL &&
         (player->state == PLAYER_IDLE || player->state == PLAYER_WALK || player->state == PLAYER_RUN)) {
-        int shown = player->state == PLAYER_IDLE ? PLAYER_WALK_FRAMES : player->anim.frame;
+        int shown = player->state == PLAYER_IDLE ? character_walk_frames(skin->character) : player->anim.frame;
         const AnimationDef *pose = player_melee_animation(); /* Same action pivot and ground row */
         tint(carry, player);
         draw_rows(renderer, carry, pose, shown, 0, pose->frame_h, player, camera_x);

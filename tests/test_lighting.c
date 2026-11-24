@@ -181,6 +181,31 @@ static void test_flashlight_follows_facing_and_jump(void)
     CHECK(lighting.count == 0);
 }
 
+static void test_turning_walk_keeps_the_flashlight_beam_on_its_fixed_hand(void)
+{
+    Player player;
+    Lighting lighting;
+    player_init(&player);
+    player_set_walk_frames(&player, PLAYER_SHERIFF_WALK_FRAMES);
+    player.x = 500.0f;
+    for (int facing = -1; facing <= 1; facing += 2) {
+        player.facing = (Facing)facing;
+        player.state = PLAYER_IDLE;
+        lighting_build(&lighting, NULL, NULL, &player, true, true, 0.0f, 0.0);
+        float idle_x = lighting.lights[0].x;
+        player.state = PLAYER_WALK;
+        lighting_build(&lighting, NULL, NULL, &player, true, true, 0.0f, 0.0);
+        CHECK_NEAR(lighting.lights[0].x, idle_x - facing * 4.0f * SPRITE_SCALE, .01f);
+        player.state = PLAYER_RUN;
+        lighting_build(&lighting, NULL, NULL, &player, true, true, 0.0f, 0.0);
+        CHECK_NEAR(lighting.lights[0].x, idle_x - facing * 4.0f * SPRITE_SCALE, .01f);
+    }
+    player_set_walk_frames(&player, PLAYER_WALK_FRAMES);
+    player.state = PLAYER_WALK;
+    lighting_build(&lighting, NULL, NULL, &player, true, true, 0.0f, 0.0);
+    CHECK_NEAR(lighting.lights[0].x, player.x + player.facing * PLAYER_LIGHT_DX * SPRITE_SCALE, .01f);
+}
+
 static void test_explosion_flash_tracks_animation_and_expires(void)
 {
     Effects effects;
@@ -291,6 +316,7 @@ int main(void)
     RUN(test_point_falloff_is_symmetric_and_monotonic);
     RUN(test_walls_and_barricades_block_rays_passing_through);
     RUN(test_flashlight_follows_facing_and_jump);
+    RUN(test_turning_walk_keeps_the_flashlight_beam_on_its_fixed_hand);
     RUN(test_flashlight_stutters_on_and_dies_off);
     RUN(test_flashlight_goes_out_in_a_jump);
     RUN(test_gun_and_light_sink_with_her_in_the_river);

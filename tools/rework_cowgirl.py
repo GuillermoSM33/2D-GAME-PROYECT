@@ -1,36 +1,45 @@
 #!/usr/bin/env python3
-"""Dress the cowgirl: her costume over her base sheets, frame by frame.
+"""Dress the cowgirl: her costume over her base sheets, and her whole body in three quarters.
 
 Usage: tools/rebuild_cowgirl.py runs this and all that build on it, in order.
 
-Reads docs/templates/cowgirl/{walk,shoot,jump}.png and writes the same
-names to assets/sprites/characters/cowgirl/, and stand.png: stood still, hands on her
-hips. On walk, jump and stand her body is whole and the same as on every pose
-(TORSO_FRONT and so on) with no arm of the art left on it, and both arms are drawn apart:
-swinging as she walks. Her hat and her guns stay. Over the
-rest: long red hair falling down her back, a neckline curving up to her shoulders
-with a lace edge, dark slate puffed sleeves covering them, a slate corset with the
-sheriff's brass star on her chest, a wide leather belt with
-a brass buckle, a dark red sash hanging from it, striped trousers. Standard
+Reads docs/templates/cowgirl/{walk,shoot}.png and writes to
+assets/sprites/characters/cowgirl/:
+  walk.png, walk_dual.png    20 frames: her run, measured on the reference (cowgirl_pose.py)
+  stand.png, stand_dual.png  6 frames: 4 stood still, breathing, then 2 pulling up from a run
+  legs.png, legs_dual.png    20 frames: her running legs at the height she stands at, for the
+      legs under another action (player_render.c)
+  jump.png, jump_dual.png    8 frames, 54 x 82
+  shoot.png                  the dressed template: its flash is used by make_flashlight.py
+Her head, hat and hair are her own pixels from the template, the same in every frame. Her
+torso, hips and legs are one three-quarter body (cowgirl_torso.py, cowgirl_legs.py) and her
+arms are drawn apart (cowgirl_arm.py): the far one behind her body, the near one in front.
+dress() still makes the body she has from the front, for the bench (make_sit.py). Standard
 library only.
 """
 from __future__ import annotations
 
 import math
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_powers import load  # noqa: E402
-from cowgirl_arm import arm_limb, glove  # noqa: E402
+from cowgirl_arm import GLOVE as GLOVE_TAGS, SLEEVE as SLEEVE_TAGS, arm_limb, glove  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
+import cowgirl_legs as legs  # noqa: E402
+import cowgirl_pose as pose  # noqa: E402
+import cowgirl_torso as figure  # noqa: E402
+from cowgirl_pose import bob as stride_bob  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / 'docs/templates/cowgirl'
 OUT = ROOT / 'assets/sprites/characters/cowgirl'
 SHEETS = {'walk': 42, 'shoot': 81, 'jump': 54}
-WALK_FRAMES = 8
-ARMED = {'walk', 'jump'}          # Her gun in its holster; in the others, it is in her hand
+WALK_H, JUMP_H = 67, 82
+WALK_FRAMES = pose.FRAMES
+STAND_BREATHS, STAND_SETTLES = 4, 2  # PLAYER_STAND_*
 
 INK = (0x25, 0x20, 0x18)
 BELT_GOLD = (0x9c, 0x85, 0x26)
@@ -108,19 +117,35 @@ HAND_ROWS = (2, 3)                # Rows under her belt where the art's hands hu
 HIP_LINE, HIP_BACK = 8, -10       # ...and her hips' outlines, past which it was only those hands
 LEG_SHADOW, BOOT_SHADOW = rgb(0x322e2c), rgb(0x463322)
 SASH_FROM = -9                    # Columns from her buckle's middle to the sash's edge
-# Her arms, from her belt and buckle: all 15 long. Stood still, her hands on her hips.
-NEAR_SHOULDER, FAR_SHOULDER = (7, -12), (-9, -12)  # At her chest's edges, level
-ON_HIPS = (((-9, -12), (-14, -7), (-8, -2)), ((7, -12), (12, -7), (6, -2)))
-ARM_BONE = 6.5
-# A fixed, relaxed elbow rotated from the shoulder. Solving a fresh elbow
-# after rounding the hand made adjacent frames alternate bent/straight.
-WALK_ARM_ELBOW = (0.8, 6.4)
-WALK_ARM_HAND = (3.3, 12.3)
-WALK_ARM_SWING = 4.0              # Degrees each way; a quiet counter-swing to the legs
-WALK_COLUMN = 22                  # Her buckle on every walk frame, as on stand and shoot: her body stays put, only bobbing
-# In the air: where each hand is, from its shoulder, frame by frame of her jump.
-JUMP_FAR = ((-3, 12), (-5, 10), (-7, 8), (-8, 7), (-7, 8), (-5, 10), (-4, 11), (-3, 12))
-JUMP_NEAR = ((3, 12), (5, 10), (8, 8), (9, 7), (8, 8), (6, 10), (4, 11), (3, 12))
+# Her arms, from her belt and buckle (walk grid). Stood still: one hand on her hip, the other
+# hanging by her gun.
+ARM_BONE = pose.ARM_BONE
+WALK_COLUMN = pose.MID            # Her buckle on every walk frame, as on stand and shoot: her body stays put, only bobbing
+NEAR_ON_HIP = ((-7.2, -11.8), (-11.7, -6.8), (-7.2, -1.8))
+FAR_HANGING = ((5.0, -11.0), (7.0, -5.8), (7.2, -.6))
+# Pulling up from a run: how far she leans, rows she is down, how her chest and the tip of her
+# hair carry on, and her arms on their way to rest.
+SETTLE = (
+    dict(lean=1, down=1, chest=1, sway=1.2, near=((-6.6, -11.4), (-9.0, -5.2), (-3.4, -3.4)),
+         far=((5.2, -11.0), (6.4, -4.6), (10.4, -1.6))),
+    dict(lean=0, down=0, chest=-1, sway=.6, near=((-7.0, -11.6), (-10.9, -6.4), (-6.0, -2.2)),
+         far=((5.0, -11.0), (7.0, -5.0), (8.6, -.4))),
+)
+SETTLE_LEGS = (((18.2, 45.9), (19.2, 51.0), (16.4, 56.5), 4), ((23.9, 45.9), (26.8, 50.9), (26.2, 56.5), 3))
+BREATH = ((0, 0., 0.), (-1, .4, -.4), (-1, .8, -.5), (0, .4, -.1))   # Chest, hair tip, hands
+# In the air, frame by frame: rows her belt is off its mark, her lean, her chest, her hair's
+# tip, then her near and far legs (knee, ankle, foot) and where each hand is from its shoulder.
+JUMP_MID, JUMP_DROP = 6, 8        # The jump grid's, from the walk's
+JUMP = (
+    (4, 1, 0, .4, (20.8, 52.8, 16.8, 56.5, 5), (28.2, 52.4, 26.0, 56.5, 3), (-4.5, 11), (5.0, 10)),
+    (1, 1, -1, -.4, (18.2, 50.8, 15.4, 55.8, 52), (27.2, 49.6, 26.4, 54.6, 56), (-5.5, 9.5), (6.5, 9)),
+    (1, 1, 0, -1.2, (18.4, 50.2, 14.2, 53.2, 94), (28.2, 48.8, 27.6, 53.2, 62), (-6.5, 8.5), (8.0, 7)),
+    (-1, 0, 0, -1.4, (20.6, 48.2, 16.4, 51.0, 104), (27.8, 47.0, 26.8, 51.4, 68), (-7.0, 8), (8.5, 6)),
+    (-1, 0, 0, -.8, (21.0, 48.2, 17.4, 51.6, 96), (27.4, 47.2, 27.0, 51.8, 60), (-7.0, 8), (8.0, 7)),
+    (0, 0, -1, .2, (19.4, 49.4, 16.8, 53.8, 54), (27.0, 48.8, 28.2, 53.2, 34), (-6.0, 9), (7.0, 8.5)),
+    (5, 1, 1, 1.2, (21.8, 53.4, 17.2, 56.5, 4), (28.8, 52.8, 26.8, 56.5, 3), (-5.0, 10), (6.0, 9.5)),
+    (0, 0, 0, .6, (18.8, 50.6, 16.8, 56.4, 5), (25.8, 50.6, 25.8, 56.4, 4), (-4.5, 11), (5.0, 10.5)),
+)
 COLLAR_FROM = 5                   # Art columns from the middle of her neck that the chest's shading is evened over
 
 
@@ -274,42 +299,40 @@ def no_art_arms(out: dict, belt: int, mid: int) -> None:
             del out[(x, y)]
 
 
-def bent(top: tuple, hand: tuple) -> tuple:
-    """An arm of one length to that hand, its soft elbow back, away from where she walks."""
-    dx, dy = hand[0] - top[0], hand[1] - top[1]
-    d = max(math.hypot(dx, dy), 1.0)
-    along = min(d / 2, ARM_BONE)
-    out = math.sqrt(max(0.0, ARM_BONE * ARM_BONE - along * along))
-    px, py = -dy / d, dx / d
-    if px > 0:
-        px, py = -px, -py
-    return (top, (top[0] + dx / 2 + px * out, top[1] + dy / 2 + py * out), hand)
-
-
 def walk_arms(f: int) -> tuple:
-    """Both arms swing as fixed limbs: stable elbows, float coordinates until rasterization."""
-    swing = math.cos(2 * math.pi * f / WALK_FRAMES)
-    arms = []
-    for top, side in ((FAR_SHOULDER, -1), (NEAR_SHOULDER, 1)):
-        angle = math.radians(WALK_ARM_SWING * swing * side)
-        ca, sa = math.cos(angle), math.sin(angle)
-        points = [top]
-        for x, y in (WALK_ARM_ELBOW, WALK_ARM_HAND):
-            x *= side
-            points.append((top[0] + x * ca + y * sa, top[1] - x * sa + y * ca))
-        arms.append(tuple(points))
-    return tuple(arms)
+    """Her running arms, the near one first, from her belt and buckle: the elbows bent and
+    nearly still, the forearms swinging against her legs. Each from its own shoulder, with
+    bones of one length."""
+    dx, dy = WALK_COLUMN, pose.BELT + stride_bob(f)
+    return tuple(tuple((x - dx, y - dy) for x, y in pose.arm(f, far)) for far in (False, True))
+
+
+def rest_arms() -> tuple:
+    """Stood still, the near one first: a hand on her hip; the other hangs by her holster."""
+    return NEAR_ON_HIP, FAR_HANGING
 
 
 def jump_arms(f: int) -> tuple:
-    return tuple(bent(top, (top[0] + at[0], top[1] + at[1])) for top, at in ((FAR_SHOULDER, JUMP_FAR[f]), (NEAR_SHOULDER, JUMP_NEAR[f])))
+    near, far = JUMP[f][6:]
+    return (pose.bent(NEAR_ON_HIP[0], (NEAR_ON_HIP[0][0] + near[0], NEAR_ON_HIP[0][1] + near[1])),
+            pose.bent(FAR_HANGING[0], (FAR_HANGING[0][0] + far[0], FAR_HANGING[0][1] + far[1])))
 
 
-def draw_arm(out: dict, arm: tuple, belt: int, mid: int) -> None:
-    """An arm with its gloved hand."""
+FAR_TONES = {SLEEVE_TAGS[0]: SLEEVE_TAGS[1], SLEEVE_TAGS[1]: SLEEVE_TAGS[2]}
+
+
+def arm_pixels(arm: tuple, belt: float, mid: float, far: bool = False) -> dict:
+    """An arm with its gloved hand; the far one a tone deeper, away from the light."""
     top, elbow, hand = ((mid + a, belt + b) for a, b in arm)
-    out.update(arm_limb(top, elbow, hand))
-    out.update(glove(hand, elbow))
+    px = arm_limb(top, elbow, hand, shoulder_radius=1.9 if far else 2.0)
+    if far:
+        px = {p: FAR_TONES.get(c, c) for p, c in px.items()}
+    px.update(glove(hand, elbow))
+    return px
+
+
+def draw_arm(out: dict, arm: tuple, belt: float, mid: float, far: bool = False) -> None:
+    out.update(arm_pixels(arm, belt, mid, far))
 
 
 def legs_apart(out: dict, belt: int, boots: int) -> None:
@@ -390,6 +413,76 @@ def jacket_buttons(out: dict, belt: int, mid: float, front: bool = False) -> Non
         if all(out.get(p, (0, 0, 0, 0))[:3] in under for p in at):
             for p, color in zip(at, (JACKET_BUTTON[0], JACKET_BUTTON[1], JACKET_BUTTON[1], JACKET_BUTTON[2])):
                 out[p] = color
+
+
+def back_hair(out: dict, source: dict, belt: int, motion: float = 0) -> None:
+    """A continuous red mane behind the shoulder, ending at the upper hip.
+
+    Keep the source fringe and head intact. The new back mass has broad
+    colour planes rather than a thin tail or detached highlight dashes.
+    Existing face, clothes, limbs and their outlines always stay in front.
+    """
+    tones = {colour[:3] for colour in HAIR}
+    face = belt - BELT_UNDER_FACE
+    chin = [x for (x, y), colour in source.items()
+            if y == face + 3 and colour[:3] == (0xfe, 0xdc, 0xa3)]
+    if not chin or not any(colour[:3] in tones and y >= face
+                           for (x, y), colour in source.items()):
+        return
+    middle = round(sum(chin) / len(chin))
+    foreground = {p for p, colour in out.items() if colour[:3] not in tones | {INK}}
+    protected = {p for p, colour in out.items() if colour[:3] == INK and
+                 any((p[0] + dx, p[1] + dy) in foreground
+                     for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)))}
+    # Replace the old projecting one-pixel curl with a continuous far-side
+    # lock. Its outer edge follows the cheek instead of ending in a red dot.
+    stray = {p for p, colour in out.items() if colour[:3] in tones and
+             p[0] > middle + 7 and face <= p[1] <= face + 13}
+    for x, y in stray:
+        out.pop((x, y), None)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            point = x + dx, y + dy
+            if out.get(point) == INK + (255,) and point not in protected:
+                out.pop(point, None)
+    first, last = face + 2, belt + 1
+    length = last - first
+    pixels = {}
+    for y in range(first, last + 1):
+        k = y - first
+        lag = min(1.0, k / 10)
+        lag = lag * lag * (3 - 2 * lag)
+        wave = round(.35 * math.sin(k / 6) + max(-1., min(1., motion)) * .5 * lag)
+        widths = (5, 5, 6, 6, 7, 7, 7, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 3, 2, 2)
+        width = widths[min(k, len(widths) - 1)]
+        left = middle - 13 + wave + int(k < 2) + max(0, k - 14) // 5
+        for dx in range(width):
+            point = (left + dx, y)
+            previous = out.get(point)
+            if point in foreground or point in protected:
+                continue
+            if previous is not None and previous[:3] not in tones | {INK}:
+                continue
+            # Preserve the original dark/base balance. Its bright red was
+            # only a few pixels, never a continuous orange stripe.
+            colour = HAIR[1] if 1 <= dx <= max(2, width // 2) else HAIR[0]
+            if dx == 0 and (3 <= k <= 6 or 11 <= k <= 14):
+                colour = HAIR[1]
+            if dx == 2 and k in (4, 13):
+                colour = HAIR[2]
+            pixels[point] = colour
+    # The far lock is narrower in three quarters and disappears naturally
+    # behind the collar. Existing face, clothing and arms still occlude it.
+    for y in range(face - 1, face + 14):
+        left = middle + (6 if y <= face + 7 else 5)
+        width = 2 if y <= face + 9 else 1
+        for dx in range(width):
+            point = left + dx, y
+            previous = out.get(point)
+            if point in foreground or point in protected or \
+                    previous is not None and previous[:3] not in tones | {INK}:
+                continue
+            pixels[point] = HAIR[1 if dx == 0 else 0]
+    outlined(pixels, out)
 
 
 def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple = None, dual: bool = False, motion: int = 0) -> dict:
@@ -533,24 +626,7 @@ def dress(px: dict, moved: set = frozenset(), armed: bool = False, arms: tuple =
     if fit:                                              # Over all of her: the far one, then the near
         for arm in arms:
             draw_arm(out, arm, belt, mid)
-    # Her hair, in waves over her shoulder and down her back, to the waist
-    hair = [(x, y) for (x, y), c in px.items() if c[:3] in {h[:3] for h in HAIR}]
-    if hair:
-        lowest = max(y for _, y in hair)
-        left = min(x for x, y in hair if y >= lowest - 4)
-        for y in range(lowest - 2, belt - 3):
-            k = y - (lowest - 2)
-            wave = (k // 3) % 3 - 1 + round(motion * min(1.0, k / 8))
-            width = max(2, 4 - k // 6)
-            x0 = left + 1 + wave
-            if all(over_arm(out, x0 + w, y) for w in range(width)):
-                break                                    # Her arm hides it here: no loose end past it
-            for w in range(width):                       # Behind her arm: only where it isn't
-                if not over_arm(out, x0 + w, y):
-                    out[(x0 + w, y)] = HAIR[2] if w == 1 and k % 4 == 0 else HAIR[1] if w < width - 1 else HAIR[0]
-            for x in (x0 - 1, x0 + width):
-                if (x, y) not in out:
-                    out[(x, y)] = INK + (255,)
+    back_hair(out, px, belt, motion)
     return out
 
 
@@ -592,76 +668,275 @@ def steady(px: dict) -> dict:
     return {(x + dx, y): c for (x, y), c in px.items()}
 
 
-def on_legs(upper: dict, legs: dict) -> dict:
-    """The upper body of one walk frame, down to her belt, on the legs of another, bobbing with them."""
-    def top(px: dict) -> int:
-        return min(y for (_, y), c in px.items() if c[:3] == (0xfe, 0xdc, 0xa3))
-    up, down = top(upper), top(legs)
-    under = BELT_UNDER_FACE + 2                          # Rows from the top of her face to under her belt
-    out = {(x, y + down - up): c for (x, y), c in upper.items() if y < up + under}
-    out.update({p: c for p, c in legs.items() if p[1] >= down + under})
+@lru_cache(maxsize=1)
+def _template() -> dict:
+    source = load(SOURCE / 'walk.png')
+    return steady({(x, y): source.get(x, y) for y in range(source.height) for x in range(SHEETS['walk'])
+                   if source.get(x, y)[3]})
+
+
+@lru_cache(maxsize=1)
+def _front_body() -> dict:
+    return dress(_template(), armed=False, arms=())
+
+
+def front_body() -> dict:
+    """Her body seen from the front, without arms: what the bench is made from."""
+    return dict(_front_body())
+
+
+@lru_cache(maxsize=1)
+def _head() -> tuple:
+    """Her own head, from the hat to her chin, the far lock of her hair below it and the long
+    one down her back. The loose ends of the far lock's old outline, stuck out of it like
+    thorns, go."""
+    chin = pose.BELT - 15
+    top = {p: c for p, c in _front_body().items() if p[1] <= chin}
+    for (x, y), c in list(top.items()):
+        if c[:3] == INK and x >= 29 and y >= 20 and not any(
+                top.get((x + a, y + b), c)[:3] != INK for a in (-1, 0, 1) for b in (-1, 0, 1)):
+            del top[x, y]
+    hair = {}
+    back_hair(hair, _template(), pose.BELT, 0)
+    lock = {p: c for p, c in hair.items() if p[0] >= WALK_COLUMN and p[1] > chin}
+    back = {p: c for p, c in hair.items() if p[0] < WALK_COLUMN}
+    return top, lock, back
+
+
+def head(dx: int = 0, dy: int = 0) -> dict:
+    """Her head as the template has it, every pixel of her face: it is only moved."""
+    return {(x + dx, y + dy): c for (x, y), c in _head()[0].items()}
+
+
+def mane(ahead: int = 0, sway: float = 0., dy: int = 0) -> dict:
+    """The long lock down her back, its root going with her head (ahead columns) and its tip
+    swaying a column or so. Its inner side carries on under her back and her arm, so no block
+    of outline is left between them."""
+    out = {}
+    for (x, y), c in _head()[2].items():
+        t = max(0., min(1., (y - 22) / 20))
+        out[x + round(ahead * (1 - t) + sway * t), y] = c
+    rows = {}
+    for x, y in out:
+        rows[y] = max(rows.get(y, x), x)
+    for y, edge in rows.items():
+        deep = 0 if y < 30 else 2 if y < 33 else 4 if y < 37 else max(1, 40 - y)
+        if deep and out[edge, y][:3] == INK:
+            out.update({(edge + k, y): HAIR[(k + y // 3) % 3 == 0] for k in range(deep)})
+            out[edge + deep, y] = INK + (255,)
+    return {(x, y + dy): c for (x, y), c in out.items()}
+
+
+def dressed(behind: dict, body: dict, *, ahead: int = 0, dy: int = 0, sway: float = 0., hair: bool = True) -> dict:
+    """Her whole body without arms: her hair, what hangs behind her, her body, her head."""
+    out = mane(ahead, sway, dy) if hair else {}
+    out.update(behind)
+    out.update(body)
+    out.update(head(ahead, dy))
+    out.update({(x + ahead, y + dy): c for (x, y), c in _head()[1].items() if (x + ahead, y + dy) not in body})
     return out
 
 
-def dressed_sheet(name: str, armed: bool, dual: bool = False, no_arms: bool = False) -> Image:
-    """A whole sheet in her costume, the gun in its holster or not; on the sheets with her own
-    arms, both drawn in their poses, or none at all (what her legs join to)."""
-    w = SHEETS[name]
-    source = load(SOURCE / f'{name}.png')
-    img = Image(source.width, source.height)
-    pose = {'walk': walk_arms, 'jump': jump_arms}.get(name)
-    first = {(x, y): source.get(x, y) for y in range(source.height) for x in range(w) if source.get(x, y)[3]}
-    reference, there = dress(first, armed=armed), landmarks(first)
-    for f in range(source.width // w):
-        px = {(x, y): source.get(f * w + x, y) for y in range(source.height) for x in range(w)
-              if source.get(f * w + x, y)[3]}
-        if pose:
-            if name == 'walk':                           # As with the flashlight up: one upper body, on the legs of each frame
-                px = on_legs(steady(first), steady(px))
-            # Cloth and the ends of her hair lag behind the step/takeoff;
-            # the belt and head remain fixed on the shared body landmarks.
-            motion = {'walk': (0, -1, -1, 0, 1, 1, 0, 0),
-                      'jump': (-1, -1, -1, 0, 1, 1, 0, 0)}[name][f]
-            dressed = dress(px, armed=armed, arms=() if no_arms else pose(f), dual=dual, motion=motion)
-        else:
-            here = landmarks(px)
-            moved = set()
-            if here and there:                           # What isn't where it is on the first frame
-                dx, dy = here[1] - there[1], here[0] - there[0]
-                moved = {(x, y) for (x, y), c in px.items() if first.get((x - dx, y - dy)) != c}
-            dressed = dress(px, moved, armed)
-            if here and there:
-                dressed = whole_torso(dressed, here, reference, there)
-        for (x, y), c in dressed.items():
-            if 0 <= x < w and 0 <= y < source.height:
-                img.set(f * w + x, y, c)
+def standing_body(armed: bool = False, dual: bool = False, *, chest: int = 0, lean: int = 0, sway: float = 0.,
+                  legs_px: dict = None, hair: bool = True) -> dict:
+    """Her one body standing, on the walk grid, without arms. chest: rows her covered chest is
+    off it. lean: columns she leans at her head. legs_px: other hips and legs. hair: with the
+    long lock down her back."""
+    behind, body = figure.standing(chest, armed=armed, dual=dual, legs_px=legs_px)
+    out = dressed(behind, body, sway=sway, hair=hair)
+    if lean:                                             # From her waist up
+        upper = {p: c for p, c in out.items() if p[1] <= figure.BELT_ROW - 1}
+        out = {p: c for p, c in out.items() if p not in upper}
+        out.update(figure.leaned(upper, lean))
+    return out
+
+
+def walking_body(frame: int, armed: bool = False, dual: bool = False) -> dict:
+    """Her body on a frame of the run, on the walk grid, without arms."""
+    behind, body = figure.running(frame, armed=armed, dual=dual)
+    sway = -.6 + .8 * math.sin(2 * math.pi * pose.phase_of(frame) / 5 - .6)
+    return dressed(behind, body, ahead=pose.LEAN, dy=stride_bob(frame), sway=sway)
+
+
+CROOK = 6                                                # Art px: more hair than this is not a sliver
+
+
+def behind_arm(body: dict, arm: dict) -> dict:
+    """Her body where an arm in front leaves only specks of the star or of a snap in sight:
+    cloth there instead, so no loose bits of brass are left beside the arm. Through the crook
+    of the arm, her jacket's side in shade instead of slivers of the lock down her back."""
+    out = dict(body)
+    edge = INK + (255,)
+    hair = {p for p, c in body.items() if c in HAIR and p not in arm}
+    for group in _groups(hair):
+        if len(group) <= CROOK and all(
+                any((x - k, y) in arm for k in range(1, CROOK)) and
+                any(body.get((x + k, y), edge) not in HAIR + [edge] for k in range(1, CROOK)) for x, y in group):
+            out.update({p: figure.COLORS['d'] for p in group})
+    for tones, share, limit in ((figure.STAR_TONES, .62, 12), (figure.SNAP_TONES, 1., 6)):
+        spots = {p for p, c in body.items() if c in tones}
+        for group in _groups(spots):
+            if len(group) > limit + 4 or len(group) < 3:
+                continue                                 # The far snap is a pair; nothing else has these tones
+            if sum(p not in arm for p in group) < share * len(group):
+                left = min(x for x, _ in group)
+                for x, y in group:
+                    out[x, y] = figure.COLORS['c' if tones is figure.STAR_TONES and x > left + 1 else 'w']
+    return out
+
+
+def _groups(points: set) -> list:
+    """Points by touching, corners too."""
+    left, out = set(points), []
+    while left:
+        group = {left.pop()}
+        todo = list(group)
+        while todo:
+            x, y = todo.pop()
+            for a in (-1, 0, 1):
+                for b in (-1, 0, 1):
+                    if (x + a, y + b) in left:
+                        left.discard((x + a, y + b))
+                        group.add((x + a, y + b))
+                        todo.append((x + a, y + b))
+        out.append(group)
+    return out
+
+
+def with_arms(body: dict, near: dict, far: dict) -> dict:
+    """The far arm behind her, the near one in front."""
+    out = dict(far)
+    out.update(behind_arm(body, near))
+    out.update(near)
+    return out
+
+
+def put(img: Image, f: int, w: int, px: dict) -> None:
+    for (x, y), c in px.items():
+        if 0 <= x < w and 0 <= y < img.height:
+            img.set(f * w + x, y, c)
+
+
+def walk_sheet(armed: bool, dual: bool = False, arms: bool = True) -> Image:
+    """Her run, her gun in its holster or not; without arms, what the flashlight's is made on."""
+    w = SHEETS['walk']
+    img = Image(w * WALK_FRAMES, WALK_H)
+    for f in range(WALK_FRAMES):
+        body = walking_body(f, armed, dual)
+        if arms:
+            at = pose.BELT + stride_bob(f)
+            near, far = (arm_pixels(arm, at, WALK_COLUMN, i == 1) for i, arm in enumerate(walk_arms(f)))
+            body = with_arms(body, near, far)
+        put(img, f, w, body)
     return img
 
 
-def stand_sheet(dual: bool) -> Image:
-    """Stood still: the walk's first legs, her hands on her hips."""
-    source = load(SOURCE / 'walk.png')
+def action_legs(frame: int) -> dict:
+    """Her running legs on the hips she stands with, for the legs under another action."""
+    chains = []
+    for far in (True, False):
+        (_, knee, ankle, foot), side = pose.leg_chain(frame, far), 1 if far else -1
+        chains.append(((20.8 + side * 2.9, 45.0), knee, ankle, foot))
+    far, near = (legs.painted(legs.sections(c), c, i == 0) for i, c in enumerate(chains))
+    return legs.lower_body(far, near, legs.hips(20.9, pose.BELT + .4, 6.6), pose.BELT, pose.SOLE)
+
+
+def legs_sheet(dual: bool = False) -> Image:
     w = SHEETS['walk']
-    img = Image(w, source.height)
-    px = {(x, y): source.get(x, y) for y in range(source.height) for x in range(w) if source.get(x, y)[3]}
-    for (x, y), c in dress(px, armed=True, arms=ON_HIPS, dual=dual).items():
-        if 0 <= x < w and 0 <= y < source.height:
-            img.set(x, y, c)
+    img = Image(w * WALK_FRAMES, WALK_H)
+    for f in range(WALK_FRAMES):
+        put(img, f, w, standing_body(True, dual, legs_px=action_legs(f)))
+    return img
+
+
+def stand_arms(f: int) -> tuple:
+    """Her arms on a frame of stand.png, the near one first, from her belt and buckle."""
+    if f < STAND_BREATHS:
+        rise = BREATH[f][2]
+        return tuple((arm[0], (arm[1][0], arm[1][1] + rise), arm[2]) for arm in rest_arms())
+    how = SETTLE[f - STAND_BREATHS]
+    return tuple(tuple((x + how['lean'], y + how['down']) for x, y in how[side]) for side in ('near', 'far'))
+
+
+def stand_frame(f: int, dual: bool = False) -> dict:
+    """Stood still, breathing (0-3); pulling up from a run (4-5)."""
+    breathing = f < STAND_BREATHS
+    if breathing:
+        chest, sway, _ = BREATH[f]
+        body, down = standing_body(True, dual, chest=chest, sway=sway), 0
+    else:
+        how = SETTLE[f - STAND_BREATHS]
+        down, lower = how['down'], None
+        if down:                                         # Her knees give a little
+            chains = [(*((x, y - down) for x, y in c[:3]), c[3]) for c in SETTLE_LEGS]
+            near, far = (legs.painted(legs.sections(c), c, i == 1) for i, c in enumerate(chains))
+            lower = legs.lower_body(far, near, legs.hips(20.9, pose.BELT + .4, 6.6), pose.BELT, pose.SOLE - down)
+        body = standing_body(True, dual, chest=how['chest'], lean=how['lean'], sway=how['sway'], legs_px=lower)
+        body = {(x, y + down): c for (x, y), c in body.items()}
+    arms = stand_arms(f)
+    near, far = (arm_pixels(arm, pose.BELT, WALK_COLUMN, i == 1) for i, arm in enumerate(arms))
+    out = with_arms(body, near, far)
+    if breathing:                                        # Her far hand rests on the gun's grip
+        (ex, ey), (hx, hy) = arms[1][1:]
+        out.update(glove((WALK_COLUMN + hx + .2, pose.BELT + hy - .4), (WALK_COLUMN + ex, pose.BELT + ey)))
+    return {p: c for p, c in out.items() if p[1] <= pose.SOLE}
+
+
+def stand_sheet(dual: bool) -> Image:
+    w = SHEETS['walk']
+    img = Image(w * (STAND_BREATHS + STAND_SETTLES), WALK_H)
+    for f in range(STAND_BREATHS + STAND_SETTLES):
+        put(img, f, w, stand_frame(f, dual))
+    return img
+
+
+def jump_sheet(dual: bool) -> Image:
+    w = SHEETS['jump']
+    img = Image(w * len(JUMP), JUMP_H)
+    for f, (down, lean, chest, sway, near_leg, far_leg, *_) in enumerate(JUMP):
+        chains = []
+        for side, (kx, ky, ax, ay, foot) in ((1, far_leg), (-1, near_leg)):
+            chains.append(((20.9 + side * 2.5, 45.0), (kx, ky - down), (ax, ay - down), foot))
+        far, near = (legs.painted(legs.sections(c), c, i == 0) for i, c in enumerate(chains))
+        lower = legs.lower_body(far, near, legs.hips(20.9, pose.BELT + .4, 6.2), pose.BELT, pose.SOLE + 8)
+        body = standing_body(True, dual, chest=chest, lean=lean, sway=sway, legs_px=lower)
+        arms = [tuple((x + lean, y) for x, y in arm) for arm in jump_arms(f)]
+        near_arm, far_arm = (arm_pixels(arm, pose.BELT, WALK_COLUMN, i == 1) for i, arm in enumerate(arms))
+        put(img, f, w, {(x + JUMP_MID, y + JUMP_DROP + down): c
+                        for (x, y), c in with_arms(body, near_arm, far_arm).items()})
+    return img
+
+
+def dressed_shoot() -> Image:
+    """The old shoot template in her costume: only its muzzle flash is used (make_flashlight.py)."""
+    w = SHEETS['shoot']
+    source = load(SOURCE / 'shoot.png')
+    img = Image(source.width, source.height)
+    first = {(x, y): source.get(x, y) for y in range(source.height) for x in range(w) if source.get(x, y)[3]}
+    reference, there = dress(first), landmarks(first)
+    for f in range(source.width // w):
+        px = {(x, y): source.get(f * w + x, y) for y in range(source.height) for x in range(w)
+              if source.get(f * w + x, y)[3]}
+        here = landmarks(px)
+        moved = set()
+        if here and there:                               # What isn't where it is on the first frame
+            dx, dy = here[1] - there[1], here[0] - there[0]
+            moved = {(x, y) for (x, y), c in px.items() if first.get((x - dx, y - dy)) != c}
+        out = dress(px, moved)
+        if here and there:
+            out = whole_torso(out, here, reference, there)
+        put(img, f, w, out)
     return img
 
 
 def main() -> int:
-    for name in SHEETS:
-        img = dressed_sheet(name, name in ARMED)
+    for name, img in (('walk', walk_sheet(True)), ('walk_dual', walk_sheet(True, True)),
+                      ('legs', legs_sheet()), ('legs_dual', legs_sheet(True)),
+                      ('stand', stand_sheet(False)), ('stand_dual', stand_sheet(True)),
+                      ('jump', jump_sheet(False)), ('jump_dual', jump_sheet(True)),
+                      ('shoot', dressed_shoot())):
         img.save(OUT / f'{name}.png')
         print(f'rework_cowgirl: {name} ({img.width} x {img.height})')
-        if name in ARMED:                                # With the duals, the second on her far hip
-            dressed_sheet(name, True, True).save(OUT / f'{name}_dual.png')
-    # Her walk with no arms, for the walking legs under another pose (player_render.c)
-    dressed_sheet('walk', True, no_arms=True).save(OUT / 'legs.png')
-    dressed_sheet('walk', True, True, no_arms=True).save(OUT / 'legs_dual.png')
-    stand_sheet(False).save(OUT / 'stand.png')
-    stand_sheet(True).save(OUT / 'stand_dual.png')
     return 0
 
 

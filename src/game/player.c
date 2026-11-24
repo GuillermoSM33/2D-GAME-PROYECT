@@ -51,6 +51,63 @@ static const AnimationDef ANIM_WALK = {
     .first_frame = 0, .frame_count = PLAYER_WALK_FRAMES, .fps = PLAYER_WALK_FPS, .loop = true,
     .anchor_x = WALK_ANCHOR_X, .ground_y = WALK_GROUND_Y,
 };
+static const AnimationDef ANIM_SHERIFF_WALK = {
+    .sheet = PLAYER_WALK_SHEET, .frame_w = PLAYER_WALK_FRAME_W, .frame_h = PLAYER_WALK_FRAME_H,
+    .first_frame = 0, .frame_count = PLAYER_SHERIFF_WALK_FRAMES,
+    .fps = PLAYER_SHERIFF_WALK_FPS, .loop = true,
+    .anchor_x = WALK_ANCHOR_X, .ground_y = WALK_GROUND_Y,
+};
+
+int player_walk_frames(const Player *player)
+{
+    return player->walk_frames == PLAYER_SHERIFF_WALK_FRAMES ? PLAYER_SHERIFF_WALK_FRAMES : PLAYER_WALK_FRAMES;
+}
+
+const AnimationDef *player_walk_animation(int frames)
+{
+    return frames == PLAYER_SHERIFF_WALK_FRAMES ? &ANIM_SHERIFF_WALK : &ANIM_WALK;
+}
+
+int player_walk_art_frame(const Animation *walk, int frames)
+{
+    if (!walk->def || walk->def->frame_count < 1 || frames < 1)
+        return 0;
+    int phase = walk->frame - walk->def->first_frame;
+    if (phase < 0) phase = 0;
+    if (phase >= walk->def->frame_count) phase = walk->def->frame_count - 1;
+    return phase * frames / walk->def->frame_count;
+}
+
+int player_stand_frame(const Player *player, int frames)
+{
+    if (frames < PLAYER_STAND_BREATHS + PLAYER_STAND_SETTLES)
+        return 0;
+    if (player->settle > 0.0f) {
+        int f = (int)((1.0f - player->settle / PLAYER_SETTLE_TIME) * (float)PLAYER_STAND_SETTLES);
+        return PLAYER_STAND_BREATHS + (f < 0 ? 0 : f >= PLAYER_STAND_SETTLES ? PLAYER_STAND_SETTLES - 1 : f);
+    }
+    return (int)(player->still * PLAYER_STAND_FPS) % PLAYER_STAND_BREATHS;
+}
+
+void player_set_walk_frames(Player *player, int frames)
+{
+    player->walk_frames = frames == PLAYER_SHERIFF_WALK_FRAMES ? PLAYER_SHERIFF_WALK_FRAMES : PLAYER_WALK_FRAMES;
+    Animation *walks[] = {&player->anim, &player->legs};
+    for (int i = 0; i < 2; i++) {
+        Animation *walk = walks[i];
+        if (walk->def != &ANIM_WALK && walk->def != &ANIM_SHERIFF_WALK)
+            continue;
+        const AnimationDef *def = player_walk_animation(player->walk_frames);
+        if (walk->def == def)
+            continue;
+        /* Animation.time is total elapsed time, not a per-frame remainder: keep
+         * the place in the cycle, which each walk covers in its own time. */
+        float cycles = walk->time * walk->def->fps / (float)walk->def->frame_count;
+        walk->def = def;
+        walk->time = cycles * (float)def->frame_count / def->fps;
+        walk->frame = def->first_frame + (int)(cycles * (float)def->frame_count) % def->frame_count;
+    }
+}
 /* Driven by jump progress rather than time, so it always matches the arc. */
 static const AnimationDef ANIM_JUMP_AIR = {
     .sheet = PLAYER_JUMP_SHEET, .frame_w = PLAYER_JUMP_FRAME_W, .frame_h = PLAYER_JUMP_FRAME_H,
@@ -298,7 +355,7 @@ bool player_catch(Player *player, CatchKind kind, float anchor_x, float anchor_y
     player->catch_time = player->catch_shake = 0.0f;
     player->catch_anchor_x = anchor_x;
     player->catch_anchor_y = anchor_y;
-    animation_play(&player->anim, &ANIM_WALK); /* Kicking her legs while she hangs */
+    animation_play(&player->anim, player_walk_animation(player_walk_frames(player))); /* Kicking her legs while she hangs */
     return true;
 }
 
@@ -441,9 +498,12 @@ int player_lit_shoot_frame(int frame)
 void player_light_kick(const Player *player, float *dx, float *dy, float *tilt)
 {
     /* The lens on each sheet, as tools/make_flashlight.py draws and prints it. */
-    static const float BLOW[PLAYER_MELEE_FRAMES][3] = {{-6.2f, -21.6f, -.6f}, {-24.2f, -29.7f, -.6f}, {-7.3f, -22.8f, -.6f},
-                                                       {0.1f, -2.7f, .18f}, {-3.5f, 8.4f, .6f}, {-0.3f, 0.4f, .27f}, {0.0f, 0.0f, 0.0f}};
+    static const float BLOW[PLAYER_MELEE_FRAMES][3] = {{-4.2f, -20.6f, -.6f}, {-22.2f, -28.7f, -.6f}, {-5.3f, -21.8f, -.6f},
+                                                       {2.1f, -1.7f, .18f}, {-1.5f, 9.4f, .6f}, {1.7f, 1.4f, .27f}, {0.0f, 0.0f, 0.0f}};
     *dx = *dy = *tilt = 0.0f;
+    if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) &&
+        player->light_rows > 0.0f && player->light_dx <= 0.0f)
+        *dx = -4.0f; /* The sheriff's held arm follows her turned walking shoulder. */
     int frame = player->anim.frame;
     if (player->state == PLAYER_MELEE) {
         if (player->light_swings && frame >= 0 && frame < PLAYER_MELEE_FRAMES) {
@@ -475,11 +535,15 @@ void player_light_kick(const Player *player, float *dx, float *dy, float *tilt)
         }
         return;
     }
-    /* The same arm on all its sheets: it kicks and comes back. */
-    if (!player->shot.piston)
-        frame = player_lit_shoot_frame(frame);
-    if (frame == 5) { *dy = -4.0f; *tilt = -.2f; }
-    if (frame == 6) { *dy = -1.0f; *tilt = -.05f; }
+    if (player->shot.piston) { /* The duals' lit gun only kicks: make_flashlight.NEAR_LIT */
+        if (frame == 5) { *dx = .7f; *dy = -2.5f; *tilt = -.24f; }
+        if (frame == 6) { *dx = .2f; *dy = .3f; *tilt = -.07f; }
+        return;
+    }
+    /* The shot throws her arm up, and it comes back (make_flashlight.DRAWN). */
+    frame = player_lit_shoot_frame(frame);
+    if (frame == 5) { *dx = -1.9f; *dy = -8.8f; *tilt = -.56f; }
+    if (frame == 6) { *dx = .4f; *dy = -3.0f; *tilt = -.19f; }
 }
 
 float player_light_progress(const Player *player)
@@ -496,11 +560,16 @@ int player_light_sway(const Player *player)
 {
     /* As tools/make_flashlight.py draws them: BREATH and STRIDE. */
     static const int BREATH[PLAYER_LIGHT_BREATHS] = {0, -1, -1, 0};
-    static const int STRIDE[PLAYER_WALK_FRAMES] = {0, 0, 1, 0, 0, 0, 1, 0};
+    static const int STRIDE[PLAYER_WALK_FRAMES] = {0, 1, 0, -1, 0, 1, 0, -1};
+    static const int SHERIFF_STRIDE[PLAYER_SHERIFF_WALK_FRAMES] = /* cowgirl_pose.bob */
+        {-1, -1, 0, 1, 1, 1, 0, -1, -1, -1, -1, -1, 0, 1, 1, 1, 0, -1, -1, -1};
     if (player->state == PLAYER_IDLE)
         return BREATH[player_light_breath(player)];
-    if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && player->anim.frame < PLAYER_WALK_FRAMES) {
+    if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && player->anim.frame >= 0 &&
+        player->anim.frame < player_walk_frames(player)) {
         static const int SWAT_STRIDE[PLAYER_WALK_FRAMES] = {1, 0, 0, 1, 1, 0, 0, 1};
+        if (player_walk_frames(player) == PLAYER_SHERIFF_WALK_FRAMES)
+            return SHERIFF_STRIDE[player->anim.frame];
         return player->light_dx > 0.0f ? SWAT_STRIDE[player->anim.frame] : STRIDE[player->anim.frame];
     }
     return 0;
@@ -627,6 +696,8 @@ static void cross_car(Player *p, float dt)
 
 void player_update(Player *player, const InputState *input, float dt)
 {
+    float still = player->still, settle = player->settle;
+    player->still = player->settle = 0.0f; /* Until she is found standing below */
     player->shot_fired = false;
     player->threw = false;
     player->struck = false;
@@ -868,7 +939,7 @@ void player_update(Player *player, const InputState *input, float dt)
                 keep_in_bounds(player);
                 player->state = PLAYER_WALK;
                 player->reload_walk = true;
-                animation_play(&player->legs, &ANIM_WALK);
+                animation_play(&player->legs, player_walk_animation(player_walk_frames(player)));
                 animation_update(&player->legs, dt * PLAYER_RELOAD_WALK_MULT);
                 return;
             }
@@ -918,19 +989,24 @@ void player_update(Player *player, const InputState *input, float dt)
             return;
     }
 
+    bool was_walking = player->state == PLAYER_WALK || player->state == PLAYER_RUN;
     if (dir == 0) {
+        player->still = still + dt;
+        player->settle = was_walking ? PLAYER_SETTLE_TIME : fmaxf(0.0f, settle - dt);
         player->state = PLAYER_IDLE;
         animation_play(&player->anim, &ANIM_IDLE);
         return;
     }
-    /* Frame 0 is the standing pose, so a fresh start goes straight to the
-     * first step; otherwise a short tap would slide her without moving a leg. */
-    bool was_walking = player->state == PLAYER_WALK || player->state == PLAYER_RUN;
+    /* Frame 0 is a standing pose or a landing, so a fresh start goes straight to
+     * a step; otherwise a short tap would slide her without moving a leg. */
+    bool measured = player_walk_frames(player) == PLAYER_SHERIFF_WALK_FRAMES;
     player->state = run ? PLAYER_RUN : PLAYER_WALK;
-    animation_play(&player->anim, &ANIM_WALK);
+    animation_play(&player->anim, player_walk_animation(player_walk_frames(player)));
     if (!was_walking)
-        animation_seek(&player->anim, 1);
-    animation_update(&player->anim, dt * pace * (run ? PLAYER_RUN_ANIM_MULT : 1.0f));
+        animation_seek(&player->anim, measured ? PLAYER_SHERIFF_WALK_START : 1);
+    /* Legs whose stride is measured keep the ground at both paces. */
+    float quicker = !run ? 1.0f : measured ? PLAYER_RUN_SPEED_MULT : PLAYER_RUN_ANIM_MULT;
+    animation_update(&player->anim, dt * pace * quicker);
 }
 
 void player_bleed(Player *player, float damage)
@@ -1032,7 +1108,7 @@ bool player_reload_animation(const AnimationDef *def)
 const AnimationDef *const *player_animations(int *count)
 {
     static const AnimationDef *const shared[] = {
-        &ANIM_IDLE, &ANIM_WALK, &ANIM_JUMP_AIR, &ANIM_LAND, &ANIM_SHOOT, &ANIM_SIT,
+        &ANIM_IDLE, &ANIM_SHERIFF_WALK, &ANIM_JUMP_AIR, &ANIM_LAND, &ANIM_SHOOT, &ANIM_SIT,
     };
     *count = (int)(sizeof(shared) / sizeof(shared[0]));
     return shared;

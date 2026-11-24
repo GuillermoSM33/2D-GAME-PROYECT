@@ -13,7 +13,9 @@ Writes in assets/sprites/characters/cowgirl/ (81 x 80 frames, the shoot template
       as the far one swings up from beside her leg and fires from her hip.
   shoot_dual_lit.png, shoot_dual_b_lit.png  The same turns with the flashlight on: its
       gun stays up, lit, and the other swings up and fires from her hip.
-  shoot.png  Her draw and holster frames redrawn with her own arm turned.
+  shoot.png  Draw (0-2), aim (3), fire (4), recoil (5-6), lowered (7): the gun arm is her
+      far one, behind her far lapel. The shot throws the arm up and her shoulders back, and
+      she comes back to it, as in the reference (objetivo/shoot_v2.gif, apuntar.gif).
   reload.png  Eight frames: open, eject, speedload, close the single revolver.
   reload_dual.png, reload_dual_b.png  48 frames per hand: 24 for one cylinder,
       24 for the second of a pair; hands work low at the belt, shoulders stay fixed.
@@ -30,9 +32,8 @@ Writes in assets/sprites/characters/cowgirl/ (81 x 80 frames, the shoot template
   flashlight.png  8 frames, only the flashlight: drawn over shoot.png or
       shoot_dual.png, following the gun, while it is on.
 And for the sheriff, each gun:
-  light_walk*.png  12 frames: walking with it up, the gun held level (the last
-      frame of its light sheet) on the legs of walk.png, moving as one piece with
-      each step; then 4 stood still, breathing.
+  light_walk*.png  24 frames: 20 running with it up, the gun held level by her far arm over
+      the whole running body; then 4 stood still, breathing.
 
 The SWAT's light poses and breathing are authored by rebuild_swat.py; rebuilding
 the sheriff must not overwrite those finished sheets. Standard library only.
@@ -45,10 +46,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cowgirl_arm import arm_limb as bent_arm, glove, pistol_muzzle, pistol_pointing, turned  # noqa: E402
-from make_melee import AIM, HOLSTER, LOW, POSES, SHOULDER, body_without_arm, frame, no_holes, sleeve, striking_arm  # noqa: E402
-from make_powers import FAR_ARM_INSIDE, INK, SKIN, load  # noqa: E402
+from make_melee import (AIM, HOLSTER, LOW, POSES, SHOULDER, behind, body_at, body_without_arm, frame, no_holes,  # noqa: E402
+                        sleeve, striking_arm)
+from make_powers import INK, load  # noqa: E402
 from make_sprites import Image, rgb  # noqa: E402
-from rework_cowgirl import FAR_HOLSTER, draw_arm, dressed_sheet, holster as belt_holster, walk_arms  # noqa: E402
+from rework_cowgirl import (FAR_TONES, WALK_FRAMES, arm_pixels, behind_arm, stride_bob, walk_arms,  # noqa: E402
+                            walking_body)
+import cowgirl_pose as pose  # noqa: E402
+import cowgirl_torso as figure  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'assets/sprites/characters/cowgirl'
@@ -59,7 +64,7 @@ LENS_OFF, LENS_ON = rgb(0x9aa0a8), rgb(0xfff6dc)
 LENGTH = 6
 CLAMP_AT = (1, 2)                 # Along it, and rows above it, of the clamp holding it to the barrel
 CLAMP_ROWS = (-2, -3)
-AIM_LENS_TAIL = (58.0, 40.3)      # Its tail, clipped under the barrel on the aim; lens at x 64, y 41 (light_rows in weapons.c)
+AIM_LENS_TAIL = (58.0, 40.3)      # Shared reference for the action lens offsets
 
 
 def flashlight(tail: tuple, angle: float, lit: bool) -> dict:
@@ -98,11 +103,13 @@ def put(img: Image, f: int, px: dict) -> None:
 
 RISING = 2                        # Shoot frame: the gun coming up
 FRAMES = 16                       # PLAYER_LIGHT_FRAMES: the first and last are her own art
-BEHIND_FROM = 35                  # Far hand this far forward: the arm passes behind her
+# "Far" in these sheets is the arm away from the aim, the left of the picture: in three
+# quarters it is the one nearest to us, so it is drawn in front of her. Her gun arm, on the
+# right, is behind her far lapel.
 FAR_ARM = (7.5, 7.5)              # Its lengths, shoulder to elbow to hand: it never stretches
-HIP = (30, 46)                    # Where her far hand rests, when she has it on her hip
+HIP = (27, 47)                    # Where her far hand rests, when she has it on her hip
 SHOOT_BUCKLE, SHOOT_BELT = 34, 49 # Her buckle's middle column and row, on the shoot template
-FAR_TOP = (25, 37)                # Her far shoulder, on it
+FAR_TOP = (27, 37)                # Her far shoulder, on it
 AT_HOLSTER = (26, 48)             # Her far hand on the holster's butt
 GUN_DOWN = (17, 49)               # ...and with the pistol out, down clear of her leg, as on the duals' rest
 
@@ -125,22 +132,25 @@ def two_bones(top: tuple, at: tuple, lengths: tuple) -> tuple[tuple, tuple]:
     return (round(elbow[0]), round(elbow[1])), (round(at[0]), round(at[1]))
 
 
-GUN_HAND = (11.5, 3.0)            # Her gun hand on the aim, from her shoulder: the muzzle comes to where the bullet starts
+GUN_HAND = (12.8, 0.0)            # Her gun hand on the aim, from her shoulder: the muzzle comes to where the bullet starts
 GUN_LIGHT = (7.5, 1.3)            # Where the flashlight's tail sits on a gun, from the hand
-NEAR_FLASH = 2                    # Columns her near muzzle's flash is past the base art's
+HELD_LIGHT = (4.5, 1.2)           # On the level arm: lens centre stays at (64,41), as in runtime
+GUN_PITCH = -10.0                # Aim muzzle at (69,33), matching the runtime bullet origin
+NEAR_FLASH = 6                    # Flash begins at x70, just beyond the muzzle
 
 
-def held_gun(bend: tuple) -> tuple[dict, tuple, float]:
+def held_gun(bend: tuple, shoulder: tuple = SHOULDER) -> tuple[dict, tuple, float]:
     """Her gun arm: the same arm, glove and pistol as her other, the arm turned about the
     shoulder and the gun about the hand (degrees, + raises them). Returns its pixels and where
     the flashlight sits on the gun."""
     upper_angle, fore_angle = bend
+    fore_angle += GUN_PITCH
     rx, ry = turned(GUN_HAND, upper_angle)
-    hand = (round(SHOULDER[0] + rx), round(SHOULDER[1] + ry))
-    px = sleeve(SHOULDER, hand)
+    hand = (round(shoulder[0] + rx), round(shoulder[1] + ry))
+    px = sleeve(shoulder, hand)
     px.update(pistol_pointing(hand, fore_angle))
-    px.update(glove(hand, SHOULDER))
-    lx, ly = turned(GUN_LIGHT, fore_angle)
+    px.update(glove(hand, shoulder))
+    lx, ly = turned(HELD_LIGHT, fore_angle)
     return px, (hand[0] + lx, hand[1] + ly), -math.radians(fore_angle)
 
 
@@ -156,20 +166,27 @@ def blend(keys: list, k: float) -> tuple:
     return (hand_from, a0 + (a1 - a0) * t, (f0[0] + (f1[0] - f0[0]) * t, f0[1] + (f1[1] - f0[1]) * t), *state)
 
 
-# Her gun arm through a shot: drawn up, fired, kicked and put away, the same arm as
-# in all her other poses.
-DRAWN = {0: (-58, -66), 1: (-42, -46), 2: (-16, -14), AIM: (0, 0), AIM + 1: (0, 0), 5: (0, 14), 6: (-4, 4),
+# Her gun arm through a shot: drawn up, fired, kicked and put away, the same arm as in all her
+# other poses. How far the arm and the gun are turned (degrees, + raises them).
+DRAWN = {0: (-58, -66), 1: (-42, -46), 2: (-16, -14), AIM: (0, 0), AIM + 1: (0, 0), 5: (15, 32), 6: (4, 11),
          HOLSTER: (-28, -26)}
+# ...and her body with it: columns she leans at her head, rows her covered chest is off her.
+SWAY = {2: (0, 0), AIM: (0, 0), AIM + 1: (0, 0), 5: (-2, -1), 6: (-1, 1), HOLSTER: (0, 0)}
 FLASH_FROM_X = 64                 # Column of the base art's muzzle flash, on the fire frame
 NEAR_MUZZLE_ROW = 32              # ...and the row of its middle
 
 
+def thrown_back(f: int) -> tuple:
+    """Where her gun shoulder is on shoot frame f: back a column or so as she leans."""
+    lean = SWAY.get(f, (0, 0))[0]
+    return SHOULDER[0] + round(lean / 2), SHOULDER[1]
+
+
 def arm_frame(shoot: Image, f: int) -> dict:
     """Shoot frame f: her body and arm in its pose, and on the fire frame, its flash."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    body = body_without_arm(aim, low, rest)
-    px = dict(body)
-    px.update(held_gun(DRAWN[f])[0])
+    lean, chest = SWAY.get(f, (0, 0))
+    body = body_without_arm({}, {}, {}, lean=lean, chest=chest)
+    px = behind(held_gun(DRAWN[f], thrown_back(f))[0], body)
     if f == AIM + 1:
         px.update(muzzle_flash(shoot, NEAR_FLASH, 0))
     return px
@@ -189,45 +206,12 @@ def make_shoot(shoot: Image) -> Image:
 
 
 def make_reload(shoot: Image) -> Image:
-    """Eight keys: draw inward, unlatch, eject, fetch, load, close, return, aim.
-
-    Both arms are rebuilt on the same body as the shot. The open cylinder is
-    seen end-on, with eight chambers; a speedloader fills it in one gesture.
-    """
-    body = body_without_arm(frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER), False)
-    keys = [((44, 41), 10, (32, 45)), ((40, 43), 18, (39, 39)),
-            ((39, 42), 35, (39, 39)), ((39, 43), 15, (29, 49)),
-            ((39, 43), 15, (36, 45)), ((39, 43), 15, (41, 41)),
-            ((42, 41), 7, (40, 40))]
+    """Upright cylinder reload, returning to the exact shared aiming pose."""
+    from cowgirl_reload import single_reload_frames
+    body = body_at()
     image = Image(W * 8, H)
-    bores = ((0, -2), (1, -1), (2, 0), (1, 1), (0, 2), (-1, 1), (-2, 0), (-1, -1))
-    for f, (hand, angle, far) in enumerate(keys):
-        px = dict(body)
-        elbow, at = two_bones(FAR_TOP, far, FAR_ARM)
-        px.update(bent_arm(FAR_TOP, elbow, at))
-        near_elbow, near = two_bones(SHOULDER, hand, (7, 7))
-        px.update(bent_arm(SHOULDER, near_elbow, near))
-        px.update(pistol_pointing(near, angle))
-        px.update(glove(near, near_elbow))
-        if 1 <= f <= 5:
-            cx, cy = 42, 41
-            for y in range(-3, 4):
-                for x in range(-3, 4):
-                    if x * x + y * y <= 12:
-                        px[(cx + x, cy + y)] = rgb(0xb3b8b6) if x + y < -1 else rgb(0x4c535b)
-            for x, y in bores:
-                px[(cx + x, cy + y)] = rgb(0xb59050) if f == 5 else INK
-            px[(cx, cy)] = rgb(0xe0dbc9)
-        if f == 2:
-            for x, y in ((43, 47), (46, 49), (48, 46)):
-                px[(x, y)] = rgb(0xd0a848)
-                px[(x, y + 1)] = rgb(0x8e6c28)
-        if f == 4:
-            for x, y in bores:
-                px[(round(at[0]) + x, round(at[1]) - 2 + y)] = rgb(0xd0a848)
-        px.update(glove(at, elbow))
-        put(image, f, px)
-    put(image, 7, arm_frame(shoot, AIM))
+    for f, pixels in enumerate(single_reload_frames(body, arm_frame(shoot, AIM))):
+        put(image, f, pixels)
     return image
 
 
@@ -235,7 +219,7 @@ DUAL_RELOAD_FRAMES = 24            # PLAYER_DUAL_RELOAD_FRAMES; 50 ms per pose
 DUAL_RELOAD_HANDOFF = 18           # Loaded gun down at the belt, before drawing the spare
 RELOAD_REST = ((49, 48), (18, 49))
 RELOAD_BELT = ((40, 49), (26, 49))
-RELOAD_HELD = ((37, 49), (30, 50)) # Work at the belt, with the upper arms hanging down.
+RELOAD_HELD = ((39, 50), (30, 50)) # Under the shared shoulder; the wrist follows its forearm.
 RELOAD_ANGLE = (-80, -65)          # Barrels low; no wrist folded back toward the shoulder.
 RELOAD_REST_ANGLE = (-80, -110)
 
@@ -329,7 +313,7 @@ def make_dual_reload(shoot: Image, other: bool, lower_only: bool = False) -> Ima
     """48 frames per hand: one cylinder (0..23), then the second (24..47).
     Work stays at the belt. Runtime holds first-block frame 18 before the swap.
     """
-    body = body_without_arm(frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER), False)
+    body = body_at()
     image = Image(W * DUAL_RELOAD_FRAMES * 2, H)
     bores = ((0, -2), (1, -1), (2, 0), (1, 1), (0, 2), (-1, 1), (-2, 0), (-1, -1))
     for second in (False, True):
@@ -342,23 +326,20 @@ def make_dual_reload(shoot: Image, other: bool, lower_only: bool = False) -> Ima
                 elbow, wrist = reload_bones(tops[hand], hands[hand], FAR_ARM if hand else (7, 7), -1 if hand else 1)
                 elbows.append(elbow)
                 wrists.append(wrist)
-            far_sleeve = bent_arm(tops[1], elbows[1], wrists[1])
-            # The far upper arm stays behind her torso. Its lower forearm and
-            # hand pass in front at the belt, never across the neckline.
-            px = dict(far_sleeve)
-            px.update(body)
-            for hand, x in enumerate((SHOOT_BUCKLE + 5, SHOOT_BUCKLE - FAR_HOLSTER)):
+            # Her gun arm starts behind her far lapel; only its forearm comes round in
+            # front of her, at the belt. The other arm, nearest to us, is all in front.
+            gun_arm = gun_sleeve(tops[0], elbows[0], wrists[0])
+            near_sleeve = bent_arm(tops[1], elbows[1], wrists[1])
+            px = behind(gun_arm, behind_arm(body, near_sleeve))
+            for hand, rows in enumerate((figure.pixels(figure.HOLSTER, figure.HOLSTER_X0), figure.second_holster())):
                 # Only a holstered revolver shows its wooden grip above the case.
-                for (hx, hy), color in belt_holster(x, SHOOT_BELT).items():
-                    if hy >= SHOOT_BELT + 2 or not held[hand]:
-                        px[(hx, hy)] = color
-            # Far sleeve first; the nearer arm and both hands occlude it naturally.
+                for (hx, hy), color in rows.items():
+                    if hy >= figure.BELT_ROW + 2 or not held[hand]:
+                        px[(hx + WALK_SHIFT[0], hy + WALK_SHIFT[1])] = color
             for hand in (1, 0):
-                limb = bent_arm(tops[hand], elbows[hand], wrists[hand])
-                if hand == 1:
-                    limb = {p: c for p, c in limb.items() if p[1] >= 44}
+                limb = near_sleeve if hand else {p: c for p, c in gun_arm.items() if p[1] >= 44}
                 px.update(limb)
-                action_layer.update(limb)
+                action_layer.update(limb if not hand else {p: c for p, c in limb.items() if p[1] >= 44})
                 if held[hand]:
                     gun = pistol_pointing(wrists[hand], angles[hand])
                     px.update(gun)
@@ -404,28 +385,25 @@ def make_dual_reload(shoot: Image, other: bool, lower_only: bool = False) -> Ima
     return image
 
 
+def gun_sleeve(top: tuple, elbow: tuple, wrist: tuple) -> dict:
+    """Her bent gun arm: a tone deeper above the elbow, behind her."""
+    px = bent_arm(top, elbow, wrist)
+    return {p: FAR_TONES.get(c, c) if math.dist(p, top) < 3.5 else c for p, c in px.items()}
+
+
 def posed(shoot: Image, key: tuple) -> dict:
     """One frame: her, the gun in its pose, her far hand where the key says."""
     bend, _, far, on_hip, held, clipped, holstered = key
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    body = body_without_arm(aim, low, rest)
     gun, tail, turned = held_gun(bend)
     if on_hip:
-        px = dict(body)
-        px.update(gun)
+        px = behind(gun, body_without_arm({}, {}, {}))
     else:
-        free, shoulder = body_without_arm(aim, low, rest, False), FAR_TOP
-        behind = far[0] >= BEHIND_FROM                   # Reaching forward: past her, not across her
-        top = (shoulder[0] + FAR_ARM_INSIDE[0], shoulder[1] + FAR_ARM_INSIDE[1]) if behind else shoulder
-        elbow, at = two_bones(top, far, FAR_ARM)
-        limb = bent_arm(top, elbow, at)
-        px = dict(limb) if behind else {}
-        px.update(free)
-        px.update(gun)
+        elbow, at = two_bones(FAR_TOP, far, FAR_ARM)
+        limb = bent_arm(FAR_TOP, elbow, at)
+        px = behind(gun, behind_arm(body_at(), limb))
         if holstered:
             px.update(holster())
-        if not behind:
-            px.update(limb)
+        px.update(limb)
     if clipped:
         px.update(flashlight(tail, turned, clipped == 'lit'))
     if not on_hip:
@@ -469,14 +447,8 @@ def make_light(shoot: Image) -> Image:
 
 
 def holster() -> dict:
-    """It in the belt: the small holster on her far hip, the same as walking."""
-    px = belt_holster(SHOOT_BUCKLE - FAR_HOLSTER, SHOOT_BELT)
-    edged = dict(px)
-    for (x, y) in px:
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            if (x + dx, y + dy) not in px:
-                edged[(x + dx, y + dy)] = INK
-    return edged
+    """It in the belt: the small holster on her near hip, the same as standing."""
+    return {(x + WALK_SHIFT[0], y + WALK_SHIFT[1]): c for (x, y), c in figure.second_holster().items()}
 
 
 # The two guns take turns: the near one fires from her shoulder and kicks on up, held high,
@@ -510,26 +482,29 @@ def along(keys: tuple, f: int) -> tuple:
     return keys[-1][1]
 
 
+# Her body through the two turns: a column back and her chest a row late on each shot.
+DUAL_SWAY = {(0, 9): (-1, -1), (0, 10): (-1, -1), (0, 11): (-1, 0), (0, 12): (0, 1), (0, 13): (0, 1),
+             (1, 9): (-1, -1), (1, 10): (-1, -1), (1, 11): (-1, 0), (1, 12): (0, 1), (1, 13): (0, 1)}
+
+
 def make_dual(shoot: Image, far_fires: bool, lit: bool = False) -> Image:
-    """One turn: one gun firing, the other on its way. The near arm and gun are her real ones
-    off the aim frame, turned; the far arm comes from her far shoulder, in front of her, with
-    its pistol drawn the same all the way round. Lit: the near gun stays up with the flashlight."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    body = body_without_arm(aim, low, rest)
-    free, shoulder = body_without_arm(aim, low, rest, False), FAR_TOP
+    """One turn: one gun firing, the other on its way. Her gun arm, turned about its shoulder
+    behind her far lapel; the far arm comes from her other shoulder, in front of her, with
+    its pistol drawn the same all the way round: it fires from her hip (objetivo/
+    shoot_cadera.gif). Lit: the near gun stays up with the flashlight."""
     img = Image(W * DUAL_FRAMES, H)
     start = DUAL_FRAMES if far_fires else 0
     for f in range(DUAL_FRAMES):
         count = f + start
+        lean, chest = (0, 0) if lit else DUAL_SWAY.get((int(far_fires), f), (0, 0))
         near, tail, turned = held_gun(along(NEAR_LIT if lit else NEAR_SWING, count))
-        px = dict(free)
-        top = shoulder                                   # It turns about her shoulder: that never slides
         hx, hy, angle = along(FAR_SWING, count)
-        elbow, at = two_bones(top, (hx, hy), ARM_LENGTHS)
-        px.update(bent_arm(top, elbow, at))
+        elbow, at = two_bones(FAR_TOP, (hx, hy), ARM_LENGTHS)
+        limb = bent_arm(FAR_TOP, elbow, at)
+        px = behind(near, behind_arm(body_at(lean, chest), limb))
+        px.update(limb)
         px.update(pistol_pointing(at, angle))
         px.update(glove(at, elbow))
-        px.update(near)
         if lit:
             px.update(flashlight(tail, turned, True))
         if f in (DUAL_FIRE, DUAL_FIRE + 1):
@@ -567,19 +542,22 @@ def near_bent(hand: tuple) -> tuple:
 
 def make_power(shoot: Image, both_guns: bool, lit: bool) -> Image:
     """The ricochet shot: one gun in both hands, or the two side by side."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    free = body_without_arm(aim, low, rest, False)
     img = Image(W * 8, H)
     for f, (near_hand, far_hand, raised) in enumerate(POWER_DUAL if both_guns else POWER_ONE):
-        px = dict(free)
         elbow, at = two_bones(FAR_TOP, far_hand, FAR_ARM)
-        px.update(bent_arm(FAR_TOP, elbow, at))
+        near_elbow = near_bent(near_hand)
+        gun_arm = gun_sleeve(NEAR_TOP, near_elbow, near_hand)
+        limb = bent_arm(FAR_TOP, elbow, at)
+        lean, chest = {5: (-1, -1), 6: (0, 1)}.get(f, (0, 0))
+        px = behind(gun_arm, behind_arm(body_at(lean, chest), limb))
+        # Her gun arm's upper half stays behind her; its forearm comes round in front
+        px.update({p: c for p, c in gun_arm.items() if math.dist(p, near_hand) < math.dist(p, NEAR_TOP) - 1})
+        px.update(limb)
         if both_guns:
             px.update(pistol_pointing(at, raised))
         px.update(glove(at, elbow))
-        px.update(bent_arm(NEAR_TOP, near_bent(near_hand), near_hand))
         px.update(pistol_pointing(near_hand, raised))
-        px.update(glove(near_hand, near_bent(near_hand)))
+        px.update(glove(near_hand, near_elbow))
         if lit:
             lx, ly = turned(POWER_LIGHT, raised)
             tail = (near_hand[0] + lx, near_hand[1] + ly)
@@ -612,26 +590,25 @@ def on_the_blow(pose: tuple) -> tuple:
 def make_blow(shoot: Image, last: dict, both_guns: bool, lit: bool) -> Image:
     """The blow with her near gun: her other hand on her hip, or its pistol down by
     her leg; the flashlight on the gun, lit; last is the frame she ends on."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    body = body_without_arm(aim, low, rest)
-    if both_guns:
-        free, shoulder = body_without_arm(aim, low, rest, False), FAR_TOP
     img = Image(W * len(POSES), H)
-    for f, pose in enumerate(POSES):
-        if pose is None:
+    for f, at_pose in enumerate(POSES):
+        if at_pose is None:
             put(img, f, last)
             continue
-        px = dict(body)
+        lean = at_pose[2] * 2                            # Back on the wind-up, into the blow
         if both_guns:
-            px = dict(free)
             want, angle = FAR_IN_BLOW[f]
-            elbow, at = two_bones(shoulder, want, ARM_LENGTHS)
-            px.update(bent_arm(shoulder, elbow, at))
+            elbow, at = two_bones(FAR_TOP, want, ARM_LENGTHS)
+            limb = bent_arm(FAR_TOP, elbow, at)
+            px = behind_arm(body_at(lean), limb)
+            px.update(limb)
             px.update(pistol_pointing(at, angle))
             px.update(glove(at, elbow))
+        else:
+            px = body_without_arm({}, {}, {}, lean=lean)
         striking_arm(px, f)
         if lit:
-            px.update(flashlight(*on_the_blow(pose), True))
+            px.update(flashlight(*on_the_blow(at_pose), True))
         put(img, f, px)
     return img
 
@@ -715,8 +692,7 @@ def make_swap(shoot: Image, dual: Image, lit: bool, far_only: bool = False) -> I
 
 def drawn_lens(shoot: Image, f: int) -> tuple:
     """Where the flashlight sits on a drawn frame's gun: its tail and angle."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    _, tail, turned = held_gun(DRAWN[f])
+    _, tail, turned = held_gun(DRAWN[f], thrown_back(f))
     return tail, turned
 
 
@@ -728,121 +704,57 @@ def make_overlay(shoot: Image) -> Image:
     return img
 
 
-WALK_W, WALK_H = 42, 67
 WALK_SHIFT = (12, 7)              # A walk-frame point on the shoot template (player.c)
-LEGS_FROM = 47                    # Walk-frame row where its legs start
+CHEST_ENDS = 45                   # Shoot-frame row: above it her chest lifts on the breath
 
 
 # Rows the whole upper body is off its mark (+ down), lens included: as
 # player_light_sway in player.c. Lowest as a leg passes under her, level as a
 # foot lands; on the breath, the chest lifting.
-STRIDE = (0, 0, 1, 0, 0, 0, 1, 0)
+STRIDE = tuple(stride_bob(i) for i in range(WALK_FRAMES))
 BREATH = (0, -1, -1, 0)
 
 
-def arm_free(shoot: Image) -> tuple:
-    """Her body with no hand on her hip, and apart from it her gun arm with the flashlight lit."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    body = body_without_arm(aim, low, rest)
-    free = body_without_arm(aim, low, rest, False)
-    gun = dict(held_gun(DRAWN[AIM])[0])
-    gun.update(flashlight(*drawn_lens(shoot, AIM), True))
-    return free, gun
+LIGHT_HAND = (50., 37.)           # Her gun hand as she runs with it up: the lens is four columns nearer than aiming
 
 
-def far_gun_at_rest(shoot: Image) -> dict:
-    """Her far pistol and hand as the duals' aim frame has them, down by her leg."""
-    aim, low, rest = frame(shoot, AIM), frame(shoot, LOW), frame(shoot, HOLSTER)
-    elbow, at = two_bones(FAR_TOP, FAR_REST[:2], ARM_LENGTHS)
-    px = pistol_pointing(at, FAR_REST[2])
-    px.update(glove(at, elbow))
-    return px
+def walking_held(frame_index: int, both_guns: bool = False) -> tuple:
+    """Her gun arm held level from her running shoulder, behind her, and with the duals her
+    other arm and its pistol, in front. The hand only rises and falls with her."""
+    top, _, _ = pose.arm(frame_index, True)
+    top = (top[0] + WALK_SHIFT[0], top[1] + WALK_SHIFT[1])
+    elbow, wrist = reload_bones(top, (LIGHT_HAND[0], LIGHT_HAND[1] + STRIDE[frame_index]), ARM_LENGTHS)
+    gun = gun_sleeve(top, elbow, wrist)
+    gun.update(pistol_pointing(wrist, GUN_PITCH))
+    gun.update(glove(wrist, elbow))
+    lx, ly = turned(HELD_LIGHT, GUN_PITCH)
+    gun.update(flashlight((wrist[0] + lx, wrist[1] + ly), -math.radians(GUN_PITCH), True))
+    at = SHOOT_BELT + STRIDE[frame_index]
+    near = walk_arms(frame_index)[0]
+    front = arm_pixels(near, at, SHOOT_BUCKLE)
+    if both_guns:
+        (_, _), (ex, ey), (hx, hy) = near
+        elbow, wrist = (ex + SHOOT_BUCKLE, ey + at), (hx + SHOOT_BUCKLE, hy + at)
+        front.update(pistol_pointing(wrist, -28))
+        front.update(glove(wrist, elbow))
+    return gun, front
 
 
-BUCKLE = {(0xb8, 0x90, 0x3a), (0xec, 0xc8, 0x68)}
-BUCKLE_WIDE = 3
-UNDER_BELT = 3                    # Rows from the top of her buckle to where her legs start
-CHEST_ENDS = 45                   # Shoot-frame row: above it her chest lifts on the breath
-
-
-def buckle_at(px: dict) -> tuple:
-    """Her buckle: the row it starts on and its middle column. Not her pendant, of the
-    same brass: that is never this wide."""
-    rows = {}
-    for (x, y), c in px.items():
-        if c[:3] in BUCKLE:
-            rows.setdefault(y, []).append(x)
-    top = min(y for y, xs in rows.items() if len(xs) >= BUCKLE_WIDE)
-    return top, min(rows[top]) + 1
-
-
-def make_light_walk(walk: Image, light: Image, front: dict = {}, bare: Image = None, free_arm: tuple = None) -> Image:
-    """Each walk frame's legs under the held pose's upper body, then that pose
-    breathing on still legs. Torso, arm and gun move as one piece, and only up
-    and down: whatever the legs do, the gun stays steady. front is what hangs below
-    the waist and stays over the legs: her other pistol. bare is the walk with no
-    gun in its holster: then her legs join her at the belt, buckle over buckle, with
-    no step at her hips; without it, at the fixed row. free_arm is her body and her gun arm
-    apart, when her other arm is free to swing as she walks."""
+def make_light_walk(light: Image, dual: bool) -> Image:
+    """Her whole running body with the gun held level by its arm, then the held pose breathing
+    on still legs."""
     held = frame(light, light.width // W - 1)            # The held pose: its last frame
-    sx, sy = WALK_SHIFT
-    join = LEGS_FROM + sy
-
-    def walk_px(i: int, sheet: Image = walk) -> dict:
-        return {(x, y): sheet.get(i * WALK_W + x, y) for y in range(WALK_H) for x in range(WALK_W)
-                if sheet.get(i * WALK_W + x, y)[3]}
-
-    def hips(px: dict, row: int, shift: int) -> float:
-        xs = [x + shift for (x, y) in px if y == row]
-        return sum(xs) / max(1, len(xs))
-
-    def upper(out: dict, dx: int, dy: int, until: int) -> None:
-        for (x, y), c in held.items():
-            if y < until:
-                out[(x + dx, y + dy)] = c
-
-    # One sideways place for all the frames: on the legs' average.
-    her_own = {p: c for p, c in held.items() if p not in front}
-    # Hers has one column for all of it, as her other sheets.
-    dx = 0 if bare else round(sum(hips(walk_px(i), LEGS_FROM, sx) for i in range(8)) / 8 - hips(her_own, join, 0))
-    img = Image(W * (8 + len(BREATH)), H)
-    for i in range(8):
-        if bare:
-            top, middle = buckle_at(walk_px(i, bare))
-            held_top, held_middle = buckle_at(held)
-            until = held_top + UNDER_BELT
-            legs = {p: c for p, c in walk_px(i, bare).items() if p[1] >= top + UNDER_BELT}
-            at = (held_middle + dx - middle, held_top + STRIDE[i] - top)
-        else:
-            until = join
-            legs = {p: c for p, c in walk_px(i).items() if p[1] >= LEGS_FROM - 3}
-            at = (sx, sy)
-        for (x, y) in sorted(p for p, c in legs.items() if c[:3] in SKIN):
-            # The hand that hung here in the plain walk: its trousers carry on instead.
-            cloth = next((legs[(x - d, y)] for d in range(1, 8)
-                          if (x - d, y) in legs and legs[(x - d, y)][:3] not in SKIN and legs[(x - d, y)][:3] != INK[:3]), None)
-            if cloth:
-                legs[(x, y)] = cloth
-            else:
-                del legs[(x, y)]
-        out = {(x + at[0], y + at[1]): c for (x, y), c in legs.items()}
-        if free_arm:
-            body_free, gun_arm = free_arm
-            out.update({(x + dx, y + STRIDE[i]): c for (x, y), c in body_free.items() if y < until})
-            draw_arm(out, walk_arms(i)[0], SHOOT_BELT + STRIDE[i], SHOOT_BUCKLE + dx)
-            out.update({(x + dx, y + STRIDE[i]): c for (x, y), c in gun_arm.items()})
-        else:
-            upper(out, dx, STRIDE[i], until)
-        out.update({(x + dx, y + STRIDE[i]): c for (x, y), c in front.items()})
-        put(img, i, out)
-    for i, sway in enumerate(BREATH):                    # Stood still: the chest rising
-        if bare:                                         # Her belt stays where it is
-            out = dict(held)
-            upper(out, 0, sway, CHEST_ENDS)
-        else:
-            out = {p: c for p, c in held.items() if p[1] >= join - 3}
-            upper(out, 0, sway, join)
-        put(img, 8 + i, out)
+    img = Image(W * (WALK_FRAMES + len(BREATH)), H)
+    for i in range(WALK_FRAMES):
+        body = {(x + WALK_SHIFT[0], y + WALK_SHIFT[1]): c for (x, y), c in walking_body(i, dual=False).items()}
+        gun, front = walking_held(i, dual)
+        px = behind(gun, behind_arm(body, front))
+        px.update(front)
+        put(img, i, px)
+    for i, rise in enumerate(BREATH):                    # Stood still: her chest rising, her belt where it is
+        out = dict(held)
+        out.update({(x, y + rise): c for (x, y), c in held.items() if y < CHEST_ENDS})
+        put(img, WALK_FRAMES + i, out)
     return img
 
 
@@ -870,19 +782,20 @@ def main() -> int:
                       ('reload_dual_b_lower', make_dual_reload(shoot, True, True))):
         img.save(OUT / f'{name}.png')
         print(f'make_flashlight: {name} ({img.width} x {img.height})')
-    for f, pose in enumerate(POSES):                     # For player_light_kick
-        if pose:
-            (x, y), a = on_the_blow(pose)
+    for f in (5, 6):                                     # For player_light_kick: the recoil
+        (x, y), a = drawn_lens(shoot, f)
+        (x0, y0), a0 = drawn_lens(shoot, AIM)
+        print(f'make_flashlight: recoil {f}: lens {x + LENGTH * math.cos(a) - x0 - LENGTH * math.cos(a0):+.1f}, '
+              f'{y + LENGTH * math.sin(a) - y0 - LENGTH * math.sin(a0):+.1f}, tilt {a - a0:+.2f}')
+    for f, at_pose in enumerate(POSES):                  # ...and the blow
+        if at_pose:
+            (x, y), a = on_the_blow(at_pose)
             print(f'make_flashlight: blow {f}: lens {x + LENGTH * math.cos(a) - AIM_LENS_TAIL[0] - LENGTH:+.1f}, '
                   f'{y + LENGTH * math.sin(a) - AIM_LENS_TAIL[1]:+.1f}')
-    bare = dressed_sheet('walk', False, no_arms=True)
     for gun in ('', '_dual'):
-        folder = OUT
-        front = far_gun_at_rest(shoot) if gun == '_dual' else {}
-        free_arm = arm_free(shoot) if gun == '' else None
-        img = make_light_walk(load(folder / 'walk.png'), load(folder / f'light{gun}.png'), front, bare, free_arm)
-        img.save(folder / f'light_walk{gun}.png')
-        print(f'make_flashlight: {folder.name}/light_walk{gun} ({img.width} x {img.height})')
+        img = make_light_walk(load(OUT / f'light{gun}.png'), bool(gun))
+        img.save(OUT / f'light_walk{gun}.png')
+        print(f'make_flashlight: light_walk{gun} ({img.width} x {img.height})')
     make_shoot(shoot).save(OUT / 'shoot.png')            # Last: the others read it as dressed
     return 0
 

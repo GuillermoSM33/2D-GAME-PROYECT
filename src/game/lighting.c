@@ -103,6 +103,11 @@ void lighting_build(Lighting *lighting, const Terrain *terrain, const Effects *e
                             .tilt = .012f * (float)sin(time * 1.6) + kick}; /* Level, along the barrel */
         /* From the lens on her gun. */
         float lens_dx = player->light_dx > 0.0f ? player->light_dx : PLAYER_LIGHT_DX;
+        /* The sheriff's turning run aims from the far shoulder. Its hand
+         * stays at x50 on the shoot grid; idle/standing aim uses x54. */
+        if (player_walk_frames(player) == PLAYER_SHERIFF_WALK_FRAMES &&
+            (player->state == PLAYER_WALK || player->state == PLAYER_RUN))
+            lens_dx -= 4.0f;
         /* The SWAT's pelvis and upper body now share the horizontal root. */
         light.x = player->x + (float)player->facing * (lens_dx + kick_x) * SPRITE_SCALE;
         light.y = BASELINE - player->jump.height -

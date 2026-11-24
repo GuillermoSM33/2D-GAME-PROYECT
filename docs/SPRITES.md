@@ -30,7 +30,8 @@ mundo; la vista actual lo presenta a 0.5×, dos píxeles de ventana por píxel d
 
 | Hoja | Cuadro | Cuadros | Cuerpo en el cuadro (x) | Última fila de bota | Pivote en código (`anchor_x`, `ground_y`) |
 | --- | --- | --- | --- | --- | --- |
-| `walk.png` | 42 × 67 | 8, en ciclo, 12 fps (15 corriendo) | 6–32 | 59 | 19.5, 61 |
+| `walk.png` | 42 × 67 | 20, en ciclo, 24 fps (36 corriendo); la plantilla de los demás lleva 8 a 12 fps | 7–37 | 59 | 19.5, 61 |
+| `stand.png` | 42 × 67 | 0–3 respira, 4–5 frena al venir de correr; un solo cuadro en los demás | 6–36 | 59 | 19.5, 61 |
 | `jump.png` | 54 × 82 | 0–5 siguen el arco, 6–7 aterrizaje | 12–38 | 67 | 25.5, 69 |
 | `shoot.png` | 81 × 80 | 8, una vez, 16 fps | 18–44 | 66 | 31.5, 68 |
 | `bullet.png` | 8 × 6 | 4, en ciclo, 12 fps | bola en 1–6 | — | 4, 3 (centro de la bola) |

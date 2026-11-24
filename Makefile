@@ -147,6 +147,8 @@ test: check-architecture $(TESTS) $(AUDIO_TEST) $(ASSETS_LOADER_TEST) $(WEATHER_
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/audio_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_zombie_assets.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/cowgirl_reload_art.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/cowgirl_walk_art.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/cowgirl_hair_art.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/swat_art.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_hazmat.py
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/car_model_art.py

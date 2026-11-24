@@ -58,14 +58,19 @@ def gray_for(r: int, g: int, b: int) -> tuple[int, int, int, int]:
 
 
 def make_base(name: str) -> Image:
+    """The template's frames. Her run has more than the template's eight: evenly spaced ones."""
     w, h, px = decode_png_rgba(SOURCE / f'{name}.png')
-    img = Image(w, h)
-    for y in range(h):
-        for x in range(w):
-            i = (y * w + x) * 4
-            r, g, b, a = px[i:i + 4]
-            if a:
-                img.set(x, y, gray_for(r, g, b)[:3] + (a,))
+    frame_w, frames = SHEETS[name][:2]
+    drawn = w // frame_w
+    img = Image(frame_w * frames, h)
+    for f in range(frames):
+        left = f * drawn // frames * frame_w
+        for y in range(h):
+            for x in range(frame_w):
+                i = (y * w + left + x) * 4
+                r, g, b, a = px[i:i + 4]
+                if a:
+                    img.set(f * frame_w + x, y, gray_for(r, g, b)[:3] + (a,))
     return img
 
 

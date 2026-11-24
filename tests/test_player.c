@@ -446,6 +446,17 @@ static void test_flashlight_lens_follows_the_gun(void)
     CHECK(player_light_ready(&player));
     player_light_kick(&player, &dx, &dy, &tilt);
     CHECK(dy < 0.0f && tilt < 0.0f);
+    /* Turning the walking sheriff also moves the held arm and lens back.
+     * A weapon with its own anchor must keep its authored position. */
+    player_init(&player);
+    player.state = PLAYER_WALK;
+    player.light_rows = 27.0f;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK_NEAR(dx, -4.0f, 1e-6f);
+    CHECK_NEAR(dy, 0.0f, 1e-6f);
+    player.light_dx = 23.0f;
+    player_light_kick(&player, &dx, &dy, &tilt);
+    CHECK_NEAR(dx, 0.0f, 1e-6f);
 }
 
 static void test_character_drink_duration_preserves_default_and_consumes_at_the_end(void)
@@ -514,9 +525,78 @@ static void test_long_bench_sequence_reloads_in_order_and_visits_each_art_frame(
     CHECK(done[0] == 1 && done[1] == 1 && player.sit_gun == -1);
 }
 
+static void test_character_walk_counts_keep_the_ground_and_map_action_legs(void)
+{
+    const AnimationDef *base = player_walk_animation(PLAYER_WALK_FRAMES);
+    const AnimationDef *sheriff = player_walk_animation(PLAYER_SHERIFF_WALK_FRAMES);
+    CHECK(base->frame_count == 8 && sheriff->frame_count == 20);
+    /* Her feet go back under her as fast as she goes on: about 50 art px a cycle. */
+    CHECK_NEAR(PLAYER_WALK_SPEED / SPRITE_SCALE * (float)sheriff->frame_count / sheriff->fps, 50.0f, 1.0f);
+    Player player;
+    player_init(&player);
+    player_set_walk_frames(&player, PLAYER_SHERIFF_WALK_FRAMES);
+    InputState input = {0};
+    unsigned seen = 0;
+    for (int tick = 0; tick < 180; tick++) {
+        step(&player, &input, false, true, false, 1);
+        CHECK(player.anim.def == sheriff);
+        CHECK(player.anim.frame >= 0 && player.anim.frame < 20);
+        if (tick == 0)
+            CHECK(player.anim.frame == PLAYER_SHERIFF_WALK_START); /* From the pose nearest to standing */
+        seen |= 1u << player.anim.frame;
+        CHECK(player_walk_art_frame(&player.anim, 20) == player.anim.frame);
+        CHECK(player_walk_art_frame(&player.anim, 8) == player.anim.frame * 8 / 20);
+    }
+    CHECK(seen == 0xfffffu);
+    animation_seek(&player.anim, 9); /* 9.5 of 20: 3.8 of 8, the same place in the cycle */
+    player.anim.time += .5f / sheriff->fps;
+    player_set_walk_frames(&player, 8);
+    CHECK(player.anim.frame == 3);
+    CHECK_NEAR(player.anim.time * base->fps, 3.8f, 1e-4f);
+}
+
+static void test_standing_breathes_and_pulls_up_from_a_run(void)
+{
+    Player player;
+    InputState input;
+    player_init(&player);
+    player_set_walk_frames(&player, PLAYER_SHERIFF_WALK_FRAMES);
+    input_init(&input);
+    const int frames = PLAYER_STAND_BREATHS + PLAYER_STAND_SETTLES;
+    unsigned breaths = 0;
+    for (int tick = 0; tick < 180; tick++) {
+        step(&player, &input, false, false, false, 1);
+        int frame = player_stand_frame(&player, frames);
+        CHECK(frame >= 0 && frame < PLAYER_STAND_BREATHS); /* Never a settle without a run before it */
+        CHECK(player_stand_frame(&player, 1) == 0);        /* One still frame stays still */
+        breaths |= 1u << frame;
+    }
+    CHECK(breaths == (1u << PLAYER_STAND_BREATHS) - 1);
+    step(&player, &input, false, true, true, 40);
+    CHECK(player.state == PLAYER_RUN && player.still == 0.0f);
+    int last = PLAYER_STAND_BREATHS, seen = 0;
+    for (float t = 0.0f; t < PLAYER_SETTLE_TIME - FIXED_DT; t += FIXED_DT) {
+        step(&player, &input, false, false, false, 1);
+        CHECK(player.state == PLAYER_IDLE);
+        int frame = player_stand_frame(&player, frames);
+        CHECK(frame >= last && frame < frames); /* One after the other, then at rest */
+        last = frame;
+        seen |= 1 << (frame - PLAYER_STAND_BREATHS);
+    }
+    CHECK(seen == (1 << PLAYER_STAND_SETTLES) - 1);
+    step(&player, &input, false, false, false, 3);
+    CHECK(player_stand_frame(&player, frames) < PLAYER_STAND_BREATHS);
+    press_jump(&player, &input, false);
+    step(&player, &input, false, false, false, air_steps() + 20);
+    CHECK(player.state == PLAYER_IDLE);
+    CHECK(player_stand_frame(&player, frames) < PLAYER_STAND_BREATHS); /* Landing is not pulling up */
+}
+
 int main(void)
 {
     printf("test_player\n");
+    RUN(test_character_walk_counts_keep_the_ground_and_map_action_legs);
+    RUN(test_standing_breathes_and_pulls_up_from_a_run);
     RUN(test_character_drink_duration_preserves_default_and_consumes_at_the_end);
     RUN(test_grenade_releases_once_after_preparation_and_recovers);
     RUN(test_long_bench_sequence_reloads_in_order_and_visits_each_art_frame);

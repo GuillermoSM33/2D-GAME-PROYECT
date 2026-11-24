@@ -161,6 +161,7 @@ void stage_start(StagePlay *play, int index, const CharacterDef *character,
     play->flashlight_click_pending = false;
     almanac_encounter_start(&play->encounter);
     player_init(&play->player);
+    player_set_walk_frames(&play->player, character_walk_frames(play->character));
     play->player.drink_duration = play->character->drink_duration;
     play->player.sit_down_duration = play->character->sit.down_duration;
     play->player.sit_reload_duration = play->character->sit.reload_duration;
@@ -422,19 +423,172 @@ static void use_power(StagePlay *play, InputState *input, const Progress *progre
     }
 }
 
+static int inventory_guns(const StagePlay *play, const Progress *progress)
+{
+    int count=play->character->weapon_count;
+    if (stage_can_swap_duals(play,progress) && !play->duals_out) count++;
+    return count<HUD_INVENTORY_GUNS?count:HUD_INVENTORY_GUNS;
+}
+
+int stage_inventory_rows(const StagePlay *play, const Progress *progress)
+{
+    return 1+inventory_guns(play,progress)+3+(play->run.train.tablet?1:0)+
+           (play->run.stage_index>=TRAIN_STAGE && play->run.stage_index<=9?1:0);
+}
+
+static bool inventory_hands_free(const Player *p)
+{
+    return player_alive(p) && !p->jump.airborne && p->state!=PLAYER_SIT &&
+        p->state!=PLAYER_CAUGHT && p->state!=PLAYER_CAR && p->swap_time<=0 &&
+        p->drink_time<=0 && p->plant_time<=0 && p->bandage<=0;
+}
+
+StageInventoryChoice stage_inventory_choice(const StagePlay *play, const Progress *progress)
+{
+    const Player *p=&play->player;
+    int row=play->inventory_selected, guns=inventory_guns(play,progress);
+    StageInventoryChoice c={.kind=STAGE_ITEM_SUIT,.slot=-1,.action="INSPECCIONAR",
+        .detail="Selecciona un objeto para consultar sus opciones.",.enabled=false};
+    if (row<0 || row>=stage_inventory_rows(play,progress)) return c;
+    bool free=inventory_hands_free(p);
+    if (row==0) {
+        c.action=play->run.train.suit?"QUITAR TRAJE":"PONER TRAJE";
+        c.detail="Protege del aire tóxico. Se pone y se deja en los ganchos del vagón 01.";
+        c.enabled=free && play->run.train.inside &&
+            fabsf(p->x-train_suit_x(&play->run))<=32*SPRITE_SCALE;
+        return c;
+    }
+    if (row<=guns) {
+        c.kind=STAGE_ITEM_WEAPON;c.slot=row-1;
+        c.detail="Equipa sin perder munición. Una recarga conserva su duración normal.";
+        if (c.slot>=play->character->weapon_count) {
+            c.slot=-1;c.action="USAR DUALES";c.enabled=free;return c;
+        }
+        if (c.slot!=play->weapon_slot) { c.action="EQUIPAR";c.enabled=player_alive(p) && p->state!=PLAYER_CAR;return c; }
+        bool reload=p->shot.magazine>0 && (p->shot.rounds<p->shot.magazine ||
+                         (p->shot.piston && p->shot.other_rounds<p->shot.magazine));
+        if (!reload && play->duals_out && stage_can_swap_duals(play,progress)) {
+            c.action="GUARDAR SEGUNDO";c.enabled=free;
+        } else {
+            c.action=shot_reloading(&p->shot)?"RECARGANDO":reload?"RECARGAR":"CARGADOR LLENO";
+            c.enabled=free && reload && !shot_reloading(&p->shot);
+        }
+        return c;
+    }
+    row-=1+guns;
+    if (row==0) {
+        c.kind=STAGE_ITEM_WATER;c.action="BEBER AGUA";
+        c.detail=p->water<=0?"No queda agua. Busca provisiones antes de intentar beber.":
+            player_needs_bandage(p)?"Primero véndate manteniendo U. Después podrás beber agua.":
+            "Alivia sed y fatiga. Cierra el inventario y bebe con su animación normal.";
+        c.enabled=free && p->water>0 && !player_needs_bandage(p);return c;
+    }
+    if (row==1) {
+        c.kind=STAGE_ITEM_DYNAMITE;c.action="COLOCAR CARGA";
+        c.detail=play->run.dynamite<=0?"No queda dinamita. Busca una caja o vehículo de suministros.":
+            "Coloca una carga al salir del inventario, en el suelo o sobre el muro cercano.";
+        c.enabled=free && play->run.dynamite>0 &&
+            (terrain_wall_near(&play->run.terrain,p->x) || terrain_bench_near(&play->run.terrain,p->x)<0);
+        return c;
+    }
+    if (row==2) {
+        c.kind=STAGE_ITEM_GOLD;c.action="INSPECCIONAR";
+        c.detail="Monedas recuperadas. El total pertenece al progreso de este personaje.";
+        c.enabled=true;return c;
+    }
+    row-=3;
+    if (play->run.train.tablet) {
+        if (row==0) { c.kind=STAGE_ITEM_TABLET;c.action="ABRIR MAPA";
+            c.detail="Plano del tren, objetivos, piezas, tripulación y zonas de aire tóxico.";c.enabled=true;return c; }
+        row--;
+    }
+    if (row==0 && play->run.stage_index>=TRAIN_STAGE && play->run.stage_index<=9) {
+        c.kind=STAGE_ITEM_PARTS;c.action="VER EXPEDIENTE";
+        c.detail="Las ocho piezas del prototipo se registran en el expediente de la investigación.";
+        c.enabled=true;
+    }
+    return c;
+}
+
+static void inventory_activate(StagePlay *play, Profile *profile)
+{
+    StageInventoryChoice c=stage_inventory_choice(play,&profile->progress);
+    if (!c.enabled) {
+        const char *reason=c.kind==STAGE_ITEM_SUIT?"ACÉRCATE A LOS GANCHOS DEL VAGÓN 01":
+            c.kind==STAGE_ITEM_WATER && play->player.water<=0?"NO QUEDA AGUA":
+            c.kind==STAGE_ITEM_WATER && player_needs_bandage(&play->player)?"VÉNDATE CON U ANTES DE BEBER":
+            c.kind==STAGE_ITEM_DYNAMITE && play->run.dynamite<=0?"NO QUEDA DINAMITA":"NO SE PUEDE USAR AHORA";
+        snprintf(play->inventory_feedback,sizeof(play->inventory_feedback),"%s",reason);
+        play_sound("ui/back");return;
+    }
+    play->inventory_feedback[0]='\0';
+    if (c.kind==STAGE_ITEM_SUIT) {
+        bool before=play->run.train.suit;
+        train_use(&play->run,&play->player);
+        snprintf(play->inventory_feedback,sizeof(play->inventory_feedback),play->run.train.suit!=before?
+                 (play->run.train.suit?"TRAJE PUESTO":"TRAJE DEVUELTO A SU GANCHO"):"NO SE PUDO CAMBIAR EL TRAJE");
+        play_sound("world/supply");
+    } else if (c.kind==STAGE_ITEM_WEAPON) {
+        bool full=play->player.shot.rounds==play->player.shot.magazine &&
+                  play->player.shot.other_rounds==play->player.shot.magazine;
+        if (c.slot<0 || (c.slot==play->weapon_slot && play->duals_out && full)) {
+            swap_duals(play,&profile->progress);play->inventory_selected=1;
+        } else if (c.slot!=play->weapon_slot) {
+            stage_swap_weapon(play);play->inventory_selected=1+play->weapon_slot;
+        } else {
+            play->inventory_has_pending=true;play->inventory_pending=ACTION_RELOAD;play->paused=false;
+        }
+        if (play->paused) snprintf(play->inventory_feedback,sizeof(play->inventory_feedback),"ARMA EQUIPADA");
+    } else if (c.kind==STAGE_ITEM_TABLET) {
+        play->pause_view=PAUSE_VIEW_MAP;play_sound("ui/confirm");
+    } else if (c.kind==STAGE_ITEM_PARTS) {
+        play->request_casefile=true;play_sound("ui/book_open");
+    } else if (c.kind==STAGE_ITEM_GOLD) {
+        snprintf(play->inventory_feedback,sizeof(play->inventory_feedback),"%d MONEDAS RECUPERADAS",profile->progress.gold);
+        play_sound("ui/confirm");
+    } else {
+        play->inventory_has_pending=true;
+        play->inventory_pending=c.kind==STAGE_ITEM_WATER?ACTION_BANDAGE:ACTION_USE;
+        play->paused=false;play_sound("ui/confirm");
+    }
+}
+
+static bool inventory_step(StagePlay *play, const InputState *input, Profile *profile)
+{
+    int rows=stage_inventory_rows(play,&profile->progress),before=play->inventory_selected;
+    if (input->pressed[ACTION_UP] || input->wheel>0) play->inventory_selected--;
+    if (input->pressed[ACTION_DOWN] || input->wheel<0) play->inventory_selected++;
+    if (play->inventory_selected<0) play->inventory_selected=rows-1;
+    if (play->inventory_selected>=rows) play->inventory_selected=0;
+    HudZone zone;
+    bool hit=hud_zone_at(input->pointer_x,input->pointer_y,&zone);
+    if (hit && zone.kind==HUD_ZONE_ITEM && zone.index>=0 && zone.index<rows &&
+        (input->pointer_moved || input->pointer_clicked)) play->inventory_selected=zone.index;
+    if (before!=play->inventory_selected) { play->inventory_feedback[0]='\0';play_sound("ui/move"); }
+    if (input->pointer_clicked && hit && zone.kind==HUD_ZONE_BACK) {
+        play->paused=false;play_sound("ui/back");return true;
+    }
+    if (input->pressed[ACTION_CONFIRM] || input->pressed[ACTION_USE] ||
+        (input->pointer_clicked && hit && zone.kind==HUD_ZONE_ACCEPT)) inventory_activate(play,profile);
+    return true;
+}
+
 /* M and P: the train's map and what she carries open over the frozen stage
  * and close with the same key or Esc; one key changes to the other. Inside
  * the pause's own screens they do nothing. True if the key was taken. */
-static bool overlay_step(StagePlay *play, const InputState *input)
+static bool overlay_step(StagePlay *play, const InputState *input, Profile *profile)
 {
     bool map = input->pressed[ACTION_MAP], items = input->pressed[ACTION_INVENTORY];
     bool open = play->paused && (play->pause_view == PAUSE_VIEW_MAP || play->pause_view == PAUSE_VIEW_INVENTORY);
-    if (open && (input->pressed[ACTION_QUIT] || input->pressed[ACTION_CONFIRM] ||
+    if (open && (input->pressed[ACTION_QUIT] ||
+                 (input->pressed[ACTION_CONFIRM] && play->pause_view==PAUSE_VIEW_MAP) ||
                  (map && play->pause_view == PAUSE_VIEW_MAP) || (items && play->pause_view == PAUSE_VIEW_INVENTORY))) {
         play->paused = false;
         play_sound("ui/back");
         return true;
     }
+    if (open && play->pause_view==PAUSE_VIEW_INVENTORY && !map && !items)
+        return inventory_step(play,input,profile);
     if (!map && !items)
         return open;
     if (play->paused && !open)
@@ -445,6 +599,11 @@ static bool overlay_step(StagePlay *play, const InputState *input)
         return open; /* Nothing to read it on yet */
     play->paused = true;
     play->pause_view = map ? PAUSE_VIEW_MAP : PAUSE_VIEW_INVENTORY;
+    if (items) {
+        int rows=stage_inventory_rows(play,&profile->progress);
+        if (play->inventory_selected<0 || play->inventory_selected>=rows) play->inventory_selected=0;
+        play->inventory_feedback[0]='\0';
+    }
     play_sound(map ? "ui/confirm" : "ui/book_open");
     return true;
 }
@@ -673,17 +832,30 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
     memcpy(was_beaten, play->run.beaten, sizeof(was_beaten));
     Player *player = &play->player;
     Progress *progress = &profile->progress;
+    if (play->inventory_has_pending && (input->pressed[ACTION_QUIT] || input->pressed[ACTION_MAP] ||
+        input->pressed[ACTION_INVENTORY] || input->pressed[ACTION_ALMANAC]))
+        play->inventory_has_pending=false; /* A fresh menu request cancels a use not begun yet. */
     if (input->pressed[ACTION_ALMANAC]) {
         play->request_almanac = true;
         return true;
     }
-    if (overlay_step(play, input)) {
+    if (overlay_step(play, input, profile)) {
         hud_update(0.0f);
         return true;
     }
     if (play->paused) {
         hud_update(0.0f);
         return pause_step(play, input, profile, options);
+    }
+    InputState inventory_input;
+    bool inventory_charge=false;
+    if (play->inventory_has_pending) {
+        input_init(&inventory_input);
+        inventory_input.pressed[play->inventory_pending]=true;
+        inventory_input.down[play->inventory_pending]=true;
+        inventory_charge=play->inventory_pending==ACTION_USE;
+        play->inventory_has_pending=false;
+        input=&inventory_input;
     }
     if (input->pressed[ACTION_LIGHT]) {
         play->flashlight = !play->flashlight;
@@ -735,7 +907,19 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
      * charge planted on the road. Lighting one cuts a reload or a shot short. */
     if (input->pressed[ACTION_USE]) {
         bool suit = play->run.train.suit, tablet = play->run.train.tablet;
-        if (train_use(&play->run, player)) {
+        if (inventory_charge) {
+            /* The selected charge is intentional: a nearby tablet, bench or
+             * suit hook must not turn its inventory action into another E use. */
+            if (run_use(&play->run,player)) {
+                play_sound("world/fuse");player_plant(player);
+                if (player->shot.active) {
+                    const WeaponDef *w=stage_weapon(play);
+                    if (shot_reloading(&player->shot)) audio_stop(w->reload_sound);
+                    audio_stop(w->cycle_sound);
+                    shot_cancel(&player->shot);
+                }
+            }
+        } else if (train_use(&play->run, player)) {
             bullets_clear(&play->bullets);
             /* The suit's zip and rubber; the tablet waking; else a page. */
             play_sound(play->run.train.suit != suit ? "world/supply"
@@ -1062,9 +1246,9 @@ bool stage_step(StagePlay *play, const InputState *input, Profile *profile, AppO
         const Animation *feet = player->reload_walk ? &player->legs : &player->anim;
         if ((player->state == PLAYER_WALK || player->state == PLAYER_RUN) && !player->jump.airborne &&
             feet->def != NULL && feet->def->frame_w == PLAYER_WALK_FRAME_W) {
-            /* A foot lands on frames 0 and 4 of the walk, so the steps keep
+            /* A foot lands every half cycle, so extra in-between frames keep
              * time with the legs whatever slows them (a river, the wind). */
-            int phase = (feet->frame - feet->def->first_frame) / (PLAYER_WALK_FRAMES / 2);
+            int phase = (feet->frame - feet->def->first_frame) / (feet->def->frame_count / 2);
             if (play->footstep_phase >= 0 && phase != play->footstep_phase && player->x != previous_x) {
                 /* Under everything else, and never twice the same: one foot
                  * lands a little harder than the other, and now and then a

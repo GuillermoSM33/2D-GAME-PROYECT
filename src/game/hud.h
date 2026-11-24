@@ -73,10 +73,19 @@ typedef struct {
     int gun_count;
     HudInventoryGun guns[HUD_INVENTORY_GUNS];
     int water, dynamite, gold;
+    /* Row order: suit, guns, water, dynamite, gold, tablet (if carried),
+     * prototype parts (if parts >= 0). Stage code owns selection/actions. */
+    int selected;
+    const char *action_label;
+    const char *detail;
+    const char *feedback;
+    bool action_enabled;
 } HudInventory;
 
 /* P: what she carries over the frozen stage: the suit, her guns and the rounds
- * in them, water, dynamite and gold, and the train's tablet and parts. */
+ * in them, water, dynamite and gold, and the train's tablet and parts.
+ * Rows register HUD_ZONE_ITEM with that row's index; the enabled action
+ * registers HUD_ZONE_ACCEPT, and close controls register HUD_ZONE_BACK. */
 void hud_draw_inventory(SDL_Renderer *renderer, const HudInventory *inventory);
 
 /* What can be clicked on the screen last drawn: menu items (buttons, stage

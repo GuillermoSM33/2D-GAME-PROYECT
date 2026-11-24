@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Finish the cowgirl's sheets: a closed outline and no pinholes, on every frame.
+"""Finish the cowgirl's sheets: a closed outline, no pinholes and no specks, on every frame.
 
 Usage: tools/finish_cowgirl.py   (the last of tools/rebuild_cowgirl.py)
 
 Any colour touching nothing gets an outline pixel beside it; a little gap closed all
-round takes the outline. Sparks, flashes and the arcs of a blow are
+round takes the outline. A pixel or three of her star, scarf or hair left alone beside an
+arm, a gun or a leg are not a detail of anything: they take what is round them. Sparks, flashes and the arcs of a blow are
 light, not things: they stay as they are. Standard library only.
 """
 from __future__ import annotations
@@ -47,7 +48,41 @@ def no_scraps(px: dict) -> dict:
     return out
 
 
+STAR = {(0xdb, 0xc5, 0x8d), (0xb6, 0x98, 0x5c), (0x77, 0x60, 0x3c)}
+SASH = {(0x74, 0x30, 0x44), (0x99, 0x53, 0x67), (0x4c, 0x26, 0x33)}
+HAIR = {(0x6b, 0x33, 0x3a), (0x90, 0x20, 0x04), (0xd0, 0x33, 0x05)}
+LEAST = ((STAR, 4), (SASH, 4), (HAIR, 3))  # Fewer together than this, they are specks
+
+
+def no_specks(px: dict) -> dict:
+    out = dict(px)
+    for tones, least in LEAST:
+        left = {p for p, c in px.items() if c[:3] in tones}
+        while left:
+            group = {left.pop()}
+            todo = list(group)
+            while todo:
+                x, y = todo.pop()
+                for a, b in AROUND:
+                    q = (x + a, y + b)
+                    if q in left:
+                        left.discard(q)
+                        group.add(q)
+                        todo.append(q)
+            if len(group) >= least:
+                continue
+            for x, y in group:
+                near = [px[(x + a, y + b)] for a, b in AROUND if (x + a, y + b) in px and (x + a, y + b) not in group]
+                cloth = [c for c in near if c[:3] != INK[:3] and c[:3] not in tones]
+                if any((x + a, y + b) not in px for a, b in SIDES):
+                    del out[(x, y)]                      # On her edge: her outline closes behind it
+                else:
+                    out[(x, y)] = max(cloth, key=cloth.count) if len(cloth) >= 3 else INK
+    return out
+
+
 def finish(px: dict, w: int, h: int) -> dict:
+    px = no_specks(px)
     for _ in range(SCRAP_PASSES):                        # A short chain goes from its ends
         cleaner = no_scraps(px)
         if cleaner == px:

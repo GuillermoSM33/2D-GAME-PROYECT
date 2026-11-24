@@ -315,16 +315,24 @@ static void draw_inventory(SDL_Renderer *renderer, const StagePlay *play, const 
     const CharacterDef *c = play->character;
     const StageRun *run = &play->run;
     HudInventory inv = {
-        .character = c->name, .suits_here = run->train.present, .suit = run->train.suit,
+        .character = c->name, .suits_here = run->train.present && !run->train.complete, .suit = run->train.suit,
         .tablet = run->train.tablet,
         .parts = run->stage_index >= TRAIN_STAGE && run->stage_index <= 9 ? train_part_count(run->weapon_parts) : -1,
         .water = play->player.water, .dynamite = run->dynamite, .gold = progress->gold,
+        .selected = play->inventory_selected,
+        .feedback = play->inventory_feedback,
     };
-    /* Herself as on her card: holding her first gun if she has that pose. */
-    SDL_Texture *stand = skin->stand_sheet ? skin->stand_sheet : skin->sheets[0];
-    SDL_Texture *carry = skin->weapon_carry[c->weapons[0]];
+    StageInventoryChoice choice=stage_inventory_choice(play,progress);
+    inv.action_label=choice.action;
+    inv.detail=choice.detail;
+    inv.action_enabled=choice.enabled;
+    /* The equipped weapon changes the portrait as well as its row. */
+    WeaponId held=play->guns[play->weapon_slot];
+    SDL_Texture *stand = skin_stand(skin,held);
+    if (!stand) stand=skin->sheets[0];
+    SDL_Texture *carry = skin->weapon_carry[held];
     inv.portrait = carry ? carry : stand;
-    inv.portrait_src = carry ? (SDL_Rect){PLAYER_WALK_FRAMES * PLAYER_SHOOT_FRAME_W, 0, PLAYER_SHOOT_FRAME_W,
+    inv.portrait_src = carry ? (SDL_Rect){character_walk_frames(c) * PLAYER_SHOOT_FRAME_W, 0, PLAYER_SHOOT_FRAME_W,
                                           PLAYER_SHOOT_FRAME_H}
                              : (SDL_Rect){0, 0, PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H};
     for (int i = 0; i < c->weapon_count && inv.gun_count < HUD_INVENTORY_GUNS; i++) {

@@ -144,6 +144,7 @@ static void draw_sheriff(SDL_Renderer *r, const CharacterSkin *skin, float view_
         return;
     static Player sheriff;
     player_init(&sheriff);
+    player_set_walk_frames(&sheriff, character_walk_frames(skin->character));
     float base = PLAYER_START_X - VIEW_WIDTH / 2.0f + shot_origin;
     float camera_x = base + shot_drift;
     sheriff.x = base + view_x;
@@ -395,6 +396,7 @@ static void shot_luces(SDL_Renderer *r, int line, float t, const CharacterSkin *
         static int her_line = -1;
         if (her_line != line || t < her_time) { /* A new shot: stood looking at it */
             player_init(&her);
+            player_set_walk_frames(&her, character_walk_frames(sheriff->character));
             her.x = PLAYER_START_X - VIEW_WIDTH / 2.0f + shot_origin + CINE_X(300.0f);
             her_time = 0.0f;
             her_line = line;

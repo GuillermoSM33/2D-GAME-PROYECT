@@ -75,18 +75,18 @@ PARTS = ('back_arm', 'far_leg', 'near_leg', 'torso', 'head', 'front_arm', 'front
 class Figure:
     """One character standing, cut into parts at fixed joints."""
 
-    def __init__(self, who, kind='rifle'):
+    def __init__(self, who, kind='rifle', suit=None):
         self.who, self.kind = who, kind
+        self.suit = suit                          # Her protective suit's ramps: cloth, rubber, visor
         if who == 'cowgirl':
-            from rework_cowgirl import dressed_sheet, stand_sheet
-            from make_melee import body_without_arm, frame, AIM, LOW, HOLSTER
-            from detail_cowgirl import HAIR
-            cow = dressed_sheet('shoot', True)
-            body = body_without_arm(frame(cow, AIM), frame(cow, LOW), frame(cow, HOLSTER),
-                                    hand_on_hip=False, standing=stand_sheet(False))
-            hair = set(HAIR)
-            hanging = {rgb(c) for c in (0x46101e, 0x8a2438, 0x64182a, 0x6c4626, 0x4a2e18)}
-            self.head = self._head(body, 33, hair)
+            from cowgirl_torso import LEATHER_TONES, SASH_TONES
+            from make_melee import WALK_SHIFT
+            from rework_cowgirl import mane, standing_body
+            to_frame = lambda px: {(x + WALK_SHIFT[0], y + WALK_SHIFT[1]): c for (x, y), c in px.items()}  # noqa: E731
+            body = to_frame(standing_body(True, hair=False))
+            hanging = SASH_TONES | LEATHER_TONES
+            self.head = {p: c for p, c in body.items() if p[1] <= 33}
+            self.mane = to_frame(mane())              # Down her back: behind all but the far arm
             self.torso = {p: c for p, c in body.items() if p not in self.head and p[1] <= 50}
             # The sash and holster below her belt hang from it: they do not lean with her back.
             self.hanging = {p: c for p, c in body.items() if 50 < p[1] <= 59 and
@@ -94,10 +94,23 @@ class Figure:
             self.hip, self.neck = (32, 50), (33, 34)
             self.front, self.back, self.front_over = (40, 38), (26, 38), True
             self.leg_hip = {'near': (36, 50), 'far': (28, 50)}
-            self.cloth = {'near': TROUSER, 'far': FAR_TROUSER}
+            # In three quarters the leg on the left ("far" from the car) is the one nearest to us.
+            self.cloth = {'near': FAR_TROUSER, 'far': TROUSER}
             self.boot = None
             from rework_cowgirl import ARM_BONE
             self.bones = (ARM_BONE, ARM_BONE)       # Her own arm, as in all her sheets
+            if suit:                                # The same joints, the suit's own parts (hazmat_figure)
+                import hazmat_figure as hazmat
+                cloth, rubber, visor = suit
+                cx, cy = hazmat.HEAD[0] + WALK_SHIFT[0], hazmat.HEAD[1] + WALK_SHIFT[1]
+                self.head = hazmat.hood(cx, cy, cloth, visor)
+                self.torso = hazmat.pack(cx, cy, rubber)
+                self.torso.update(hazmat.torso(cx, cy, (33, 50), cloth, rubber, False))
+                self.torso = {p: c for p, c in self.torso.items() if p[1] <= 53}
+                self.hanging, self.mane = {}, {}
+                ramp = [hazmat.solid(cloth[k]) for k in (4, 3, 2, 1)]
+                self.cloth = {'near': ramp[1:], 'far': ramp[:3]}
+                self.boot = dict(zip(BOOT, [hazmat.solid(rubber[k]) for k in (3, 1, 0)]))
             self.duck = (0, 0)
             self.reach_up = (0, 0)                  # Her hand to the window as drawn
         else:
@@ -105,7 +118,7 @@ class Figure:
             body = {(x, y): sw.get(x, y) for y in range(H) for x in range(W) if sw.get(x, y)[3]}
             self.head = {p: c for p, c in body.items() if p[1] <= 29}
             self.torso = {p: c for p, c in body.items() if 29 < p[1] <= 51}
-            self.hanging = {}
+            self.hanging, self.mane = {}, {}
             self.hip, self.neck = (31, 51), (33, 30)
             self.front, self.back, self.front_over = (39, 35.5), (24, 35.5), False
             self.leg_hip = {'near': (36, 51), 'far': (27, 51)}
@@ -122,15 +135,6 @@ class Figure:
     def _edge_of(body, p, colors):
         return body[p][:3] == INK[:3] and any(body.get((p[0] + a, p[1] + b)) in colors
                                               for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)))
-
-    @staticmethod
-    def _head(body, chin, hair):
-        """Her head: everything to her chin, and her hair (with its edge) below it."""
-        head = {p: c for p, c in body.items() if p[1] <= chin}
-        for p, c in body.items():
-            if p[1] > chin and p[0] <= 26 and (c in hair or Figure._edge_of(body, p, hair)):
-                head[p] = c
-        return head
 
 
 def turned(pixels, angle, pivot, at):
@@ -261,6 +265,24 @@ def held_gun(fig, grip, angle):
     return gun.px, guard
 
 
+def drop_specks(colors, tones, most=6):
+    """A few pixels of her hair left in sight beside an arm, loose from the rest of it, go,
+    with the outline that closed them."""
+    from rework_cowgirl import _groups
+    for group in _groups({p for p, c in colors.items() if c in tones}):
+        if len(group) > most:
+            continue
+        for p in group:
+            del colors[p]
+        for x, y in group:
+            for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                q = (x + a, y + b)
+                if colors.get(q, (1,))[:3] == INK[:3] and not any(
+                        colors.get((q[0] + c, q[1] + d), INK)[:3] != INK[:3]
+                        for c, d in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                    del colors[q]
+
+
 def render(fig, pose):
     """(out, inside): her pixels out of the car and in it, finished."""
     hip0 = fig.hip
@@ -282,8 +304,7 @@ def render(fig, pose):
     legs = {}
     for side, foot, toe in (('far', pose.far, pose.toes[1]), ('near', pose.near, pose.toes[0])):
         top = forward(fig.leg_hip[side], 0, hip0, hip)       # She bends at the waist: her hips stay
-        drawn = edged(leg(top, (round(foot[0]), round(foot[1])), fig.cloth[side], toe,
-                          strap=fig.who == 'cowgirl' and side == 'near'))
+        drawn = edged(leg(top, (round(foot[0]), round(foot[1])), fig.cloth[side], toe, worked=fig.who == 'cowgirl'))
         if fig.boot:
             drawn = {p: fig.boot.get(c, c) for p, c in drawn.items()}
         legs[side] = drawn
@@ -307,28 +328,33 @@ def render(fig, pose):
         knob.update({(kx + 1, ky + k): rgb(0x3b3f3a) for k in range(3)})
     # Back to front. Each part keeps its name for its layer.
     order = []
-    if fig.front_over:
-        order += [('back_arm', barm), ('back_hand', bhand)]
+    if fig.front_over:                            # Her far arm's root is behind her far lapel
+        order += [('head', turned(fig.mane, pose.tilt, fig.neck, (neck[0] + pose.head[0], neck[1] + pose.head[1]))),
+                  ('front_arm', farm), ('front_hand', fhand)]
     else:
         order += [('front_arm', farm), ('front_hand', fhand)]
-    order += [('far_leg', legs['far'])]
-    order += ([('torso', torso), ('head', head), ('near_leg', legs['near'])] if pose.knee_up else
-              [('near_leg', legs['near']), ('torso', torso), ('head', head)])
+    first, second = ('near', 'far') if fig.front_over and not pose.knee_up else ('far', 'near')
+    order += [(first + '_leg', legs[first])]
+    order += ([('torso', torso), ('head', head), (second + '_leg', legs[second])] if pose.knee_up else
+              [(second + '_leg', legs[second]), ('torso', torso), ('head', head)])
     if swat_held:
         order += [('gun', gun), ('front_arm', split_forearm(farm, front_sh, felbow, fw)[1]),
                   ('front_hand', fhand)]
     if fig.front_over:
-        order += [('front_arm', farm), ('front_hand', fhand)]
-    else:
-        order += [('back_arm', barm), ('back_hand', bhand)]
+        order += [('front_arm', split_forearm(farm, front_sh, felbow, fw)[1]), ('front_hand', fhand)]
+    order += [('back_arm', barm), ('back_hand', bhand)]
     owner, colors = {}, {}
     for name, px in order:
         for p, c in px.items():
             colors[p], owner[p] = c, name
     colors = {p: c for p, c in colors.items() if 0 <= p[0] < W and 0 <= p[1] < H}
-    if fig.who == 'cowgirl':
+    if fig.suit:
+        from hazmat_figure import recoloured
+        colors = recoloured(colors, fig.suit[0], fig.suit[1])
+    elif fig.who == 'cowgirl':
         from finish_cowgirl import finish as outline
-        from detail_cowgirl import finish as material
+        from detail_cowgirl import finish as material, HAIR
+        drop_specks(colors, HAIR)
         colors = material(outline(colors, W, H), 'car')
     out, inside = {}, {}
     for p, c in colors.items():

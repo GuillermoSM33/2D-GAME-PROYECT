@@ -209,24 +209,33 @@ tiene mangas vino, solapas abiertas y paneles que terminan por encima del cintur
 dejando visibles el corsé y la placa. El encaje termina bajo las solapas para evitar
 puntos blancos sobre la chamarra; dos botones pequeños de latón completan los cierres.
 El busto tiene un aumento sutil en el contorno y dos volúmenes suaves en el corsé,
-sin variar el cuerpo entre poses. Su dibujo sale de `cropped_jacket` en el cuerpo
-común y acompaña todas las poses, incluido el desmayo y SIT.
+sin variar el cuerpo entre poses. Su cuerpo en tres cuartos sale de los mapas de
+`tools/cowgirl_torso.py` y `tools/cowgirl_legs.py`, y es el mismo en todas las poses de
+pie; SIT conserva el frontal de `tools/rework_cowgirl.py`.
 La ropa conserva un acabado **sobrio**, con volumen mediante planos suaves, encaje gris
 marfil y latón envejecido. El cabello conserva exactamente `#6b333a`, `#902004` y
 `#d03305`, los tonos del arte original, sin recolorear sus luces ni añadir reflejos
 rosados. No hay ribetes blancos ni halo luminoso sobre la ropa.
 Mechones continuos, costuras, cordones y pliegues de rodilla mantienen el detalle.
 `tools/detail_cowgirl.py` aplica los materiales a todas las poses al final de
-`tools/rebuild_cowgirl.py`; no se retoca una sola hoja. Las manos se balancean en
-oposición al paso: el codo conserva su flexión y el brazo gira 4° por lado desde el hombro,
-sin cambios de forma entre cuadros ni saltos del sombreado de la manga. El salto recoge
-y abre los brazos antes de amortiguar la caída.
-El pelo y el pañuelo llevan un pequeño retraso respecto al paso, anclados a cabeza y cinturón.
+`tools/rebuild_cowgirl.py`; no se retoca una sola hoja.
+
+La carrera tiene **20 cuadros** a 24 por segundo: las diez claves medidas píxel por píxel en
+la referencia y la pose media entre cada dos (`tools/cowgirl_pose.py`). El torso casi no
+gira; se mueven la pelvis, las piernas y los antebrazos, cada brazo contra la pierna de su
+lado. La pelvis gira con el paso: el cinturón, fino, se inclina, la hebilla se oculta y se
+ven los glúteos con la costura entre ellos cuando la pierna cercana se adelanta. El pie
+apoyado retrocede lo que ella avanza, también al correr (las piernas van 1.5 veces más
+rápido). Quieta respira (4 cuadros) y al parar frena en dos poses intermedias. El salto
+recoge y abre los brazos antes de amortiguar la caída. El pelo y el pañuelo llevan un
+pequeño retraso respecto al paso, anclados a cabeza y cinturón.
+`tools/measure_cowgirl_pixels.py` pone referencia y sheriff en la misma cuadrícula.
+
 La nueva cara tiene sombra bajo el ala, ojo de perfil y volumen en mejilla/mandíbula.
 
 ![Comparación de la prenda vino y el cabello rojo en el escenario](img/sheriff_rework.png)
 
-[Comparación animada de la caminata](img/sheriff_walk_comparison.gif).
+[La carrera, antes y ahora](img/sheriff_walk_comparison.gif).
 
 Las siguientes rampas y métricas describen la plantilla original;
 los acabados actuales de la sheriff y del SWAT usan rampas adicionales para sus materiales.

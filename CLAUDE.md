@@ -2,11 +2,6 @@
 
 (Antes Vaquera 2D; el repo y la carpeta del proyecto conservan el nombre viejo.)
 
-**Cambio pendiente en la PC de Windows:** desde 2026-11-11 las partidas y preferencias van en
-`%APPDATA%\TheMiracle\TheMiracle\` (antes `%APPDATA%\Vaquera2D\Vaquera2D\`). Al abrir este repo
-en Windows, si aún existe la carpeta vieja y no la nueva, muévela (en PowerShell:
-`New-Item -ItemType Directory -Force "$env:APPDATA\TheMiracle" | Out-Null; Move-Item "$env:APPDATA\Vaquera2D\Vaquera2D" "$env:APPDATA\TheMiracle\TheMiracle"`;
-luego borra `%APPDATA%\Vaquera2D` si quedó vacía) y quita este aviso. En Linux ya se hizo.
 La historia, sus nombres y las fases están en `docs/LORE.md`: respétalo. El arte de las
 cinemáticas sale de `tools/make_cinematics.py`. **Sin voces:** la
 historia se cuenta solo con cinemáticas, ruidos y texto.
@@ -56,47 +51,82 @@ materiales terrosos, luz superior izquierda y revólver de ocho balas, recarga d
 como el rifle del SWAT. `tools/detail_cowgirl.py` aplica el acabado a todas las hojas
 al final del generador. La última referencia del usuario **reemplaza el azul por vino**:
 chaquetita/chalequito corto y abierto encima del corsé, con solapas y mangas color vino
-tomadas de su foto. `cropped_jacket` en `tools/rework_cowgirl.py` dibuja los paneles en el
-cuerpo común antes de derivar las poses; sus etiquetas `JACKET` se conservan al reconstruir
-el torso y al sentarse. El corsé conserva el gris pizarra/carbón; el pantalón lleva **dos
-tonos de gris**, sin azul. Cuero marrón oscuro y vino en el pañuelo.
+tomadas de su foto. El corsé conserva el gris pizarra/carbón; el pantalón lleva **grises**
+(dos de luz y dos de sombra, `TONES` en `tools/cowgirl_legs.py`) con pliegues y franja
+iluminada, sin azul. Cuero marrón oscuro y vino en el pañuelo.
 El usuario pidió **recuperar el rojo anterior al rework**: conservar exactamente la paleta
 original del pelo (`#6b333a`, `#902004`, `#d03305`), sin recolorearla ni añadir reflejos
 rosados. Los extremos del encaje se esconden bajo las solapas para que no queden puntos
-blancos sobre la chamarra. Lleva dos botones de latón discretos (`JACKET_BUTTON` y
-`jacket_buttons`), distintos de la placa; sus colores se conservan al reconstruir el torso.
-El busto tiene un aumento sutil en la curva de `TORSO_FRONT` y volumen cubierto por el
-corsé con `corset_bust`, compartido por todas las poses. En SIT, el cinturón se deriva del
-plano claro de la cara original, y las solapas y botones se dibujan de frente.
+blancos sobre la chamarra. Lleva dos botones de latón discretos, distintos de la placa.
+El busto tiene un aumento sutil, con volumen cubierto por el corsé, igual en todas las
+poses. En SIT, el cinturón se deriva del plano claro de la cara original, y las solapas y
+botones (`JACKET_BUTTON`) se dibujan de frente.
 La ropa sigue sobria; no añadirle bordes blancos, ribetes luminosos ni halo.
 Debe distinguirse del fondo de 1-1 mediante contraste cromático y materiales separados, con
 volumen por planos suaves y contorno oscuro. Encaje gris marfil y latón envejecido,
 sin blancos ni amarillos intensos en la ropa.
-Tiene **un solo cuerpo**
-en todas las poses de pie: torso y cinturón salen de las tablas de `tools/rework_cowgirl.py`
-(`TORSO_FRONT`, `BELT_FRONT`, `BACK_SIDE`), relativas a la hebilla, que va bajo su barbilla. Cámbialo
-ahí, nunca en una sola hoja. La meta es una silueta de reloj de arena: hombros y cadera de ancho
-parecido, cintura marcada y sin escalón entre cinturón y pierna; la curva va en tramos de dos filas
-para que no salga en escalera.
-Sus brazos no vienen de la plantilla: se dibujan aparte sobre el cuerpo completo, con un solo modelo
-de brazo y guante (`tools/cowgirl_arm.py`) y **un solo dibujo de pistola**,
-`assets/sprites/characters/cowgirl/weapons/pistol.png`, generado por `tools/make_revolver.py`,
-para las dos manos; las poses están en `walk_arms`, `jump_arms`
-y `ON_HIPS`. Al caminar se balancean los dos, casi rectos y con aire junto a la cintura; solo parada
-lleva las manos en la cadera.
-El balanceo de caminar conserva una flexión fija de codo y gira solo 4° por lado desde
-el hombro (`walk_arms`), sin redondear las articulaciones antes de dibujar. No volver a
-resolver el codo en cada cuadro: alternaba entre doblado y recto y parecía un gusano.
-La luz de la manga apunta siempre arriba a la izquierda, sin cambiar de lado a mitad del paso.
-En SIT, el cabello largo cae delante de ambas orejas y las cubre en todos los cuadros,
-incluidos respiración, recarga y cabeceo (`tools/make_sit.py`).
-Regenera todas sus hojas con
-`python3 tools/rebuild_cowgirl.py` y revísalas ampliadas antes de reportarlas.
+Tiene **un solo cuerpo, en tres cuartos hacia la derecha**, en todas las poses de pie,
+quieta o en movimiento: torso, cinturón, funda y pañuelo salen de los mapas de
+`tools/cowgirl_torso.py` (`TORSO`, `LOWER`, `HOLSTER`), y caderas y piernas de
+`tools/cowgirl_legs.py`. Cámbialo ahí, nunca en una sola hoja. Solo el banco (SIT) conserva
+el cuerpo frontal de `dress` (`TORSO_FRONT`, `BELT_FRONT` en `tools/rework_cowgirl.py`). La
+meta es una silueta de reloj de arena: hombros y cadera de ancho parecido, cintura marcada y
+sin escalón entre cinturón y pierna; la curva va en tramos de dos filas para que no salga en
+escalera. Cabeza, sombrero, cara y pelo son **siempre sus píxeles**, trasladados enteros: el
+usuario rechazó la cara deformada; no girarlos ni proyectarlos.
+Sus brazos se dibujan aparte, con un solo modelo de brazo y guante (`tools/cowgirl_arm.py`)
+y **un solo dibujo de pistola**, `assets/sprites/characters/cowgirl/weapons/pistol.png`,
+generado por `tools/make_revolver.py`, para las dos manos; las poses están en `walk_arms`,
+`jump_arms`, `rest_arms` y `stand_arms`. El brazo izquierdo del dibujo es el **cercano**: se
+compone delante del cuerpo. El otro, el del arma, es el lejano: sale de detrás de su solapa
+(`make_melee.behind`). En la linterna los nombres viejos llaman «far» al cercano.
+`behind_arm` cambia por tela lo que un brazo deja como resto suelto (placa, botón, pelo
+en el hueco del codo) y `finish_cowgirl.no_specks` quita los que queden: **ningún píxel de
+color suelto**.
+La referencia de movimiento (2026-11-23) es `build/prototipo_sheriff_v2/objetivo`: `walk`,
+`stand`, `apuntar`, `shoot_v2`, `shoot_cadera` y `reload`. De ella salen **solo medidas y
+poses, nunca píxeles**. `tools/cowgirl_pose.py` guarda la tabla de las diez claves de
+`walk.gif` medidas en su cuadrícula nativa, y `python3 tools/measure_cowgirl_pixels.py`
+vuelve a medir referencia y sheriff (tabla, grosores y cuadrículas en
+`build/sheriff_medidas`). Los números no validan el movimiento: abrir las imágenes y
+compararlas con la cuadrícula antes de dar algo por bueno.
+**Carrera:** 20 cuadros (las diez claves y la pose media entre cada dos) a 24 por segundo,
+`PLAYER_SHERIFF_WALK_*`; arranca en el 2 y los pies caen en el 0 y el 10 (ahí suenan los
+pasos). El pie apoyado retrocede lo que ella avanza, así que no resbala; al correr las
+piernas van `PLAYER_RUN_SPEED_MULT` más rápido. El torso casi no gira: se mueven la pelvis,
+las piernas y los antebrazos. La pelvis gira (`YAW`), el cinturón se inclina, la hebilla se
+oculta y en las claves 5 a 8 **se ven los glúteos con la raya entre ellos** (`SEAT`, el
+borde oscuro del muslo cercano con luz a ambos lados). El pecho cubierto sube o baja un
+píxel como mucho y un paso tarde (`CHEST`); nada más. El usuario vio la versión anterior
+exagerada. Las piernas nunca adelgazan: en ningún cuadro el muslo baja de 6.6 px ni la rodilla
+o la pantorrilla de 5.2, con contorno (la referencia baja a 6, 5 y 4);
+`tests/cowgirl_walk_art.py` lo mide.
+**Cinturón fino:** una fila de cuero entre dos de contorno y hebilla de 3 px, sin cartuchos
+(el usuario lo vio exagerado). La funda es compacta, en el costado, con un píxel de
+seguimiento como mucho; el pañuelo cuelga detrás y no tapa las piernas.
+**De correr a quieta:** `stand` tiene 4 cuadros respirando y 2 de frenado
+(`PLAYER_STAND_BREATHS`, `PLAYER_STAND_SETTLES`, `player_stand_frame`); mismo cuerpo,
+cinturón y suelas en la misma fila, para que no cambie de personaje al parar. `legs` son sus
+piernas de carrera, en 20 cuadros, a la altura de pie, para las acciones al caminar.
+Al disparar, el retroceso levanta el brazo y echa los hombros atrás, y vuelve
+(`DRAWN`, `SWAY` en `tools/make_flashlight.py`); `player_light_kick` sigue esa lente. La
+linterna resuelve el brazo desde el hombro móvil a la mano estable; su lente al caminar va
+cuatro píxeles detrás de la de apuntar quieta y `lighting.c` conserva ese origen.
+El pelo tiene más volumen pegado a la nuca y la espalda, con mechones que se
+estrechan hacia la cadera; no dibujar una masa ondulante ni una franja naranja.
+Conservar también la proporción discreta de reflejos de la paleta anterior. El mechón largo
+(`mane`) es una sola pieza continua: la raíz va con la cabeza y la punta con un píxel de
+retraso. En SIT, el cabello largo cae delante de ambas orejas y las cubre en todos los
+cuadros, incluidos respiración, recarga y cabeceo (`tools/make_sit.py`).
+Regenera todas sus hojas con `python3 tools/rebuild_cowgirl.py` (y luego
+`python3 tools/make_hazmat.py`) y revísalas ampliadas antes de reportarlas;
+`tools/preview_cowgirl.py` las junta. Las herramientas de revisión necesitan Pillow; la
+regeneración usa solo la biblioteca estándar.
 
-Es la sheriff del pueblo: lleva una **placa** (estrella de latón) en el pecho, definida una sola
-vez en `tools/rework_cowgirl.py` (`BADGE`, `sheriff_badge`) y usada por todas sus poses: `dress`,
-`body_without_arm` de `make_melee.py` (disparo, culatazo, linterna, rebote) y `make_sit.py`.
-Solo se pinta sobre el corsé o la chaquetita, así que un brazo por delante la tapa.
+Es la sheriff del pueblo: lleva una **placa** (estrella de latón) sobre el corsé, definida
+una sola vez en `TORSO` (`1`, `2`, `3`) para todas sus poses de pie y, de frente, en
+`BADGE`/`sheriff_badge` (`tools/rework_cowgirl.py`) para el banco. Un brazo por delante la
+tapa; si solo asomara un resto, se ve tela.
 
 `DUALS_FROM_ANY_LEVEL` en `src/config.h` está en 0; ponlo en 1 solo para probar las duales desde el nivel 1.
 Las duales son **dos revólveres de ocho balas con contadores independientes**:
@@ -121,7 +151,7 @@ no se cancela. `begin_piston_turn` elige una mano con balas si la siguiente est�
 vacía y reinicia el gesto; cada disparo normal descuenta solo de `other_gun`.
 Solo un tambor que termina sus 1.2 s se rellena hasta ocho. La acción entre tiros
 usa `weapons/revolver_cycle`, sin el antiguo ruido de recarga de las duales.
-La recarga se trabaja **a la altura del cinturón**, con cañones bajos, codos
+La recarga **doble** se trabaja **a la altura del cinturón**, con cañones bajos, codos
 debajo de los hombros y el pecho despejado. No volver al gesto encogido delante
 del pecho: el usuario lo vio como un brazo roto incluso cuando las longitudes
 eran correctas. Los dos hombros permanecen fijos; no usar `FAR_ARM_INSIDE` en
@@ -131,6 +161,9 @@ para evitar que el codo salte al recoger el cargador; `turn_toward` usa el arco
 corto. Hay 24 cuadros por tambor (50 ms cada uno), con transiciones de cinco
 cuadros al enfundar y sacar. `tests/cowgirl_reload_art.py` comprueba longitudes,
 codos bajos, muñecas, continuidad, pecho despejado y la unión entre hojas.
+La recarga simple sale de `tools/cowgirl_reload.py`: cañón vertical junto a la
+cara, muñeca alineada con el antebrazo y tambor unido al arma. Su último cuadro
+coincide con la pose de apuntar.
 `reload_dual_lower` y `reload_dual_b_lower` contienen la máscara completa de la
 acción: antebrazos, manos, revólveres y cargador. Al recargar caminando, el render
 recorta esa capa a la altura de la cintura y la compone sobre las piernas animadas.
@@ -176,9 +209,17 @@ la pausa (`PAUSE_VIEW_MAP`, `PAUSE_VIEW_INVENTORY`). Los trajes (E en los gancho
 protegen del aire de los vagones 03 y 07 (`train_room_toxic`); con uno puesto, la piel
 `suit` del personaje (`characters/<id>/suit/`) sustituye a la normal en todas las
 animaciones. Esas hojas salen de `python3 tools/make_hazmat.py` (lo comprueba
-`build.sh`): regenéralas tras cambiar cualquier hoja de la sheriff o del SWAT. Las armas
-quedan como están: las del SWAT se marcan al regenerar su generador y las de la
-sheriff se detectan por su acero. El guardado (esquema 11) conserva tableta, traje y
+`build.sh`): regenéralas tras cambiar cualquier hoja de la sheriff o del SWAT. El traje de
+la sheriff **no se pinta sobre su ropa**: `tools/hazmat_figure.py` compone, cuadro a cuadro,
+capucha, torso holgado, mochila y piernas en los lugares de su cuerpo, con las mismas capas
+de brazos, armas y objetos de sus hojas pedidas sin cuerpo. Así la mochila está en todos
+los cuadros y no quedan paños, cortes ni huecos (el usuario los vio). Sus piernas salen de
+`tools/hazmat_legs.py`, con las articulaciones de `cowgirl_pose`. El coche usa sus mismas
+articulaciones (`Figure(suit=...)`) y el desmayo es la pose de pie con traje cayendo; solo
+el banco sale aún de su hoja. El overol va holgado, con cremallera lateral proyectada, sin
+copiar el corsé; la capucha se une al cuello con tela continua. `drop_floating_ink` quita el
+contorno suelto. Las armas quedan como están: las del SWAT se marcan al regenerar su
+generador y las de la sheriff son capas propias. El guardado (esquema 11) conserva tableta, traje y
 gases; un intento de 2-3 anterior al esquema 11 se abandona al cargar, conservando
 progreso previo, inventario inicial y expediente.
 Puerta, cunas, terminal y escotilla se dibujan en las columnas `TRAIN_*_ART` de
@@ -189,7 +230,11 @@ no dibujar una tarjeta persistente sobre el escenario. Recoger la tableta con E
 abre el mapa una vez; M/P cambian entre mapa e inventario, y la misma tecla o Esc
 los cierran. Solo el aviso temporal de pieza va bajo el HUD a la derecha. El mapa
 y el inventario tienen arte propio en `tools/make_field_ui.py` (tres hojas UI,
-comprobadas en build.sh). Los avisos llevan E solo cuando E actúa y, si algo falta,
+comprobadas en build.sh). El inventario permite enfocar filas con W/S, flechas,
+rueda o ratón y activar con Enter/E o el botón. Usar provisiones cierra la consulta
+y ejecuta su acción normal; no consumirlas ni completar recargas con el mundo
+pausado. Equipar conserva munición; el traje se cambia en sus ganchos. Los avisos
+llevan E solo cuando E actúa y, si algo falta,
 dicen qué.
 
 El tamaño del tren no cambia la escala humana del equipo: con un personaje de

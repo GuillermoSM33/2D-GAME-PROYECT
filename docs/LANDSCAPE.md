@@ -244,8 +244,13 @@ abre su consulta una vez. M abre/cierra el mapa y P el inventario; cambiar entre
 ambos o cerrarlos con Esc conserva el nivel pausado hasta volver a jugar. El mapa
 presenta los quince vagones con planos de pixel art propios, la posición actual,
 los infectados, gases, piezas y la lista de objetivos con destino y estado.
-El inventario tiene un estuche de campo ilustrado y muestra personaje, equipo,
-armas, munición y provisiones. Ambos salen de `tools/make_field_ui.py`.
+El inventario usa metal petróleo, fondo azul oscuro y herrajes de cobre. W/S,
+flechas, rueda o ratón seleccionan equipo, armas, provisiones y objetos. Enter/E
+o el botón ejecutan la acción disponible: equipar o recargar, beber, colocar
+dinamita, abrir el mapa o consultar el expediente. Las provisiones se usan con
+el tiempo y las animaciones normales al volver al nivel; cambiar de arma
+conserva las balas. El traje se pone y se quita en los ganchos del vagón 01.
+Mapa y estuche salen de `tools/make_field_ui.py`.
 Solo la pieza recién recogida aparece brevemente en la columna derecha; nada se
 encima con el HUD (lo comprueba `hud_verify_layout`). Los avisos inferiores llevan
 E solo cuando actúa; si falta algo, dicen qué en rojo («SALIDA CERRADA · FALTAN 2 PIEZAS»).
