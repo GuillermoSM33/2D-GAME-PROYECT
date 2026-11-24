@@ -30,9 +30,9 @@ except ImportError:
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import cowgirl_legs as legs  # noqa: E402
 import cowgirl_pose as pose  # noqa: E402
 import cowgirl_torso as figure  # noqa: E402
+from pixel_grid import BACK, CELL, MARK, chart  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 W, H = 42, 67
@@ -41,7 +41,6 @@ REFERENCE_BOX, REFERENCE_AT = (0, 31, 48, 98), (6, 1)               # Hers, and 
 HIPS, GROUND = pose.BELT + 2, 61                                    # Rows measured
 OTHERS = {c[:3] for c in figure.SASH_TONES} | {(0x6b, 0x33, 0x3a), (0x90, 0x20, 0x04), (0xd0, 0x33, 0x05)}
 SECTIONS = (('muslo', 0, .45), ('rodilla', 0, 1.), ('pantorrilla', 1, .5))
-CELL, BACK, LINE, MARK = 14, (70, 78, 88), (104, 116, 130), (233, 185, 88)
 
 
 def reference_keys(path: Path) -> list:
@@ -106,19 +105,10 @@ def thickness(image: Image.Image, chain: tuple, bone: int, t: float) -> float:
 
 
 def grid(image: Image.Image, label: str) -> Image.Image:
-    canvas = Image.new('RGB', (W * CELL + 40, (H - 34) * CELL + 48), BACK)
-    draw = ImageDraw.Draw(canvas)
-    draw.text((8, 4), label, fill='white')
-    for y in range(34, H):
-        for x in range(W):
-            c = image.getpixel((x, y))
-            left, top = 32 + x * CELL, 32 + (y - 34) * CELL
-            draw.rectangle((left, top, left + CELL, top + CELL), fill=c[:3] if c[3] else BACK, outline=LINE)
-        draw.text((6, 32 + (y - 34) * CELL), str(y), fill='white' if y % 5 else MARK)
-    for x in range(0, W, 5):
-        draw.text((32 + x * CELL, 18), str(x), fill='white')
+    """Her hips and legs, charted; the line is her standing belt."""
+    canvas = chart(image.crop((0, 34, W, H)), label, (0, 34))
     top = 32 + (pose.BELT - 34) * CELL
-    draw.line((32, top, 32 + W * CELL, top), fill=MARK)
+    ImageDraw.Draw(canvas).line((32, top, 32 + W * CELL, top), fill=MARK)
     return canvas
 
 

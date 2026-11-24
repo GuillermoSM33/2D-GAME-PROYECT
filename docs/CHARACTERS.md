@@ -229,7 +229,10 @@ apoyado retrocede lo que ella avanza, también al correr (las piernas van 1.5 ve
 rápido). Quieta respira (4 cuadros) y al parar frena en dos poses intermedias. El salto
 recoge y abre los brazos antes de amortiguar la caída. El pelo y el pañuelo llevan un
 pequeño retraso respecto al paso, anclados a cabeza y cinturón.
-`tools/measure_cowgirl_pixels.py` pone referencia y sheriff en la misma cuadrícula.
+`tools/measure_cowgirl_pixels.py` pone referencia y sheriff en la misma cuadrícula, y
+`tools/pixel_grid.py` hace lo mismo con cualquier imagen. Las capturas
+`THE_MIRACLE_CAPTURE_GROUP=sheriff` la muestran en el juego quieta, arrancando, corriendo y
+frenando, con una pistola, con las duales, con linterna y, como al SWAT, con el traje.
 
 La nueva cara tiene sombra bajo el ala, ojo de perfil y volumen en mejilla/mandíbula.
 

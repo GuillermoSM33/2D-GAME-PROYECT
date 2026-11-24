@@ -312,6 +312,33 @@ class SheriffBody(unittest.TestCase):
         self.assertEqual(max(y for _, y in lower), pose.SOLE)
 
 
+    def test_the_second_holster_hangs_outside_her_and_never_covers_her(self):
+        """With the duals: it was painted over her belt, her hip and her seat as she ran."""
+        for f in list(FRAMES) + [None]:
+            plain = figure.running(f)[1] if f is not None else figure.standing()[1]
+            dual = figure.running(f, dual=True)[1] if f is not None else figure.standing(dual=True)[1]
+            case = {p: c for p, c in dual.items() if p not in plain}
+            with self.subTest(frame=f):
+                self.assertEqual({p: dual[p] for p in plain}, plain, 'The holster is over her body')
+                self.assertGreater(sum(c in figure.LEATHER_TONES for c in case.values()), 7, 'It does show')
+                self.assertEqual(len(components(case)), 1)
+                for x, y in case:                        # Beside her near hip, never out in the air
+                    row = [a for a, b in plain if b == y]
+                    self.assertLess(x, min(row) if row else 99)
+
+    def test_the_second_holster_is_on_the_installed_sheets_too(self):
+        for name in ('walk', 'stand', 'jump'):
+            single, both = load(art.OUT / f'{name}.png'), load(art.OUT / f'{name}_dual.png')
+            width = 54 if name == 'jump' else W
+            for f in range(both.width // width):
+                a, b = frame_of(single, f, width), frame_of(both, f, width)
+                belt = [y for (x, y), c in a.items() if c in (figure.COLORS['b'], figure.COLORS['v']) and 38 <= y <= 56]
+                self.assertTrue(belt)
+                gone = [p for p, c in a.items() if p[1] > min(belt) + 2 and b.get(p) != c and c in legs.TONES]
+                with self.subTest(sheet=name, frame=f):
+                    self.assertEqual(gone, [], 'Her trousers are covered')
+
+
 class SheriffSheets(unittest.TestCase):
     """The installed sheets are the ones these parts make, at the sizes the game reads."""
 

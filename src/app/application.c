@@ -29,7 +29,7 @@
 
 static void set_window_icon(SDL_Window *window)
 {
-    SDL_Surface *icon = assets_surface_region("sprites/characters/cowgirl/walk", 0, 0,
+    SDL_Surface *icon = assets_surface_region("sprites/characters/cowgirl/stand", 0, 0,
                                               PLAYER_WALK_FRAME_W, PLAYER_WALK_FRAME_H);
     if (icon) {
         SDL_SetWindowIcon(window, icon);

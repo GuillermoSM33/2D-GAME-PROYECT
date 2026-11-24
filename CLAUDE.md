@@ -44,6 +44,17 @@ Solo para `tools/crush_sfx.py` (grabar/convertir sonidos, no para compilar): **f
 - **Zip para jugadores:** `./dist.sh` pide la versión y deja el zip del sistema actual en
   `dist/linux/` o `dist/windows/`.
 
+## Cambios de diseño: primero la cuadrícula de píxeles
+
+Para cualquier cambio de diseño a partir de una referencia del usuario, primero
+`python3 tools/pixel_grid.py referencia.png --ours hoja.png:ancho:cuadro` (necesita
+Pillow): encuentra cuánto mide un píxel de la imagen, recorta sus figuras a tamaño
+nativo y las cuadricula con coordenadas, tabla de tramos, medidas por fila y paleta,
+junto a nuestras hojas y a la misma escala. Es la herramienta que pidió el usuario
+(2026-11-24). De la referencia se toman proporciones, piezas y materiales; **el dibujo
+es siempre propio**: nunca copiar sus píxeles ni sus personajes. Después, abrir las
+imágenes y compararlas: los números solos no validan un diseño.
+
 ## Arte de la vaquera (la sheriff Dolores Vega)
 
 El usuario pidió el rework visual el 2026-11-12 para acompañar los escenarios y objetos:
@@ -103,7 +114,9 @@ o la pantorrilla de 5.2, con contorno (la referencia baja a 6, 5 y 4);
 `tests/cowgirl_walk_art.py` lo mide.
 **Cinturón fino:** una fila de cuero entre dos de contorno y hebilla de 3 px, sin cartuchos
 (el usuario lo vio exagerado). La funda es compacta, en el costado, con un píxel de
-seguimiento como mucho; el pañuelo cuelga detrás y no tapa las piernas.
+seguimiento como mucho; el pañuelo cuelga detrás y no tapa las piernas. La segunda funda de
+las duales (`near_holster`) cuelga **por fuera de la cadera cercana y nunca se dibuja sobre
+ella**: el usuario la veía siempre pintada encima del cinturón y del glúteo al caminar.
 **De correr a quieta:** `stand` tiene 4 cuadros respirando y 2 de frenado
 (`PLAYER_STAND_BREATHS`, `PLAYER_STAND_SETTLES`, `player_stand_frame`); mismo cuerpo,
 cinturón y suelas en la misma fila, para que no cambie de personaje al parar. `legs` son sus
@@ -209,17 +222,25 @@ la pausa (`PAUSE_VIEW_MAP`, `PAUSE_VIEW_INVENTORY`). Los trajes (E en los gancho
 protegen del aire de los vagones 03 y 07 (`train_room_toxic`); con uno puesto, la piel
 `suit` del personaje (`characters/<id>/suit/`) sustituye a la normal en todas las
 animaciones. Esas hojas salen de `python3 tools/make_hazmat.py` (lo comprueba
-`build.sh`): regenéralas tras cambiar cualquier hoja de la sheriff o del SWAT. El traje de
-la sheriff **no se pinta sobre su ropa**: `tools/hazmat_figure.py` compone, cuadro a cuadro,
-capucha, torso holgado, mochila y piernas en los lugares de su cuerpo, con las mismas capas
-de brazos, armas y objetos de sus hojas pedidas sin cuerpo. Así la mochila está en todos
-los cuadros y no quedan paños, cortes ni huecos (el usuario los vio). Sus piernas salen de
-`tools/hazmat_legs.py`, con las articulaciones de `cowgirl_pose`. El coche usa sus mismas
-articulaciones (`Figure(suit=...)`) y el desmayo es la pose de pie con traje cayendo; solo
-el banco sale aún de su hoja. El overol va holgado, con cremallera lateral proyectada, sin
-copiar el corsé; la capucha se une al cuello con tela continua. `drop_floating_ink` quita el
-contorno suelto. Las armas quedan como están: las del SWAT se marcan al regenerar su
-generador y las de la sheriff son capas propias. El guardado (esquema 11) conserva tableta, traje y
+`build.sh`): regenéralas tras cambiar cualquier hoja de la sheriff o del SWAT. Las piezas
+de los trajes están dibujadas en `tools/hazmat_art.py`, con las proporciones medidas en la
+referencia del usuario (2026-11-24): capucha de unos 22 px, dos quintos de la altura, con
+ventana sobre una mascarilla de dos filtros, guantes azules largos, cinturón con bolsas,
+botas de cuero y tanque de aire. La sheriff lleva capucha con caída, reflejo azul en la
+ventana y su estrella en un parche; el SWAT, su propio casco con gafas **ámbar** levantadas
+sobre capucha sellada, y su chaleco oscuro **con volumen** (tirantes, placa, bolsas
+redondeadas y faldón; el usuario vio el anterior como un cubo). El traje de la sheriff **no
+se pinta sobre su ropa**: `tools/hazmat_figure.py` compone, cuadro a cuadro, capucha, torso
+holgado, tanque y piernas en los lugares de su cuerpo, con las mismas capas de brazos, armas
+y objetos de sus hojas pedidas sin cuerpo; las mangas llevan contorno sobre el traje. Así el
+tanque está en todos los cuadros y no quedan paños, cortes ni huecos (el usuario los vio).
+Sus piernas salen de `tools/hazmat_legs.py`, con las articulaciones de `cowgirl_pose`;
+sentada, de piezas de frente (`HOOD_FRONT`, `TORSO_FRONT`). El coche usa sus mismas
+articulaciones (`Figure(suit=True)`) y el desmayo es la pose de pie con traje cayendo. El del
+SWAT sale de su generador con cada capa etiquetada (`swat_tagged`), y el casco se coloca por
+sus lentes: un solo casco por cuadro (las granadas son de otros verdes) y con su inclinación
+al caer o agacharse. El traje colgado del vagón 01 (`train_gear`) usa las mismas piezas.
+`drop_floating_ink` quita el contorno suelto. Las armas quedan como están. El guardado (esquema 11) conserva tableta, traje y
 gases; un intento de 2-3 anterior al esquema 11 se abandona al cargar, conservando
 progreso previo, inventario inicial y expediente.
 Puerta, cunas, terminal y escotilla se dibujan en las columnas `TRAIN_*_ART` de
@@ -239,12 +260,10 @@ dicen qué.
 
 El tamaño del tren no cambia la escala humana del equipo: con un personaje de
 unos 64 px de alto, refrigerador de 68 px, mesa de 28 px, mostrador de 36 px y
-herramientas de 12–23 px. Dibujar cada pieza a esas dimensiones nativas. La sheriff
-lleva un overol amarillo holgado con visor azul: silueta neutra que oculta anatomía,
-ropa y pelo. No conservar la cintura de corsé, el escote, encajes ni mechones
-bajo la capucha. El visor naranja corresponde al SWAT táctico, que mantiene por
-fuera placas oscuras, protecciones y botella de aire. Sin ópticas nocturnas en las
-capuchas. Las armas conservan sus píxeles y se componen delante del equipo.
+herramientas de 12–23 px. Dibujar cada pieza a esas dimensiones nativas. Los trajes ocultan
+anatomía, ropa y pelo: no conservar la cintura de corsé, el escote, encajes ni mechones.
+Sin ópticas nocturnas en los trajes. Las armas conservan sus píxeles y se componen delante
+del equipo.
 
 `SCENERY_GAP` separa las huellas de objetos de la carretera. El camión de suministros
 reserva su dibujo completo (`terrain_front_half_width`); `terrain_prop_clear` evita
@@ -271,7 +290,10 @@ hoja `characters/*/car*` tiene dos filas: lo que de ella queda fuera del coche
 (encima de él) y lo que queda dentro (debajo de carrocería y puertas). El usuario vio
 el coche encima del personaje y el cuerpo girando raro: **nunca girar el sprite
 entero** ni dibujar la carrocería sobre ella cuando está fuera. El torso se inclina
-desde la cintura, la cabeza va derecha y las caderas no giran. El usuario vio luego los
+desde la cintura, la cabeza va derecha y las caderas no giran. **Sus piernas son las de sus
+demás hojas** (`cowgirl_legs`, más llenas y con rodillera y botas grandes en el SWAT): el
+usuario las vio flacas y cruzándose de la nada. La raíz de cada cadera va con su pie
+(`SPREAD`), así las piernas se adelantan una a otra sin formar una X. El usuario vio luego los
 brazos rotos al pasar por la puerta y una animación que no se entendía: cada mano va como
 `Arm(ángulo, alcance)` desde su hombro o en un punto a su alcance, nunca por debajo de
 `MIN_REACH`, y el codo dobla siempre hacia su lado (`elbow_for`); nada de brazos plegados

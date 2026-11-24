@@ -676,7 +676,9 @@ tools/rebuild_cowgirl.py Regenera todas las hojas de la vaquera en orden (empiez
 tools/cowgirl_pose.py    La carrera de la sheriff medida en la referencia: articulaciones de sus 20 cuadros
 tools/cowgirl_torso.py   Su cuerpo en tres cuartos: torso, cinturón, funda y pañuelo
 tools/cowgirl_legs.py    Caderas, piernas y botas de la sheriff sobre esas articulaciones
+tools/hazmat_art.py      Las piezas y colores de los trajes aislantes (sheriff y SWAT)
 tools/hazmat_figure.py   El traje aislante de la sheriff, con las capas de sus propias poses
+tools/pixel_grid.py      Cuadrícula de píxeles de cualquier referencia junto a nuestras hojas (necesita Pillow)
 tools/measure_cowgirl_pixels.py Mide referencia y sheriff en la misma cuadrícula (necesita Pillow)
 tools/preview_cowgirl.py Junta sus hojas ampliadas para revisarlas (necesita Pillow)
 tools/rebuild_swat.py    Regenera 28 hojas SWAT y 23 capas; --verify compara ambas (también en build.sh)

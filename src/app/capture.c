@@ -432,6 +432,54 @@ static void capture_train(Platform *platform,const char *dir,CharacterSkin *skin
     }
 }
 
+/* How the sheriff moves, through the real stage/render path: stood, setting off,
+ * running, pulling up and stood again, with one gun, with both and with the light
+ * on; then both characters in the laboratory's suit, stood, running and shooting. */
+static void capture_sheriff(Platform *platform, const char *dir, CharacterSkin *skins,
+                            Profile *profiles, AppOptions *options)
+{
+    static StagePlay play;
+    static const char *const WITH[] = {"una", "duales", "linterna", "traje", "traje_swat"};
+    char name[64];
+    for (int kind = 0; kind < 5; kind++) {
+        int hero = kind == 4;
+        Profile review = profiles[hero];
+        review.progress.level = kind == 1 ? POWER_LEVEL : 1;
+        stage_start(&play, 0, &CHARACTERS[hero], &review.progress);
+        terrain_clear(&play.run.terrain);
+        play.run.zombie_count = 0;
+        play.flashlight = kind == 2;
+        play.flashlight_since = 10.0f;
+        play.run.train.suit = kind >= 3;
+        weather_start(&play.weather, WEATHER_CLEAR, camera_left(play.player.x));
+        InputState input;
+        input_init(&input);
+        bool down[ACTION_COUNT] = {0};
+        int shot = 0;
+        /* 30 steps stood, 90 running, 40 pulling up and stood; a frame every three. */
+        for (int i = 0; i < 160; i++) {
+            down[ACTION_RIGHT] = i >= 30 && i < 120;
+            input_update(&input, down);
+            stage_step(&play, &input, &review, options);
+            if (i < 27 || i % 3) continue;
+            stage_draw(platform, &play, &skins[hero], &review.progress, 1.0f, play.player.x, 0.0f, options);
+            snprintf(name, sizeof(name), "54_%s_%02d", WITH[kind], shot++);
+            save_capture(platform->renderer, dir, name);
+        }
+        down[ACTION_RIGHT] = false;
+        down[ACTION_SHOOT] = true;
+        for (int i = 0; i < 36; i++) {
+            input_update(&input, down);
+            stage_step(&play, &input, &review, options);
+            down[ACTION_SHOOT] = false;
+            if (i % 4) continue;
+            stage_draw(platform, &play, &skins[hero], &review.progress, 1.0f, play.player.x, 0.0f, options);
+            snprintf(name, sizeof(name), "54_%s_tiro_%d", WITH[kind], i / 4);
+            save_capture(platform->renderer, dir, name);
+        }
+    }
+}
+
 /* --capturas: every screen drawn once into dir, to check the interface's
  * art without playing (the menus, a fight, a wall, the pause, a defeat). */
 void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *skins,
@@ -460,6 +508,10 @@ void app_capture_screens(Platform *platform, const char *dir, CharacterSkin *ski
                 save_capture(r,dir,name);
             }
         }
+        return;
+    }
+    if (capture_group && SDL_strcmp(capture_group, "sheriff") == 0) {
+        capture_sheriff(platform, dir, skins, profiles, options);
         return;
     }
     if (capture_group && SDL_strcmp(capture_group,"train")==0) {

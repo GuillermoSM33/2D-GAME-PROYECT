@@ -15,12 +15,14 @@ from contextlib import contextmanager
 from functools import lru_cache
 
 import cowgirl_pose as pose
+import hazmat_art as art
 import hazmat_legs
 from cowgirl_arm import GLOVE, SLEEVE
 
 INK = (0x25, 0x20, 0x18)
-HEAD = (20.4, 19.1)               # The middle of her hood, where her head stands on the walk grid
-HOOD_R = 7.3
+HEAD = (20.4, 19.1)               # The middle of her head, where it stands on the walk grid
+# Brass still in the authors' colours: a band on the flashlight, a cartridge
+OTHERS = {(0xd0, 0xa8, 0x48): (0xb6, 0x98, 0x5c, 255), (0xb8, 0x90, 0x3a): (0x9e, 0x7c, 0x42, 255)}
 SHOOT = hazmat_legs.SHOOT
 UPRIGHT = ('stand', 'stand_dual', 'walk', 'walk_dual', 'jump', 'jump_dual', 'legs', 'legs_dual', 'shoot',
            'shoot_dual', 'shoot_dual_b', 'shoot_dual_lit', 'shoot_dual_b_lit', 'light', 'light_dual', 'light_walk',
@@ -62,8 +64,9 @@ def without_body():
             if hasattr(module, name):
                 kept.append((module, name, getattr(module, name)))
                 setattr(module, name, fake)
-    kept.append((cowgirl_torso, 'HOLSTER', cowgirl_torso.HOLSTER))
-    cowgirl_torso.HOLSTER = {}
+    for name, nothing in (('HOLSTER', {}), ('NEAR_HOLSTER', ())):
+        kept.append((cowgirl_torso, name, getattr(cowgirl_torso, name)))
+        setattr(cowgirl_torso, name, nothing)
     try:
         yield noted
     finally:
@@ -182,12 +185,9 @@ def layers(sheet):
     raise KeyError(sheet)
 
 
-def recoloured(px, suit, rubber):
-    """Sleeves in the suit's cloth and gloves in rubber; guns, shells and light as they are."""
-    tones = {SLEEVE[0][:3]: suit[4], SLEEVE[1][:3]: suit[2], SLEEVE[2][:3]: suit[1],
-             GLOVE[0][:3]: rubber[3], GLOVE[1][:3]: rubber[1],
-             (0xd0, 0xa8, 0x48): (0xb6, 0x98, 0x5c), (0xb8, 0x90, 0x3a): (0x9e, 0x7c, 0x42)}
-    return {p: solid(tones.get(c[:3], c)) for p, c in px.items()}
+def recoloured(px, far=False):
+    """Her arms in the suit's sleeves and gloves; guns, shells and light as they are."""
+    return {p: OTHERS.get(c[:3], c) for p, c in art.worn(px, SLEEVE, GLOVE, far).items()}
 
 
 # ------------------------------------------------------------- the suit itself
@@ -228,103 +228,78 @@ def place(sheet, frame):
     return x + dx, y + dy
 
 
-def hood(cx, cy, suit, visor):
-    """A round hood lit from the upper left, the face shield where she looks out."""
-    out, r = {}, HOOD_R
-    vx, vy = cx + 2.1, cy + 3.2
-    for y in range(int(cy - r - 1), int(cy + r + 2)):
-        for x in range(int(cx - r - 1), int(cx + r + 2)):
-            d = math.hypot(x + .5 - cx, y + .5 - cy)
-            if d > r + .5:
-                continue
-            if d > r - .5:
-                out[x, y] = solid(INK)
-                continue
-            e = ((x + .5 - vx) / 4.9) ** 2 + ((y + .5 - vy) / 4.6) ** 2
-            if e <= 1 and d <= r - 1.2:                      # Its rubber seal, then the blue glass
-                t = (y + .5 - (vy - 4.6)) / 9.2
-                out[x, y] = solid(visor[0] if e > .70 else visor[2] if t < .4 else visor[1])
-                continue
-            k = (-.62 * (x + .5 - cx) - .78 * (y + .5 - cy)) / r
-            out[x, y] = solid(suit[5 if k > .55 else 4 if k > .2 else 3 if k > -.2 else 2 if k > -.55 else 1])
-    gx, gy = round(vx - 2.4), round(vy - 1.2)                # The light on it
-    for p, c in (((gx, gy), visor[4]), ((gx + 1, gy), visor[3]), ((gx - 1, gy + 1), visor[3])):
-        if p in out and out[p][:3] in visor:
-            out[p] = solid(c)
-    return out
-
-
-def torso(cx, cy, pelvis, suit, rubber, running):
-    """One continuous baggy torso from the hood's collar to her hips, turned with her: the zip
-    ahead of her middle, the pack's straps, a belt. No narrowing waist, no bust."""
-    out = {}
-    top, end = round(cy) + 6, round(pelvis[1]) + (1 if running else 2)
-    for y in range(top, end + 1):
-        v = y - top
-        half = 4 if v == 0 else 6 if v == 1 else 7 if v == 2 or y >= end - 1 else 8
-        t = max(0., min(1., (v - 2) / max(1, end - top - 4)))
-        middle = round(cx + .6 + (pelvis[0] - cx - .6) * t)
-        for u in range(-half, half + 1):
-            col = suit[4 if u < -2 else 3 if u < 4 else 2]
-            if abs(u) == half or y == end and running:
-                col = INK if abs(u) == half else suit[2]
-            elif 3 <= v and y < end - 6 and u in (-5, -4, 6):
-                col = rubber[2 if u < 0 else 1]
-            elif 4 <= v and u == 3:
-                col = suit[1]                                # Closed zip
-            elif y in (end - 5, end - 4):
-                col = rubber[1]
-            elif (v, u) in ((7, -2), (8, -1), (8, 0)) or (end - y, u) in ((2, 0), (1, 1), (1, -3)):
-                col = suit[2]                                # Small creases of cloth
-            out[middle + u, y] = solid(col)
-    return out
-
-
-def collar(cx, cy, suit):
-    """Cloth joining the hood to the suit: two outlines touching would read as a cut."""
-    return {(x, y): solid(suit[3 if x <= cx + .5 else 2])
-            for y in range(round(cy) + 6, round(cy) + 9) for x in range(round(cx) - 1, round(cx) + 4)}
-
-
-def pack(cx, cy, rubber):
-    """The compact air pack behind her shoulders."""
-    out = {}
-    left, top = round(cx) - 11, round(cy) + 9
-    for v in range(16):
-        for u in range(4):
-            edge = u in (0, 3) or v in (0, 15) or v in (4, 12)
-            out[left + u, top + v] = solid(rubber[0] if edge else rubber[3] if u == 1 else rubber[1])
-    return out
-
-
-def suited(sheet, frame, suit, rubber, visor):
+def suited(sheet, frame):
     """One frame of a sheet in the suit, in the frame's pixels."""
     back, front = layers(sheet)[frame]
     if sheet in ARMS_ONLY:
-        return recoloured(front, suit, rubber)
+        return recoloured(front)
     cx, cy = place(sheet, frame)
-    running = hazmat_legs.running(sheet, frame)
     _, middle, belt = hazmat_legs.upright(sheet, frame)
     lower = {(x - hazmat_legs.frame_width(sheet) * frame, y): c
-             for (x, y), c in hazmat_legs.lower(sheet, frame, suit, rubber, INK).items()}
-    out = recoloured(back, suit, rubber)
+             for (x, y), c in hazmat_legs.lower(sheet, frame, art.CLOTH, art.LEATHER, INK).items()}
+    out = recoloured(back, True)
     if not sheet.startswith('legs'):
-        out.update(pack(cx, cy, rubber))
+        out.update(art.tank(cx, cy))
     out.update(lower)
-    out.update(torso(cx, cy, (middle, belt + 1.), suit, rubber, running))
-    out.update(hood(cx, cy, suit, visor))
-    out.update({p: c for p, c in collar(cx, cy, suit).items() if out.get(p, (0,))[:3] not in visor})
+    out.update(art.torso(cx, cy, middle, math.floor(belt) - 1))
+    out.update(art.hood(cx, cy))
     if sheet == 'bandage':
         from make_care import BIND, wraps
         out.update(wraps({p: c for p, c in lower.items()}, frame + 2, frame == len(BIND) - 1))
-    out.update(recoloured(front, suit, rubber))
+    sleeves = {c[:3] for c in SLEEVE}
+    out = art.no_slivers(art.edged(art.whole_patch(out, front), front, sleeves), front)
+    out.update(recoloured(front))
+    out.update(art.shoulder_patch(front, sleeves, (cx - 6.0, cy + 14.0)))
     return out
 
 
-def sheet_pixels(sheet, suit, rubber, visor):
+def seated():
+    """Her on the bench, facing us, in the suit: fourteen frames of make_sit's, with its legs,
+    its arms and what it lays on her lap; the pixels of the whole sheet."""
+    import make_sit as bench
+    from make_sprites import Image
+    char = dict(bench.CHARS['cowgirl'], trousers=list(art.CLOTH[1:4]), boots=list(art.LEATHER[1:][::-1]),
+                hand=art.BLUE[1])
+    rows = bench.COWGIRL_ARM_ROWS
+    tones = dict(zip('omnp', (art.INK, art.CLOTH[4], art.CLOTH[3], art.CLOTH[2])))
+    glove = dict(zip('omnpgG', (art.INK, art.BLUE[2], art.BLUE[1], art.BLUE[0], art.BLUE[2], art.BLUE[1])))
+    weapons = bench.load(bench.ROOT / 'assets/sprites/ui/weapons.png')
+    width, middle = bench.W, bench.CX
+    out = {}
+    for frame in range(14):
+        dy = -3 if frame == 0 else -1 if frame == 2 else 0
+        nod = {10: 1, 11: 2, 12: 3, 13: 2}.get(frame, 0)
+        spread, down = {2: (1, 0), 3: (0, 1)}.get(frame, (0, (nod + 1) // 2 if frame >= 10 else 0))
+        cell = Image(width, bench.H)
+        px = dict(art.pixels(art.TANK, middle - 16 - spread, 32 + dy))
+        bench.legs(cell, 0, char, 1 if frame == 0 else 0)
+        px.update({(x, y): cell.get(x, y) for y in range(bench.H) for x in range(width) if cell.get(x, y)[3]})
+        hood = art.pixels(art.HOOD_FRONT, middle - 11, 15 + dy + nod)
+        px.update(art.whole_patch(art.pixels(art.TORSO_FRONT, middle - 8, 37 + dy), hood, .8))
+        for r, row in enumerate(rows):
+            for i, key in enumerate(row):
+                if key == '.':
+                    continue
+                d = bench.COWGIRL_ARM_OUTER - i + spread
+                y = bench.COWGIRL_ARM_TOP + r + bench.DROP + dy + down
+                colour = (glove if r >= len(rows) - 7 else tones).get(key)
+                px[middle - 1 - d, y] = px[middle + d, y] = art.BLUE[0] if r == len(rows) - 7 and key != 'o' else colour
+        px.update(hood)
+        action = Image(width, bench.H)
+        if 4 <= frame <= 9:
+            bench.reload_step(action, 0, weapons, char, 0, 'revolver', frame - 4)
+        if frame >= 12:
+            bench.zs(action, 0, 1 if frame == 12 else 2, char['ink'])
+        px.update({(x, y): action.get(x, y) for y in range(bench.H) for x in range(width) if action.get(x, y)[3]})
+        out.update({(x + frame * width, y): c for (x, y), c in px.items() if 0 <= x < width and 0 <= y < bench.H})
+    return out
+
+
+def sheet_pixels(sheet):
+    if sheet == 'sit':
+        return seated()
     width = hazmat_legs.frame_width(sheet)
     out = {}
     for frame in range(len(layers(sheet))):
-        out.update({(x + frame * width, y): c for (x, y), c in suited(sheet, frame, suit, rubber, visor).items()
-                    if 0 <= x < width})
+        out.update({(x + frame * width, y): c for (x, y), c in suited(sheet, frame).items() if 0 <= x < width})
     return out

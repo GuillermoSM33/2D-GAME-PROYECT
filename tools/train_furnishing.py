@@ -1130,45 +1130,33 @@ def room_radio(r):
     r.stain(110, 237, 8, 2, 52)
 
 
+SUIT_LEGS = (                     # Empty, hanging from its hood: under the belt, trousers and boots
+    "#2444443##3444322#", "#2444443##3444322#", "#2444443##3444322#", "#2444443##3444322#", "#2444433##3444322#",
+    "#2444433##3443322#", "#2344433##3443322#", "#2344433##3443322#", "#2344432##3443222#", "#2344432##3443222#", ".#344432##344322#.", ".#344332##343322#.",
+    ".#344332##343322#.", ".#343332##343322#.", ".#333322##333222#.", ".#322222##322222#.", ".##qqll###qllm##..",
+    ".#qllllm#qllllmm#.", ".#qllllm#qllllmm#.", "#qlllllm#qllllmmm#", "#mmmmmmn#mmmmmnnn#", "##################")
+SUIT_SLEEVE = ("..##.", ".#54#", "#5443", "#5443", "#5443", "#5443", "#5443", "#4443", "#4443", "#4432", "#4432", "#4432",
+               "#BBBB", "#EDDB", "#FEDB", "#EDDB", "#EDDB", ".#DB#", "..##.")
+
+
 def hanging_suit(c, ox):
-    """A native 64 px suit in the 80 px cell, boots on its bottom row."""
-    yel, ink, cx = hx(0xd7ae3a), hx(0x2a2010), ox + 16
-    for y in range(19, 74):
-        if y < 23: half = 3 + (y - 19)
-        elif y < 32: half = 6
-        elif y < 36: half = 7 + (y - 32) // 2
-        elif y < 57: half = 8 - (y - 36) // 15
-        else: half = 6
-        for x in range(cx - half, cx + half):
-            col = shade(yel, .62 + .62 * bands(cyl((x - cx + .5) / half), 5))
-            c.set(x, y, col)
-        c.set(cx - half - 1, y, ink); c.set(cx + half, y, ink)
-    for y in range(58, 74): c.set(cx - 1, y, ink); c.set(cx, y, ink)
-    c.set(cx - 1, 16, hx(0x3a3a34)); c.set(cx, 16, hx(0x3a3a34))
-    c.set(cx - 2, 17, hx(0x3a3a34)); c.set(cx + 1, 17, hx(0x3a3a34))
-    for y in range(23, 30):
-        for x in range(cx - 5, cx + 5):
-            if ((x - cx + .5) / 5) ** 2 + ((y - 26) / 3.5) ** 2 <= 1:
-                c.set(x, y, mix(hx(0x284650), hx(0x15262c), (y - 23) / 7))
-    c.hline(cx - 4, cx - 1, 24, hx(0x9cc8cc))
-    c.fill(cx - 2, 30, cx + 1, 32, hx(0x2b2c27))
-    for y in range(35, 57, 2): c.set(cx + 1, y, hx(0x8c6f20))
-    for y, col in ((41, hx(0xc9d0c6)), (42, hx(0x8a918a))):
-        c.hline(cx - 7, cx + 6, y, col)
-    for y in (67, 68):
-        c.hline(cx - 6, cx - 2, y, hx(0xb9c0b6))
-        c.hline(cx + 1, cx + 5, y, hx(0xb9c0b6))
-    for side in (-1, 1):
-        for y in range(35, 56):
-            ax = cx + side * 9 + (0 if side < 0 else -1)
-            c.set(ax, y, shade(yel, .78)); c.set(ax + side, y, shade(yel, 1.15 if side < 0 else .95))
-            c.set(ax + side * 2, y, ink)
-        c.fill(cx - 12 if side < 0 else cx + 8, 56, cx - 9 if side < 0 else cx + 11, 60, hx(0x2b2c27))
-        x0 = cx - 6 if side < 0 else cx + 1
-        c.fill(x0, 74, x0 + 4, 79, hx(0x2b2c27))
-        c.hline(x0, x0 + 4, 74, hx(0x5a5b52))
-        c.vline(x0 - 1, 74, 79, ink); c.vline(x0 + 5, 74, 79, ink)
-        c.hline(x0, x0 + 4, 79, hx(0x15160f))
+    """The suit the sheriff puts on (hazmat_art), empty on its hook, boots on the bottom row."""
+    import hazmat_art as art
+    px = dict(art.pixels(art.TANK, 1, 38))
+    px.update(art.pixels(SUIT_LEGS, 7, 58))
+    plain = {art.COLORS[k]: art.COLORS['B'] for k in 'qG'}   # The laboratory's: no star on its patch
+    px.update({p: plain.get(q, q) if p[1] < 50 else q for p, q in art.pixels(art.TORSO_FRONT, 8, 44).items()})
+    for side in (0, 1):
+        px.update({(4 + x if not side else 27 - x, y): q for (x, y), q in art.pixels(SUIT_SLEEVE, 0, 43).items()})
+    # Nobody in it: behind the glass, the dark of the hood.
+    empty = {art.COLORS[k]: art.COLORS['a' if k in 'sz' else 'b'] for k in 'stuvz'}
+    px.update({p: empty.get(q, q) for p, q in art.pixels(art.HOOD_FRONT, 5, 22).items()})
+    for y in range(17, 22):                               # The loop on its hook
+        px[14, y] = px[17, y] = art.COLORS['b']
+    px.update({(x, 17): art.COLORS['c'] for x in (15, 16)})
+    for (x, y), q in px.items():
+        if 0 <= x < GEAR_W and 0 <= y < GEAR_H:
+            c.set(ox + x, y, q[:3])
 
 
 def tablet_art(c, ox):

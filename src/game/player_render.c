@@ -100,9 +100,9 @@ static int walk_waist_row(const CharacterSkin *skin)
                ? skin->character->walk_waist_row : PLAYER_WAIST_ROW;
 }
 
-/* Action legs may retain eight authored frontal poses while the whole-body
- * sheriff walk has sixteen side-view poses. Match phase, never crop past the
- * end of the shorter sheet; a fallback whole walk uses all of its own frames. */
+/* A skin's legs may have another number of frames than the walk the game counts
+ * in. Match the phase, never crop past the end of the shorter sheet; a fallback
+ * whole walk uses all of its own frames. */
 static int leg_art_frame(SDL_Texture *sheet, const Animation *walk)
 {
     int width = 0;

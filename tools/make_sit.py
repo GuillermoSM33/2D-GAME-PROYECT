@@ -475,6 +475,11 @@ def make_sit(name: str, gun: int, kind: str) -> Image:
         walk = Image(42, 67)
         for (x, y), colour in front_body().items():
             walk.set(x, y, colour)
+        # Under her belt, plain cloth: the corner of her pocket and the lit edge of her thigh
+        # there, mirrored, would be loose pixels.
+        for x in range(COWGIRL_BODY, 41):
+            if walk.get(x, WAIST)[3] and walk.get(x + 1, WAIST)[3]:
+                walk.set(x, WAIST, rgb(0x423c38))
         # Match dress()/landmarks(): the light face plane defines the body,
         # not the skin shadow two rows higher under the hat.
         face = min(y for y in range(walk.height) for x in range(42) if walk.get(x, y)[:3] == (0xfe, 0xdc, 0xa3))

@@ -90,11 +90,12 @@ La sheriff corre con el traje sobre sus mismas articulaciones
 El traje se compone con las capas de brazos y armas de sus propias hojas: la mochila
 está en todos los cuadros y no quedan paños, cortes ni huecos junto a los brazos.
 
-La sheriff lleva capucha redonda, visor azul y un overol amarillo holgado de
-silueta neutra: oculta cabello, sombrero, corsé y cintura ajustada. El SWAT lleva
-visor naranja y protección adicional claramente visible sobre el traje: chaleco
-de placas, collarín, hombreras, refuerzos en brazos y rodillas, guantes y botella
-de aire. Las armas mantienen su dibujo y sus colores.
+La sheriff lleva capucha con caída, ventana con reflejo azul sobre una mascarilla de dos
+filtros, overol amarillo holgado con su estrella en un parche, guantes azules largos,
+cinturón con bolsas, botas de cuero y tanque de aire. El SWAT conserva su casco, con gafas
+ámbar levantadas sobre una capucha sellada, la misma mascarilla, su chaleco oscuro,
+hombreras, codos y rodilleras, y el tanque. Las armas mantienen su dibujo y sus colores. El
+traje colgado del vagón 01 es el mismo que se pone la sheriff.
 
 Los trajes se aplican a todas las animaciones, incluidas recarga, salto, asiento,
 caída, linterna y cruce de vehículos. Las hojas de `characters/<id>/suit/` se

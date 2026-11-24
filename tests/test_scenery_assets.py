@@ -1,5 +1,6 @@
 """Native scenery contracts, paired occupation marks and reproducible source art."""
 from pathlib import Path
+import math
 import sys
 import tempfile
 import unittest
@@ -279,6 +280,26 @@ class SceneryArtTests(unittest.TestCase):
                 sling=C['CAR_SETTLE_FIRST']<=i<C['CAR_REACH_FIRST'] or i>=C['CAR_READY_FIRST']
                 if who=='swat' and sling:continue
                 self.assertGreaterEqual(min(pose.reaches),M.MIN_REACH,f'{who} frame {i}')
+
+    def test_car_legs_are_full_and_pass_each_other(self):
+        """As thick as on her other sheets, and each hip goes with its foot: the user saw them
+        thin and crossing from nowhere."""
+        M=make_car_passage
+        for who,least in (('cowgirl',6.0),('swat',7.5)):
+            fig=M.Figure(who)
+            for i,pose in enumerate(M.poses(fig)[:M.C['CAR_WALK_FRAMES']]):
+                far,near=(M.chain(fig,pose,foot,3,0) for foot in (pose.far,pose.near))
+                apart=(near[0][0]-far[0][0])*(pose.near[0]-pose.far[0])
+                self.assertGreaterEqual(apart,0,f'{who} frame {i}: her legs cross')
+                for joints in (far,near):
+                    px=M.limb(fig,joints,False)
+                    (x0,y0),(x1,y1)=joints[0],joints[1]
+                    at=((x0+x1)/2,(y0+y1)/2)
+                    length=math.hypot(x1-x0,y1-y0) or 1
+                    nx,ny=-(y1-y0)/length,(x1-x0)/length
+                    wide=sum(.25 for k in range(-40,41)
+                             if (math.floor(at[0]+nx*k*.25),math.floor(at[1]+ny*k*.25)) in px)
+                    self.assertGreaterEqual(wide,least-1,f'{who} frame {i}: a thin thigh')
 
     def test_car_poses_keep_pixels_inside_their_cells(self):
         frames=make_car_passage.C['CAR_PASS_FRAMES']

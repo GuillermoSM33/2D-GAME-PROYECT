@@ -31,7 +31,7 @@ from pathlib import Path
 
 from make_sprites import Image, rgb
 from make_swat import load, paste, ik
-from make_plant import leg, edged, TROUSER, FAR_TROUSER, BOOT
+import cowgirl_legs
 from cowgirl_arm import arm_limb, glove, INK
 from landscape_kit import Canvas, hx, mix, sheet
 from swat_actions import sleeve, weapon_pose, finish_color
@@ -51,7 +51,7 @@ def c_numbers(text=None):
 C = c_numbers()
 W, H, FRAMES = C['CAR_FRAME_W'], C['CAR_FRAME_H'], C['CAR_PASS_FRAMES']
 ANCHOR = 31.5                    # Her x in the frame (SHOOT_ANCHOR_X)
-GROUND = 66                      # Her feet's top row standing (the soles below)
+GROUND = 66                      # The row of her soles standing, as on all her sheets
 # The car, drawn bigger than life (make_city.CAR_SCALE). Its geometry below is
 # in make_city's 1x units: CX(x) is its column, CY(y) its row, at that scale.
 CAR_W, CAR_H, CAR_TOP = city.CAR_W, city.CAR_H, 68 - city.CAR_H   # Its top row is her row CAR_TOP
@@ -77,7 +77,7 @@ class Figure:
 
     def __init__(self, who, kind='rifle', suit=None):
         self.who, self.kind = who, kind
-        self.suit = suit                          # Her protective suit's ramps: cloth, rubber, visor
+        self.suit = suit                          # In her protective suit
         if who == 'cowgirl':
             from cowgirl_torso import LEATHER_TONES, SASH_TONES
             from make_melee import WALK_SHIFT
@@ -93,24 +93,23 @@ class Figure:
                             (c in hanging or self._edge_of(body, p, hanging))}
             self.hip, self.neck = (32, 50), (33, 34)
             self.front, self.back, self.front_over = (40, 38), (26, 38), True
-            self.leg_hip = {'near': (36, 50), 'far': (28, 50)}
-            # In three quarters the leg on the left ("far" from the car) is the one nearest to us.
-            self.cloth = {'near': FAR_TROUSER, 'far': TROUSER}
-            self.boot = None
+            # Her own legs (cowgirl_legs): what they are made of and how full they are.
+            self.cloth, self.hide = cowgirl_legs.TONES, cowgirl_legs.HIDE
+            self.fuller, self.boot_at, self.bigger, self.knee_pad = 0., cowgirl_legs.BOOT_AT, 0., None
             from rework_cowgirl import ARM_BONE
             self.bones = (ARM_BONE, ARM_BONE)       # Her own arm, as in all her sheets
-            if suit:                                # The same joints, the suit's own parts (hazmat_figure)
-                import hazmat_figure as hazmat
-                cloth, rubber, visor = suit
-                cx, cy = hazmat.HEAD[0] + WALK_SHIFT[0], hazmat.HEAD[1] + WALK_SHIFT[1]
-                self.head = hazmat.hood(cx, cy, cloth, visor)
-                self.torso = hazmat.pack(cx, cy, rubber)
-                self.torso.update(hazmat.torso(cx, cy, (33, 50), cloth, rubber, False))
+            if suit:                                # The same joints, the suit's own parts (hazmat_art)
+                import hazmat_art as art
+                from hazmat_figure import HEAD
+                cx, cy = HEAD[0] + WALK_SHIFT[0], HEAD[1] + WALK_SHIFT[1]
+                self.head = art.hood(cx, cy)
+                self.torso = art.tank(cx, cy)
+                self.torso.update(art.torso(cx, cy, 20.9 + WALK_SHIFT[0], 48))
                 self.torso = {p: c for p, c in self.torso.items() if p[1] <= 53}
                 self.hanging, self.mane = {}, {}
-                ramp = [hazmat.solid(cloth[k]) for k in (4, 3, 2, 1)]
-                self.cloth = {'near': ramp[1:], 'far': ramp[:3]}
-                self.boot = dict(zip(BOOT, [hazmat.solid(rubber[k]) for k in (3, 1, 0)]))
+                import hazmat_legs
+                self.cloth, self.hide = hazmat_legs.suit_tones(art.CLOTH, art.LEATHER)
+                self.fuller, self.boot_at = hazmat_legs.FULLER, hazmat_legs.BOOT_AT
             self.duck = (0, 0)
             self.reach_up = (0, 0)                  # Her hand to the window as drawn
         else:
@@ -121,10 +120,11 @@ class Figure:
             self.hanging, self.mane = {}, {}
             self.hip, self.neck = (31, 51), (33, 30)
             self.front, self.back, self.front_over = (39, 35.5), (24, 35.5), False
-            self.leg_hip = {'near': (36, 51), 'far': (27, 51)}
-            self.cloth = {'near': [rgb(0x5d6870), rgb(0x41494a), rgb(0x29343b)],
-                          'far': [rgb(0x41494a), rgb(0x363d40), rgb(0x29343b)]}
-            self.boot = dict(zip(BOOT, [rgb(0x41494a), rgb(0x29343b), rgb(0x25282a)]))
+            # As heavy as on its other sheets: full trousers, knee pads and big boots.
+            self.cloth = (rgb(0x5d6870), rgb(0x41494a), rgb(0x363d40), rgb(0x29343b))
+            self.hide = (rgb(0x5d6870), rgb(0x41494a), rgb(0x363d40), rgb(0x29343b))
+            self.fuller, self.boot_at, self.bigger = .7, .42, .55
+            self.knee_pad = (rgb(0x909d97), rgb(0x77807b))
             self.bones = (8.5, 9.5)
             self.duck = (0, 0)
             # Taller and longer in the arm, he reaches the window further on
@@ -265,6 +265,16 @@ def held_gun(fig, grip, angle):
     return gun.px, guard
 
 
+def drop_ink(colors, most=3):
+    """Bits of outline left in the air, beside nothing."""
+    from rework_cowgirl import _groups
+    for group in _groups({p for p, c in colors.items() if c[:3] == INK[:3]}):
+        if len(group) <= most and not any(colors.get((x + a, y + b), INK)[:3] != INK[:3]
+                                          for x, y in group for a in (-1, 0, 1) for b in (-1, 0, 1)):
+            for p in group:
+                del colors[p]
+
+
 def drop_specks(colors, tones, most=6):
     """A few pixels of her hair left in sight beside an arm, loose from the rest of it, go,
     with the outline that closed them."""
@@ -281,6 +291,82 @@ def drop_specks(colors, tones, most=6):
                         colors.get((q[0] + c, q[1] + d), INK)[:3] != INK[:3]
                         for c, d in ((1, 0), (-1, 0), (0, 1), (0, -1))):
                     del colors[q]
+
+
+SPREAD, LIMB = .3, 6.4           # How far a hip goes with its foot, and her thigh and shin
+
+
+def chain(fig, pose, foot, toe, lifted):
+    """Hip, knee, ankle and foot of a leg: her hips turn with her step, so they swap sides as her
+    feet do and her legs pass each other instead of crossing; the knee bends forward."""
+    middle = pose.hip[0] + .9
+    hip = (middle + max(-2.5, min(2.5, SPREAD * (foot[0] - middle))), pose.hip[1] + 2.)
+    ankle = (foot[0] + .4, foot[1] - 2.6)
+    x, y = ankle[0] - hip[0], ankle[1] - hip[1]
+    length = max(.01, math.hypot(x, y))
+    bone = max(LIMB, length / 2 + .08)
+    bend = math.sqrt(max(0., bone * bone - length * length / 4))
+    kn = (hip[0] + x / 2 + y / length * bend, hip[1] + y / 2 - x / length * bend)
+    return hip, kn, ankle, 4 + min(34, 9 * lifted)
+
+
+def limb(fig, joints, far):
+    """A leg of hers, painted as on her other sheets; the SWAT's with its knee pad and big boots."""
+    parts = [(kind, x, y, r + (fig.bigger if kind == 'boot' else 0))
+             for kind, x, y, r in cowgirl_legs.sections(joints, fig.fuller, fig.boot_at)]
+    if fig.bigger:                                # A square heel and a broad toe
+        (ax, ay), a = joints[2], math.radians(joints[3])
+        along, down = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+        parts += [('boot', ax + along[0] * u + down[0] * v, ay + along[1] * u + down[1] * v, r)
+                  for u, v, r in ((-1.3, .9, 1.7), (1.4, .4, 2.0), (3.2, .9, 1.7), (4.2, 1.1, 1.5))]
+    px = cowgirl_legs.painted(parts, joints, far, 0., fig.cloth, fig.hide, fig.boot_at)
+    if fig.bigger:                                # Its boot in three planes: shaft, lit instep, sole
+        kinds = {p: min(parts, key=lambda q: math.hypot(p[0] + .5 - q[1], p[1] + .5 - q[2]) - q[3])[0] for p in px}
+        (ax, ay), sole = joints[2], max(y for x, y in px)
+        for (x, y), kind in kinds.items():
+            if kind == 'boot':
+                tone = 3 if y >= sole - 1 else 0 if 1 <= x + .5 - ax <= 4.5 and -1 <= y + .5 - ay <= .8 else 1 if x + .5 < ax + 2 else 2
+                px[x, y] = fig.hide[min(3, tone + far)]
+    if fig.knee_pad:
+        (kx, ky), soft = joints[1], set(fig.cloth)
+        for x, y in list(px):
+            d = math.hypot((x + .5 - kx - .9) / 2.5, (y + .5 - ky) / 2.7)
+            if d <= 1 and px[x, y] in soft:
+                px[x, y] = fig.knee_pad[d > .62 or far]
+    return px
+
+
+def lower_half(fig, pose):
+    """Her hips and both legs: what is behind and what is in front. Sat down, her raised knee is
+    in front of her body, apart."""
+    legs = []
+    for foot, toe in ((pose.far, pose.toes[1]), (pose.near, pose.toes[0])):
+        lifted = GROUND - foot[1] if foot[1] < GROUND and foot[1] > GROUND - 5 else 0
+        legs.append(chain(fig, pose, foot, toe, lifted))
+    middle, belt = pose.hip[0] + .9, pose.hip[1] - .6
+    raised = [kn[1] < belt + 3.5 for _, kn, _, _ in legs]
+    if raised[0] != raised[1]:                    # Her weight over the leg she stands on
+        middle += .28 * (legs[raised[0]][0][0] - middle + (2.5 if raised[0] else -2.5))
+    hips = cowgirl_legs.hips(middle, belt, (5.0 if any(raised) else 6.4) + fig.fuller * .9, cloth=fig.cloth)
+    row = math.floor(belt)
+    ground = max(GROUND, max(round(f[1]) for f in (pose.far, pose.near)))
+    if pose.knee_up:
+        back, knee_up = limb(fig, legs[0], True), limb(fig, legs[1], False)
+        base = dict(back)
+        base.update(hips)
+        return cowgirl_legs.outlined(base), cowgirl_legs.outlined(knee_up)
+    # Nearest to us is the leg on the left: the sheriff's "far" one, away from the car.
+    behind, before = (1, 0) if fig.front_over else (0, 1)
+    first, second = limb(fig, legs[behind], True), limb(fig, legs[before], False)
+    if not any(raised):
+        return cowgirl_legs.lower_body(first, second, hips, row, ground, crotch=4, top=row, crease=4, fold=fig.cloth[3]), {}
+    out = cowgirl_legs.outlined(first)            # A knee up over the belt: each leg whole,
+    out.update(cowgirl_legs.outlined(hips))       # the one nearest to us in front of the body if it is that
+    front = cowgirl_legs.outlined(second)
+    if not raised[before] or legs[before][1][1] < belt - 4.5:
+        out.update(front)
+        front = {}
+    return tuple({p: c for p, c in px.items() if p[1] <= ground} for px in (out, front))
 
 
 def render(fig, pose):
@@ -301,13 +387,7 @@ def render(fig, pose):
     head = turned(fig.head, pose.tilt, fig.neck, (neck[0] + pose.head[0], neck[1] + pose.head[1]))
     front_sh = forward(fig.front, a, hip0, hip)
     back_sh = forward(fig.back, a, hip0, hip)
-    legs = {}
-    for side, foot, toe in (('far', pose.far, pose.toes[1]), ('near', pose.near, pose.toes[0])):
-        top = forward(fig.leg_hip[side], 0, hip0, hip)       # She bends at the waist: her hips stay
-        drawn = edged(leg(top, (round(foot[0]), round(foot[1])), fig.cloth[side], toe, worked=fig.who == 'cowgirl'))
-        if fig.boot:
-            drawn = {p: fig.boot.get(c, c) for p, c in drawn.items()}
-        legs[side] = drawn
+    legs = lower_half(fig, pose)
     gun, guard = {}, None
     if swat_held:
         gun, guard = held_gun(fig, (back_sh[0] + 6, back_sh[1] + 10), -28)
@@ -333,10 +413,7 @@ def render(fig, pose):
                   ('front_arm', farm), ('front_hand', fhand)]
     else:
         order += [('front_arm', farm), ('front_hand', fhand)]
-    first, second = ('near', 'far') if fig.front_over and not pose.knee_up else ('far', 'near')
-    order += [(first + '_leg', legs[first])]
-    order += ([('torso', torso), ('head', head), (second + '_leg', legs[second])] if pose.knee_up else
-              [(second + '_leg', legs[second]), ('torso', torso), ('head', head)])
+    order += [('far_leg', legs[0]), ('torso', torso), ('head', head), ('near_leg', legs[1])]
     if swat_held:
         order += [('gun', gun), ('front_arm', split_forearm(farm, front_sh, felbow, fw)[1]),
                   ('front_hand', fhand)]
@@ -349,13 +426,21 @@ def render(fig, pose):
             colors[p], owner[p] = c, name
     colors = {p: c for p, c in colors.items() if 0 <= p[0] < W and 0 <= p[1] < H}
     if fig.suit:
+        from hazmat_art import INK as EDGE, cloth_tones
         from hazmat_figure import recoloured
-        colors = recoloured(colors, fig.suit[0], fig.suit[1])
+        colors = recoloured(colors)
+        cloth = cloth_tones()
+        arms = {p for p, c in colors.items() if owner[p] in ('front_arm', 'back_arm') and c[:3] in cloth}
+        for x, y in arms:                         # Yellow on yellow, an arm would be lost
+            for q in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if q in colors and owner[q] in ('torso', 'head') and colors[q][:3] in cloth:
+                    colors[q] = EDGE
     elif fig.who == 'cowgirl':
         from finish_cowgirl import finish as outline
         from detail_cowgirl import finish as material, HAIR
         drop_specks(colors, HAIR)
         colors = material(outline(colors, W, H), 'car')
+        drop_ink(colors)
     out, inside = {}, {}
     for p, c in colors.items():
         name = owner.get(p)

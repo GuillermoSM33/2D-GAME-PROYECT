@@ -78,7 +78,11 @@ LOWER = {
     59: "...#####.....#####..",
 }
 HOLSTER = {41: "q..", 42: "qq#", 43: "qqv#", 44: "bbv#", 45: "bbv#", 46: "bvv#", 47: "bv#.", 48: "##.."}
-HOLSTER_X0, SECOND_X0 = 27, 11                  # Her gun's, and with the duals the other's
+HOLSTER_X0 = 27                                  # Her gun's
+# The duals' other one hangs outside her near hip, its last column against her outline: rows
+# from the leather of her belt down.
+NEAR_HOLSTER = ("..#q", ".#qb", "#qbb", "#qbv", "#qbv", ".#bv", "..##")
+NEAR_HIP = 13                                    # Her thigh's outline, standing
 BELT_ROW = 41                                   # Its upper outline; a row of leather and the lower one follow
 STAND_BELT = {x: BELT_ROW for x in range(14, 28)}
 STAND_BUCKLE = 23.5
@@ -169,9 +173,21 @@ def buckle_shown(yaw: float) -> int:
     return 3 if yaw < 36 else 2 if yaw < 55 else 1 if yaw < 66 else 0
 
 
+def near_holster(body: dict, hip: int, belt: int, out: int = 0) -> dict:
+    """The duals' other holster, hung outside her near hip: what her body leaves of it in sight,
+    never over her. hip: the column of her outline; belt: the row of its upper outline; out:
+    columns its end is pushed out."""
+    case = {}
+    for i, row in enumerate(NEAR_HOLSTER):
+        for k, c in enumerate(row):
+            if c != '.':
+                case[hip - len(row) + k - (out if i >= 3 else 0), belt + 1 + i] = COLORS[c]
+    return {p: c for p, c in case.items() if p not in body}
+
+
 def second_holster() -> dict:
-    """The duals' other holster, on her near hip."""
-    return pixels({y: row[::-1] for y, row in ((y, row.ljust(4, '.')) for y, row in HOLSTER.items())}, SECOND_X0)
+    """The duals' other holster as she stands."""
+    return near_holster(standing()[1], NEAR_HIP, BELT_ROW)
 
 
 def standing(chest: int = 0, *, armed: bool = True, dual: bool = False, legs_px: dict = None) -> tuple:
@@ -184,7 +200,7 @@ def standing(chest: int = 0, *, armed: bool = True, dual: bool = False, legs_px:
     if armed:
         out.update(pixels(HOLSTER, HOLSTER_X0))
     if dual:
-        out.update(second_holster())
+        out.update(near_holster(out, NEAR_HIP, BELT_ROW))
     return behind, out
 
 
@@ -225,8 +241,8 @@ def running(frame: float, *, armed: bool = False, dual: bool = False) -> tuple:
     out.update({(x, y + dy): c for (x, y), c in upper.items()})
     out.update(lower)
     out.update(belt(rows, middle + .4 + 5.0 * math.sin(yaw), buckle_shown(pose.yaw(frame))))
-    if dual:                                              # On her near hip, at her back
-        out.update({(x, y): c for (x, y), c in pixels({y: row[::-1] for y, row in
-                    ((y, row.ljust(4, '.')) for y, row in HOLSTER.items() if y <= 46)}, left - 3, 0, rows[left] - BELT_ROW).items()})
+    if dual:                                              # Outside her near hip, as it turns
+        hip = min(x for x, y in lower if rows[left] + 2 <= y <= rows[left] + 4)
+        out.update(near_holster(out, hip, rows[left], int(seat > .5)))
     trail = sash(left + 2, rows[left] + 3, .7 + .3 * pose.stride(frame), 2 * math.pi * pose.phase_of(frame) / 5)
     return trail, out
